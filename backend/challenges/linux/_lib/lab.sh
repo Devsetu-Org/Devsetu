@@ -118,6 +118,25 @@ need_answer() {
   box_ok "test -f /home/learner/answers/$1" || fail "~/answers/$1 does not exist ($2)"
 }
 
-fail() { echo "FAIL: $*" >&2; exit 1; }
-pass() { echo "PASS: $*"; exit 0; }
+# Keep going after a miss so the result can list every task, not only the first one.
+_grade_failures=0
+fail() {
+  echo "FAIL: $*" >&2
+  echo "fail: $*"
+  _grade_failures=$((_grade_failures + 1))
+}
+pass() {
+  if [[ "${_grade_failures}" -gt 0 ]]; then
+    exit 1
+  fi
+  echo "PASS: $*"
+  exit 0
+}
+_grade_finish() {
+  if [[ "${_grade_failures}" -gt 0 ]]; then
+    exit 1
+  fi
+}
+trap _grade_finish EXIT
+
 ok() { echo "ok: $*"; }

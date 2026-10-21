@@ -8,7 +8,7 @@
 #
 # Usage (repo root, AWS admin creds):
 #   ./deploy/eks/eks-nodegroup-update.sh labs-linux
-#   ./deploy/eks/eks-nodegroup-update.sh labs-k8s labs-linux labs-docker
+#   ./deploy/eks/eks-nodegroup-update.sh labs-k8s labs-linux labs-docker labs-spark
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -19,7 +19,7 @@ source "$ROOT/nodegroups.sh"
 eks_need_aws
 
 if [[ $# -eq 0 ]]; then
-  echo "usage: $0 <nodegroup>... (labs-k8s | labs-linux | labs-docker)" >&2
+  echo "usage: $0 <nodegroup>... (labs-k8s | labs-linux | labs-docker | labs-spark)" >&2
   exit 2
 fi
 
@@ -28,6 +28,7 @@ for ng in "$@"; do
     labs-k8s) lt="$EKS_LABS_LAUNCH_TEMPLATE" ;;
     labs-linux) lt="$EKS_LINUX_LAUNCH_TEMPLATE" ;;
     labs-docker) lt="$EKS_DOCKER_LAUNCH_TEMPLATE" ;;
+    labs-spark) lt="$EKS_SPARK_LAUNCH_TEMPLATE" ;;
     *) echo "no launch template for $ng" >&2; exit 2 ;;
   esac
   if ! aws eks describe-nodegroup --cluster-name "$EKS_CLUSTER_NAME" --nodegroup-name "$ng" \

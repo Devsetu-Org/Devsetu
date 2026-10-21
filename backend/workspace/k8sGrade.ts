@@ -48,9 +48,15 @@ async function gradeK8sSession(
   const stdout = (result.stdout || '').trim();
   const stderr = (result.stderr || '').trim();
   const passed = result.code === 0;
+  const firstLine = (text: string, tag: string): string => {
+    const match = text.split('\n').map((line) => line.trim()).find((line) => new RegExp(`^${tag}:`, 'i').test(line));
+    return match || '';
+  };
   const message = passed
-    ? stdout.split('\n').filter(Boolean).pop() || 'PASS'
-    : stderr.split('\n').filter(Boolean).pop()
+    ? firstLine(stdout, 'PASS') || stdout.split('\n').filter(Boolean).pop() || 'PASS'
+    : firstLine(stderr, 'FAIL')
+      || firstLine(stdout, 'fail')
+      || stderr.split('\n').filter(Boolean).pop()
       || stdout.split('\n').filter(Boolean).pop()
       || `grade exited ${result.code}`;
 

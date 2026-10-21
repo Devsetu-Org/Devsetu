@@ -1,5 +1,5 @@
 # Installs the box seccomp profiles (deploy/eks/linux/seccomp/*.json, shipped as ConfigMap
-# dl-system/seccomp-profiles by eks-linux.sh up) into the kubelet's seccomp root on every
+# dl-system/seccomp-profiles by eks-linux.sh base) into the kubelet's seccomp root on every
 # labs-linux node, as /var/lib/kubelet/seccomp/devlabs/<file>. Boxes reference them with
 # seccompProfile {type: Localhost, localhostProfile: devlabs/linux-box.json} (linuxBox.ts).
 #

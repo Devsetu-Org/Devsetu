@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Managed node group helpers, sourced by eks-recreate.sh and eks-linux.sh (after env.sh).
+# Managed node group helpers, sourced by eks-recreate.sh, eks-linux.sh, eks-docker.sh,
+# and eks-spark.sh (after env.sh).
 
 IFS=',' read -r -a SUBNETS <<< "$EKS_SUBNET_IDS"
 
@@ -35,6 +36,10 @@ ensure_nodegroup() {
     labs-docker)
       ensure_launch_template labs-docker
       node_args=(--launch-template "name=${EKS_DOCKER_LAUNCH_TEMPLATE}")
+      ;;
+    labs-spark)
+      ensure_launch_template labs-spark
+      node_args=(--launch-template "name=${EKS_SPARK_LAUNCH_TEMPLATE}")
       ;;
   esac
   echo "==> creating nodegroup $ng ($instance_type, $ami_type, desired=0)"
@@ -81,6 +86,12 @@ ensure_launch_template() {
       reserved="$EKS_DOCKER_KUBE_RESERVED_MEMORY"; disk="$EKS_DOCKER_DISK_GB"; pool=docker
       # The box's own containers count against it too.
       extra="      podPidsLimit: ${EKS_DOCKER_POD_PIDS_LIMIT}
+"
+      ;;
+    labs-spark)
+      name="$EKS_SPARK_LAUNCH_TEMPLATE"; max_pods="$EKS_SPARK_MAX_PODS"
+      reserved="$EKS_SPARK_KUBE_RESERVED_MEMORY"; disk="$EKS_SPARK_DISK_GB"; pool=spark
+      extra="      podPidsLimit: ${EKS_SPARK_POD_PIDS_LIMIT}
 "
       ;;
     *) echo "no launch template for $ng" >&2; return 1 ;;

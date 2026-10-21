@@ -11,6 +11,7 @@ import BriefBackButton from './BriefBackButton';
 import WorkspaceMobileSwitcher, { type WorkspaceMobilePane } from './WorkspaceMobileSwitcher';
 import DesktopOnlyNotice from './DesktopOnlyNotice';
 import { IconPen, IconSubmit } from './ChromeIcons';
+import { SubmitReaction, type GradeModalPhase } from './SubmitReaction';
 import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import { fetchChallenge, fetchChallengeSolution } from '../services/challengeApi';
 import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi';
@@ -90,6 +91,132 @@ type EvalResult = {
   stderr: string;
   at: number;
 };
+
+function submissionStamp(at: number | null): string {
+  if (!at) return '';
+  return new Date(at).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/** Short id shown in the table. The full id stays on the cell for hover and the accessible name. */
+function submissionShortId(id: string): string {
+  return id.replace(/-/g, '').slice(0, 8);
+}
+
+type GradeTask = { passed: boolean; text: string };
+
+type GradeReport = {
+  summary: string;
+  tasks: GradeTask[];
+  log: string;
+};
+
+/** Turn grader stdout and stderr into one sentence and the tasks that passed or failed. */
+function gradeReport(result: EvalResult): GradeReport {
+  const tasks: GradeTask[] = [];
+  const seenFails = new Set<string>();
+  const extra: string[] = [];
+  const consume = (line: string) => {
+    const text = line.trim();
+    if (!text) return;
+    const ok = text.match(/^ok:\s*(.*)$/i);
+    if (ok) {
+      if (ok[1]) tasks.push({ passed: true, text: ok[1] });
+      return;
+    }
+    const failed = text.match(/^fail:\s*(.*)$/i);
+    if (failed) {
+      const task = failed[1];
+      if (task && !seenFails.has(task)) {
+        seenFails.add(task);
+        tasks.push({ passed: false, text: task });
+      }
+      return;
+    }
+    if (/^PASS:/i.test(text)) return;
+    extra.push(text);
+  };
+  result.stdout.split('\n').forEach(consume);
+  result.stderr.split('\n').forEach(consume);
+  let summary = result.message.trim().replace(/^(?:PASS|FAIL|fail):\s*/i, '').trim();
+  if (/^(?:pass|fail)$/i.test(summary)) summary = '';
+  const log = extra.filter((line) => line !== summary && !seenFails.has(line)).join('\n');
+  return { summary, tasks, log };
+}
+
+function K8sResultPanel({
+  result,
+  submissionId,
+  height,
+  onClose,
+  onResizeStart,
+  onResizeReset,
+}: {
+  result: EvalResult;
+  submissionId: string | null;
+  height: number;
+  onClose: () => void;
+  onResizeStart: () => void;
+  onResizeReset: () => void;
+}) {
+  const report = gradeReport(result);
+  const shownTasks = result.passed ? report.tasks : report.tasks.filter((task) => task.passed);
+  const verdict = result.passed ? 'Accepted' : 'Wrong Answer';
+  const shortId = submissionId ? submissionShortId(submissionId) : '';
+  const when = submissionStamp(result.at);
+  return (
+    <div className="spark-job-drawer spark-results-drawer k8s-lab-result" style={{ height }}>
+      <div
+        className="spark-job-drawer-resize"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize results"
+        title="Drag to resize"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onResizeStart();
+        }}
+        onDoubleClick={onResizeReset}
+      />
+      <div className="k8s-lab-result-head">
+        <span className={`k8s-lab-result-verdict${result.passed ? ' is-pass' : ' is-fail'}`}>{verdict}</span>
+        {shortId ? (
+          <span className="k8s-lab-result-id" title={submissionId || undefined}>{shortId}</span>
+        ) : null}
+        <span className="k8s-lab-result-gap" />
+        {when ? <span className="k8s-lab-result-time">{when}</span> : null}
+        <button
+          type="button"
+          className="spark-results-close"
+          onClick={onClose}
+          title="Close results"
+          aria-label="Close results"
+        >
+          ×
+        </button>
+      </div>
+      <div className="k8s-lab-eval-drawer-body k8s-lab-result-body">
+        {report.summary ? <p className="k8s-lab-result-summary">{report.summary}</p> : null}
+        {shownTasks.length > 0 ? (
+          <ul className="k8s-lab-result-checks">
+            {shownTasks.map((task, index) => (
+              <li key={`${task.passed ? 'ok' : 'fail'}-${index}`} className={task.passed ? 'is-pass' : 'is-fail'}>
+                <span className="k8s-lab-result-mark" aria-hidden>{task.passed ? '✓' : '✗'}</span>
+                <span>{task.text}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {result.passed && report.log ? <pre className="k8s-lab-result-log">{report.log}</pre> : null}
+      </div>
+    </div>
+  );
+}
 
 const CAPACITY_POLL_MS = 3000;
 /** Typical Karpenter node boot, shown to learners as the expected wait. */
@@ -182,6 +309,8 @@ export default function K8sLabWorkspace({
   const [busy, setBusy] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
+  const [gradeModal, setGradeModal] = useState<GradeModalPhase | null>(null);
+  const gradeModalOpen = useRef(false);
   const capacity = useCapacity(!box && !lockedMessage);
   const capacityWaits = capacity.waiting;
   const capacityWaitedSeconds = Math.max(
@@ -335,14 +464,26 @@ export default function K8sLabWorkspace({
     };
   }, []);
 
-  const showEvalResult = (result: EvalResult, submissionId?: string | null) => {
+  const dismissGradeModal = () => {
+    gradeModalOpen.current = false;
+    setGradeModal(null);
+  };
+
+  const showEvalResult = (result: EvalResult, submissionId?: string | null, open = true) => {
     setEvalResult(result);
     if (submissionId) setSelectedSubmissionId(submissionId);
-    setResultsOpen(true);
+    if (open) setResultsOpen(true);
   };
 
   const onGrade = async () => {
     setBusy(true);
+    gradeModalOpen.current = true;
+    setGradeModal('grading');
+    const started = Date.now();
+    const holdGrading = async () => {
+      const wait = 900 - (Date.now() - started);
+      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
+    };
     try {
       const res = await gradeK8sSession(session.id);
       const at = Date.now();
@@ -355,22 +496,26 @@ export default function K8sLabWorkspace({
       };
       if (res.submission) {
         setSubmissions((prev) => [res.submission!, ...prev.filter((s) => s.id !== res.submission!.id)]);
-        showEvalResult(result, res.submission.id);
+        showEvalResult(result, res.submission.id, false);
       } else {
         refreshSubmissions();
-        showEvalResult(result);
+        showEvalResult(result, null, false);
       }
-      setBriefTab('submissions');
+      await holdGrading();
+      if (gradeModalOpen.current) setGradeModal(result.passed ? 'pass' : 'fail');
     } catch (e) {
       const err = e as { response?: { data?: { error?: string; message?: string; stdout?: string; stderr?: string } }; message?: string };
       const data = err?.response?.data;
+      const at = Date.now();
       showEvalResult({
         passed: false,
         message: data?.error || data?.message || err.message || 'submit failed',
         stdout: data?.stdout || '',
         stderr: data?.stderr || '',
-        at: Date.now(),
-      });
+        at,
+      }, null, false);
+      await holdGrading();
+      if (gradeModalOpen.current) setGradeModal('fail');
     } finally {
       setBusy(false);
     }
@@ -379,12 +524,18 @@ export default function K8sLabWorkspace({
   const onReset = async () => {
     setResetConfirmOpen(false);
     setBusy(true);
+    gradeModalOpen.current = true;
+    setGradeModal('resetting');
+    const started = Date.now();
+    const holdReset = async () => {
+      const wait = 900 - (Date.now() - started);
+      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
+    };
     try {
       await resetK8sSession(session.id);
-      setEvalResult(null);
-      setResultsOpen(false);
-      setSelectedSubmissionId(null);
       setTermEpoch((n) => n + 1);
+      await holdReset();
+      if (gradeModalOpen.current) setGradeModal('reset');
     } catch (e) {
       const err = e as { response?: { data?: { error?: string } }; message?: string };
       showEvalResult({
@@ -394,6 +545,8 @@ export default function K8sLabWorkspace({
         stderr: '',
         at: Date.now(),
       });
+      await holdReset();
+      if (gradeModalOpen.current) setGradeModal('reset-fail');
     } finally {
       setBusy(false);
     }
@@ -455,6 +608,7 @@ export default function K8sLabWorkspace({
                 className={`spark-brief-tab${briefTab === 'solution' ? ' active' : ''}`}
                 onClick={() => {
                   if (hasAcknowledgedSolution(challengeId)) {
+                    if (!solutionFiles) setSolutionLoading(true);
                     setBriefTab('solution');
                   } else {
                     setSolutionGateOpen(true);
@@ -574,60 +728,53 @@ export default function K8sLabWorkspace({
                 solutionLoading={solutionLoading}
                 submissionsSlot={
                   briefTab === 'submissions' ? (
-                    <div className="spark-submissions-list spark-submissions-list--brief">
+                    <div className="k8s-submission-table">
                       {submissions.length === 0 ? (
-                        <p className="dim" style={{ fontSize: 13, margin: 0 }}>
+                        <p className="k8s-submission-empty">
                           No submissions yet. Submit grades the {box ? 'state of your machine' : 'cluster state'} for this lab.
                         </p>
                       ) : (
-                        submissions.map((sub) => (
-                          <div key={sub.id} className="spark-submission-card">
-                            <button
-                              type="button"
-                              className={`spark-submission-row${
-                                selectedSubmissionId === sub.id ? ' is-selected' : ''
-                              }`}
-                              onClick={() => {
-                                showEvalResult(
-                                  {
-                                    passed: sub.passed,
-                                    message: sub.message,
-                                    stdout: sub.stdout || '',
-                                    stderr: sub.stderr || '',
-                                    at: sub.submittedAt || Date.now(),
-                                  },
-                                  sub.id,
-                                );
-                              }}
-                            >
-                              <span className="spark-submission-name">{sub.name}</span>
-                              <span className="spark-submission-flags">
-                                <span
-                                  className={`spark-grade-badge ${
-                                    sub.passed ? 'spark-grade-badge--ok' : 'spark-grade-badge--fail'
-                                  }`}
-                                >
-                                  {sub.passed ? 'Passed' : 'Failed'}
-                                </span>
-                              </span>
-                              <span className="spark-submission-meta-line">
-                                <span className="spark-submission-time">
-                                  {sub.submittedAt
-                                    ? new Date(sub.submittedAt).toLocaleString(undefined, {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })
-                                    : ''}
-                                </span>
-                                <span className="dim" style={{ fontSize: 12 }}>
-                                  {sub.message}
-                                </span>
-                              </span>
-                            </button>
+                        <>
+                          <div className="k8s-submission-head">
+                            <span>#</span>
+                            <span>ID</span>
+                            <span>Verdict</span>
+                            <span>Submitted</span>
                           </div>
-                        ))
+                          {submissions.map((sub, index) => {
+                            const attempt = submissions.length - index;
+                            const when = submissionStamp(sub.submittedAt);
+                            const verdict = sub.passed ? 'Accepted' : 'Wrong Answer';
+                            const shortId = submissionShortId(sub.id);
+                            return (
+                              <button
+                                key={sub.id}
+                                type="button"
+                                className={`k8s-submission-row${sub.passed ? ' is-pass' : ' is-fail'}${
+                                  selectedSubmissionId === sub.id ? ' is-selected' : ''
+                                }`}
+                                aria-label={`${attempt}, ${shortId}, ${verdict}${when ? `, ${when}` : ''}`}
+                                onClick={() => {
+                                  showEvalResult(
+                                    {
+                                      passed: sub.passed,
+                                      message: sub.message,
+                                      stdout: sub.stdout || '',
+                                      stderr: sub.stderr || '',
+                                      at: sub.submittedAt || Date.now(),
+                                    },
+                                    sub.id,
+                                  );
+                                }}
+                              >
+                                <span className="k8s-submission-num">{attempt}</span>
+                                <span className="k8s-submission-sid" title={sub.id}>{shortId}</span>
+                                <span className="k8s-submission-verdict">{verdict}</span>
+                                <span className="k8s-submission-time">{when}</span>
+                              </button>
+                            );
+                          })}
+                        </>
                       )}
                     </div>
                   ) : null
@@ -710,14 +857,6 @@ export default function K8sLabWorkspace({
                   />
                 </button>
               </div>
-              {evalResult && (
-                <span
-                  className={`k8s-lab-grade-chip${evalResult.passed ? ' is-pass' : ' is-fail'}`}
-                  title={evalResult.message}
-                >
-                  {evalResult.passed ? 'PASS' : 'FAIL'}
-                </span>
-              )}
             </div>
             <div className="spark-ide-actionbar-right">
               <button
@@ -862,18 +1001,14 @@ export default function K8sLabWorkspace({
             {!resultsOpen && evalResult && (
               <button
                 type="button"
-                className="spark-results-reopen"
+                className="spark-results-reopen k8s-lab-result-reopen"
                 onClick={() => setResultsOpen(true)}
                 title="Show result"
               >
-                <span>Result</span>
-                <span
-                  className={`spark-grade-badge ${
-                    evalResult.passed ? 'spark-grade-badge--ok' : 'spark-grade-badge--fail'
-                  }`}
-                >
-                  {evalResult.passed ? 'Passed' : 'Failed'}
+                <span className={`k8s-lab-result-verdict${evalResult.passed ? ' is-pass' : ' is-fail'}`}>
+                  {evalResult.passed ? 'Accepted' : 'Wrong Answer'}
                 </span>
+                <span className="k8s-lab-result-reopen-note">{gradeReport(evalResult).summary}</span>
                 <span className="spark-results-reopen-chevron" aria-hidden>
                   ⌃
                 </span>
@@ -881,86 +1016,31 @@ export default function K8sLabWorkspace({
             )}
 
             {resultsOpen && evalResult && (
-              <div
-                className="spark-job-drawer spark-results-drawer"
-                style={{ height: resultsDrawerHeight }}
-              >
-                <div
-                  className="spark-job-drawer-resize"
-                  role="separator"
-                  aria-orientation="horizontal"
-                  aria-label="Resize results"
-                  title="Drag to resize"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    resizingDrawer.current = true;
-                    document.body.style.cursor = 'row-resize';
-                    document.body.style.userSelect = 'none';
-                  }}
-                  onDoubleClick={() => setResultsDrawerHeight(RESULTS_DRAWER_DEFAULT)}
-                />
-                <div className="spark-job-drawer-header spark-results-tabs-header">
-                  <div className="spark-results-tabs" aria-label="Results">
-                    <span className="spark-results-tab active">Result</span>
-                  </div>
-                  <div className="spark-results-header-right">
-                    <div className="spark-results-meta">
-                      <span
-                        className={`spark-grade-badge ${
-                          evalResult.passed ? 'spark-grade-badge--ok' : 'spark-grade-badge--fail'
-                        }`}
-                      >
-                        {evalResult.passed ? 'Passed' : 'Failed'}
-                      </span>
-                      <span className="spark-results-exec">
-                        {new Date(evalResult.at).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="spark-results-close"
-                      onClick={() => setResultsOpen(false)}
-                      title="Close results"
-                      aria-label="Close results"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-                <div className="spark-job-drawer-body k8s-lab-eval-drawer-body">
-                  <div className={`k8s-lab-eval-banner${evalResult.passed ? ' is-pass' : ' is-fail'}`}>
-                    <strong>{evalResult.passed ? 'PASS' : 'FAIL'}</strong>
-                    <span>{evalResult.message}</span>
-                  </div>
-                  {(evalResult.stdout || evalResult.stderr) && (
-                    <div className="k8s-lab-eval-body">
-                      {evalResult.stdout ? (
-                        <section>
-                          <h3>stdout</h3>
-                          <pre>{evalResult.stdout}</pre>
-                        </section>
-                      ) : null}
-                      {evalResult.stderr ? (
-                        <section>
-                          <h3>stderr</h3>
-                          <pre className="k8s-lab-eval-stderr">{evalResult.stderr}</pre>
-                        </section>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <K8sResultPanel
+                result={evalResult}
+                submissionId={selectedSubmissionId}
+                height={resultsDrawerHeight}
+                onClose={() => setResultsOpen(false)}
+                onResizeStart={() => {
+                  resizingDrawer.current = true;
+                  document.body.style.cursor = 'row-resize';
+                  document.body.style.userSelect = 'none';
+                }}
+                onResizeReset={() => setResultsDrawerHeight(RESULTS_DRAWER_DEFAULT)}
+              />
             )}
           </div>
         </div>
       </div>
       )}
+      {gradeModal && <SubmitReaction phase={gradeModal} onClose={dismissGradeModal} />}
       <SolutionGateModal
         open={solutionGateOpen}
         challengeId={challengeId}
         onCancel={() => setSolutionGateOpen(false)}
         onConfirm={() => {
           setSolutionGateOpen(false);
+          if (!solutionFiles) setSolutionLoading(true);
           setBriefTab('solution');
         }}
       />

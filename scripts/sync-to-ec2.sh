@@ -88,12 +88,11 @@ echo "==> sync done"
 
 if [[ "$WITH_KUBECONFIG" -eq 1 ]]; then
   echo ""
-  EC2_HOST="$HOST" EC2_KEY="$KEY" EC2_USER="$USER_NAME" EC2_APP_DIR="$REMOTE_DIR" \
-    "$ROOT/scripts/refresh-ec2-kubeconfig.sh"
+  EC2_APP_DIR="$REMOTE_DIR" "$ROOT/scripts/refresh-ec2-kubeconfig.sh"
 else
   echo "Next (optional):"
   echo "  # refresh EKS kubeconfig on EC2 + recreate backend"
-  echo "  EC2_HOST=$HOST EC2_KEY=$KEY ./scripts/refresh-ec2-kubeconfig.sh"
+  echo "  ./scripts/refresh-ec2-kubeconfig.sh"
   echo "  # or re-run sync with:  ./scripts/sync-to-ec2.sh --with-kubeconfig"
   echo ""
   echo "On the instance (first-time / code deploy):"

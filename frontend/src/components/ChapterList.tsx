@@ -8,10 +8,17 @@ export interface ChapterListProps {
   isOpen: (chapter: ProjectModule) => boolean;
   /** Route of an open chapter. */
   hrefFor: (chapter: ProjectModule) => string;
+  /** Replaces "Open" on a chapter the learner has started, e.g. "2/4" or "Done". */
+  progressFor?: (chapter: ProjectModule) => string | null;
 }
 
 /** Numbered chapter list shared by majors and chaptered minors. */
-export default function ChapterList({ chapters, isOpen, hrefFor }: ChapterListProps): JSX.Element {
+export default function ChapterList({
+  chapters,
+  isOpen,
+  hrefFor,
+  progressFor,
+}: ChapterListProps): JSX.Element {
   const firstNumber = chapters[0]?.kind === 'reading' ? 0 : 1;
   return (
     <section className="project-milestones" aria-label="Chapters">
@@ -30,7 +37,7 @@ export default function ChapterList({ chapters, isOpen, hrefFor }: ChapterListPr
                 <span className="project-milestone-sub">{chapter.subtitle}</span>
               </span>
               <span className={`project-milestone-state${open ? ' is-open' : ''}`}>
-                {open ? openLabel : 'Soon'}
+                {open ? (progressFor?.(chapter) ?? openLabel) : 'Soon'}
               </span>
             </>
           );

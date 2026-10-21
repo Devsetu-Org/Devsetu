@@ -11,9 +11,30 @@
  * Do not register a full memkv tree in chapter 1.
  */
 
-import { TCP_SERVER_MINOR } from './tcpServerMinor';
 import { LSM_TREE_MEMTABLE_CPP, LSM_TREE_MEMTABLE_GO, LSM_TREE_MEMTABLE_PYTHON } from './lsmTreeMinor';
+import {
+  LSM_TREE_COMPACTION_GO,
+  LSM_TREE_READ_PATH_GO,
+  LSM_TREE_SSTABLE_GO,
+  LSM_TREE_WAL_GO,
+} from './lsmTreeChaptersGo';
+import {
+  B_TREE_BTREE_GO,
+  B_TREE_BUFFER_POOL_GO,
+  B_TREE_MUTATIONS_GO,
+  B_TREE_PAGER_GO,
+  B_TREE_WAL_GO,
+} from './bTreeChaptersGo';
+import {
+  CONSENSUS_CLIENTS_GO,
+  CONSENSUS_COMMIT_GO,
+  CONSENSUS_ELECTION_GO,
+  CONSENSUS_PERSISTENCE_GO,
+  CONSENSUS_REPLICATION_GO,
+} from './consensusChaptersGo';
 import { LSM_TREE_OVERVIEW } from './lsmTreeOverview';
+import { B_TREE_OVERVIEW } from './bTreeOverview';
+import { CONSENSUS_OVERVIEW } from './consensusOverview';
 import { CINDER_EVENT_LOOP } from './cinderEventLoop';
 import type { LanguageId } from '../../constants/languages';
 import type { ChapterReading, ProjectModuleContent } from './types';
@@ -23,8 +44,8 @@ export type { ChapterReading, ModuleTask, ProjectModuleContent } from './types';
 /** Cinder chapter fixtures land here as each chapter is authored. */
 const MODULE_CONTENT: ProjectModuleContent[] = [CINDER_EVENT_LOOP];
 
-/** Single-workspace minors, keyed by minor id. */
-const MINOR_CONTENT: ProjectModuleContent[] = [TCP_SERVER_MINOR];
+/** Single-workspace minors, keyed by minor id. (Chaptered minors use readings + chapter fixtures.) */
+const MINOR_CONTENT: ProjectModuleContent[] = [];
 
 /**
  * Chapters of chaptered minors: `projectId` is the minor id, `moduleId` the
@@ -34,6 +55,20 @@ const MINOR_CHAPTER_CONTENT: ProjectModuleContent[] = [
   LSM_TREE_MEMTABLE_GO,
   LSM_TREE_MEMTABLE_PYTHON,
   LSM_TREE_MEMTABLE_CPP,
+  LSM_TREE_WAL_GO,
+  LSM_TREE_SSTABLE_GO,
+  LSM_TREE_READ_PATH_GO,
+  LSM_TREE_COMPACTION_GO,
+  B_TREE_PAGER_GO,
+  B_TREE_BTREE_GO,
+  B_TREE_WAL_GO,
+  B_TREE_BUFFER_POOL_GO,
+  B_TREE_MUTATIONS_GO,
+  CONSENSUS_ELECTION_GO,
+  CONSENSUS_REPLICATION_GO,
+  CONSENSUS_COMMIT_GO,
+  CONSENSUS_PERSISTENCE_GO,
+  CONSENSUS_CLIENTS_GO,
 ];
 
 const DEFAULT_LANGUAGE: LanguageId = 'go';
@@ -54,7 +89,11 @@ const MINOR_CHAPTER_BY_KEY = new Map<string, ProjectModuleContent>(
 );
 
 /** Articles for `reading` chapters of minors, keyed `minorId/chapterId`. */
-const MINOR_READINGS = new Map<string, ChapterReading>([['lsm-tree/overview', LSM_TREE_OVERVIEW]]);
+const MINOR_READINGS = new Map<string, ChapterReading>([
+  ['lsm-tree/overview', LSM_TREE_OVERVIEW],
+  ['b-tree/overview', B_TREE_OVERVIEW],
+  ['consensus/overview', CONSENSUS_OVERVIEW],
+]);
 
 export function getModuleContent(
   projectId: string | null | undefined,

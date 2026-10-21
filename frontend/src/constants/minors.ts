@@ -26,6 +26,66 @@ export interface MinorEntry {
   languages?: LanguageId[];
 }
 
+const B_TREE_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'What a B-tree engine is, where it runs, and what you will build',
+    blurb:
+      'Why databases update pages in place, how a B+ tree stays balanced, which systems run on one, and the five chapters ahead.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'pager',
+    label: 'Pager',
+    subtitle: 'Fixed-size pages, a freelist, and durable page I/O',
+    blurb:
+      'The file is an array of pages. Allocate, free, read, and write them. Everything above this chapter talks in page numbers, not byte offsets.',
+    status: 'ready',
+  },
+  {
+    id: 'btree',
+    label: 'B+ tree',
+    subtitle: 'Search, insert, and split over the pager',
+    blurb:
+      'Internal pages hold separators; leaves hold keys and values and link sideways. Inserts split a full page and push a separator up.',
+    status: 'ready',
+  },
+  {
+    id: 'write-ahead-log',
+    label: 'Write-ahead log',
+    subtitle: 'Log the change before the page is durable',
+    blurb:
+      'Checksummed records, an fsync policy, and recovery that brings every dirty page back after a crash. Kill the process mid-write and lose nothing acknowledged.',
+    status: 'ready',
+  },
+  {
+    id: 'buffer-pool',
+    label: 'Buffer pool',
+    subtitle: 'Pin, unpin, evict, and flush dirty pages',
+    blurb:
+      'A fixed set of frames caches hot pages. The clock hand evicts cold ones; dirty pages hit the log and the pager before they leave.',
+    status: 'ready',
+  },
+  {
+    id: 'mutations',
+    label: 'Mutations',
+    subtitle: 'Delete, merge, and range scans',
+    blurb:
+      'Deletes may underflow a leaf: borrow from a sibling or merge and pull a separator down. Scans walk leaf links. The public Put / Get / Delete / Scan API is complete.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your engine against the reference, on the same machines and data',
+    blurb:
+      'Tune or rework your engine, then run it side by side with ours on identical hardware and workloads. Scored as a ratio to the reference.',
+    status: 'planned',
+  },
+];
+
 const LSM_TREE_CHAPTERS: ProjectModule[] = [
   {
     id: 'overview',
@@ -50,7 +110,7 @@ const LSM_TREE_CHAPTERS: ProjectModule[] = [
     subtitle: 'Append before acknowledging, replay on open',
     blurb:
       'Checksummed records, an fsync policy, and a torn tail truncated on recovery. Kill the process mid-write and lose nothing acknowledged.',
-    status: 'planned',
+    status: 'ready',
   },
   {
     id: 'sstable',
@@ -58,7 +118,7 @@ const LSM_TREE_CHAPTERS: ProjectModule[] = [
     subtitle: 'Flush the memtable to a sorted, immutable file',
     blurb:
       'Data blocks, an index block, and a checksummed footer. A point lookup reads one block, not the whole file.',
-    status: 'planned',
+    status: 'ready',
   },
   {
     id: 'read-path',
@@ -66,7 +126,7 @@ const LSM_TREE_CHAPTERS: ProjectModule[] = [
     subtitle: 'Bloom filters and newest-first search',
     blurb:
       'Memtable first, then tables from newest to oldest. Bloom filters skip files that cannot hold the key; a merging iterator serves range scans.',
-    status: 'planned',
+    status: 'ready',
   },
   {
     id: 'compaction',
@@ -74,23 +134,120 @@ const LSM_TREE_CHAPTERS: ProjectModule[] = [
     subtitle: 'Merge tables, drop dead versions',
     blurb:
       'A k-way merge keeps the newest version of each key, drops tombstones with nothing left to hide, and swaps files atomically through a manifest.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your engine against the reference, on the same machines and data',
+    blurb:
+      'Tune or rework your engine, then run it side by side with ours on identical hardware and workloads, including a slice of real production traffic. Scored as a ratio to the reference.',
+    status: 'planned',
+  },
+];
+
+const CONSENSUS_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'What consensus is, where Raft runs, and what you will build',
+    blurb:
+      'Why replicated systems need agreement, how Raft elects a leader and replicates a log, and the five chapters ahead.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'election',
+    label: 'Election',
+    subtitle: 'Terms, votes, and becoming leader',
+    blurb:
+      'Followers time out, become candidates, and RequestVote. A majority makes a leader; a higher term makes everyone step down.',
+    status: 'ready',
+  },
+  {
+    id: 'replication',
+    label: 'Replication',
+    subtitle: 'AppendEntries and keeping logs aligned',
+    blurb:
+      'The leader pushes log entries to followers. Matching indices and conflict resolution keep every replica’s log a prefix of the leader’s.',
+    status: 'ready',
+  },
+  {
+    id: 'commit',
+    label: 'Commit',
+    subtitle: 'Majority ack, commitIndex, and apply',
+    blurb:
+      'An entry is committed once a majority has it. Nodes advance commitIndex and apply entries to a state machine in order.',
+    status: 'ready',
+  },
+  {
+    id: 'persistence',
+    label: 'Persistence',
+    subtitle: 'Durable log, term, and votedFor',
+    blurb:
+      'Crash mid-term and come back with the same vote and log. Replay rebuilds in-memory state; nothing acknowledged is lost.',
+    status: 'ready',
+  },
+  {
+    id: 'clients',
+    label: 'Clients',
+    subtitle: 'A replicated key/value API',
+    blurb:
+      'Clients talk to the leader. Puts and deletes become log entries; gets read the applied state. Redirects when you hit a follower.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your cluster against the reference, under partitions',
+    blurb:
+      'Run the same workload and fault schedule against your Raft and ours. Correctness first, then throughput and failover time.',
     status: 'planned',
   },
 ];
 
 export const MINORS: MinorEntry[] = [
   {
-    id: 'tcp-server',
-    name: 'TCP server',
-    subtitle: 'Building a TCP server',
+    id: 'b-tree',
+    name: 'B-tree',
+    subtitle: 'Building a B+ tree storage engine',
     blurb:
-      'Bind a listener, accept clients, and serve a line protocol you can talk to with nc.',
+      'The update-in-place engine behind Postgres and InnoDB: a pager, a B+ tree, a write-ahead log, and a buffer pool.',
     about: [
-      'A TCP server is a listening socket, an accept loop, and a connection handler that reads requests and writes replies. By the end you have a process that answers PING over the network.',
-      'You implement listen, accept, the per-connection read loop, and graceful shutdown. The protocol is one request per line: PING, ECHO, QUIT. Tests dial a real port — passing them means the socket path actually works.',
+      'A B+ tree keeps every key in exactly one place. Leaves hold the data; internal pages hold only separators that guide a lookup down a short path. Pages update in place, so a write is a root-to-leaf walk and a page rewrite.',
+      'Around the tree sit the pieces that make it a real engine: a pager that owns the page file and freelist, a write-ahead log so a crash loses nothing, and a buffer pool that keeps hot pages in memory. Each chapter ends with tests that prove that piece works.',
     ],
-    facts: ['Sockets', 'Accept loop', 'Line protocol'],
+    language: 'Go',
+    facts: [
+      'Pager',
+      'B+ tree',
+      'Buffer pool',
+      `${B_TREE_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
+    ],
     status: 'planned',
+    chapters: B_TREE_CHAPTERS,
+    languages: ['go'],
+  },
+  {
+    id: 'consensus',
+    name: 'Consensus',
+    subtitle: 'Building Raft',
+    blurb:
+      'The agreement protocol behind etcd and Consul: leader election, log replication, commits, and a replicated key/value store.',
+    about: [
+      'Distributed systems that must not disagree use a consensus protocol. Raft elects one leader per term, replicates a log to a majority, and applies committed entries to a state machine in the same order on every node.',
+      'You build the pieces in order: election, AppendEntries, commit and apply, durable persistence, then a small client API on top. Network partitions and crashes are part of the tests from the start.',
+    ],
+    language: 'Go',
+    facts: [
+      'Raft',
+      'Leader election',
+      'Log replication',
+      `${CONSENSUS_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
+    ],
+    status: 'planned',
+    chapters: CONSENSUS_CHAPTERS,
+    languages: ['go'],
   },
   {
     id: 'lsm-tree',

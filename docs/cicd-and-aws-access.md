@@ -126,7 +126,7 @@ After a successful deploy and a successful `aws ssm start-session --target i-0bb
 - Stop using `scripts/sync-to-ec2.sh`; delete the EC2 key pair and `.devlabs-beta.pem`.
 - Make the Docker Hub repo `rithvikreddyalkanti/devlabs-backend` private or delete it: it's a public
   copy of the backend.
-- `scripts/refresh-ec2-kubeconfig.sh` still uses SSH; run it through a Session Manager session until it's ported.
+- `scripts/refresh-ec2-kubeconfig.sh` pushes the EKS kubeconfig over SSM (no SSH); `deploy/eks/eks-recreate.sh` runs it at the end.
 
 ---
 

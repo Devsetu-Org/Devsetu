@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Recreate the DevSetu EKS cluster + node groups if missing, then wire app access + kubeconfig.
+# Recreate the DevSetu EKS cluster + node groups if missing, then wire app access + kubeconfig
+# (local, and on the App EC2 via SSM — skip with EKS_SKIP_EC2_KUBECONFIG=1).
+# Wakes system-k8s and installs add-on placement, Kyverno, and admission policies.
+# Karpenter is separate: ./deploy/eks/eks-karpenter.sh (needs system-k8s Ready).
+# Skip platform with EKS_SKIP_PLATFORM=1 (lean Desired=0 recreate only).
 # Does NOT delete an existing healthy cluster — safe to re-run.
 #
 # Usage (from repo root, credentials that can manage EKS/IAM):
+#   aws sso login --profile devlabs-admin && export AWS_PROFILE=devlabs-admin
 #   ./deploy/eks/eks-recreate.sh
 #   EKS_KUBECONFIG_OUT=/opt/devlabs/kube/k8s-lab.kubeconfig ./deploy/eks/eks-recreate.sh
+#   EKS_SKIP_PLATFORM=1 ./deploy/eks/eks-recreate.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -13,6 +19,34 @@ source "$ROOT/env.sh"
 # shellcheck source=nodegroups.sh
 source "$ROOT/nodegroups.sh"
 eks_need_aws
+
+# Wake system-k8s, pin add-ons, then Kyverno / admission (Helm --wait needs a Ready system node).
+ensure_platform() {
+  if [[ "${EKS_SKIP_PLATFORM:-0}" == 1 ]]; then
+    echo "==> skipped platform bring-up (EKS_SKIP_PLATFORM=1)"
+    return
+  fi
+  if ! command -v helm >/dev/null 2>&1; then
+    echo "helm not found (needed for Kyverno). Install helm or set EKS_SKIP_PLATFORM=1" >&2
+    exit 1
+  fi
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl not found (needed for platform bring-up). Install kubectl or set EKS_SKIP_PLATFORM=1" >&2
+    exit 1
+  fi
+
+  export KUBECONFIG="${KUBECONFIG:-$EKS_KUBECONFIG_OUT}"
+
+  echo "==> wake system-k8s (platform controllers need a Ready node)"
+  EKS_WAKE_NODEGROUPS=system-k8s "$ROOT/eks-wake.sh"
+
+  echo "==> waiting for a Ready system-k8s node"
+  kubectl wait --for=condition=Ready node -l devlabs.io/pool=system --timeout=10m
+
+  "$ROOT/eks-addon-placement.sh"
+  "$ROOT/eks-kyverno.sh"
+  "$ROOT/eks-admission.sh"
+}
 
 create_cluster_if_needed() {
   if eks_cluster_exists; then
@@ -123,14 +157,28 @@ ensure_ebs_csi_pod_identity
 
 "$ROOT/eks-access.sh"
 "$ROOT/eks-kubeconfig.sh"
+ensure_platform
+
+if [[ "${EKS_SKIP_EC2_KUBECONFIG:-0}" == 1 ]]; then
+  echo "==> skipped App EC2 kubeconfig (EKS_SKIP_EC2_KUBECONFIG=1)"
+else
+  echo "==> App EC2 kubeconfig"
+  "$ROOT/../../scripts/refresh-ec2-kubeconfig.sh"
+fi
 
 echo ""
 echo "==> recreate complete"
-echo "    Nodes are Desired=0. Then, in order (each needs the previous one):"
-echo "      ./deploy/eks/eks-wake.sh              # system-k8s + labs-k8s + labs-linux nodes"
-echo "      ./deploy/eks/eks-addon-placement.sh   # once a system-k8s node is Ready"
-echo "      ./deploy/eks/eks-karpenter.sh         # Karpenter, NodePool, balloons"
-echo "      ./deploy/eks/eks-kyverno.sh           # learner do-not-disrupt policy"
-echo "      ./deploy/eks/eks-admission.sh         # learner quota / LimitRange policies"
-echo "      ./deploy/eks/eks-linux.sh up          # labs-linux-elastic NodePool + NRI plugin"
-echo "    Then copy the new kubeconfig to the App EC2 and restart the backend (endpoint + CA change)."
+if [[ "${EKS_SKIP_PLATFORM:-0}" == 1 ]]; then
+  echo "    Platform skipped (EKS_SKIP_PLATFORM=1). Nodes still Desired=0 except any you wake yourself."
+  echo "    Then: wake system-k8s → eks-addon-placement.sh → eks-kyverno.sh → eks-admission.sh"
+else
+  echo "    system-k8s is up; add-ons pinned; Kyverno and admission policies installed."
+  echo "    labs-k8s / labs-linux are still Desired=0 unless you wake them."
+fi
+echo "    Next (as needed):"
+echo "      ./deploy/eks/eks-karpenter.sh         # controller + labs-elastic (run separately)"
+echo "      ./deploy/eks/eks-wake.sh              # labs-k8s + labs-linux (system already up)"
+echo "      ./deploy/eks/eks-linux.sh base        # labs-linux + NRI + seccomp"
+echo "      ./deploy/eks/eks-linux.sh up          # optional labs-linux-elastic overflow"
+echo "      ./deploy/eks/eks-spark.sh base && ./deploy/eks/eks-spark.sh up   # optional Spark pool"
+echo "    App EC2 kubeconfig was refreshed via SSM (backend restarted only if the endpoint changed)."

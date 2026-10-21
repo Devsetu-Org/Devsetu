@@ -1093,6 +1093,36 @@ function shouldSkipSnapshotObject(obj: K8sObject): boolean {
 
 const BINDING_ANNOTATION_PREFIXES = ['pv.kubernetes.io/', 'volume.kubernetes.io/', 'volume.beta.kubernetes.io/'];
 const JOB_GENERATED_LABELS = ['controller-uid', 'batch.kubernetes.io/controller-uid', 'job-name', 'batch.kubernetes.io/job-name'];
+const LIMIT_RANGER_ANNOTATION = 'kubernetes.io/limit-ranger';
+
+type ContainerResources = { name?: string; resources?: { requests?: Record<string, unknown>; limits?: Record<string, unknown> } };
+
+/**
+ * Drop the requests / limits the LimitRanger filled in at admission, so a restore picks
+ * up the current challenge's LimitRange defaults instead of replaying stale ones (which
+ * can exceed the new quota). Values the learner wrote are kept.
+ * Annotation: "LimitRanger plugin set: cpu, memory request for container web; cpu limit for init container x"
+ */
+function stripLimitRangerDefaults(pod: K8sObject): void {
+  const annotations = pod.metadata?.annotations;
+  const note = annotations?.[LIMIT_RANGER_ANNOTATION];
+  if (!annotations || note === undefined) return;
+  delete annotations[LIMIT_RANGER_ANNOTATION];
+  const spec = pod.spec as { containers?: ContainerResources[]; initContainers?: ContainerResources[] } | undefined;
+  if (!spec) return;
+  const segments = String(note).replace(/^LimitRanger plugin set:\s*/, '').split(';');
+  for (const segment of segments) {
+    const m = /^\s*([a-z0-9.\-/, ]+?)\s+(request|limit)\s+for\s+(init container|container)\s+(\S+)\s*$/i.exec(segment);
+    if (!m) continue;
+    const [, names, which, scope, containerName] = m;
+    const list = scope.toLowerCase() === 'init container' ? spec.initContainers : spec.containers;
+    const res = list?.find((c) => c.name === containerName)?.resources;
+    const bucket = which.toLowerCase() === 'request' ? res?.requests : res?.limits;
+    if (!res || !bucket) continue;
+    for (const name of names.split(',').map((n) => n.trim()).filter(Boolean)) delete bucket[name];
+    if (!Object.keys(bucket).length) delete res[which.toLowerCase() === 'request' ? 'requests' : 'limits'];
+  }
+}
 
 function sanitizeForReapply(obj: K8sObject, ns: string): K8sObject | null {
   if (shouldSkipSnapshotObject(obj)) return null;
@@ -1117,6 +1147,7 @@ function sanitizeForReapply(obj: K8sObject, ns: string): K8sObject | null {
   } else {
     md.namespace = ns;
   }
+  if (kind === 'pod') stripLimitRangerDefaults(copy);
   if (md.annotations) {
     delete md.annotations['kubectl.kubernetes.io/last-applied-configuration'];
     for (const key of Object.keys(md.annotations)) {

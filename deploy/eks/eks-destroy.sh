@@ -92,8 +92,8 @@ echo "==> waiting for cluster delete"
 aws eks wait cluster-deleted --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION" 2>/dev/null || true
 
 echo "==> destroyed"
-echo "    Recreate later, in order:"
-echo "      ./deploy/eks/eks-recreate.sh && ./deploy/eks/eks-wake.sh"
-echo "      ./deploy/eks/eks-addon-placement.sh && ./deploy/eks/eks-karpenter.sh"
-echo "      ./deploy/eks/eks-kyverno.sh && ./deploy/eks/eks-admission.sh"
-echo "    Then copy the new kubeconfig to the App EC2 and restart the backend."
+echo "    Recreate later:"
+echo "      ./deploy/eks/eks-recreate.sh   # wakes system; Kyverno + admission"
+echo "      ./deploy/eks/eks-karpenter.sh  # controller + labs-elastic"
+echo "      ./deploy/eks/eks-wake.sh       # labs-k8s + labs-linux as needed"
+echo "    App EC2 kubeconfig is refreshed at the end of recreate (unless EKS_SKIP_EC2_KUBECONFIG=1)."

@@ -17,6 +17,8 @@ import {
 import NotifyButton from '../components/NotifyButton';
 import ChapterList from '../components/ChapterList';
 import { useIsAdmin } from '../components/AdminOnlyRoute';
+import type { EarlierChapter } from '../utils/chapterCarry';
+import { countDone, readSavedFiles } from '../utils/workspaceFiles';
 
 function minorLanguages(minor: MinorEntry): LanguageId[] {
   return minor.languages && minor.languages.length > 0 ? minor.languages : ['go'];
@@ -66,6 +68,49 @@ function chapterOpen(minor: MinorEntry, chapter: ProjectModule, language: Langua
     : hasMinorChapterContent(minor.id, chapter.id, language);
 }
 
+function chapterPersistId(minor: MinorEntry, chapter: ProjectModule, language: LanguageId): string {
+  // Go keeps the id it had before other languages existed, so saved work survives.
+  const languageSuffix = language === 'go' ? '' : `.${language}`;
+  return `minor.${minor.id}.${chapter.id}${languageSuffix}`;
+}
+
+/** The build chapters before `chapter` in this language, oldest first. */
+function earlierChapters(
+  minor: MinorEntry,
+  chapter: ProjectModule,
+  language: LanguageId,
+): EarlierChapter[] {
+  const chapters = minor.chapters || [];
+  const index = chapters.findIndex((c) => c.id === chapter.id);
+  return chapters.slice(0, Math.max(index, 0)).flatMap((earlier) => {
+    const content =
+      earlier.kind === 'reading' ? null : getMinorChapterContent(minor.id, earlier.id, language);
+    if (!content) return [];
+    return [
+      {
+        id: earlier.id,
+        label: earlier.label,
+        href: `${MINORS_PATH}/${minor.id}/${earlier.id}?lang=${language}`,
+        persistId: chapterPersistId(minor, earlier, language),
+        content,
+      },
+    ];
+  });
+}
+
+function chapterProgress(
+  minor: MinorEntry,
+  chapter: ProjectModule,
+  language: LanguageId,
+): string | null {
+  if (chapter.kind === 'reading') return null;
+  const content = getMinorChapterContent(minor.id, chapter.id, language);
+  const saved = content ? readSavedFiles(chapterPersistId(minor, chapter, language)) : null;
+  if (!content || !saved || content.tasks.length === 0) return null;
+  const done = countDone(saved, content.tasks);
+  return done === content.tasks.length ? 'Done' : `${done}/${content.tasks.length}`;
+}
+
 function hasAuthoredContent(minor: MinorEntry): boolean {
   if (minor.chapters) {
     return minorLanguages(minor).some((lang) =>
@@ -75,35 +120,32 @@ function hasAuthoredContent(minor: MinorEntry): boolean {
   return hasMinorContent(minor.id);
 }
 
-function LanguagePicker({
-  minor,
+function LanguageSelect({
+  languages,
   language,
   onChange,
 }: {
-  minor: MinorEntry;
+  languages: LanguageId[];
   language: LanguageId;
   onChange: (lang: LanguageId) => void;
 }): JSX.Element | null {
-  const languages = minorLanguages(minor);
   if (languages.length < 2) return null;
   return (
-    <div className="project-language-picker">
-      <span className="project-language-picker-label">Build it in</span>
-      <div className="app-segmented-tabs" role="radiogroup" aria-label="Language">
+    <label className="minor-language-select">
+      <span>Language</span>
+      <select
+        value={language}
+        onChange={(event) => {
+          if (isLanguageId(event.target.value)) onChange(event.target.value);
+        }}
+      >
         {languages.map((lang) => (
-          <button
-            key={lang}
-            type="button"
-            role="radio"
-            aria-checked={lang === language}
-            className={`app-segmented-tab${lang === language ? ' active' : ''}`}
-            onClick={() => onChange(lang)}
-          >
+          <option key={lang} value={lang}>
             {LANGUAGE_LABELS[lang]}
-          </button>
+          </option>
         ))}
-      </div>
-    </div>
+      </select>
+    </label>
   );
 }
 
@@ -114,7 +156,7 @@ function canOpen(minor: MinorEntry, isAdmin: boolean): boolean {
 
 function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
   return (
-    <div className="app-page play-problems-page">
+    <div className="app-page play-problems-page app-page--no-scrollbar">
       <header className="play-problems-hero">
         <div className="play-problems-hero-copy">
           <h1 className="play-problems-title">Minors</h1>
@@ -179,14 +221,12 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
 function MinorDetail({
   minor,
   language,
-  onLanguageChange,
 }: {
   minor: MinorEntry;
   language: LanguageId;
-  onLanguageChange: (lang: LanguageId) => void;
 }): JSX.Element {
   return (
-    <div className="app-page play-problems-page project-detail--list">
+    <div className="app-page play-problems-page project-detail--list app-page--no-scrollbar">
       <header className="project-detail-compact">
         <p className="play-papers-crumb">
           <Link to={MINORS_PATH}>Minors</Link>
@@ -210,12 +250,11 @@ function MinorDetail({
         ))}
       </div>
 
-      <LanguagePicker minor={minor} language={language} onChange={onLanguageChange} />
-
       <ChapterList
         chapters={minor.chapters || []}
         isOpen={(chapter) => chapterOpen(minor, chapter, language)}
         hrefFor={(chapter) => `${MINORS_PATH}/${minor.id}/${chapter.id}?lang=${language}`}
+        progressFor={(chapter) => chapterProgress(minor, chapter, language)}
       />
     </div>
   );
@@ -335,7 +374,7 @@ export default function MinorsPage(): JSX.Element {
 
   if (minor.chapters) {
     if (!chapterId) {
-      return <MinorDetail minor={minor} language={language} onLanguageChange={setLanguage} />;
+      return <MinorDetail minor={minor} language={language} />;
     }
     const chapter = getMinorChapter(minor, chapterId);
     if (!chapter || !chapterOpen(minor, chapter, language)) {
@@ -348,17 +387,25 @@ export default function MinorsPage(): JSX.Element {
     }
     const content = getMinorChapterContent(minor.id, chapter.id, language);
     if (!content) return <Navigate to={minorPath} replace />;
-    // Go keeps the id it had before other languages existed, so saved work survives.
-    const languageSuffix = language === 'go' ? '' : `.${language}`;
     return (
       <ModuleWorkspace
-        persistId={`minor.${minor.id}.${chapter.id}${languageSuffix}`}
+        persistId={chapterPersistId(minor, chapter, language)}
         content={content}
+        earlierChapters={earlierChapters(minor, chapter, language)}
         trail={[
           { to: MINORS_PATH, label: 'Minors' },
           { to: `${minorPath}?lang=${language}`, label: minor.name },
         ]}
         title={`${chapter.label} · ${LANGUAGE_LABELS[language]}`}
+        crumbAction={
+          <LanguageSelect
+            languages={minorLanguages(minor).filter((lang) =>
+              hasMinorChapterContent(minor.id, chapter.id, lang),
+            )}
+            language={language}
+            onChange={setLanguage}
+          />
+        }
       />
     );
   }

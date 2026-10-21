@@ -20,8 +20,14 @@ import {
   getDockerReading,
   listDockerTrackItems,
 } from './dockerReadings';
+import {
+  DEVOPS_INTRO_PATH,
+  devopsReadingPath,
+  getDevopsReading,
+  listDevopsIntroItems,
+} from './devopsReadings';
 
-export type ReadingTrackId = 'kubernetes' | 'linux' | 'docker';
+export type ReadingTrackId = 'kubernetes' | 'linux' | 'docker' | 'devops';
 
 export interface ReadingTrack {
   id: ReadingTrackId;
@@ -68,6 +74,16 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
     readingPath: dockerReadingPath,
     listTrackItems: listDockerTrackItems,
   },
+  devops: {
+    id: 'devops',
+    label: 'Introduction',
+    labsPath: DEVOPS_INTRO_PATH,
+    primer: null,
+    relatedLabsIntro: '',
+    getReading: getDevopsReading,
+    readingPath: devopsReadingPath,
+    listTrackItems: listDevopsIntroItems,
+  },
 };
 
 export function readingTrackForPanel(
@@ -75,6 +91,7 @@ export function readingTrackForPanel(
   panelId: string | null | undefined,
 ): ReadingTrack | null {
   if (domainId !== 'devops-engineer') return null;
+  if (panelId === 'introduction') return READING_TRACKS.devops;
   if (panelId === 'kubernetes') return READING_TRACKS.kubernetes;
   if (panelId === 'linux') return READING_TRACKS.linux;
   if (panelId === 'docker') return READING_TRACKS.docker;

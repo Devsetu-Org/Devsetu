@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # Linux-module infrastructure on the devlabs cluster. Idempotent.
 #
-# Capacity mirrors the k8s labs: an always-on managed node group (labs-linux, like labs-k8s)
-# plus a Karpenter NodePool for overflow (labs-linux-elastic, like labs-elastic).
+# Capacity: an always-on managed node group (labs-linux) plus optional Karpenter overflow
+# (labs-linux-elastic). NRI + seccomp are DaemonSets on every node with
+# devlabs.io/pool=linux (managed base and elastic alike).
 #
-#   base   create the labs-linux managed node group + launch template if missing, scale to 1
-#          (AWS admin creds: EKS + EC2 launch templates)
-#   up     apply the labs-linux-elastic EC2NodeClass + NodePool, the NRI plugin and the box
-#          seccomp profiles (kubectl)
-#   sleep  park Linux capacity: elastic limit → 0 and its nodes removed, labs-linux → 0
-#   wake   labs-linux → 1, then `up` (restores the elastic limit)
-#   spike  up + start the phase-0 spike boxes (deploy/eks/linux/spike.yaml), then check
-#   check  re-run the capability checks against running spike boxes
+#   base     create labs-linux + launch template if missing, scale to 1, install NRI + seccomp
+#            (AWS admin for the NG; kubectl for the plugins)
+#   up       apply labs-linux-elastic only (needs Karpenter from eks-karpenter.sh)
+#   sleep    park Linux capacity: elastic limit → 0 and its nodes removed, labs-linux → 0
+#   wake     labs-linux → 1, re-apply NRI + seccomp, then `up` (restores elastic)
+#   spike    base + start the phase-0 spike boxes (deploy/eks/linux/spike.yaml), then check
+#   check    re-run the capability checks against running spike boxes
 #   seccomp  (re)install only the box seccomp profiles
-#   down   delete the spike boxes, the NRI plugin, the seccomp profiles and labs-linux-elastic;
-#          labs-linux → 0
+#   down     delete spike boxes, NRI, seccomp, and labs-linux-elastic; labs-linux → 0
 #
-# Needs Karpenter installed (eks-karpenter.sh) and devsetu/linux-lab pushed
-# (./images/build-all.sh linux-lab).
+# Needs kubeconfig from eks-kubeconfig.sh. `up` also needs Karpenter and (for spike/labs)
+# devsetu/linux-lab (./images/build-all.sh linux-lab).
 #
-# Usage (repo root, kubeconfig from eks-kubeconfig.sh):
-#   ./deploy/eks/eks-linux.sh base && ./deploy/eks/eks-linux.sh up
+# Usage (repo root):
+#   ./deploy/eks/eks-linux.sh base              # enough for Linux labs on one node
+#   ./deploy/eks/eks-linux.sh up                # optional elastic overflow
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -32,15 +32,26 @@ NS=dl-linux-spike
 PODS=(box-userns)
 POOL=labs-linux-elastic
 
+# NRI + seccomp on every current (and future) linux-pool node. DaemonSets select
+# devlabs.io/pool=linux, so Karpenter elastic nodes pick them up automatically.
+plugins() {
+  echo "==> NRI plugin nri-cgroup-rw (dl-system, every devlabs.io/pool=linux node)"
+  kubectl apply -f "$ROOT/linux/nri-cgroup-rw.yaml"
+  seccomp_profiles
+}
+
 base() {
   eks_need_aws
   # shellcheck source=nodegroups.sh
   source "$ROOT/nodegroups.sh"
   ensure_nodegroup labs-linux
   EKS_WAKE_NODEGROUPS=labs-linux "$ROOT/eks-wake.sh"
+  echo "==> waiting for a Ready labs-linux node"
+  kubectl wait --for=condition=Ready node -l devlabs.io/pool=linux --timeout=10m
   echo "==> labs-linux base node"
   kubectl get nodes -l eks.amazonaws.com/nodegroup=labs-linux \
     -L devlabs.io/pool,devlabs.io/tier,node.kubernetes.io/instance-type
+  plugins
 }
 
 up() {
@@ -62,9 +73,6 @@ up() {
   kubectl apply -f "$ROOT/karpenter/nodepool-linux.yaml"
   kubectl get ec2nodeclass "$POOL"
   kubectl get nodepool "$POOL"
-  echo "==> NRI plugin nri-cgroup-rw (dl-system, every devlabs.io/pool=linux node)"
-  kubectl apply -f "$ROOT/linux/nri-cgroup-rw.yaml"
-  seccomp_profiles
 }
 
 # Box seccomp profiles (linux/seccomp/*.json) on every labs-linux node. Boxes fail to start
@@ -96,6 +104,9 @@ sleep_linux() {
 wake_linux() {
   eks_need_aws
   EKS_WAKE_NODEGROUPS=labs-linux "$ROOT/eks-wake.sh"
+  echo "==> waiting for a Ready labs-linux node"
+  kubectl wait --for=condition=Ready node -l devlabs.io/pool=linux --timeout=10m
+  plugins
   up
 }
 
@@ -154,7 +165,7 @@ check() {
 }
 
 spike() {
-  up
+  base
   echo "==> spike boxes ($NS)"
   kubectl apply -f "$ROOT/linux/spike.yaml"
   echo "==> waiting for boxes (image pull on first run)"

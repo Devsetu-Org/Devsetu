@@ -47,7 +47,7 @@ function ChallengeTopBar(): JSX.Element {
       <div className="topbar-inner topbar-inner--challenge">
         <div className="challenge-chrome-left">
           <Link to="/" className="brand brand--compact brand-link" title="Home">
-            <BrandMark className="brand-mark brand-mark--sm" />
+            <BrandMark className="brand-mark" />
             DevSetu
           </Link>
         </div>
@@ -82,11 +82,6 @@ function AppLayoutInner(): React.JSX.Element {
     location.pathname === '/track' ||
     (location.pathname.startsWith('/track/') && !onPlaySubroute);
   const usePlayChrome = !challengeOpen;
-  // The Spark bench is reached through the index, so keep the pill lit inside it.
-  const playgroundsActive =
-    location.pathname.startsWith(PLAYGROUNDS_PATH) ||
-    location.pathname.startsWith(SPARK_PLAYGROUND_PATH);
-  const papersActive = location.pathname.startsWith(PAPERS_PATH);
   const showFooter =
     PLATFORM_FOOTER_ENABLED &&
     authMode !== 'resolving' &&
@@ -152,26 +147,6 @@ function AppLayoutInner(): React.JSX.Element {
         <NavIcon name="minors" />
         <span>Minors</span>
       </NavLink>
-      {showAdmin && (
-        <>
-          <NavLink
-            to={PAPERS_PATH}
-            className={`topnav-pill topnav-action${papersActive ? ' active' : ''}`}
-            onClick={() => setNavOpen(false)}
-          >
-            <NavIcon name="papers" />
-            <span>Papers</span>
-          </NavLink>
-          <NavLink
-            to={PLAYGROUNDS_PATH}
-            className={`topnav-pill topnav-action${playgroundsActive ? ' active' : ''}`}
-            onClick={() => setNavOpen(false)}
-          >
-            <NavIcon name="playgrounds" />
-            <span>Playgrounds</span>
-          </NavLink>
-        </>
-      )}
       <NavLink
         to={LEADERBOARD_PATH}
         className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
