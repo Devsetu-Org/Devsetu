@@ -962,7 +962,7 @@ grep -E 'code=5[0-9]{2}' /var/log/app.log  # any 5xx code: 500, 502, 503…`,
       },
       {
         challengeId: 'linux-04-grep-the-failed-payments',
-        label: 'Grep the Failed Payments',
+        label: 'The Failed Payment Spike',
       },
       {
         challengeId: 'linux-06-fix-the-config-with-sed-and-vim',
