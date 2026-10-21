@@ -12,15 +12,16 @@ Defaults match the live `devlabs` cluster in **ap-south-2** (see `env.sh`).
 | `eks-status.sh` | Print cluster / NG / access / addons | — |
 | `eks-access.sh` | Access Entry + `DevLabsEksDescribe` for app user | — |
 | `eks-addon-placement.sh` | Pin add-on Deployments to `system-k8s` nodes | — |
-| `eks-karpenter.sh` | Karpenter IAM + controller + `labs-elastic` NodePool (`EKS_KARPENTER_LABS_POOL=0`: controller only, for a cluster without `labs-k8s`) | — |
+| `eks-karpenter.sh` | Karpenter IAM + controller + `labs-elastic` NodePool (`EKS_KARPENTER_LABS_POOL=0`: controller only). Balloon warm-pool is temporarily disabled. | — |
 | `eks-kyverno.sh` | Kyverno + learner `do-not-disrupt` policy | — |
 | `eks-admission.sh` | Policies that keep learner workloads inside lab quota / limits | — |
 | `eks-labs-sleep.sh` | Park k8s-lab capacity: balloons → 0, `labs-elastic` nodes removed, `labs-k8s` → **0** | Still pays |
-| `eks-linux.sh` | Linux-module capacity: `base` (managed node group `labs-linux`, always-on, admin creds), `up` (Karpenter `labs-linux-elastic` overflow + `nri-cgroup-rw` plugin for systemd in user-namespaced pods + box seccomp profiles), `seccomp` (profiles only), `sleep` / `wake`, `spike` / `check` / `down` | — |
+| `eks-linux.sh` | Linux-module capacity: `base` (managed NG `labs-linux` + NRI + seccomp; enough for labs), `up` (optional Karpenter `labs-linux-elastic` overflow), `seccomp` / `sleep` / `wake` / `spike` / `check` / `down` | — |
 | `eks-nodegroup-update.sh` | Roll learner node groups onto the current launch template and latest AMI (evicts their pods) | — |
 | `eks-docker.sh` | Docker-module capacity, same subcommands as `eks-linux.sh`: managed node group `labs-docker` (t4g.medium), Karpenter `labs-docker-elastic`, `nri-cgroup-rw-docker`, and the Docker Hub pull-through mirror `dl-mirror/registry-mirror` (`docker/registry-mirror.yaml`) | — |
+| `eks-spark.sh` | Spark Labs capacity: `base` (managed node group `labs-spark`, t4g.medium), `up` (Karpenter `labs-spark-elastic`), `sleep` / `wake` / `down` | — |
 | `eks-kubeconfig.sh` | Refresh `kube/k8s-lab.kubeconfig` | — |
-| `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig | Starts paying |
+| `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig; wakes `system-k8s` and installs add-on placement + Kyverno + admission (`EKS_SKIP_PLATFORM=1` to skip). Run `eks-karpenter.sh` separately afterward. | Starts paying (system node once platform runs) |
 | `eks-destroy.sh` | Delete NGs + cluster | Stops paying |
 
 Also checked in:
@@ -65,8 +66,9 @@ later (e.g. Karpenter) needs that toleration to run on system nodes.
 The add-on Deployments (CoreDNS, metrics-server, snapshot-controller, EBS CSI
 controller) are pinned to `devlabs.io/pool=system` through each add-on's
 configuration values, so they never take learner capacity. After a fresh
-`eks-recreate.sh`, wake a system node first, then run `./deploy/eks/eks-addon-placement.sh`
-(otherwise they sit Pending and cluster DNS is down). The setting survives sleep/wake.
+`eks-recreate.sh` (unless `EKS_SKIP_PLATFORM=1`), which wakes `system-k8s` and runs
+`eks-addon-placement.sh` (otherwise they sit Pending and cluster DNS is down). The setting
+survives sleep/wake.
 
 Learner nodes are **Graviton only**. Every image a lab pulls must have an arm64
 build: `devsetu/*` images are published multi-arch by `./images/build-all.sh`;
@@ -103,6 +105,12 @@ the CNI won't reuse for 30 s: replacing 28 pods at once starts in ~8 s instead o
   `devlabs.io/pool=docker:NoSchedule`. Overflow `labs-docker-elastic`
   (`karpenter/nodepool-docker.yaml`) must match (`EKS_DOCKER_*` in `env.sh`). Not in
   `EKS_NODEGROUPS` yet, so `eks-sleep.sh` skips it: park it with `eks-docker.sh sleep`.
+- `labs-spark` — launch template `devlabs-labs-spark` (`nodegroups.sh`): t4g.medium,
+  `maxPods: 8`, `podPidsLimit: 1024`, `kubeReserved` 70m / 343Mi / 1Gi, 50 GiB gp3,
+  label `devlabs.io/pool=spark,devlabs.io/tier=base`, taint `devlabs.io/pool=spark:NoSchedule`.
+  Overflow `labs-spark-elastic` (`karpenter/nodepool-spark.yaml`, cpu limit 4 = two extra
+  nodes) must match (`EKS_SPARK_*` in `env.sh`). Not in `EKS_NODEGROUPS`: park it with
+  `eks-spark.sh sleep`. Spark pods must select and tolerate `devlabs.io/pool=spark`.
 
 Change density via `EKS_LABS_MAX_PODS` (reserve = `11 × maxPods + 255` Mi) **and** the
 NodeClass. Existing node groups pick up a new launch template version only with
@@ -129,11 +137,13 @@ to every Pod created in an `ns-*` namespace. Karpenter never evicts those pods a
 never removes a node running one. Their nodes go away only after the lab ends and
 the node is empty (~3 min). Unannotated pods (e.g. balloons) are still repacked.
 
-**Warm headroom:** `karpenter/balloons.yaml` keeps 10 balloon pods (`dl-system/dl-balloon`,
-priority -10, 40m / 64Mi each = one learner slot) anywhere in the learner pool, so they sit on the
-base when it has room and no extra node idles. Learners take free slots first and preempt balloons
-only when a node is otherwise full. The evicted balloon goes Pending and Karpenter buys the next
-node in the background. Consolidation later packs the balloons back and removes the spare node.
+**Warm headroom (temporarily off):** `eks-karpenter.sh` no longer applies
+`karpenter/balloons.yaml` (and removes leftover balloon Deployments). When re-enabled, that
+manifest keeps 10 balloon pods (`dl-system/dl-balloon`, priority -10, 40m / 64Mi each = one
+learner slot) anywhere in the learner pool, so they sit on the base when it has room and no
+extra node idles. Learners take free slots first and preempt balloons only when a node is
+otherwise full. The evicted balloon goes Pending and Karpenter buys the next node in the
+background. Consolidation later packs the balloons back and removes the spare node.
 
 **Reserved slots per open lab:** a second Deployment, `dl-system/dl-balloon-reserved`
 (priority -5, so warm balloons are evicted first), is scaled by the backend
@@ -156,7 +166,8 @@ at 0, a Kubernetes scheduler bug can leave learner pods Pending for 5 minutes.
 
 The policy is a Kyverno `MutatingPolicy` compiled to a native
 `MutatingAdmissionPolicy`, so the API server applies it even while the Kyverno pod
-is down. Install order after a recreate: `eks-addon-placement.sh` → `eks-karpenter.sh` → `eks-kyverno.sh`.
+is down. `eks-recreate.sh` installs add-on placement → Kyverno → admission after waking
+`system-k8s`. Install Karpenter separately with `eks-karpenter.sh`.
 
 ```bash
 kubectl get mutatingadmissionpolicy mpol-learner-pods-do-not-disrupt
@@ -204,13 +215,12 @@ kubectl -n ns-<user> describe resourcequota dl-lab-quota
 ```bash
 ./deploy/eks/eks-destroy.sh        # confirm by typing: devlabs
 # …later…
-./deploy/eks/eks-recreate.sh       # cluster, node groups (Desired=0), add-ons, prefix delegation, LT
-./deploy/eks/eks-wake.sh
-./deploy/eks/eks-addon-placement.sh   # once a system-k8s node is Ready
-./deploy/eks/eks-karpenter.sh         # Karpenter + NodePool + balloons
-./deploy/eks/eks-kyverno.sh           # learner do-not-disrupt
-./deploy/eks/eks-admission.sh         # learner quota / LimitRange policies
-# then push the new kubeconfig to the App EC2 (see below)
+./deploy/eks/eks-recreate.sh       # cluster, NGs, add-ons; wakes system; Kyverno + admission
+./deploy/eks/eks-karpenter.sh      # controller + labs-elastic (run separately; balloons off for now)
+./deploy/eks/eks-wake.sh           # labs-k8s + labs-linux as needed
+# ./deploy/eks/eks-linux.sh base   # labs-linux + NRI + seccomp
+# ./deploy/eks/eks-linux.sh up     # optional elastic overflow
+# App EC2 kubeconfig is refreshed at the end of recreate (unless EKS_SKIP_EC2_KUBECONFIG=1)
 ```
 
 `eks-destroy.sh` first deletes the balloons, the NodePools (Karpenter terminates its own
@@ -243,21 +253,37 @@ Docker). Refresh kubeconfig on your Mac and push it:
 EC2_HOST=18.61.188.116 EC2_KEY=./.devlabs-beta.pem \
   ./scripts/sync-to-ec2.sh --with-kubeconfig
 
-# kubeconfig-only later (after eks-recreate / endpoint change)
-EC2_HOST=18.61.188.116 EC2_KEY=./.devlabs-beta.pem \
-  ./scripts/refresh-ec2-kubeconfig.sh
+# kubeconfig-only (eks-recreate.sh already runs this at the end)
+export AWS_PROFILE=devlabs-admin
+./scripts/refresh-ec2-kubeconfig.sh
 ```
 
-`refresh-ec2-kubeconfig.sh` writes `kube/k8s-lab.kubeconfig` locally, scp's it to
-`/opt/devlabs/kube/k8s-lab.kubeconfig`, and force-recreates the backend (clears the
-process-cached API server URL). Use `--no-recreate` to skip the compose step.
+`refresh-ec2-kubeconfig.sh` builds a kubeconfig with no AWS profile in it (the backend
+authenticates with the `devlabs-app-s3` keys from its env), writes it to
+`/opt/devlabs/kube/k8s-lab.kubeconfig` over SSM (no SSH), and, only if it changed,
+recreates the backend with the pinned images from `release.env` (clears the
+process-cached API server URL). `--no-recreate` skips the restart; `--force-recreate`
+restarts even when unchanged. `eks-recreate.sh` skips the EC2 step with
+`EKS_SKIP_EC2_KUBECONFIG=1`.
 
 ---
+
+## Local ops dashboard
+
+Laptop UI for the actions above (system, Karpenter, Linux). Binds `127.0.0.1` only and runs these scripts with your AWS profile:
+
+```bash
+aws sso login --profile devlabs-admin && export AWS_PROFILE=devlabs-admin
+node deploy/eks/ops-dashboard/server.mjs
+# open http://127.0.0.1:3920
+```
 
 ## Requirements
 
 - AWS CLI v2 with rights to EKS + IAM (for recreate/destroy/access)
-- `kubectl` for kubeconfig smoke test
+- `kubectl` for kubeconfig smoke test and platform bring-up
+- `helm` for Karpenter / Kyverno (unless `EKS_SKIP_PLATFORM=1`)
 - `jq` only if you extend scripts (recreate uses bash arrays; jq optional for future)
+- Node.js (for the local ops dashboard only)
 
 Do **not** commit real kubeconfig secrets; `kube/*.kubeconfig` stays gitignored.

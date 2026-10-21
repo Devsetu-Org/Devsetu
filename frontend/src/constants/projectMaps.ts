@@ -46,7 +46,6 @@ const CINDER_MAP: ProjectMapSpec = {
   title: 'The Cinder Coast',
   ocean: 'Sea of Single Threads',
   markers: [
-    { moduleId: 'tcp-server', x: 0.07, y: 0.63, place: 'Harbour of Accept', anchor: 'right' },
     { moduleId: 'event-loop', x: 0.20, y: 0.34, place: 'Loop Light', anchor: 'top' },
     { moduleId: 'csp-protocol', x: 0.30, y: 0.58, place: 'Protocol Narrows', anchor: 'bottom' },
     { moduleId: 'commands', x: 0.42, y: 0.36, place: 'Dispatch Crossing', anchor: 'top' },

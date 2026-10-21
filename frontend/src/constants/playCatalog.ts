@@ -33,8 +33,16 @@ export const PLAY_DOMAINS: PlayDomain[] = [
   {
     id: 'devops-engineer',
     label: 'DevOps Engineer',
-    blurb: 'Ship and operate apps from the ground up — Linux, containers, and Kubernetes application delivery (CKAD).',
+    blurb:
+      'How companies ship and operate software. Start with the DevOps readings, then practice on Linux, containers, and Kubernetes.',
     panels: [
+      {
+        id: 'introduction',
+        label: 'Introduction',
+        blurb:
+          'What DevOps is, why companies run it, how teams organize the work, and the skills and tools involved — pipelines, configuration management, infrastructure as code, cloud, and the rest.',
+        challengeIds: [],
+      },
       {
         id: 'linux',
         label: 'Linux',

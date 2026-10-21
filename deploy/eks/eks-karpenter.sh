@@ -89,17 +89,21 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --set controller.resources.limits.memory=1Gi \
   --wait
 
-# EKS_KARPENTER_LABS_POOL=0 installs only the controller (e.g. a Docker-only cluster):
-# without a labs-k8s base, the balloons would make Karpenter buy labs-elastic nodes.
+# Balloons (karpenter/balloons.yaml) are intentionally not applied for now — they forced
+# elastic capacity when labs-k8s was asleep. Re-enable later when warm headroom is needed.
+if kubectl -n dl-system get deploy dl-balloon >/dev/null 2>&1 \
+  || kubectl -n dl-system get deploy dl-balloon-reserved >/dev/null 2>&1; then
+  echo "==> removing leftover balloon Deployments (temporarily disabled)"
+  kubectl -n dl-system delete deploy dl-balloon dl-balloon-reserved --ignore-not-found --wait=true
+fi
+
+# EKS_KARPENTER_LABS_POOL=0 installs only the controller (e.g. a Docker-only cluster).
 if [[ "${EKS_KARPENTER_LABS_POOL:-1}" == "1" ]]; then
   echo "==> EC2NodeClass + NodePool"
   kubectl apply -f "$ROOT/karpenter/nodepool.yaml"
   kubectl get ec2nodeclass,nodepool
-
-  echo "==> balloons (dl-system/dl-balloon)"
-  kubectl apply -f "$ROOT/karpenter/balloons.yaml"
 else
-  echo "==> EKS_KARPENTER_LABS_POOL=0: skip labs-elastic NodePool and balloons"
+  echo "==> EKS_KARPENTER_LABS_POOL=0: skip labs-elastic NodePool"
 fi
 
 echo "==> done"

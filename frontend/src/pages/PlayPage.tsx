@@ -103,7 +103,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   const params = useParams<{ domainId?: string; panelId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [kindFilter, setKindFilter] = useState<KindFilter>('lab');
+  const [kindFilter, setKindFilter] = useState<KindFilter>(
+    params.panelId === 'introduction' ? 'blog' : 'lab',
+  );
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
   const isNarrowUi = useIsNarrowUi();
@@ -133,6 +135,13 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   useEffect(() => {
     if (isNarrowUi) setRoadmapOpen(false);
   }, [isNarrowUi]);
+
+  useEffect(() => {
+    if (!panel) return;
+    const readingsOnly =
+      panel.challengeIds.length === 0 && Boolean(readingTrackForPanel(domainId, panel.id));
+    setKindFilter(readingsOnly ? 'blog' : 'lab');
+  }, [panel, domainId]);
 
   const byId = useMemo(() => {
     const map = new Map<string, ChallengePublic>();
@@ -381,10 +390,19 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 <h2 className="play-hub-title">{domain.label}</h2>
                 <p className="play-hub-lead">{domain.blurb}</p>
               </header>
-              <div className="play-paper-section-grid" aria-label={`${domain.label} categories`}>
+              <div
+                className={`play-paper-section-grid${
+                  domain.id === 'devops-engineer' ? ' play-paper-section-grid--even' : ''
+                }`}
+                aria-label={`${domain.label} categories`}
+              >
                 {domain.panels.map((p) => {
                   const count = panelLabCount(p);
-                  if (count === 0) {
+                  const readingCount =
+                    readingTrackForPanel(domain.id, p.id)
+                      ?.listTrackItems()
+                      .filter((item) => item.type === 'reading').length ?? 0;
+                  if (count === 0 && readingCount === 0) {
                     return (
                       <div
                         key={p.id}
@@ -404,12 +422,14 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       className="play-paper-section-card"
                     >
                       <span className="play-paper-section-kicker">
-                        {count} lab{count === 1 ? '' : 's'}
+                        {count > 0
+                          ? `${count} lab${count === 1 ? '' : 's'}`
+                          : `${readingCount} reading${readingCount === 1 ? '' : 's'}`}
                       </span>
                       <strong className="play-paper-section-title">{p.label}</strong>
                       <p className="play-paper-section-blurb">{p.blurb}</p>
                       <span className="play-paper-section-cta">
-                        Open labs
+                        {count > 0 ? 'Open labs' : 'Open readings'}
                         <span aria-hidden>→</span>
                       </span>
                     </Link>

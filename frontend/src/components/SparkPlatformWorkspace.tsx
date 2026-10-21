@@ -1147,6 +1147,7 @@ export default function SparkPlatformWorkspace({
                       setSolutionGateOpen(true);
                       return;
                     }
+                    if (id === 'solution' && !solutionFiles) setSolutionLoading(true);
                     setBriefTab(id);
                     setAdminWantEdit(false);
                     if (id === 'submissions') refreshSubmissions();
@@ -2243,6 +2244,7 @@ export default function SparkPlatformWorkspace({
         onCancel={() => setSolutionGateOpen(false)}
         onConfirm={() => {
           setSolutionGateOpen(false);
+          if (!solutionFiles) setSolutionLoading(true);
           setBriefTab('solution');
           setAdminWantEdit(false);
         }}

@@ -229,15 +229,15 @@ const BOX_SUBTITLES: Record<BoxFlavor, string> = {
 // set of rows so the wordmark is assembled column-aligned and coloured per column.
 
 const LOGO_FONT: Record<string, string[]> = {
-  D: ['█████ ', '██  ██', '██  ██', '██  ██', '█████ '],
-  E: ['█████', '██   ', '████ ', '██   ', '█████'],
-  V: ['██  ██', '██  ██', '██  ██', ' ████ ', '  ██  '],
-  S: ['█████', '██   ', '█████', '   ██', '█████'],
-  T: ['██████', '  ██  ', '  ██  ', '  ██  ', '  ██  '],
-  U: ['██  ██', '██  ██', '██  ██', '██  ██', ' ████ '],
+  D: ['█████ ', '██  ██', '██  ██', '█████ '],
+  E: ['█████', '██   ', '████ ', '█████'],
+  V: ['██  ██', '██  ██', ' ████ ', '  ██  '],
+  S: ['█████', '██   ', '   ██', '█████'],
+  T: ['██████', '  ██  ', '  ██  ', '  ██  '],
+  U: ['██  ██', '██  ██', '██  ██', ' ████ '],
 };
 const LOGO_WORD = 'DEVSETU';
-const LOGO_ROWS = 5;
+const LOGO_ROWS = LOGO_FONT.D.length;
 const LOGO_LINES = Array.from({ length: LOGO_ROWS }, (_unused, r) =>
   LOGO_WORD.split('').map((ch) => LOGO_FONT[ch][r]).join(' '),
 );

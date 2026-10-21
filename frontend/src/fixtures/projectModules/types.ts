@@ -36,4 +36,6 @@ export interface ProjectModuleContent {
   tasks: ModuleTask[];
   /** Commands that prove the module is done. */
   verify: string[];
+  /** Intro above the verify commands, when the default one does not fit. */
+  verifyLead?: string;
 }

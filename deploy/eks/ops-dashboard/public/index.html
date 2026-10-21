@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DevSetu · EKS ops</title>
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo-dot" aria-hidden="true"></span>
+          <span class="brand-name">DevSetu</span>
+          <span class="brand-sub">EKS ops</span>
+        </div>
+        <p class="meta" id="meta">Loading…</p>
+      </header>
+
+      <p class="lead">
+        Local admin dashboard for control plane, Karpenter, and the Linux pool.
+        Select a panel for details, then run from the sidebar.
+      </p>
+
+      <main class="actions" id="actions"></main>
+    </div>
+
+    <aside id="drawer" class="drawer" aria-hidden="true">
+      <div class="drawer-head">
+        <div class="drawer-head-text">
+          <p class="drawer-kicker" id="drawer-kicker"></p>
+          <h2 id="drawer-title"></h2>
+        </div>
+        <div class="drawer-head-actions">
+          <button type="button" class="btn run" id="drawer-run">Run</button>
+          <button type="button" class="btn logs" id="drawer-logs">Logs</button>
+          <button type="button" class="btn file" id="drawer-file">File</button>
+          <button type="button" class="btn ghost icon" id="drawer-close" aria-label="Close">
+            Close
+          </button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <section class="drawer-block">
+          <h3>Description</h3>
+          <p id="drawer-desc"></p>
+        </section>
+        <section class="drawer-block">
+          <h3>Script</h3>
+          <pre id="drawer-script" class="script-block"></pre>
+          <p class="script-path" id="drawer-script-path"></p>
+        </section>
+      </div>
+    </aside>
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+
+    <dialog id="confirm-dialog">
+      <form method="dialog" id="confirm-form">
+        <h3 id="confirm-title">Confirm</h3>
+        <p id="confirm-body"></p>
+        <label class="confirm-label">
+          Type <code id="confirm-token"></code> to continue
+          <input id="confirm-input" autocomplete="off" spellcheck="false" />
+        </label>
+        <div class="confirm-actions">
+          <button value="cancel" type="submit" class="btn ghost">Cancel</button>
+          <button value="ok" type="submit" class="btn danger" id="confirm-ok" disabled>
+            Run
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="logs-dialog" class="logs-dialog">
+      <div class="logs-dialog-inner">
+        <div class="logs-dialog-head">
+          <div>
+            <h3 id="logs-title">Logs</h3>
+            <p id="logs-status" class="logs-status">—</p>
+          </div>
+          <button type="button" class="btn ghost" id="logs-close">Close</button>
+        </div>
+        <pre id="logs-body" class="logs-body">No runs yet for this action.</pre>
+      </div>
+    </dialog>
+
+    <dialog id="file-dialog" class="logs-dialog file-dialog">
+      <div class="logs-dialog-inner">
+        <div class="logs-dialog-head">
+          <div>
+            <h3 id="file-title">File</h3>
+            <p id="file-path" class="logs-status">—</p>
+          </div>
+          <div class="file-head-actions">
+            <button type="button" class="btn run" id="file-open-editor">Open in editor</button>
+            <button type="button" class="btn ghost" id="file-close">Close</button>
+          </div>
+        </div>
+        <pre id="file-body" class="logs-body">Select an action and click File.</pre>
+      </div>
+    </dialog>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

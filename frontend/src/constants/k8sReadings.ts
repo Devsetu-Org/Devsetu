@@ -118,16 +118,27 @@ export interface K8sReadingRelatedLab {
   label: string;
 }
 
+export interface K8sReadingFollowOn {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  links: Array<{ label: string; href: string }>;
+}
+
 export interface K8sReading {
   id: string;
   slug: string;
   trackId: string;
   eyebrow: string;
   title: string;
+  /** Plain sentence for cards. The lede may contain markdown. */
+  summary?: string;
   lede: string;
   sections: K8sReadingSection[];
   takeaways: string[];
   relatedLabs: K8sReadingRelatedLab[];
+  /** Replaces the related-labs footer. Used by readings that continue into another article. */
+  followOn?: K8sReadingFollowOn;
   /** Overrides the track default under Related labs. */
   relatedLabsIntro?: string;
   /** Optional top-right “The DevSetu Blog” stamp (trial on select readings). */

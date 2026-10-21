@@ -82,6 +82,23 @@ export EKS_DOCKER_POD_PIDS_LIMIT="${EKS_DOCKER_POD_PIDS_LIMIT:-1024}"
 export EKS_DOCKER_DISK_GB="${EKS_DOCKER_DISK_GB:-100}"
 export EKS_DOCKER_LAUNCH_TEMPLATE="${EKS_DOCKER_LAUNCH_TEMPLATE:-${EKS_CLUSTER_NAME:-devlabs}-labs-docker}"
 
+# Spark Labs: driver and executor pods. One always-on base node; Karpenter adds the rest
+# (labs-spark-elastic, karpenter/nodepool-spark.yaml). Keep maxPods / kubeReserved /
+# podPidsLimit / disk in sync. t4g.medium is 2 vCPU / 4 GiB, so a 2g driver or executor
+# fills most of one node and the next pod waits for another. maxPods 8 = 4 DaemonSets +
+# 4 slots; memory, not the slot count, is the cap.
+# Not in EKS_NODEGROUPS: eks-spark.sh base/sleep/wake manage it on its own.
+export EKS_SPARK_INSTANCE_TYPE="${EKS_SPARK_INSTANCE_TYPE:-t4g.medium}"
+export EKS_SPARK_AMI_TYPE="${EKS_SPARK_AMI_TYPE:-AL2023_ARM_64_STANDARD}"
+export EKS_SPARK_DESIRED="${EKS_SPARK_DESIRED:-1}"
+export EKS_SPARK_MAX="${EKS_SPARK_MAX:-1}"
+export EKS_SPARK_MAX_PODS="${EKS_SPARK_MAX_PODS:-8}"
+export EKS_SPARK_KUBE_RESERVED_MEMORY="${EKS_SPARK_KUBE_RESERVED_MEMORY:-$(( 11 * EKS_SPARK_MAX_PODS + 255 ))Mi}"
+export EKS_SPARK_POD_PIDS_LIMIT="${EKS_SPARK_POD_PIDS_LIMIT:-1024}"
+# Shuffle spill and Spark image layers live on the node disk.
+export EKS_SPARK_DISK_GB="${EKS_SPARK_DISK_GB:-50}"
+export EKS_SPARK_LAUNCH_TEMPLATE="${EKS_SPARK_LAUNCH_TEMPLATE:-${EKS_CLUSTER_NAME:-devlabs}-labs-spark}"
+
 # VPC CNI add-on configuration (prefix delegation: /28 per ENI slot).
 # MINIMUM_IP_TARGET=80 keeps 5 prefixes per node: 42 pods plus the IPs of just-deleted pods,
 # which stay unusable for IP_COOLDOWN_PERIOD (30 s). With only one spare prefix, bursts of
@@ -123,6 +140,7 @@ eks_ng() {
     labs-k8s) prefix=LABS ;;
     labs-linux) prefix=LINUX ;;
     labs-docker) prefix=DOCKER ;;
+    labs-spark) prefix=SPARK ;;
     *) echo "unknown nodegroup: $ng (add it to eks_ng in env.sh)" >&2; return 1 ;;
   esac
   local var
@@ -135,6 +153,7 @@ eks_ng() {
         # tier=base: boxes prefer this node over Karpenter's (linuxBox.ts).
         labs-linux) echo "devlabs.io/pool=linux,devlabs.io/tier=base" ;;
         labs-docker) echo "devlabs.io/pool=docker,devlabs.io/tier=base" ;;
+        labs-spark) echo "devlabs.io/pool=spark,devlabs.io/tier=base" ;;
         *) echo "devlabs.io/pool=system" ;;
       esac ;;
     taints)
@@ -145,6 +164,7 @@ eks_ng() {
         # Same taint as labs-linux-elastic: only boxes and the NRI plugin tolerate it.
         labs-linux) echo "key=devlabs.io/pool,value=linux,effect=NO_SCHEDULE" ;;
         labs-docker) echo "key=devlabs.io/pool,value=docker,effect=NO_SCHEDULE" ;;
+        labs-spark) echo "key=devlabs.io/pool,value=spark,effect=NO_SCHEDULE" ;;
         *) echo "" ;;
       esac ;;
     desired) var="EKS_${prefix}_DESIRED"; echo "${EKS_WAKE_DESIRED:-${!var}}" ;;

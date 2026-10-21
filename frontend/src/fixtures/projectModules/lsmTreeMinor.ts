@@ -1,6 +1,9 @@
 import type { ModuleTask, ProjectModuleContent } from './types';
 import { theoryForLanguage } from './theoryLanguage';
 
+export const LSM_VERIFY_LEAD =
+  'Run these from the project root. The acceptance tests cover this chapter and every chapter before it, so a clean run means the engine works so far.';
+
 import theory from './minors/lsm-tree/memtable/theory.md?raw';
 
 import goReadme from './minors/lsm-tree/memtable/go/files/README.md?raw';
@@ -94,6 +97,7 @@ export const LSM_TREE_MEMTABLE_GO: ProjectModuleContent = {
     { search: 'findGreaterOrEqual', put: 'put', deleteGet: 'Delete and Get', seekNext: 'Seek and Next' },
   ),
   verify: ['make test', 'make race', 'make run'],
+  verifyLead: LSM_VERIFY_LEAD,
 };
 
 export const LSM_TREE_MEMTABLE_PYTHON: ProjectModuleContent = {
@@ -122,6 +126,7 @@ export const LSM_TREE_MEMTABLE_PYTHON: ProjectModuleContent = {
     { search: 'find_greater_or_equal', put: 'put', deleteGet: 'delete and get', seekNext: 'seek and next' },
   ),
   verify: ['make test', 'make run'],
+  verifyLead: LSM_VERIFY_LEAD,
 };
 
 export const LSM_TREE_MEMTABLE_CPP: ProjectModuleContent = {
@@ -152,4 +157,5 @@ export const LSM_TREE_MEMTABLE_CPP: ProjectModuleContent = {
     { search: 'FindGreaterOrEqual', put: 'Put', deleteGet: 'Delete and Get', seekNext: 'Seek and Next' },
   ),
   verify: ['make test', 'make asan', 'make run'],
+  verifyLead: LSM_VERIFY_LEAD,
 };

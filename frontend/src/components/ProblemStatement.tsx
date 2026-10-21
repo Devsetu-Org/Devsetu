@@ -108,6 +108,11 @@ function sortSolutionPaths(paths: string[], entrypoint?: string | null): string[
   });
 }
 
+/** Drop a leading "# Solution — Lab name" line. The Solution tab already names the section. */
+function stripSolutionBanner(text: string): string {
+  return text.replace(/^\uFEFF?\s*#\s+Solution\b[^\n]*(?:\r?\n)?/, '').replace(/^\s+/, '');
+}
+
 function formatDatasetRows(n: number): string {
   return n.toLocaleString('en-US');
 }
@@ -319,12 +324,13 @@ export default function ProblemStatement({
     const readmePath = filePaths.find((p) => /^readme\.md$/i.test(p.replace(/^\/+/, '')));
     const displayPaths = readmePath ? [readmePath] : filePaths;
     const showFiles = displayPaths.length > 0;
-    const showWriteup = Boolean(solutionText) && !showFiles;
+    const solutionBody = stripSolutionBanner(solutionText);
+    const showWriteup = Boolean(solutionBody) && !showFiles;
     return (
-      <div className="statement statement--tab">
+      <div className="statement statement--tab statement--solution">
         <h2>Solution</h2>
         <hr className="statement-rule" aria-hidden="true" />
-        {solutionLoading && !showFiles && !showWriteup ? (
+        {solutionLoading && !showFiles ? (
           <p className="dim" style={{ fontSize: 13 }}>Loading reference solution…</p>
         ) : solutionError && !showFiles && !showWriteup ? (
           <div className="statement-empty">
@@ -333,8 +339,9 @@ export default function ProblemStatement({
         ) : showFiles ? (
           <div className="statement-solution-files">
             {displayPaths.map((path) => {
-              const body = solutionFiles![path];
+              const raw = solutionFiles![path];
               const isMd = /\.md$/i.test(path);
+              const body = isMd ? stripSolutionBanner(raw) : raw;
               return (
                 <section key={path} className="statement-section statement-solution-file">
                   {isMd ? (
@@ -354,7 +361,7 @@ export default function ProblemStatement({
           </div>
         ) : showWriteup ? (
           <MarkdownProse
-            text={solutionText}
+            text={solutionBody}
             className="markdown-prose statement-solution"
             plainCode
           />

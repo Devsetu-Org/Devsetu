@@ -428,7 +428,8 @@ export default function K8sReadingPage({
           </a>
         ))}
         <a href="#takeaways">Takeaways</a>
-        <a href="#related">Related labs</a>
+        {reading.relatedLabs.length > 0 ? <a href="#related">Related labs</a> : null}
+        {reading.followOn ? <a href="#next">{reading.followOn.title}</a> : null}
       </nav>
 
       {reading.sections.map((section) => (
@@ -451,37 +452,57 @@ export default function K8sReadingPage({
         </ul>
       </section>
 
-      <section id="related" className="spark-primer-section spark-primer-next">
-        <p className="spark-primer-section-eyebrow">On the track</p>
-        <h2 className="spark-primer-section-title">Related labs</h2>
-        {(() => {
-          const relatedIntro =
-            reading.relatedLabsIntro !== undefined
-              ? reading.relatedLabsIntro
-              : track.relatedLabsIntro;
-          return relatedIntro.trim() ? (
-            <ReadingCurationBlock blockId={readingCurationBlockId(readingPrefix, 'related-intro')}>
-              <p className="spark-primer-copy">
-                <RichText text={relatedIntro} />
-              </p>
-            </ReadingCurationBlock>
-          ) : null;
-        })()}
-        <ul className="spark-primer-links">
-          {reading.relatedLabs.map((lab) => (
-            <li key={lab.challengeId}>
-              <Link to={`${track.labsPath}?start=${encodeURIComponent(lab.challengeId)}`}>
-                {lab.label}
-              </Link>
-            </li>
-          ))}
-          {track.primer ? (
-            <li>
-              <Link to={track.primer.path}>{track.primer.label}</Link>
-            </li>
-          ) : null}
-        </ul>
-      </section>
+      {reading.relatedLabs.length > 0 ? (
+        <section id="related" className="spark-primer-section spark-primer-next">
+          <p className="spark-primer-section-eyebrow">On the track</p>
+          <h2 className="spark-primer-section-title">Related labs</h2>
+          {(() => {
+            const relatedIntro =
+              reading.relatedLabsIntro !== undefined
+                ? reading.relatedLabsIntro
+                : track.relatedLabsIntro;
+            return relatedIntro.trim() ? (
+              <ReadingCurationBlock blockId={readingCurationBlockId(readingPrefix, 'related-intro')}>
+                <p className="spark-primer-copy">
+                  <RichText text={relatedIntro} />
+                </p>
+              </ReadingCurationBlock>
+            ) : null;
+          })()}
+          <ul className="spark-primer-links">
+            {reading.relatedLabs.map((lab) => (
+              <li key={lab.challengeId}>
+                <Link to={`${track.labsPath}?start=${encodeURIComponent(lab.challengeId)}`}>
+                  {lab.label}
+                </Link>
+              </li>
+            ))}
+            {track.primer ? (
+              <li>
+                <Link to={track.primer.path}>{track.primer.label}</Link>
+              </li>
+            ) : null}
+          </ul>
+        </section>
+      ) : null}
+      {reading.followOn ? (
+        <section id="next" className="spark-primer-section spark-primer-next">
+          <p className="spark-primer-section-eyebrow">{reading.followOn.eyebrow}</p>
+          <h2 className="spark-primer-section-title">{reading.followOn.title}</h2>
+          <ReadingCurationBlock blockId={readingCurationBlockId(readingPrefix, 'follow-on')}>
+            <p className="spark-primer-copy">
+              <RichText text={reading.followOn.intro} />
+            </p>
+          </ReadingCurationBlock>
+          <ul className="spark-primer-links">
+            {reading.followOn.links.map((link) => (
+              <li key={link.href}>
+                <Link to={link.href}>{link.label}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </article>
   );
 

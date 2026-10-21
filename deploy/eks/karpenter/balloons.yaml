@@ -1,3 +1,6 @@
+# TEMPORARILY UNUSED — eks-karpenter.sh does not apply this file (and deletes leftover
+# balloon Deployments if present). Keep for when warm headroom is re-enabled.
+#
 # Placeholder ("balloon") pods holding learner slots. They are pause pods at negative
 # priority: any learner pod preempts them in ~1 s, and an evicted balloon goes Pending so
 # Karpenter buys the next node in the background.

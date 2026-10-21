@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import MarkdownProse from '../components/MarkdownProse';
 import SparkProjectEditor from '../components/SparkProjectEditor';
@@ -7,11 +7,19 @@ import WorkspaceMobileSwitcher, {
 } from '../components/WorkspaceMobileSwitcher';
 import DesktopOnlyNotice from '../components/DesktopOnlyNotice';
 import { MAJORS_PATH, getProject, getProjectModule } from '../constants/projects';
-import { MINORS_PATH } from '../constants/minors';
 import { getModuleContent } from '../fixtures/projectModules';
 import type { ProjectModuleContent } from '../fixtures/projectModules';
 import { useIsNarrowUi } from '../hooks/useMediaQuery';
+import {
+  type CarryPlan,
+  type EarlierChapter,
+  joinLabels,
+  ownedFiles,
+  planCarry,
+  withReference,
+} from '../utils/chapterCarry';
 import { readMigrating, removeMigrating, writeMigrating } from '../utils/storageMigrate';
+import { countDone, readSavedFiles, taskDone, workspaceFilesKeys } from '../utils/workspaceFiles';
 
 type BriefTab = 'theory' | 'tasks' | 'verify';
 
@@ -22,13 +30,6 @@ const BRIEF_MAX_RATIO = 0.62;
 function clampBriefWidth(width: number, shellWidth: number): number {
   const max = Math.max(BRIEF_MIN, Math.floor(shellWidth * BRIEF_MAX_RATIO));
   return Math.min(max, Math.max(BRIEF_MIN, Math.round(width)));
-}
-
-function storageKeys(persistId: string): { next: string; legacy: string } {
-  return {
-    next: `devsetu.workspace.${persistId}.files`,
-    legacy: `devlabs.workspace.${persistId}.files`,
-  };
 }
 
 function theoryStorageKeys(persistId: string): { next: string; legacy: string } {
@@ -54,21 +55,52 @@ function loadSavedFiles(
   persistId: string,
   starter: Record<string, string>,
 ): Record<string, string> {
-  try {
-    const { next, legacy } = storageKeys(persistId);
-    const raw = readMigrating(window.localStorage, next, legacy);
-    if (!raw) return starter;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const restored: Record<string, string> = {};
-    for (const path of Object.keys(starter)) {
-      const saved = parsed[path];
-      restored[path] = typeof saved === 'string' ? saved : starter[path];
-    }
-    return restored;
-  } catch {
-    return starter;
+  const saved = readSavedFiles(persistId);
+  if (!saved) return starter;
+  const restored: Record<string, string> = {};
+  for (const path of Object.keys(starter)) {
+    restored[path] = saved[path] ?? starter[path];
   }
+  return restored;
 }
+
+interface StartState {
+  files: Record<string, string>;
+  /** Set while an earlier chapter is unfinished and the learner has not chosen. */
+  gate: CarryPlan | null;
+  note: string | null;
+}
+
+function carryNote(plan: CarryPlan): string | null {
+  const parts: string[] = [];
+  if (plan.fromLearner.length > 0) {
+    parts.push(`Your code from ${joinLabels(plan.fromLearner)} is carried in.`);
+  }
+  if (plan.unfinished.length > 0) {
+    const verb = plan.unfinished.length === 1 ? 'uses' : 'use';
+    parts.push(`${joinLabels(plan.unfinished)} ${verb} the reference solution.`);
+  }
+  if (parts.length === 0) return null;
+  parts.push('Their tests still run here, so a bug in earlier code shows up in this chapter too.');
+  return parts.join(' ');
+}
+
+/** Saved work wins; a first visit starts from the learner's earlier chapters. */
+function startState(
+  persistId: string,
+  content: ProjectModuleContent,
+  earlier: EarlierChapter[] | undefined,
+): StartState {
+  if (!earlier?.length || readSavedFiles(persistId)) {
+    return { files: loadSavedFiles(persistId, content.files), gate: null, note: null };
+  }
+  const plan = planCarry(content.files, earlier, readSavedFiles);
+  if (plan.unfinished.length > 0) return { files: content.files, gate: plan, note: null };
+  return { files: plan.files, gate: null, note: carryNote(plan) };
+}
+
+const DEFAULT_VERIFY_LEAD =
+  'Run these from the project root. The tests talk to your server over a real socket, so passing them means the thing actually works.';
 
 interface TheorySection {
   title: string;
@@ -146,18 +178,15 @@ function splitTheory(text: string): TheorySection[] {
   return sections;
 }
 
-/** A task is done once its TODO marker is gone from the file. */
-function taskDone(files: Record<string, string>, file: string, id: string): boolean {
-  const source = files[file];
-  if (typeof source !== 'string') return false;
-  return !source.includes(`TODO(${id})`);
-}
-
 interface ModuleWorkspaceProps {
   persistId: string;
   content: ProjectModuleContent;
   trail?: Array<{ to: string; label: string }>;
   title?: string;
+  /** Rendered at the right end of the breadcrumb row. */
+  crumbAction?: ReactNode;
+  /** Chapters this one builds on, oldest first. Their files carry forward. */
+  earlierChapters?: EarlierChapter[];
 }
 
 export function ModuleWorkspace({
@@ -165,10 +194,18 @@ export function ModuleWorkspace({
   content,
   trail,
   title,
+  crumbAction,
+  earlierChapters,
 }: ModuleWorkspaceProps): JSX.Element {
-  const [files, setFiles] = useState<Record<string, string>>(() =>
-    loadSavedFiles(persistId, content.files),
-  );
+  // Callers build this list on every render; only persistId and content key a reset.
+  const earlierRef = useRef(earlierChapters);
+  earlierRef.current = earlierChapters;
+  const [boot] = useState(() => startState(persistId, content, earlierChapters));
+  const [files, setFiles] = useState<Record<string, string>>(boot.files);
+  const [gate, setGate] = useState<CarryPlan | null>(boot.gate);
+  const [note, setNote] = useState<string | null>(boot.note);
+  const [earlierMenuOpen, setEarlierMenuOpen] = useState(false);
+  const earlierMenuRef = useRef<HTMLDivElement | null>(null);
   const [briefTab, setBriefTab] = useState<BriefTab>('theory');
   const [theoryPage, setTheoryPage] = useState(0);
   const isNarrow = useIsNarrowUi();
@@ -203,7 +240,11 @@ export function ModuleWorkspace({
   // Fresh module: reset every piece of per-module state.
   useEffect(() => {
     const nextTheory = loadSavedTheory(persistId, content.theory);
-    setFiles(loadSavedFiles(persistId, content.files));
+    const start = startState(persistId, content, earlierRef.current);
+    setFiles(start.files);
+    setGate(start.gate);
+    setNote(start.note);
+    setEarlierMenuOpen(false);
     setFocusFile(content.entryFile);
     setBriefTab('theory');
     setTheoryPage(0);
@@ -225,17 +266,91 @@ export function ModuleWorkspace({
     briefBodyRef.current?.scrollTo({ top: 0 });
   }, [theoryPage, briefTab, theoryEditing]);
 
+  // Nothing is saved while the gate is up: a saved chapter never asks again.
   useEffect(() => {
+    if (gate) return undefined;
     const t = window.setTimeout(() => {
       try {
-        const { next, legacy } = storageKeys(persistId);
+        const { next, legacy } = workspaceFilesKeys(persistId);
         writeMigrating(window.localStorage, next, legacy, JSON.stringify(files));
       } catch {
         // Quota or private mode — losing autosave is not worth breaking the page.
       }
     }, 400);
     return () => window.clearTimeout(t);
-  }, [files, persistId]);
+  }, [files, persistId, gate]);
+
+  useEffect(() => {
+    if (!earlierMenuOpen) return undefined;
+    const close = (e: MouseEvent): void => {
+      if (!earlierMenuRef.current?.contains(e.target as Node)) setEarlierMenuOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [earlierMenuOpen]);
+
+  const gateProgress = useMemo(
+    () =>
+      gate?.unfinished.map((chapter) => {
+        const saved = readSavedFiles(chapter.persistId);
+        return {
+          chapter,
+          done: saved ? countDone(saved, chapter.content.tasks) : null,
+          total: chapter.content.tasks.length,
+        };
+      }) ?? [],
+    [gate],
+  );
+
+  function startWithReference(): void {
+    if (!gate) return;
+    setFiles(gate.files);
+    setNote(carryNote(gate));
+    setGate(null);
+  }
+
+  function pullEarlierCode(): void {
+    const earlier = earlierChapters ?? [];
+    setEarlierMenuOpen(false);
+    if (
+      !window.confirm(
+        'Replace the earlier chapters’ files here with your latest finished code from those chapters? Changes you made to those files in this chapter are overwritten.',
+      )
+    ) {
+      return;
+    }
+    const plan = planCarry(content.files, earlier, readSavedFiles);
+    const next = { ...files };
+    for (const chapter of plan.fromLearner) {
+      for (const path of ownedFiles(chapter)) {
+        if (path in plan.files) next[path] = plan.files[path];
+      }
+    }
+    setFiles(next);
+    if (plan.fromLearner.length === 0) {
+      setNote('None of the earlier chapters is finished in this browser yet, so nothing changed.');
+    } else {
+      const kept =
+        plan.unfinished.length > 0
+          ? ` ${joinLabels(plan.unfinished)} ${plan.unfinished.length === 1 ? 'is' : 'are'} not finished, so ${plan.unfinished.length === 1 ? 'it keeps' : 'they keep'} the code it had here.`
+          : '';
+      setNote(`Pulled in your latest code from ${joinLabels(plan.fromLearner)}.${kept}`);
+    }
+  }
+
+  function swapInReference(): void {
+    const earlier = earlierChapters ?? [];
+    setEarlierMenuOpen(false);
+    if (
+      !window.confirm(
+        'Replace the earlier chapters’ files with the reference solution? It shows the answers to their tasks. Your work on this chapter’s tasks is kept.',
+      )
+    ) {
+      return;
+    }
+    setFiles(withReference(files, content.files, earlier));
+    setNote(`${joinLabels(earlier)} now ${earlier.length === 1 ? 'uses' : 'use'} the reference solution.`);
+  }
 
   const applyTheoryDraft = useCallback((): void => {
     setTheoryMarkdown(theoryDraft);
@@ -316,16 +431,22 @@ export function ModuleWorkspace({
   const doneCount = content.tasks.filter((t) => taskDone(files, t.file, t.id)).length;
 
   function resetModule(): void {
-    if (!window.confirm('Reset this module? Your edits will be discarded.')) return;
-    const filesKeys = storageKeys(persistId);
+    const message = earlierChapters?.length
+      ? 'Reset this chapter? Your edits here are discarded, and it starts again from your finished earlier chapters.'
+      : 'Reset this module? Your edits will be discarded.';
+    if (!window.confirm(message)) return;
+    const filesKeys = workspaceFilesKeys(persistId);
     const theoryKeys = theoryStorageKeys(persistId);
-    removeMigrating(window.localStorage, filesKeys.next, filesKeys.legacy);
     try {
+      removeMigrating(window.localStorage, filesKeys.next, filesKeys.legacy);
       removeMigrating(window.localStorage, theoryKeys.next, theoryKeys.legacy);
     } catch {
       // ignore
     }
-    setFiles(content.files);
+    const start = startState(persistId, content, earlierChapters);
+    setFiles(start.files);
+    setGate(start.gate);
+    setNote(start.note);
     setFocusFile(content.entryFile);
     setTheoryMarkdown(content.theory);
     setTheoryDraft(content.theory);
@@ -350,6 +471,7 @@ export function ModuleWorkspace({
               <span>{title}</span>
             </>
           )}
+          {crumbAction && <span className="project-module-crumb-action">{crumbAction}</span>}
         </p>
       )}
       <div
@@ -417,6 +539,32 @@ export function ModuleWorkspace({
                       Edit
                       {theoryDirty ? ' •' : ''}
                     </button>
+                  )}
+                  {earlierChapters && earlierChapters.length > 0 && !gate && (
+                    <div className="project-earlier-menu" ref={earlierMenuRef}>
+                      <button
+                        type="button"
+                        className="topnav-pill topnav-action"
+                        aria-haspopup="menu"
+                        aria-expanded={earlierMenuOpen}
+                        title="Code from the chapters this one builds on"
+                        onClick={() => setEarlierMenuOpen((open) => !open)}
+                      >
+                        Earlier code ▾
+                      </button>
+                      {earlierMenuOpen && (
+                        <div className="project-earlier-menu-list" role="menu">
+                          <button type="button" role="menuitem" onClick={pullEarlierCode}>
+                            <strong>Pull in my latest code</strong>
+                            <span>From each finished earlier chapter</span>
+                          </button>
+                          <button type="button" role="menuitem" onClick={swapInReference}>
+                            <strong>Use the reference solution</strong>
+                            <span>Shows the answers to earlier chapters</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                   <button type="button" className="topnav-pill topnav-action" onClick={resetModule}>
                     Reset
@@ -607,10 +755,7 @@ export function ModuleWorkspace({
 
                 {briefTab === 'verify' && (
                   <div className="project-verify">
-                    <p className="project-task-lead">
-                      Run these from the project root. The tests talk to your server over a real
-                      socket, so passing them means the thing actually works.
-                    </p>
+                    <p className="project-task-lead">{content.verifyLead ?? DEFAULT_VERIFY_LEAD}</p>
                     <ul className="project-verify-list">
                       {content.verify.map((cmd) => (
                         <li key={cmd}>
@@ -668,14 +813,60 @@ export function ModuleWorkspace({
         )}
         {showWorkspace && !isNarrow && (
           <div className="col col-main">
-            <div className="panel spark-ide-panel" style={{ flex: 1 }}>
-              <SparkProjectEditor
-                key={`${persistId}:${focusFile}`}
-                files={files}
-                onChangeFiles={setFiles}
-                entryFile={focusFile}
-              />
-            </div>
+            {gate ? (
+              <div className="panel spark-ide-panel project-carry-gate" style={{ flex: 1 }}>
+                <div className="project-carry-gate-card">
+                  <p className="project-carry-gate-eyebrow">Builds on earlier chapters</p>
+                  <h2 className="project-carry-gate-title">
+                    Finish {gate.unfinished[0].label} first
+                  </h2>
+                  <p className="project-carry-gate-body">
+                    This chapter starts from your own code for the chapters before it.{' '}
+                    {gate.unfinished.length === 1 ? 'This one is' : 'These are'} not finished in
+                    this browser yet:
+                  </p>
+                  <ul className="project-carry-gate-list">
+                    {gateProgress.map(({ chapter, done, total }) => (
+                      <li key={chapter.id}>
+                        <Link to={chapter.href}>{chapter.label}</Link>
+                        <span>{done == null ? 'not started' : `${done}/${total} tasks done`}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="project-carry-gate-actions">
+                    <Link className="spark-ide-btn spark-ide-btn--run" to={gate.unfinished[0].href}>
+                      Go to {gate.unfinished[0].label}
+                    </Link>
+                    <button type="button" className="ghost sm" onClick={startWithReference}>
+                      Start with the reference for {gate.unfinished.length === 1 ? 'it' : 'them'}
+                    </button>
+                  </div>
+                  <p className="project-carry-gate-hint">
+                    The reference is our solution to those tasks. Once you finish them yourself,
+                    bring your code in from Earlier code, Pull in my latest code.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {note && (
+                  <div className="project-carry-note" role="status">
+                    <span>{note}</span>
+                    <button type="button" aria-label="Dismiss" onClick={() => setNote(null)}>
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="panel spark-ide-panel" style={{ flex: 1 }}>
+                  <SparkProjectEditor
+                    key={`${persistId}:${focusFile}`}
+                    files={files}
+                    onChangeFiles={setFiles}
+                    entryFile={focusFile}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -685,10 +876,6 @@ export function ModuleWorkspace({
 
 export default function ProjectModulePage(): JSX.Element {
   const { projectId, moduleId } = useParams<{ projectId: string; moduleId: string }>();
-
-  if (projectId === 'cinder' && moduleId === 'tcp-server') {
-    return <Navigate to={`${MINORS_PATH}/tcp-server`} replace />;
-  }
 
   const project = getProject(projectId);
   if (!project || project.status !== 'ready') return <Navigate to={MAJORS_PATH} replace />;

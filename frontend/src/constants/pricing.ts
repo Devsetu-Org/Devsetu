@@ -74,18 +74,4 @@ export const PRICING_PLANS: PricingPlan[] = [
       COMMUNITY,
     ],
   },
-  {
-    id: 'devops-engineer',
-    name: 'DevOps Engineer',
-    price: 699,
-    path: '/track/devops-engineer',
-    featured: true,
-    checklist: [
-      'Everything in Linux, Docker and Kubernetes',
-      `${linuxLabs + dockerLabs + k8sLabs} hands-on labs`,
-      `${LINUX_READINGS.length + DOCKER_READINGS.length + K8S_READINGS.length} blog readings`,
-      COMMUNITY,
-      'One price for the whole track',
-    ],
-  },
 ];
