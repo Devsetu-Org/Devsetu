@@ -33,30 +33,34 @@ interface SolutionGateModalProps {
   onConfirm: () => void;
 }
 
-function PenaltyNotice({ status }: { status: SolutionStatus | null }): JSX.Element | null {
-  if (!status || status.practice) return null;
-  if (status.solved && !status.penalized) {
+function GateMessage({ status }: { status: SolutionStatus | null }): JSX.Element {
+  if (status && !status.practice && status.solved && !status.penalized) {
     return (
       <p className="solution-gate-penalty is-free">
-        You already solved this lab, so opening the solution won&apos;t cost any tokens.
+        You&apos;ve solved this lab, so the solution is free to open.
       </p>
     );
   }
-  if (status.viewedAt != null) {
+  if (status && !status.practice && status.viewedAt != null) {
     return (
       <p className="solution-gate-penalty">
-        You opened this solution before solving the lab, so it now awards{' '}
-        <strong>{status.tokensAfterPenalty} tokens</strong> instead of {status.tokens}.
+        You&apos;ve opened this before. Solving it now awards{' '}
+        <strong>{status.tokensAfterPenalty}</strong> of {status.tokens} tokens.
       </p>
     );
   }
-  return (
-    <p className="solution-gate-penalty">
-      Opening the solution before a correct submission costs <strong>{status.penaltyPct}%</strong> of
-      this lab&apos;s tokens: you&apos;ll earn <strong>{status.tokensAfterPenalty}</strong> instead
-      of {status.tokens} when you solve it.
-    </p>
-  );
+  if (status && !status.practice) {
+    return (
+      <>
+        <p className="solution-gate-penalty">
+          Opening it now costs <strong>{status.penaltyPct}%</strong> of the tokens: you&apos;ll
+          earn <strong>{status.tokensAfterPenalty}</strong> instead of {status.tokens}.
+        </p>
+        <p>Re-read the spec and try one more idea first.</p>
+      </>
+    );
+  }
+  return <p>Re-read the spec and try one more idea before you peek.</p>;
 }
 
 export default function SolutionGateModal({
@@ -87,13 +91,14 @@ export default function SolutionGateModal({
   }, [open, challengeId]);
 
   const willPenalize = Boolean(status && status.penalized && status.viewedAt == null);
+  const alreadySolved = Boolean(status && status.solved && !status.penalized);
 
   return (
     <ConfirmDialog
       open={open}
-      title="Go till the last mile"
+      title={alreadySolved ? 'Open the solution' : 'Open the solution?'}
       confirmLabel={willPenalize ? `Show solution (−${status!.penaltyPct}% tokens)` : 'Show solution'}
-      cancelLabel="Keep trying"
+      cancelLabel={alreadySolved ? 'Cancel' : 'Keep trying'}
       busy={busy}
       onCancel={onCancel}
       onConfirm={() => {
@@ -108,12 +113,7 @@ export default function SolutionGateModal({
           .finally(() => setBusy(false));
       }}
     >
-      <p>
-        You learn the most in the moments you are stuck. Re-read the spec, check{' '}
-        <code>kubectl describe</code> / events / logs, and try one more idea before peeking.
-      </p>
-      <PenaltyNotice status={status} />
-      <p>Open the solution only if you really feel there is no other way forward.</p>
+      <GateMessage status={status} />
       {error ? <p className="solution-gate-error" role="alert">{error}</p> : null}
     </ConfirmDialog>
   );

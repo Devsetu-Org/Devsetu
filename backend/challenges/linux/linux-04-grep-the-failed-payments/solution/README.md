@@ -1,4 +1,4 @@
-# Solution — Grep the Failed Payments
+# Solution — The Failed Payment Spike
 
 `grep` prints the lines that match a pattern. A few flags cover most real work:
 

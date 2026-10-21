@@ -23,7 +23,7 @@ box_ok "cmp -s $H/release/bin/order-processor $H/incoming/order-processor" || fa
 ok "binary copied"
 
 box_ok "test -f $H/release/README.md" || fail "~/release/README.md does not exist (move and rename README)"
-box_ok "grep -q 'v1.3' $H/release/README.md" || fail "~/release/README.md doesn't contain the release notes"
+box_ok "grep -q 'v1.1' $H/release/README.md" || fail "~/release/README.md doesn't contain the release notes"
 ok "README.md"
 
 [[ "$(in_dir $H/incoming)" == "order-processor" ]] \

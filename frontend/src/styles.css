@@ -14039,9 +14039,20 @@ button.author-draft-card-cta--danger:hover {
 
 .markdown-prose .markdown-table td {
   color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.markdown-prose .markdown-table td:first-child {
+  white-space: nowrap;
+  width: 1%;
   font-family: var(--mono, ui-monospace, monospace);
-  font-size: 12px;
-  word-break: break-word;
+}
+
+.markdown-prose .markdown-table td:first-child code,
+.markdown-prose .markdown-table th:first-child {
+  white-space: nowrap;
 }
 
 .markdown-prose .markdown-table tr:last-child td {
@@ -23107,6 +23118,7 @@ kbd {
   50% { opacity: 1; }
 }
 
+.k8s-lab-term-pane--has-results-bar .k8s-lab-term-pane-layer,
 .k8s-lab-term-pane--has-results-bar .k8s-lab-scratch.is-active {
   bottom: 36px;
 }
