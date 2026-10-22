@@ -180,13 +180,6 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
                 </strong>
                 <p className="project-tile-subtitle">{minor.subtitle}</p>
                 <p className="playground-tile-blurb">{minor.blurb}</p>
-                <ul className="playground-tile-facts">
-                  {minor.facts.map((fact) => (
-                    <li key={fact} className="playground-tile-fact">
-                      {fact}
-                    </li>
-                  ))}
-                </ul>
               </div>
             );
           }
@@ -198,14 +191,6 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
               </strong>
               <p className="project-tile-subtitle">{minor.subtitle}</p>
               <p className="playground-tile-blurb">{minor.blurb}</p>
-              <ul className="playground-tile-facts">
-                {minor.language && <li className="playground-tile-fact">{minor.language}</li>}
-                {minor.facts.map((fact) => (
-                  <li key={fact} className="playground-tile-fact">
-                    {fact}
-                  </li>
-                ))}
-              </ul>
               <span className="playground-tile-cta">
                 Open {minor.name}
                 <span aria-hidden>→</span>

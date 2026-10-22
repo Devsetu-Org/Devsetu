@@ -11,6 +11,7 @@ const k8s = require('./k8sCluster');
 const capacity = require('./k8sCapacity');
 const linuxBox = require('./linuxBox');
 const { isClusterLabType, boxFlavor } = require('../challenges/labTypes');
+const terminalEventBus = require('../observability/terminalEventBus');
 
 interface StartK8sOpts {
   challengeId: string;
@@ -312,6 +313,7 @@ async function startK8sSession({
   if (existing) {
     existing.status = 'active';
     existing.endTime = null;
+    existing.endReason = null;
     existing.runtime = 'kubernetes';
     existing.userId = owner;
     existing.k8sNamespace = ns;
@@ -399,9 +401,12 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
   const challengeId = session.challengeId;
 
   // Mark ended immediately so the client can leave; park/wipe runs in background.
+  // Close shells first: deleting the box otherwise makes kubectl exec print
+  // "connection reset by peer" into the learner's terminal.
   session.status = 'ended';
   session.endTime = Date.now();
   await sessionStore.persistRow(session);
+  terminalEventBus.emit('session_end', { sessionId, reason: session.endReason || null });
   void capacity.nudge();
 
   const flavor = challengeId ? boxFlavorOf(challengeId) : null;

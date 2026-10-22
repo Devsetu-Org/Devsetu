@@ -1,25 +1,32 @@
-# Solution — Fix the Config with sed and vim
+There is no config-management tool on this box, so you edit `/etc/order-processor/app.conf` yourself. `sed` is for the repeatable changes: the same command would fix a hundred servers. `vim` is for the one new line that is not in the file yet. The file is owned by root, so these commands use `sudo`.
 
-`sed` edits text from a script, which is ideal for repeatable changes you could run on a hundred servers. `vim` is the editor that's on every server you'll ever SSH into. Use each where it fits.
+Copy the original first. If an edit goes wrong, the backup is the only copy of what the file used to say.
 
-Docs: `man sed` · `vimtutor` (a 30-minute interactive vim lesson)
+| Piece | What it does |
+| --- | --- |
+| `sed 's/old/new/g'` | Replaces every match. Without `-i` it only prints the result |
+| `sed -i -e ...` | Writes the edits back into the file. Each `-e` is one edit |
+| `\.` | A literal dot. A bare `.` matches any character |
+| `/TODO/d` | Deletes every line that contains `TODO` |
+| `^` | The start of a line, so `#metrics_port` is not matched mid-line |
+| `vim` | Opens the file. `o` inserts a line below, `:wq` saves, `:q!` quits without saving |
 
-## Look, then back up
+## 1. Look, then back up
 
 ```bash
 cat -n /etc/order-processor/app.conf
 sudo cp /etc/order-processor/app.conf /etc/order-processor/app.conf.bak
 ```
 
-## Scripted edits with sed
+## 2. The repeatable edits
 
-Preview without `-i` first. Without `-i`, sed only prints the result:
+Preview the host change before you write it:
 
 ```bash
 sed 's/queue-old\.internal/queue.internal/g' /etc/order-processor/app.conf
 ```
 
-Then apply all changes in place:
+Then apply all four edits:
 
 ```bash
 sudo sed -i \
@@ -30,25 +37,20 @@ sudo sed -i \
   /etc/order-processor/app.conf
 ```
 
-- `s/old/new/g`: substitute. `g` replaces every match on the line, not just the first.
-- `\.` matches a literal dot. A bare `.` matches any character.
-- `/TODO/d`: delete the lines that match.
-- `^`: start of line.
+The first edit replaces both queue URLs. The payments endpoint is `payment.internal`, so this pattern does not touch it.
 
-`sed -i.bak ...` would have made the backup for you.
-
-## Interactive edit with vim
+## 3. Add the line in vim
 
 ```bash
 sudo vim /etc/order-processor/app.conf
 ```
 
-1. `/\[queue\]` then `Enter` to jump to the section.
-2. `o` to open a new line below and enter insert mode, then type `max_retries = 5`.
-3. `Esc`, then `:wq` and `Enter` to write and quit. (`:q!` quits without saving.)
+1. Type `/\[queue\]` and press Enter to jump to the section.
+2. Press `o`, type `max_retries = 5`, then press Esc.
+3. Type `:wq` and press Enter.
+
+Check the difference, then **Submit**:
 
 ```bash
 diff /etc/order-processor/app.conf.bak /etc/order-processor/app.conf
 ```
-
-Then **Submit**.

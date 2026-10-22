@@ -272,18 +272,6 @@ function LandingContent(): JSX.Element {
         <HeroPanel />
       </section>
 
-      <section id="waitlist" className="landing-waitlist" aria-label="Join the waitlist">
-        <div className="landing-waitlist-copy">
-          <p className="landing-kicker">Launching first week of November</p>
-          <h2 className="landing-section-title">Join the waitlist</h2>
-          <p className="landing-section-lead">
-            Get {LAUNCH_OFFER.percentOff}% off your first month at launch, and early access before
-            everyone else.
-          </p>
-        </div>
-        <WaitlistForm />
-      </section>
-
       <section
         ref={platformReveal.ref}
         className={`landing-platform${platformReveal.inView ? ' is-inview' : ''}`}
@@ -391,6 +379,18 @@ function LandingContent(): JSX.Element {
             View pricing <span aria-hidden>→</span>
           </Link>
         </aside>
+      </section>
+
+      <section id="waitlist" className="landing-waitlist" aria-label="Join the waitlist">
+        <div className="landing-waitlist-copy">
+          <p className="landing-kicker">Launching first week of November</p>
+          <h2 className="landing-section-title">Join the waitlist</h2>
+          <p className="landing-section-lead">
+            Get {LAUNCH_OFFER.percentOff}% off your first month at launch, and early access before
+            everyone else.
+          </p>
+        </div>
+        <WaitlistForm />
       </section>
     </>
   );

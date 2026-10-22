@@ -22,7 +22,7 @@ prefetch = 20
 # TODO tune prefetch after load test
 
 [payments]
-endpoint = http://payment-old.internal:9090
+endpoint = http://payment.internal:9090
 timeout = 5s
 CONF
 cp /var/lib/devlabs/app.conf.orig /etc/order-processor/app.conf

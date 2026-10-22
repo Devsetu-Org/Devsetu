@@ -119,11 +119,15 @@ need_answer() {
 }
 
 # Keep going after a miss so the result can list every task, not only the first one.
+# Graders are written as `check || fail "..."; ok "task"`. fail used to exit, so the
+# ok never ran. It no longer exits, and the next ok must not tick a task that just failed.
 _grade_failures=0
+_grade_miss=0
 fail() {
   echo "FAIL: $*" >&2
   echo "fail: $*"
   _grade_failures=$((_grade_failures + 1))
+  _grade_miss=1
 }
 pass() {
   if [[ "${_grade_failures}" -gt 0 ]]; then
@@ -139,4 +143,9 @@ _grade_finish() {
 }
 trap _grade_finish EXIT
 
-ok() { echo "ok: $*"; }
+ok() {
+  if [[ "${_grade_miss}" -eq 0 ]]; then
+    echo "ok: $*"
+  fi
+  _grade_miss=0
+}

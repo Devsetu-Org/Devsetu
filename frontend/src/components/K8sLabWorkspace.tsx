@@ -20,6 +20,7 @@ import {
   LAB_LEASE_RECLAIMED_EVENT,
   LAB_LEASE_TAKEN_EVENT,
   LAB_SESSION_ENDED_EVENT,
+  LAB_SESSION_IDLE_EVENT,
   sendLabHeartbeat,
   withLabClientId,
 } from '../services/labTabLease';
@@ -108,6 +109,26 @@ function submissionShortId(id: string): string {
   return id.replace(/-/g, '').slice(0, 8);
 }
 
+type LabSubmission = K8sSubmissionRecord & { pending?: boolean };
+
+function pendingSubmission(sessionId: string, challengeId: string, submittedAt: number): LabSubmission {
+  return {
+    id: 'pending',
+    sessionId,
+    challengeId: challengeId || null,
+    name: '',
+    status: 'grading',
+    gradeStatus: 'grading',
+    passed: false,
+    message: '',
+    stdout: '',
+    stderr: '',
+    submittedAt,
+    gradedAt: null,
+    pending: true,
+  };
+}
+
 type GradeTask = { passed: boolean; text: string };
 
 type GradeReport = {
@@ -165,7 +186,7 @@ function K8sResultPanel({
   onResizeReset: () => void;
 }) {
   const report = gradeReport(result);
-  const shownTasks = result.passed ? report.tasks : report.tasks.filter((task) => task.passed);
+  const shownTasks = report.tasks;
   const verdict = result.passed ? 'Accepted' : 'Wrong Answer';
   const shortId = submissionId ? submissionShortId(submissionId) : '';
   const when = submissionStamp(result.at);
@@ -266,7 +287,13 @@ export default function K8sLabWorkspace({
   const showReviewTab = isReviewStaff(currentUser) || isReviewStaff(getCurrentUser());
   const labReady = session.labReady !== false;
   const lockedMessage = session.lockedMessage || null;
-  const notReadyTitle = lockedMessage ? 'Lab is unavailable right now' : 'Lab is still preparing';
+  const idleLocked = Boolean(session.idleLocked);
+  const terminalLocked = Boolean(lockedMessage) || idleLocked;
+  const notReadyTitle = idleLocked
+    ? 'Lab is locked because of inactivity'
+    : lockedMessage
+      ? 'Lab is unavailable right now'
+      : 'Lab is still preparing';
   const challengeId = challenge?.id || '';
   const box = isBoxChallenge(challenge);
   const machineLabel = boxMachineLabel(challenge);
@@ -301,7 +328,7 @@ export default function K8sLabWorkspace({
   const [solutionEntrypoint, setSolutionEntrypoint] = useState<string | null>(null);
   const [solutionLoading, setSolutionLoading] = useState(false);
   const [solutionGateOpen, setSolutionGateOpen] = useState(false);
-  const [submissions, setSubmissions] = useState<K8sSubmissionRecord[]>([]);
+  const [submissions, setSubmissions] = useState<LabSubmission[]>([]);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultsDrawerHeight, setResultsDrawerHeight] = useState(RESULTS_DRAWER_DEFAULT);
@@ -311,7 +338,10 @@ export default function K8sLabWorkspace({
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
   const [gradeModal, setGradeModal] = useState<GradeModalPhase | null>(null);
   const gradeModalOpen = useRef(false);
-  const capacity = useCapacity(!box && !lockedMessage);
+  /** True until this submit has a stored result. Closing the card before then leaves an in-progress row. */
+  const gradePending = useRef(false);
+  const gradeStartedAt = useRef<number | null>(null);
+  const capacity = useCapacity(!box && !terminalLocked);
   const capacityWaits = capacity.waiting;
   const capacityWaitedSeconds = Math.max(
     capacity.reservingSeconds ?? 0,
@@ -331,17 +361,22 @@ export default function K8sLabWorkspace({
     return () => window.removeEventListener(LAB_LEASE_RECLAIMED_EVENT, onReclaimed);
   }, []);
 
-  const onTerminalDisconnect = (): void => {
+  const onTerminalDisconnect = (info?: { idle?: boolean }): void => {
     if (!session.id || session.id.startsWith('pending-k8s-')) return;
+    if (info?.idle) {
+      window.dispatchEvent(new Event(LAB_SESSION_IDLE_EVENT));
+      return;
+    }
     void sendLabHeartbeat(session.id).then((result) => {
       if (result === 'taken') window.dispatchEvent(new Event(LAB_LEASE_TAKEN_EVENT));
-      if (result === 'ended') window.dispatchEvent(new Event(LAB_SESSION_ENDED_EVENT));
+      if (result === 'idle') window.dispatchEvent(new Event(LAB_SESSION_IDLE_EVENT));
+      else if (result === 'ended') window.dispatchEvent(new Event(LAB_SESSION_ENDED_EVENT));
     });
   };
 
   useEffect(() => {
-    if (lockedMessage) setMainTab('terminal');
-  }, [lockedMessage]);
+    if (terminalLocked) setMainTab('terminal');
+  }, [terminalLocked]);
 
   const prevLabReady = useRef(labReady);
   useEffect(() => {
@@ -409,7 +444,12 @@ export default function K8sLabWorkspace({
 
   const refreshSubmissions = () => {
     void fetchK8sSubmissions(session.id)
-      .then((rows) => setSubmissions(rows))
+      .then((rows) => {
+        setSubmissions((prev) => {
+          const pending = prev.filter((row) => row.pending);
+          return pending.length ? [...pending, ...rows] : rows;
+        });
+      })
       .catch(() => { /* keep last list */ });
   };
 
@@ -465,8 +505,14 @@ export default function K8sLabWorkspace({
   }, []);
 
   const dismissGradeModal = () => {
+    const stillGrading = gradeModal === 'grading' && gradePending.current;
     gradeModalOpen.current = false;
     setGradeModal(null);
+    if (!stillGrading) return;
+    setSubmissions((prev) => {
+      if (prev.some((row) => row.pending)) return prev;
+      return [pendingSubmission(session.id, challengeId, gradeStartedAt.current ?? Date.now()), ...prev];
+    });
   };
 
   const showEvalResult = (result: EvalResult, submissionId?: string | null, open = true) => {
@@ -478,6 +524,8 @@ export default function K8sLabWorkspace({
   const onGrade = async () => {
     setBusy(true);
     gradeModalOpen.current = true;
+    gradePending.current = true;
+    gradeStartedAt.current = Date.now();
     setGradeModal('grading');
     const started = Date.now();
     const holdGrading = async () => {
@@ -494,16 +542,23 @@ export default function K8sLabWorkspace({
         stderr: res.stderr || '',
         at,
       };
+      gradePending.current = false;
       if (res.submission) {
-        setSubmissions((prev) => [res.submission!, ...prev.filter((s) => s.id !== res.submission!.id)]);
+        setSubmissions((prev) => [
+          res.submission!,
+          ...prev.filter((row) => !row.pending && row.id !== res.submission!.id),
+        ]);
         showEvalResult(result, res.submission.id, false);
       } else {
+        setSubmissions((prev) => prev.filter((row) => !row.pending));
         refreshSubmissions();
         showEvalResult(result, null, false);
       }
       await holdGrading();
       if (gradeModalOpen.current) setGradeModal(result.passed ? 'pass' : 'fail');
     } catch (e) {
+      gradePending.current = false;
+      setSubmissions((prev) => prev.filter((row) => !row.pending));
       const err = e as { response?: { data?: { error?: string; message?: string; stdout?: string; stderr?: string } }; message?: string };
       const data = err?.response?.data;
       const at = Date.now();
@@ -744,17 +799,21 @@ export default function K8sLabWorkspace({
                           {submissions.map((sub, index) => {
                             const attempt = submissions.length - index;
                             const when = submissionStamp(sub.submittedAt);
-                            const verdict = sub.passed ? 'Accepted' : 'Wrong Answer';
-                            const shortId = submissionShortId(sub.id);
+                            const pending = Boolean(sub.pending);
+                            const verdict = pending ? 'In Progress' : sub.passed ? 'Accepted' : 'Wrong Answer';
+                            const shortId = pending ? '—' : submissionShortId(sub.id);
                             return (
                               <button
                                 key={sub.id}
                                 type="button"
-                                className={`k8s-submission-row${sub.passed ? ' is-pass' : ' is-fail'}${
-                                  selectedSubmissionId === sub.id ? ' is-selected' : ''
-                                }`}
-                                aria-label={`${attempt}, ${shortId}, ${verdict}${when ? `, ${when}` : ''}`}
+                                className={`k8s-submission-row${
+                                  pending ? ' is-pending' : sub.passed ? ' is-pass' : ' is-fail'
+                                }${selectedSubmissionId === sub.id ? ' is-selected' : ''}`}
+                                aria-label={`${attempt}, ${pending ? 'in progress' : shortId}, ${verdict}${when ? `, ${when}` : ''}`}
+                                aria-disabled={pending || undefined}
+                                disabled={pending}
                                 onClick={() => {
+                                  if (pending) return;
                                   showEvalResult(
                                     {
                                       passed: sub.passed,
@@ -768,7 +827,7 @@ export default function K8sLabWorkspace({
                                 }}
                               >
                                 <span className="k8s-submission-num">{attempt}</span>
-                                <span className="k8s-submission-sid" title={sub.id}>{shortId}</span>
+                                <span className="k8s-submission-sid" title={pending ? undefined : sub.id}>{shortId}</span>
                                 <span className="k8s-submission-verdict">{verdict}</span>
                                 <span className="k8s-submission-time">{when}</span>
                               </button>
@@ -824,7 +883,7 @@ export default function K8sLabWorkspace({
           <div className="spark-ide-actionbar">
             <div className="spark-ide-actionbar-left">
               <div className="k8s-lab-main-tabs" role="tablist" aria-label="Lab workspace">
-                {!box && !lockedMessage && (
+                {!box && !terminalLocked && (
                 <button
                   type="button"
                   role="tab"
@@ -843,8 +902,8 @@ export default function K8sLabWorkspace({
                   className={`k8s-lab-main-tab${mainTab === 'terminal' ? ' active' : ''}`}
                   onClick={() => setMainTab('terminal')}
                   title={
-                    lockedMessage
-                      ? 'Terminal is unavailable right now'
+                    terminalLocked
+                      ? (idleLocked ? 'Terminal is locked because of inactivity' : 'Terminal is unavailable right now')
                       : labReady
                         ? (box ? 'Terminal' : `Terminal (${toggleHint} to toggle)`)
                         : 'Terminal is connecting in the background'
@@ -852,8 +911,8 @@ export default function K8sLabWorkspace({
                 >
                   Terminal
                   <span
-                    className={`k8s-lab-term-status${labReady ? ' is-ready' : ''}${lockedMessage ? ' is-locked' : ''}`}
-                    aria-label={lockedMessage ? 'unavailable' : labReady ? 'ready' : 'connecting'}
+                    className={`k8s-lab-term-status${labReady && !terminalLocked ? ' is-ready' : ''}${terminalLocked ? ' is-locked' : ''}`}
+                    aria-label={terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
                   />
                 </button>
               </div>
@@ -910,16 +969,26 @@ export default function K8sLabWorkspace({
               className={`k8s-lab-term-pane-layer${mainTab === 'terminal' ? ' is-active' : ''}`}
               aria-hidden={mainTab !== 'terminal'}
             >
-              {lockedMessage ? (
+              {terminalLocked ? (
                 <div className="k8s-lab-locked" role="status" aria-live="polite">
                   <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
                     <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
                     <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
                   </svg>
-                  <strong>This lab is locked for now</strong>
-                  <p>{lockedMessage}</p>
+                  <strong>{idleLocked ? 'This lab is locked' : 'This lab is locked for now'}</strong>
+                  <p>
+                    {idleLocked
+                      ? (box
+                        ? 'It was locked because of inactivity, so the machine was stopped.'
+                        : 'It was locked because of inactivity, so the lab was paused.')
+                      : lockedMessage}
+                  </p>
                   <p className="k8s-lab-locked-hint">
-                    You can still read the description and the rest of the brief on the left.
+                    {idleLocked
+                      ? (box
+                        ? 'Resume starts a fresh machine. You can still read the description and the rest of the brief on the left.'
+                        : 'Resume brings your lab back. You can still read the description and the rest of the brief on the left.')
+                      : 'You can still read the description and the rest of the brief on the left.'}
                   </p>
                   {challenge && (
                     <button
@@ -927,7 +996,7 @@ export default function K8sLabWorkspace({
                       className="spark-ide-btn k8s-lab-locked-retry"
                       onClick={() => void onSelectChallenge(challenge)}
                     >
-                      Try again
+                      {idleLocked ? 'Click here to resume your session' : 'Try again'}
                     </button>
                   )}
                 </div>

@@ -26,6 +26,7 @@ import SparkPrimerPage from './pages/SparkPrimerPage';
 import K8sPrimerPage from './pages/K8sPrimerPage';
 import K8sReadingPage from './pages/K8sReadingPage';
 import ProfilePage from './pages/ProfilePage';
+import FeedbackPage, { FEEDBACK_SIGN_IN } from './pages/FeedbackPage';
 import AdminPage from './pages/AdminPage';
 import AdminFeedbackPage from './pages/AdminFeedbackPage';
 import AdminWaitlistPage from './pages/AdminWaitlistPage';
@@ -46,6 +47,7 @@ import {
   LAB_LEASE_RECLAIMED_EVENT,
   LAB_LEASE_TAKEN_EVENT,
   LAB_SESSION_ENDED_EVENT,
+  LAB_SESSION_IDLE_EVENT,
   labConflictFromError,
   releaseLabLease,
   sendLabHeartbeat,
@@ -99,19 +101,22 @@ function SignedInOnlyRoute({
   children,
   fallback = () => '/track',
   unopened,
+  prompt,
 }: {
   children: React.ReactElement;
   fallback?: (pathname: string) => string;
   /** Items that are not open yet redirect on their own; asking guests to sign in for them is pointless. */
   unopened?: (pathname: string) => boolean;
+  /** Shown on the sign-in modal when a guest lands on this route. */
+  prompt?: { title: string; body: string };
 }): React.ReactElement {
   const { authMode, onRequestLogin } = useAppState();
   const { pathname, search } = useLocation();
   const signedIn = authMode === 'interviewer';
   const pass = signedIn || Boolean(unopened?.(pathname));
   useEffect(() => {
-    if (!pass && !signingOut) onRequestLogin(pathname + search);
-  }, [pass, onRequestLogin, pathname, search]);
+    if (!pass && !signingOut) onRequestLogin(pathname + search, prompt);
+  }, [pass, onRequestLogin, pathname, search, prompt]);
   if (!pass && signingOut) return <Navigate to="/" replace />;
   return pass ? children : <Navigate to={fallback(pathname)} replace />;
 }
@@ -156,8 +161,10 @@ export default function App(): React.JSX.Element {
   const [heartbeatEpoch, setHeartbeatEpoch] = useState<number>(0);
   const [loginOpen, setLoginOpen] = useState<boolean>(false);
   const [loginReturnTo, setLoginReturnTo] = useState<string | null>(null);
-  const requestLogin = useCallback((returnTo?: string): void => {
+  const [loginPrompt, setLoginPrompt] = useState<{ title: string; body: string } | null>(null);
+  const requestLogin = useCallback((returnTo?: string, prompt?: { title: string; body: string }): void => {
     setLoginReturnTo(typeof returnTo === 'string' ? returnTo : null);
+    setLoginPrompt(prompt ?? null);
     setLoginOpen(true);
   }, []);
 
@@ -655,7 +662,9 @@ export default function App(): React.JSX.Element {
             recovered?: boolean;
             k8sNamespace?: string;
             workspacePrefix?: string;
+            endReason?: string | null;
           } | null | undefined;
+          const idleLocked = res?.status === 'ended' && sess?.endReason === 'idle_timeout';
           setActiveSession({
             id: res?.sessionId || sessionId,
             startTime: res?.startTime || Date.now(),
@@ -670,7 +679,8 @@ export default function App(): React.JSX.Element {
               || (res as { k8sNamespace?: string } | null)?.k8sNamespace
               || sess?.workspacePrefix
               || null,
-            labReady: true,
+            labReady: !idleLocked,
+            idleLocked,
           });
           attempt.settle();
           setActiveChallenge((res?.challenge as ChallengeFull | null) || null);
@@ -924,6 +934,22 @@ export default function App(): React.JSX.Element {
     void refreshChallenges();
   };
 
+  /**
+   * Idle timeout on a cluster lab: keep the brief up and replace the shell with
+   * a resume screen. Returns false for other runtimes, which keep the ended dialog.
+   */
+  const lockLabForInactivity = (): boolean => {
+    let applied = false;
+    setActiveSession((prev) => {
+      if (!prev || prev.runtime !== 'kubernetes') return prev;
+      applied = true;
+      if (prev.idleLocked) return prev;
+      return { ...prev, idleLocked: true, labReady: false };
+    });
+    if (applied) setLabLeaseLost(null);
+    return applied;
+  };
+
   // Not while ending: the user's own end request tears the lab down, and that must not read as "ended elsewhere".
   const leaseSessionId =
     playState === 'active'
@@ -933,6 +959,7 @@ export default function App(): React.JSX.Element {
     && (activeSession.runtime === 'kubernetes'
       || activeSession.runtime === 'spark-platform'
       || activeSession.runtime === 'board')
+    && !activeSession.idleLocked
     && activeChallenge?.id !== SPARK_PLAYGROUND_CHALLENGE_ID
       ? activeSession.id
       : null;
@@ -943,6 +970,10 @@ export default function App(): React.JSX.Element {
     const beat = async (): Promise<void> => {
       const result = await sendLabHeartbeat(leaseSessionId);
       if (cancelled) return;
+      if (result === 'idle') {
+        if (!lockLabForInactivity()) setLabLeaseLost('ended');
+        return;
+      }
       if (result === 'taken' || result === 'ended') setLabLeaseLost(result);
     };
     void beat();
@@ -966,11 +997,16 @@ export default function App(): React.JSX.Element {
     if (!leaseSessionId) return undefined;
     const onTaken = (): void => setLabLeaseLost((prev) => prev || 'taken');
     const onEnded = (): void => setLabLeaseLost('ended');
+    const onIdle = (): void => {
+      if (!lockLabForInactivity()) setLabLeaseLost('ended');
+    };
     window.addEventListener(LAB_LEASE_TAKEN_EVENT, onTaken);
     window.addEventListener(LAB_SESSION_ENDED_EVENT, onEnded);
+    window.addEventListener(LAB_SESSION_IDLE_EVENT, onIdle);
     return () => {
       window.removeEventListener(LAB_LEASE_TAKEN_EVENT, onTaken);
       window.removeEventListener(LAB_SESSION_ENDED_EVENT, onEnded);
+      window.removeEventListener(LAB_SESSION_IDLE_EVENT, onIdle);
     };
   }, [leaseSessionId]);
 
@@ -1139,6 +1175,7 @@ export default function App(): React.JSX.Element {
           <Route path="track/:domainId" element={<PlayPage />} />
           <Route path="track/:domainId/:panelId" element={<PlayPage />} />
           <Route path="profile" element={<SignedInOnlyRoute><ProfilePage /></SignedInOnlyRoute>} />
+          <Route path="feedback" element={<SignedInOnlyRoute prompt={FEEDBACK_SIGN_IN}><FeedbackPage /></SignedInOnlyRoute>} />
           <Route path="admin" element={<SignedInOnlyRoute><AdminPage /></SignedInOnlyRoute>} />
           <Route path="admin/feedback" element={<SignedInOnlyRoute><AdminFeedbackPage /></SignedInOnlyRoute>} />
           <Route path="admin/waitlist" element={<SignedInOnlyRoute><AdminWaitlistPage /></SignedInOnlyRoute>} />
@@ -1150,9 +1187,13 @@ export default function App(): React.JSX.Element {
       </Routes>
       <LoginModal
         open={loginOpen}
-        onClose={() => setLoginOpen(false)}
+        onClose={() => {
+          setLoginOpen(false);
+          setLoginPrompt(null);
+        }}
         onLoggedIn={handleLoggedIn}
         returnTo={loginReturnTo}
+        prompt={loginPrompt}
       />
       <ConfirmDialog
         open={Boolean(labConflict)}

@@ -8,12 +8,11 @@ import Avatar, { AvatarPicker } from '../components/Avatar';
 import ActivityHeatmap, { type ActivityDay } from '../components/ActivityHeatmap';
 import { fetchMyProfile, saveAvatar } from '../services/profileApi';
 
-export type ProfileSection = 'overview' | 'subscriptions' | 'contact' | 'preferences' | 'privacy';
+export type ProfileSection = 'overview' | 'subscriptions' | 'preferences' | 'privacy';
 
 const NAV_ITEMS: { id: ProfileSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'subscriptions', label: 'Subscriptions' },
-  { id: 'contact', label: 'Contact' },
   { id: 'preferences', label: 'Preferences' },
   { id: 'privacy', label: 'Privacy' },
 ];
@@ -29,8 +28,6 @@ export default function ProfilePage(): JSX.Element {
   const setSection = (next: ProfileSection): void => {
     setSearchParams(next === 'overview' ? {} : { section: next }, { replace: true });
   };
-  const [contactSubject, setContactSubject] = useState('General question');
-  const [contactMessage, setContactMessage] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityDay[] | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -87,18 +84,6 @@ export default function ProfilePage(): JSX.Element {
         ),
     [challenges],
   );
-
-  const contactMailto = useMemo(() => {
-    const subject = encodeURIComponent(`[DevSetu] ${contactSubject}`);
-    const body = encodeURIComponent(
-      [
-        contactMessage.trim() || '(Write your message here.)',
-        '',
-        `— ${currentUser?.email || 'signed-in user'}`,
-      ].join('\n'),
-    );
-    return `mailto:hello@devsetu.ai?subject=${subject}&body=${body}`;
-  }, [contactMessage, contactSubject, currentUser?.email]);
 
   return (
     <div className="app-page profile-page">
@@ -196,49 +181,6 @@ export default function ProfilePage(): JSX.Element {
           ) : null}
 
           {section === 'subscriptions' ? <SubscriptionsPanel /> : null}
-
-          {section === 'contact' ? (
-            <section className="profile-panel" aria-labelledby="profile-contact-heading">
-              <h2 id="profile-contact-heading" className="profile-panel-title">
-                Contact
-              </h2>
-              <p className="profile-panel-copy">
-                Questions about labs, teams, or campuses — send a note and we&apos;ll get back to you.
-              </p>
-              <form
-                className="profile-contact-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  window.location.href = contactMailto;
-                }}
-              >
-                <label className="profile-field">
-                  <span>Subject</span>
-                  <select
-                    value={contactSubject}
-                    onChange={(e) => setContactSubject(e.target.value)}
-                  >
-                    <option>General question</option>
-                    <option>Billing &amp; plans</option>
-                    <option>Bug report</option>
-                    <option>Team / campus</option>
-                  </select>
-                </label>
-                <label className="profile-field">
-                  <span>Message</span>
-                  <textarea
-                    rows={5}
-                    value={contactMessage}
-                    onChange={(e) => setContactMessage(e.target.value)}
-                    placeholder="How can we help?"
-                  />
-                </label>
-                <button type="submit" className="profile-contact-submit">
-                  Open email
-                </button>
-              </form>
-            </section>
-          ) : null}
 
           {section === 'preferences' ? (
             <section className="profile-panel" aria-labelledby="profile-prefs-heading">

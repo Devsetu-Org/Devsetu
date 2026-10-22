@@ -423,6 +423,11 @@ export interface ActiveSession {
    * and the terminal shows this message instead of a shell.
    */
   lockedMessage?: string | null;
+  /**
+   * The lab was stopped for inactivity. The terminal shows a lock screen with a
+   * way to start a fresh machine, instead of the shell's disconnect logs.
+   */
+  idleLocked?: boolean;
 }
 
 export interface EndSessionResult {
@@ -453,7 +458,7 @@ export interface AppState {
   onEnd: () => Promise<void>;
   onLogout: () => void;
   /** Guests browse freely; this opens the sign-in modal. */
-  onRequestLogin: (returnTo?: string) => void;
+  onRequestLogin: (returnTo?: string, prompt?: { title: string; body: string }) => void;
   /** Reload the lab list (e.g. after a purchase changes which labs are locked). */
   refreshChallenges: () => Promise<void>;
 }

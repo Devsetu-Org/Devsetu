@@ -22,7 +22,6 @@ import MonthlyPaperCard, { MonthlyPaperBanner } from '../components/MonthlyPaper
 import PlatformLeaderboardCard from '../components/PlatformLeaderboardCard';
 import TrackRoadmapModal from '../components/TrackRoadmapModal';
 import { buildPanelRoadmapNodes } from '../lib/trackRoadmapNodes';
-import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import { IconCoins, IconLock } from '../components/ChromeIcons';
 import {
   PLAY_DOMAINS,
@@ -108,8 +107,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   );
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
-  const isNarrowUi = useIsNarrowUi();
-  const showRoadmap = !isNarrowUi;
 
   const domainId =
     isPlayDomainId(params.domainId) && !getPlayDomain(params.domainId)?.comingSoon
@@ -131,10 +128,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
       navigate(playCatalogPath(domainId), { replace: true });
     }
   }, [params.domainId, params.panelId, domainId, panel, navigate]);
-
-  useEffect(() => {
-    if (isNarrowUi) setRoadmapOpen(false);
-  }, [isNarrowUi]);
 
   useEffect(() => {
     if (!panel) return;
@@ -175,6 +168,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
 
   const activeTopicId = panel?.id || null;
   const showLabList = Boolean(domainId && panel);
+  const labsToggleDisabled = panel?.id === 'introduction';
   const primerPath = panel ? panelPrimerPath(panel.id) : null;
 
   const roadmapNodes = useMemo(() => {
@@ -415,6 +409,19 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       </div>
                     );
                   }
+                  if (domain.id === 'devops-engineer') {
+                    return (
+                      <Link
+                        key={p.id}
+                        to={playCatalogPath(domain.id, p.id)}
+                        className="playground-tile"
+                      >
+                        <strong className="playground-tile-title">{p.label}</strong>
+                        {p.subtitle && <p className="project-tile-subtitle">{p.subtitle}</p>}
+                        <p className="playground-tile-blurb">{p.tileBlurb ?? p.blurb}</p>
+                      </Link>
+                    );
+                  }
                   return (
                     <Link
                       key={p.id}
@@ -450,17 +457,17 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         to={primerPath}
                         className="play-primer-link"
                         aria-label="Read the primer"
-                        title="Read the primer"
+                        data-tip="Primer"
                       >
                         <PrimerGuideIcon className="play-primer-link-icon" title="" />
                       </Link>
                     )}
-                    {showRoadmap && roadmapNodes.length > 0 && (
+                    {roadmapNodes.length > 0 && (
                       <button
                         type="button"
                         className="play-primer-link play-roadmap-link"
                         aria-label={`${panel.label} roadmap`}
-                        title="Roadmap"
+                        data-tip="Roadmap"
                         onClick={() => setRoadmapOpen(true)}
                       >
                         <RoadmapIcon className="play-primer-link-icon" title="" />
@@ -471,7 +478,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         type="button"
                         className="play-primer-link play-leaderboard-link"
                         aria-label={`${panel.label} leaderboard`}
-                        title="Leaderboard"
+                        data-tip="Leaderboard"
                         onClick={() => setLeaderboardOpen(true)}
                       >
                         <LeaderboardIcon className="play-primer-link-icon" title="" />
@@ -488,15 +495,13 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 fullPath={`${playCatalogPath(domain.id, panel.id)}/leaderboard`}
                 onClose={() => setLeaderboardOpen(false)}
               />
-              {showRoadmap ? (
-                <TrackRoadmapModal
-                  open={roadmapOpen}
-                  trackLabel={panel.label}
-                  nodes={roadmapNodes}
-                  onClose={() => setRoadmapOpen(false)}
-                  onSelectLab={onSelectChallenge}
-                />
-              ) : null}
+              <TrackRoadmapModal
+                open={roadmapOpen}
+                trackLabel={panel.label}
+                nodes={roadmapNodes}
+                onClose={() => setRoadmapOpen(false)}
+                onSelectLab={onSelectChallenge}
+              />
 
               <section className="play-problems-toolbar">
                 <label className="play-search">
@@ -513,7 +518,11 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                     type="button"
                     className={`play-kind-toggle-btn${kindFilter === 'lab' ? ' is-active' : ''}`}
                     aria-pressed={kindFilter === 'lab'}
-                    onClick={() => setKindFilter('lab')}
+                    disabled={labsToggleDisabled}
+                    title={labsToggleDisabled ? 'Labs are not available on Introduction yet' : undefined}
+                    onClick={() => {
+                      if (!labsToggleDisabled) setKindFilter('lab');
+                    }}
                   >
                     Lab
                   </button>

@@ -966,7 +966,7 @@ grep -E 'code=5[0-9]{2}' /var/log/app.log  # any 5xx code: 500, 502, 503…`,
       },
       {
         challengeId: 'linux-06-fix-the-config-with-sed-and-vim',
-        label: 'Fix the Config with sed and vim',
+        label: 'Point Orders at the New Queue',
       },
     ],
   },

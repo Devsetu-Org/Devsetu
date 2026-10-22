@@ -1,47 +1,54 @@
-# Solution — Pipeline for the Daily Order Report
+The BI dashboard is down, so the morning numbers have to come from `/srv/orders/orders.csv`. Each tool does one job. A pipe (`|`) feeds one tool's output into the next.
 
-Each Unix tool does one thing. A pipe (`|`) feeds one tool's output into the next. `awk -F,` splits CSV lines into fields `$1`, `$2`, and so on.
+The columns are `date`, `order_id`, `customer`, `region`, `status`, `amount`. `awk -F,` splits each line on commas, so `$4` is the region, `$5` is the status, and `$6` is the amount. `NR>1` skips the header row.
 
-Columns in `orders.csv`: `date(1) order_id(2) customer(3) region(4) status(5) amount(6)`.
+| Piece | What it does |
+| --- | --- |
+| `awk -F,` | Splits a CSV line into fields `$1`, `$2`, and so on |
+| `sort` | Puts identical lines next to each other |
+| `uniq -c` | Counts adjacent duplicates and prints `count text` |
+| `sort -rn` | Sorts those counts numerically, highest first |
+| `sort -u` | Sorts and drops duplicate lines |
+| `>` | Sends normal output into a file |
+| `2>` | Sends warnings into a different file |
 
-Docs: `man sort` · `man uniq` · `man cut` · `man awk` · `man bash` (REDIRECTION)
+`uniq` only merges lines that are already next to each other, so sort before you count.
 
 ```bash
-head -5 /srv/orders/orders.csv
 mkdir -p ~/reports
 cd /srv/orders
 ```
 
-## Top 3 regions by completed orders
+## 1. Top 3 regions
 
 ```bash
-awk -F, 'NR>1 && $5=="completed" {print $4}' orders.csv \
-  | sort | uniq -c | sort -rn | head -3 > ~/reports/top-regions.txt
+awk -F, 'NR>1 && $5=="completed" {print $4}' orders.csv | sort | uniq -c | sort -rn | head -3 > ~/reports/top-regions.txt
 ```
 
-`uniq -c` only merges *adjacent* duplicates, so you have to `sort` first. `sort -rn` then sorts numerically, highest first.
+This keeps completed rows, prints the region, counts them, and keeps the three highest.
 
-Without awk: `grep ',completed,' orders.csv | cut -d, -f4 | sort | uniq -c | sort -rn | head -3`.
-
-## Total completed amount
+## 2. Total of completed amounts
 
 ```bash
 awk -F, 'NR>1 && $5=="completed" {s += $6} END {printf "%.2f\n", s}' orders.csv > ~/reports/completed-total.txt
 ```
 
-## Customers with failed orders
+`END` runs after the last row and prints the sum with two decimal places.
+
+## 3. Customers with a failed order
 
 ```bash
-awk -F, '$5=="failed" {print $3}' orders.csv | sort -u > ~/reports/failed-customers.txt
+awk -F, 'NR>1 && $5=="failed" {print $3}' orders.csv | sort -u > ~/reports/failed-customers.txt
 ```
 
-## Split stdout and stderr
+A `cancelled` row is not a failed order. `sort -u` lists each customer once.
 
-Every program has two output streams: stdout (`1`) for data and stderr (`2`) for errors and warnings.
+## 4. Split the export
 
 ```bash
 /opt/order-processor/bin/order-export > ~/reports/export.csv 2> ~/reports/export.err
-wc -l ~/reports/export.*
 ```
+
+`>` keeps the completed orders. `2>` keeps the skip warnings. Finance's spreadsheet is `export.csv` alone.
 
 Then **Submit**.

@@ -1,6 +1,6 @@
-You are the support engineer who just took the order box. Yesterday's order-processor log is a long file on disk. A second file is still being written, and every 30 seconds it announces a short **shift handoff code**. The outgoing engineer uses that code to see that you are watching the live file.
+You just took the order box, and the outgoing engineer has left. Yesterday's log is a finished file of thousands of lines. The live log is still being written, and every 45 seconds it prints a **shift handoff code** so they can see you are watching the live file, not an old copy.
 
-You do not edit the logs. You read them and save small answers under `~/answers/`.
+You do not edit either log. You read them and save small answers under `~/answers/`.
 
 | Command | What it does |
 | --- | --- |
@@ -75,7 +75,7 @@ head -n 1500 orders-2026-09-30.log | tail -n 1
 tail -f live.log
 ```
 
-Every 30 seconds a line like this appears:
+Every 45 seconds a line like this appears:
 
 ```text
 NOTICE shift handoff code=K3X9QA
@@ -89,6 +89,3 @@ echo 'K3X9QA' > ~/answers/handoff-code
 
 Use the code from your terminal, not the example. Then **Submit** before it rotates again. The grader accepts the latest code or the one just before it.
 
-## Reference
-
-On the box: `man less`, `man head`, `man tail`, `man wc`.

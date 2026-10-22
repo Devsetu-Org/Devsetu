@@ -78,7 +78,7 @@ export default function PlatformFooter({ signedIn, onRequestLogin }: PlatformFoo
                 <li><Link to="/profile">Profile</Link></li>
                 <li><Link to="/profile?section=subscriptions">Subscriptions</Link></li>
                 <li><Link to="/profile?section=privacy">Privacy</Link></li>
-                <li><Link to="/profile?section=contact">Contact us</Link></li>
+                <li><Link to="/feedback">Feedback</Link></li>
               </>
             ) : (
               <>

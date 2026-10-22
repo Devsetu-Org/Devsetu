@@ -16,6 +16,10 @@ export interface PlayPanel {
   id: PlayPanelId;
   label: string;
   blurb: string;
+  /** Green one-liner on a shelf tile. */
+  subtitle?: string;
+  /** Grey brief on a shelf tile. The page header still uses blurb. */
+  tileBlurb?: string;
   /** Challenge ids shown under this panel (order preserved). */
   challengeIds: string[];
 }
@@ -39,6 +43,9 @@ export const PLAY_DOMAINS: PlayDomain[] = [
       {
         id: 'introduction',
         label: 'Introduction',
+        subtitle: 'How companies ship and run software',
+        tileBlurb:
+          'What DevOps is, and why a company bothers with it. How the team splits the work, and the tools that show up: pipelines, config, cloud, and code for the infrastructure.',
         blurb:
           'What DevOps is, why companies run it, how teams organize the work, and the skills and tools involved — pipelines, configuration management, infrastructure as code, cloud, and the rest.',
         challengeIds: [],
@@ -46,6 +53,9 @@ export const PLAY_DOMAINS: PlayDomain[] = [
       {
         id: 'linux',
         label: 'Linux',
+        subtitle: 'A machine of your own, with sudo',
+        tileBlurb:
+          'Files, users, and permissions on a box you control. Then processes, services that restart themselves, disks, the network, and a script for the health check.',
         blurb: 'Your own Linux machine with sudo: the shell, text tools, users and permissions, processes, systemd, storage, networking, SSH and bash scripting.',
         challengeIds: [
           'linux-00-first-shift-on-the-order-box',
@@ -76,6 +86,9 @@ export const PLAY_DOMAINS: PlayDomain[] = [
       {
         id: 'docker',
         label: 'Docker',
+        subtitle: 'Containers on your own machine',
+        tileBlurb:
+          'Start a container, then build the image yourself. Pass in config, keep the data, join a network, bring the whole stack up, and roll a bad release back.',
         blurb: 'Your own machine running Docker: containers, images and Dockerfiles, config and data, networks, Compose, registries and day-2 operations.',
         challengeIds: [
           'docker-00-first-container-on-the-order-box',
@@ -108,6 +121,9 @@ export const PLAY_DOMAINS: PlayDomain[] = [
       {
         id: 'kubernetes',
         label: 'Kubernetes',
+        subtitle: 'Workloads on a shared cluster',
+        tileBlurb:
+          'Put a service on the cluster and give it an address. Feed it config, keep it alive with probes, store its data, and bring it back when a pod will not stay up.',
         blurb: 'CKAD-style labs: deploy, configure, and troubleshoot application workloads on a shared cluster.',
         // Beginner-first order: create → expose → speed → debug → config →
         // multi → probes → rollouts → net → storage → RBAC/schedule → capstones.

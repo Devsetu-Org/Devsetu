@@ -84,13 +84,6 @@ export default function ProjectsPage(): JSX.Element {
                 </strong>
                 <p className="project-tile-subtitle">{project.subtitle}</p>
                 <p className="playground-tile-blurb">{project.blurb}</p>
-                <ul className="playground-tile-facts">
-                  {project.facts.map((fact) => (
-                    <li key={fact} className="playground-tile-fact">
-                      {fact}
-                    </li>
-                  ))}
-                </ul>
                 <span className="playground-tile-cta">
                   View chapters
                   <span aria-hidden>→</span>
@@ -108,13 +101,6 @@ export default function ProjectsPage(): JSX.Element {
                 </strong>
                 <p className="project-tile-subtitle">{project.subtitle}</p>
                 <p className="playground-tile-blurb">{project.blurb}</p>
-                <ul className="playground-tile-facts">
-                  {project.facts.map((fact) => (
-                    <li key={fact} className="playground-tile-fact">
-                      {fact}
-                    </li>
-                  ))}
-                </ul>
               </div>
             );
           }
@@ -126,17 +112,6 @@ export default function ProjectsPage(): JSX.Element {
               </strong>
               <p className="project-tile-subtitle">{project.subtitle}</p>
               <p className="playground-tile-blurb">{project.blurb}</p>
-              <ul className="playground-tile-facts">
-                {project.language && <li className="playground-tile-fact">{project.language}</li>}
-                <li className="playground-tile-fact">
-                  {project.modules.filter((m) => m.status === 'ready').length} open
-                </li>
-                {project.facts.map((fact) => (
-                  <li key={fact} className="playground-tile-fact">
-                    {fact}
-                  </li>
-                ))}
-              </ul>
               <span className="playground-tile-cta">
                 View {project.name}
                 <span aria-hidden>→</span>
