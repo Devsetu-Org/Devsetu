@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A large static order log (length varies per session) plus a live log fed by a service
-# that announces a new shift-handoff code every 30 seconds.
+# that announces a new shift-handoff code every 45 seconds.
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib/lab.sh"
 
 lines=$((2000 + RANDOM % 3000))
@@ -21,12 +21,12 @@ EOF
 
 box_write /usr/local/sbin/order-live-feed 755 <<'SH'
 #!/bin/bash
-# Appends live order events; rotates the shift-handoff code every 30 seconds.
+# Appends live order events; rotates the shift-handoff code every 45 seconds.
 log=/var/log/order-processor/live.log
 : > "$log"
 i=0
 while :; do
-  if (( i % 30 == 0 )); then
+  if (( i % 45 == 0 )); then
     code="$(tr -dc 'A-Z0-9' </dev/urandom | head -c 6 || true)"
     echo "$(date -u '+%F %T') NOTICE shift handoff code=$code" >> "$log"
   fi

@@ -27,7 +27,7 @@ need_answer handoff-code "the latest shift handoff code from live.log"
 code="$(answer handoff-code | tail -1)"
 recent="$(in_box "grep -o 'code=[A-Z0-9]*' /var/log/order-processor/live.log | tail -2 | cut -d= -f2")"
 grep -qxF -- "$code" <<<"$recent" \
-  || fail "~/answers/handoff-code is not the current handoff code (it changes every 30 seconds — follow the live log)"
+  || fail "~/answers/handoff-code is not the current handoff code (it changes every 45 seconds — follow the live log)"
 ok "handoff code"
 
 pass "order logs read correctly"

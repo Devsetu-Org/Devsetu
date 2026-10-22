@@ -165,7 +165,7 @@ function K8sResultPanel({
   onResizeReset: () => void;
 }) {
   const report = gradeReport(result);
-  const shownTasks = result.passed ? report.tasks : report.tasks.filter((task) => task.passed);
+  const shownTasks = report.tasks;
   const verdict = result.passed ? 'Accepted' : 'Wrong Answer';
   const shortId = submissionId ? submissionShortId(submissionId) : '';
   const when = submissionStamp(result.at);

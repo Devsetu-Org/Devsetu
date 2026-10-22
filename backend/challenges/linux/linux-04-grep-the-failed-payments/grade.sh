@@ -27,7 +27,7 @@ need_answer timeout-configs "config files under /etc/payment-handler that set a 
 want="$(in_box "grep -rlE '^[a-z_]*timeout *=' /etc/payment-handler | sort")"
 got="$(answer timeout-configs | sort)"
 [[ "$got" == "$want" ]] \
-  || fail "~/answers/timeout-configs should list the files (full paths) that set a timeout setting (a line like 'read_timeout = 5s'), not files that merely mention the word in a comment"
+  || fail "~/answers/timeout-configs should list the files (full paths) that set a timeout setting (a line like 'timeout = 12s', 'read_timeout = 5s', or 'connect_timeout = 3s'), not files that merely mention the word in a comment"
 ok "timeout configs"
 
 pass "failed payments found"
