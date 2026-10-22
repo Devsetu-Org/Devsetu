@@ -34,7 +34,7 @@ interface TerminalPanelProps {
   /** When true, send {type:resize} to the PTY (needed for k8s lab). */
   resizeProtocol?: boolean;
   /** Called when the server closes the socket (not when this panel tears it down). */
-  onDisconnect?: () => void;
+  onDisconnect?: (info?: { idle?: boolean }) => void;
 }
 
 export default function TerminalPanel({
@@ -101,8 +101,12 @@ export default function TerminalPanel({
     wsRef.current = ws;
     ws.addEventListener('open', () => sendResize());
     let tearingDown = false;
-    ws.addEventListener('close', () => {
-      if (!tearingDown) onDisconnectRef.current?.();
+    ws.addEventListener('close', (ev: CloseEvent) => {
+      if (!tearingDown) {
+        onDisconnectRef.current?.({
+          idle: ev.code === 4001 || ev.reason === 'idle_timeout',
+        });
+      }
     });
     const attach = new AttachAddon(ws);
     term.loadAddon(attach);

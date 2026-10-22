@@ -14,6 +14,7 @@ import { WHITEBOARD_PATH } from '../constants/whiteboard';
 import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import NavIcon from '../components/NavIcons';
 import PlatformFooter from '../components/PlatformFooter';
+import { FEEDBACK_SIGN_IN } from '../pages/FeedbackPage';
 
 const PAPERS_PATH = '/track/papers';
 
@@ -167,26 +168,49 @@ function AppLayoutInner(): React.JSX.Element {
   );
 
   const accountLinks = signedIn ? (
-    <NavLink
-      to="/profile"
-      className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
-      onClick={() => setNavOpen(false)}
-    >
-      <NavIcon name="profile" />
-      <span>Profile</span>
-    </NavLink>
+    <>
+      <NavLink
+        to="/feedback"
+        className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
+        onClick={() => setNavOpen(false)}
+      >
+        <NavIcon name="feedback" />
+        <span>Feedback</span>
+      </NavLink>
+      <NavLink
+        to="/profile"
+        className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
+        onClick={() => setNavOpen(false)}
+      >
+        <NavIcon name="profile" />
+        <span>Profile</span>
+      </NavLink>
+    </>
   ) : (
-    <button
-      type="button"
-      className="topnav-pill topnav-action"
-      onClick={() => {
-        setNavOpen(false);
-        onRequestLogin();
-      }}
-    >
-      <NavIcon name="signin" />
-      <span>Sign in</span>
-    </button>
+    <>
+      <button
+        type="button"
+        className="topnav-pill topnav-action"
+        onClick={() => {
+          setNavOpen(false);
+          onRequestLogin('/feedback', FEEDBACK_SIGN_IN);
+        }}
+      >
+        <NavIcon name="feedback" />
+        <span>Feedback</span>
+      </button>
+      <button
+        type="button"
+        className="topnav-pill topnav-action"
+        onClick={() => {
+          setNavOpen(false);
+          onRequestLogin();
+        }}
+      >
+        <NavIcon name="signin" />
+        <span>Sign in</span>
+      </button>
+    </>
   );
 
   const drawerAccountLinks = signedIn ? (
@@ -194,7 +218,6 @@ function AppLayoutInner(): React.JSX.Element {
       {([
         ['overview', 'Profile', 'profile'],
         ['subscriptions', 'Subscriptions', 'subscriptions'],
-        ['contact', 'Contact', 'contact'],
       ] as const).map(([section, label, icon]) => (
         <Link
           key={section}
@@ -206,6 +229,14 @@ function AppLayoutInner(): React.JSX.Element {
           <span>{label}</span>
         </Link>
       ))}
+      <NavLink
+        to="/feedback"
+        className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
+        onClick={() => setNavOpen(false)}
+      >
+        <NavIcon name="feedback" />
+        <span>Feedback</span>
+      </NavLink>
       {showAdmin && (
         <NavLink
           to="/admin"

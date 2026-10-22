@@ -150,4 +150,55 @@ async function sendWaitlistConfirmation(email: string): Promise<void> {
   });
 }
 
-module.exports = { sendOtp, sendSalesLead, sendWaitlistConfirmation };
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch
+  ));
+}
+
+interface FeedbackMail {
+  email: string;
+  subject: string;
+  message: string;
+  image?: { filename: string; contentType: string; content: Buffer };
+}
+
+async function sendFeedback({ email, subject, message, image }: FeedbackMail): Promise<void> {
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@devlabs.app';
+  const to = process.env.FEEDBACK_INBOX || 'hello@devsetu.ai';
+  const text = [
+    `From: ${email}`,
+    `Subject: ${subject}`,
+    '',
+    message || '(No message)',
+    '',
+    image ? `Image: ${image.filename} (${image.content.length} bytes)` : 'Image: none',
+  ].join('\n');
+
+  if (!transport) {
+    console.log(`[email] Feedback from ${email}: ${subject}${image ? ` + ${image.filename}` : ''}`);
+    console.log(text);
+    return;
+  }
+
+  await transport.sendMail({
+    from,
+    to,
+    replyTo: email,
+    subject: `[DevSetu] ${subject}`,
+    text,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+        <h2 style="color:#111">Feedback</h2>
+        <p style="font-size:14px;color:#333"><strong>From</strong> ${escapeHtml(email)}</p>
+        <p style="font-size:14px;color:#333"><strong>Subject</strong> ${escapeHtml(subject)}</p>
+        <p style="font-size:14px;color:#444;white-space:pre-wrap">${escapeHtml(message || '(No message)')}</p>
+      </div>
+    `,
+    attachments: image
+      ? [{ filename: image.filename, content: image.content, contentType: image.contentType }]
+      : undefined,
+  });
+}
+
+module.exports = { sendOtp, sendSalesLead, sendWaitlistConfirmation, sendFeedback };

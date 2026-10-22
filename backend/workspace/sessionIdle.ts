@@ -45,6 +45,9 @@ async function endSessionById(sessionId: string, reason: string): Promise<void> 
 
   ending.add(sessionId);
   try {
+    // Remember why before teardown. The heartbeat uses this to lock the terminal
+    // instead of dumping the shell's disconnect logs.
+    before.endReason = reason;
     let session: GameSession;
     if (before.runtime === 'spark-platform') {
       session = await sparkLifecycle.endSparkSession(sessionId);

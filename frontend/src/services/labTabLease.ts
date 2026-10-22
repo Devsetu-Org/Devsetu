@@ -24,6 +24,8 @@ export const LAB_HEARTBEAT_MS = 15_000;
 export const LAB_LEASE_TAKEN_EVENT = 'devlabs:lab-lease-taken';
 /** Fired when this tab learns its lab session was ended elsewhere. */
 export const LAB_SESSION_ENDED_EVENT = 'devlabs:lab-session-ended';
+/** Fired when this tab's lab was stopped because it sat idle. */
+export const LAB_SESSION_IDLE_EVENT = 'devlabs:lab-session-idle';
 /** Fired after this tab takes the lab back, so the workspace can reconnect its terminal. */
 export const LAB_LEASE_RECLAIMED_EVENT = 'devlabs:lab-lease-reclaimed';
 
@@ -93,7 +95,7 @@ export function labConflictFromError(e: unknown): LabConflict | null {
   };
 }
 
-export type HeartbeatResult = 'ok' | 'taken' | 'ended' | 'error';
+export type HeartbeatResult = 'ok' | 'taken' | 'ended' | 'idle' | 'error';
 
 export async function sendLabHeartbeat(sessionId: string, force = false): Promise<HeartbeatResult> {
   try {
@@ -104,8 +106,10 @@ export async function sendLabHeartbeat(sessionId: string, force = false): Promis
     );
     return 'ok';
   } catch (e) {
-    const status = (e as { response?: { status?: number } })?.response?.status;
+    const res = (e as { response?: { status?: number; data?: { code?: string } } })?.response;
+    const status = res?.status;
     if (status === 409) return 'taken';
+    if (status === 410 && res?.data?.code === 'SESSION_IDLE') return 'idle';
     if (status === 410 || status === 404) return 'ended';
     return 'error';
   }

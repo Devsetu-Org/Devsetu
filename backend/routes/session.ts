@@ -256,6 +256,7 @@ function publicSession(
     candidateName: s.candidateName,
     startTime: s.startTime,
     endTime: s.endTime,
+    endReason: s.endReason || null,
     recovered: s.recovered,
     runtime: s.runtime || (s.buildDir ? 'compose' : null),
     workspacePrefix: s.workspacePrefix || null,
@@ -1015,7 +1016,11 @@ router.get('/:id/browse-services', (req: ExpressRequest, res: ExpressResponse) =
 router.post('/:id/heartbeat', express.json({ limit: '4kb' }), (req: ExpressRequest, res: ExpressResponse) => {
   const session: GameSession | null = sessionStore.get(req.params.id);
   if (!session || session.status !== 'active') {
-    return res.status(410).json({ error: 'session is not active', code: 'SESSION_ENDED' });
+    const idle = session?.endReason === 'idle_timeout';
+    return res.status(410).json({
+      error: idle ? 'session locked for inactivity' : 'session is not active',
+      code: idle ? 'SESSION_IDLE' : 'SESSION_ENDED',
+    });
   }
   const body = (req.body as Record<string, unknown>) || {};
   const ok = sessionExclusivity.heartbeat(session.id, clientIdFrom(body), body.force === true);

@@ -10,6 +10,8 @@ interface LoginModalProps {
   initialError?: string | null;
   /** Page to land on after sign-in; defaults to the current page. */
   returnTo?: string | null;
+  /** Replaces the default welcome line when sign-in was opened for a specific reason. */
+  prompt?: { title: string; body: string } | null;
 }
 
 function GoogleMark(): JSX.Element {
@@ -28,6 +30,7 @@ export default function LoginModal({
   onClose,
   initialError = null,
   returnTo = null,
+  prompt = null,
 }: LoginModalProps): JSX.Element | null {
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState<boolean>(false);
@@ -77,24 +80,25 @@ export default function LoginModal({
         aria-labelledby="login-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          className="ghost login-modal-close"
-          aria-label="Close"
-          disabled={busy}
-          onClick={onClose}
-        >
-          ×
-        </button>
-
         <div className="login-card login-modal-card login-modal-card--oauth">
+          <button
+            type="button"
+            className="login-modal-close"
+            aria-label="Close"
+            disabled={busy}
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+              <path d="M2.4 2.4l7.2 7.2M9.6 2.4L2.4 9.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </button>
           <header className="login-card-head login-oauth-head">
             <div className="login-oauth-brand" aria-hidden>
               <BrandMark className="brand-mark login-oauth-mark" title="" />
             </div>
-            <h1 id="login-modal-title">Welcome to DevSetu</h1>
+            <h1 id="login-modal-title">{prompt?.title || 'Welcome to DevSetu'}</h1>
             <p className="login-card-sub">
-              Sign in with Google to continue.
+              {prompt?.body || 'Sign in with Google to continue.'}
             </p>
           </header>
 

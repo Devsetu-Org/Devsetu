@@ -438,18 +438,26 @@ function attachShell(
   sessionIdle.touch(sessionId);
 
   let closed = false;
+  let muted = false;
   const closeAll = (notice?: string) => {
     if (closed) return;
     closed = true;
+    // Drop anything the shell writes while it dies (kubectl's connection-reset
+    // logs) so the learner sees the locked screen instead of that stream.
+    muted = true;
     openTerminals.get(sessionId)?.delete(entry);
     if (notice) sendNotice(ws, notice);
     try {
-      child.kill('SIGTERM');
+      child.kill('SIGKILL');
     } catch (_e) {
       /* noop */
     }
     cleanup();
-    if (ws.readyState === ws.OPEN) ws.close();
+    if (ws.readyState === ws.OPEN) {
+      // 4001 tells the page to show the inactivity lock instead of a dead shell.
+      const idle = sessionStore.get(sessionId)?.endReason === 'idle_timeout';
+      ws.close(idle ? 4001 : 1000, idle ? 'idle_timeout' : '');
+    }
   };
   const entry: OpenTerminal = { clientId, close: closeAll };
   if (!openTerminals.has(sessionId)) openTerminals.set(sessionId, new Set());
@@ -497,6 +505,7 @@ function attachShell(
   let introDone = false;
   const pending: Buffer[] = [];
   child.onData((data: string) => {
+    if (muted) return;
     const buf = Buffer.from(data, 'utf8');
     if (!introDone) {
       pending.push(buf);
@@ -520,6 +529,7 @@ function attachShell(
     if (animate) await animateBanner(ws, banner);
     else send(ws, Buffer.from(staticBanner(banner, cols)));
     introDone = true;
+    if (muted) return;
     for (const buf of pending) send(ws, buf);
     pending.length = 0;
   })();

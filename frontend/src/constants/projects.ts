@@ -182,7 +182,7 @@ export const PROJECTS: ProjectEntry[] = [
     name: 'Cinder',
     subtitle: 'Building a KV store',
     blurb:
-      'A single-threaded key–value store, from an empty repo to a durable store.',
+      'A key value store built from an empty repo. One thread handles every request, keys expire on their own, and a log on disk brings the data back after a restart.',
     about: [
       'Cinder is a key–value store you build sitting by sitting. The workspace starts nearly empty: each chapter adds only the files that chapter needs, with TODOs where you work and author-owned wiring (logger, process main, Makefile) filled in as the tree grows.',
       'When V0.1 is done you have CSP on the wire, a dispatch table, a lazy-TTL keyspace, a checksummed append-only log with recovery and compaction, and INFO/bench — something you can kill, restart, and explain. Pub/sub and streams are out of this pass.',
@@ -197,9 +197,9 @@ export const PROJECTS: ProjectEntry[] = [
 export const QUORUM_PROJECT: ProjectEntry = {
   id: 'quorum',
   name: 'Quorum',
-  subtitle: 'Implementing KRaft',
-  blurb:
-    'Kafka metadata without ZooKeeper. Implement the Raft core — leader election, log replication, and snapshots — then drive a controller quorum that agrees on cluster state under partition.',
+    subtitle: 'Implementing KRaft',
+    blurb:
+      'Kafka metadata without ZooKeeper. Controllers elect a leader and copy a log. They agree on topics and brokers even when the network splits.',
   about: [
     'Quorum is Kafka’s metadata plane without ZooKeeper: a controller cluster that agrees on topics, partitions, and brokers using Raft. You implement the consensus core first, then hang the metadata API on the committed log.',
     'Before any node talks to another you model the log — records, offsets, and terms. Leader election uses terms and votes so a stale leader cannot keep committing. The leader fans entries to followers; the high watermark moves only when a majority has the record. Split the cluster and a minority must not commit. When the network heals, the loser truncates uncommitted tail and catches up.',

@@ -426,6 +426,8 @@ export interface GameSession {
   boardState?: BoardState | null;
   /** Last user activity (API / terminal). Used for idle timeout. */
   lastActivityAt?: number | null;
+  /** Why the session left `active`, when the server ended it (for example `idle_timeout`). */
+  endReason?: string | null;
 }
 
 export type PortMap = Record<string, string | number>;

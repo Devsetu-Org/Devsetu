@@ -212,7 +212,7 @@ export const MINORS: MinorEntry[] = [
     name: 'B-tree',
     subtitle: 'Building a B+ tree storage engine',
     blurb:
-      'The update-in-place engine behind Postgres and InnoDB: a pager, a B+ tree, a write-ahead log, and a buffer pool.',
+      'Postgres stores rows in a tree of pages. A write rewrites the leaf that holds the key. You add the log that survives a crash, and the pool that keeps hot pages in memory.',
     about: [
       'A B+ tree keeps every key in exactly one place. Leaves hold the data; internal pages hold only separators that guide a lookup down a short path. Pages update in place, so a write is a root-to-leaf walk and a page rewrite.',
       'Around the tree sit the pieces that make it a real engine: a pager that owns the page file and freelist, a write-ahead log so a crash loses nothing, and a buffer pool that keeps hot pages in memory. Each chapter ends with tests that prove that piece works.',
@@ -221,7 +221,6 @@ export const MINORS: MinorEntry[] = [
     facts: [
       'Pager',
       'B+ tree',
-      'Buffer pool',
       `${B_TREE_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
     ],
     status: 'planned',
@@ -233,7 +232,7 @@ export const MINORS: MinorEntry[] = [
     name: 'Consensus',
     subtitle: 'Building Raft',
     blurb:
-      'The agreement protocol behind etcd and Consul: leader election, log replication, commits, and a replicated key/value store.',
+      'etcd keeps one history by electing a leader and copying its log to a majority. You build the election, the copy step, and a small store that applies the same entries on every node.',
     about: [
       'Distributed systems that must not disagree use a consensus protocol. Raft elects one leader per term, replicates a log to a majority, and applies committed entries to a state machine in the same order on every node.',
       'You build the pieces in order: election, AppendEntries, commit and apply, durable persistence, then a small client API on top. Network partitions and crashes are part of the tests from the start.',
@@ -241,8 +240,7 @@ export const MINORS: MinorEntry[] = [
     language: 'Go',
     facts: [
       'Raft',
-      'Leader election',
-      'Log replication',
+      'Election',
       `${CONSENSUS_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
     ],
     status: 'planned',
@@ -254,7 +252,7 @@ export const MINORS: MinorEntry[] = [
     name: 'LSM tree',
     subtitle: 'Building an LSM storage engine',
     blurb:
-      'The write-optimized engine behind RocksDB and Cassandra: a memtable, a write-ahead log, sorted tables on disk, and compaction.',
+      'RocksDB turns random writes into sorted files. New keys land in memory, then flush to disk. A background merge keeps only the newest value of each key.',
     about: [
       'An LSM tree turns random writes into sequential ones. Writes land in a sorted in-memory memtable, backed by a write-ahead log so a crash loses nothing. A full memtable is flushed to disk as an immutable sorted file, an SSTable.',
       'Reads check the memtable, then tables from newest to oldest, with Bloom filters skipping files that cannot hold the key. Compaction merges tables in the background, keeping the newest version of each key and dropping deleted data. Each chapter ends with tests that prove that piece works.',
@@ -263,7 +261,6 @@ export const MINORS: MinorEntry[] = [
     facts: [
       'Skiplist',
       'SSTables',
-      'Compaction',
       `${LSM_TREE_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
     ],
     status: 'planned',
