@@ -284,6 +284,22 @@ async function submitBoard(
   return { state, grade };
 }
 
+async function listBoardSubmissions(sessionId: string): Promise<Array<{ id: string; passed: boolean; submittedAt: number }>> {
+  const { rows } = await pool.query(
+    `SELECT id, grade_status, submitted_at
+       FROM submissions
+      WHERE session_id = $1 AND mode = 'submit' AND entrypoint = 'board'
+      ORDER BY submitted_at DESC
+      LIMIT 50`,
+    [sessionId],
+  );
+  return (rows as Array<{ id: string; grade_status: string | null; submitted_at: string | number }>).map((row) => ({
+    id: String(row.id),
+    passed: row.grade_status === 'passed',
+    submittedAt: Number(row.submitted_at) || 0,
+  }));
+}
+
 async function endBoardSession(sessionId: string): Promise<GameSession> {
   const session = sessionStore.get(sessionId) as GameSession | null;
   if (!session) {
@@ -301,6 +317,7 @@ module.exports = {
   startBoardSession,
   savePlaced,
   submitBoard,
+  listBoardSubmissions,
   checkStep,
   judgeClaims,
   answerFinale,

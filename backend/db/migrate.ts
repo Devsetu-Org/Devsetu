@@ -51,6 +51,8 @@ const STATEMENTS: string[] = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS review_tracks JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users (username) WHERE username IS NOT NULL`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users (google_sub) WHERE google_sub IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_users_status ON users (status)`,
   `CREATE INDEX IF NOT EXISTS idx_users_role ON users (role)`,
@@ -444,6 +446,8 @@ async function runMigrations(): Promise<void> {
   await dropAuthoringTables();
   await clearSessionsTable();
   await seedAuthDefaults();
+  const { backfillExistingUsernames } = require('../auth/username');
+  await backfillExistingUsernames();
 }
 
 module.exports = { runMigrations };

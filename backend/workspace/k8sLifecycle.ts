@@ -161,20 +161,41 @@ async function requirePool(ns: string, challengeId: string, pool?: string): Prom
 function ensureProvisioned(ns: string, challengeId: string, forceSetup: boolean): Promise<boolean> {
   const flavor = boxFlavorOf(challengeId);
   if (flavor) {
-    return withNsLock(ns, () => provisionBox(ns, challengeId, flavor));
+    return withNsLock(ns, () => provisionBox(ns, challengeId, flavor, forceSetup));
   }
   return withNsLock(ns, () => provision(ns, challengeId, forceSetup));
 }
 
-/** Box labs never resume a machine: every open (and reset) is a fresh box + setup.sh. */
-async function provisionBox(ns: string, challengeId: string, flavor: BoxFlavor): Promise<boolean> {
+/**
+ * Reset always boots a clean box and runs setup.sh. Otherwise a saved filesystem
+ * is restored onto a new pod, and a pod that is still running is reused as-is.
+ */
+async function provisionBox(
+  ns: string,
+  challengeId: string,
+  flavor: BoxFlavor,
+  forceSetup: boolean,
+): Promise<boolean> {
   const spec = platformSpecOf(challengeId);
   await requirePool(ns, challengeId, linuxBox.poolFor(flavor));
+  if (!forceSetup && !linuxBox.hasBoxWork(ns, challengeId) && await linuxBox.boxIsReady(ns)) {
+    return true;
+  }
+  if (forceSetup) linuxBox.discardBoxWork(ns, challengeId);
   try {
     await linuxBox.recreateBox(ns, challengeId, flavor, spec.box);
   } catch (err) {
     console.error(`[${flavor}] ${ns}: could not start a box for ${challengeId}: ${(err as Error).message || err}`);
     throw labEnvUnavailable();
+  }
+  if (!forceSetup && linuxBox.hasBoxWork(ns, challengeId)) {
+    try {
+      await linuxBox.restoreBoxWork(ns, challengeId);
+    } catch (err) {
+      console.error(`[${flavor}] ${ns}: could not restore ${challengeId}: ${(err as Error).message || err}`);
+      throw labEnvUnavailable();
+    }
+    return true;
   }
   const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
     timeoutMs: 180_000,
@@ -401,18 +422,30 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
   const challengeId = session.challengeId;
 
   // Mark ended immediately so the client can leave; park/wipe runs in background.
-  // Close shells first: deleting the box otherwise makes kubectl exec print
-  // "connection reset by peer" into the learner's terminal.
+  // Close shells before any await and before the box is deleted. Otherwise kubectl
+  // exec is still alive when the pod goes away and prints "connection reset by peer"
+  // into the learner's terminal.
   session.status = 'ended';
   session.endTime = Date.now();
-  await sessionStore.persistRow(session);
   terminalEventBus.emit('session_end', { sessionId, reason: session.endReason || null });
+  await sessionStore.persistRow(session);
   void capacity.nudge();
 
   const flavor = challengeId ? boxFlavorOf(challengeId) : null;
   if (ns && challengeId && flavor) {
-    void withNsLock(ns, () => linuxBox.deleteBox(ns)).catch((err: unknown) => {
-      console.warn(`[${flavor}] background box delete failed for ${ns}: ${(err as Error).message || err}`);
+    // Save first. A failed copy leaves the pod up so the files are still there.
+    void withNsLock(ns, async () => {
+      try {
+        await linuxBox.saveBoxWork(ns, challengeId);
+      } catch (err: unknown) {
+        console.warn(
+          `[${flavor}] kept ${ns} running; work was not saved: ${(err as Error).message || err}`,
+        );
+        return;
+      }
+      await linuxBox.deleteBox(ns);
+    }).catch((err: unknown) => {
+      console.warn(`[${flavor}] background box stop failed for ${ns}: ${(err as Error).message || err}`);
     });
   } else if (ns && challengeId) {
     void withNsLock(ns, () => park(ns, challengeId)).catch((err: unknown) => {

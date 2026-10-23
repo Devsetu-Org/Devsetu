@@ -23,6 +23,7 @@ const {
 } = require('../auth/roles');
 
 const pool = require('../db/pool');
+const { adminOverview } = require('../admin/overview');
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ function publicAdminUser(user: {
   role?: string;
   reviewTracks?: string[];
   isAdmin?: boolean;
+  createdAt?: number | null;
 }) {
   const role = user.isAdmin || user.role === 'admin' ? 'admin' : (user.role || 'learner');
   return {
@@ -46,6 +48,7 @@ function publicAdminUser(user: {
     role,
     reviewTracks: role === 'reviewer' ? (user.reviewTracks || []) : [],
     admin: role === 'admin',
+    createdAt: user.createdAt ?? null,
   };
 }
 
@@ -171,6 +174,19 @@ router.get(
       roles: USER_ROLES,
       reviewTracks: REVIEW_TRACK_IDS,
     });
+  },
+);
+
+/** GET /api/admin/overview?tz=<getTimezoneOffset minutes> — signup and submission counts. */
+router.get(
+  '/overview',
+  requireAdmin,
+  async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+    try {
+      res.json(await adminOverview((req.query as { tz?: unknown }).tz));
+    } catch (e) {
+      next(e);
+    }
   },
 );
 

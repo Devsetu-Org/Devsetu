@@ -1,8 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { AttachAddon } from '@xterm/addon-attach';
 import '@xterm/xterm/css/xterm.css';
+
+/** kubectl exec prints these when the API stream dies. They are not shell output. */
+function isKubectlTransportFault(line: string): boolean {
+  return /v2\.go:\d+\]/.test(line)
+    || line.includes('Copying stdout failed')
+    || line.includes('Waiting for server to close stdin failed')
+    || line.includes('error reading from error stream');
+}
+
+function mightBeTransportFault(partial: string): boolean {
+  if (!partial || partial.length > 500) return false;
+  if (isKubectlTransportFault(partial)) return true;
+  if (/^E\d{4} \d{2}:\d{2}:\d{2}/.test(partial)) return true;
+  if ('error: error reading from error stream:'.startsWith(partial)) return true;
+  if (partial.startsWith('error: error reading')) return true;
+  return /^E\d{0,4}( \d{0,2}(:\d{0,2}(:\d{0,2}(\.\d{0,9})?)?)?)?$/.test(partial);
+}
 
 const THEME = {
   background: '#000000',
@@ -101,21 +117,56 @@ export default function TerminalPanel({
     wsRef.current = ws;
     ws.addEventListener('open', () => sendResize());
     let tearingDown = false;
+    let sawTransportFault = false;
+    let faultPartial = '';
+    const decoder = new TextDecoder();
+    const scrub = (chunk: string): string => {
+      const combined = faultPartial + chunk;
+      faultPartial = '';
+      const endedWithNl = combined.endsWith('\n');
+      const parts = combined.split('\n');
+      if (endedWithNl) parts.pop();
+      const tail = endedWithNl ? '' : (parts.pop() ?? '');
+      const kept: string[] = [];
+      for (const line of parts) {
+        if (isKubectlTransportFault(line)) sawTransportFault = true;
+        else kept.push(line);
+      }
+      if (tail) {
+        if (isKubectlTransportFault(tail)) sawTransportFault = true;
+        else if (mightBeTransportFault(tail)) faultPartial = tail;
+        else kept.push(tail);
+      }
+      if (!kept.length) return '';
+      const flushedTail = Boolean(tail) && !faultPartial && !isKubectlTransportFault(tail);
+      return flushedTail
+        ? (kept.length > 1 ? `${kept.slice(0, -1).join('\n')}\n${kept[kept.length - 1]}` : kept[0])
+        : `${kept.join('\n')}\n`;
+    };
+    ws.addEventListener('message', (ev: MessageEvent) => {
+      const text = typeof ev.data === 'string'
+        ? ev.data
+        : decoder.decode(ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : ev.data);
+      const clean = scrub(text);
+      if (clean) term.write(clean);
+    });
+    const input = term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    });
     ws.addEventListener('close', (ev: CloseEvent) => {
       if (!tearingDown) {
         onDisconnectRef.current?.({
-          idle: ev.code === 4001 || ev.reason === 'idle_timeout',
+          idle: ev.code === 4001 || ev.reason === 'idle_timeout' || sawTransportFault,
         });
       }
     });
-    const attach = new AttachAddon(ws);
-    term.loadAddon(attach);
 
     const resizeObserver = new ResizeObserver(() => sendResize());
     resizeObserver.observe(hostRef.current);
 
     return () => {
       tearingDown = true;
+      input.dispose();
       resizeObserver.disconnect();
       try {
         ws.close();

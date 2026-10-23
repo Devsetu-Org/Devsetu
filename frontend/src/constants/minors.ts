@@ -146,6 +146,66 @@ const LSM_TREE_CHAPTERS: ProjectModule[] = [
   },
 ];
 
+const QUERY_ENGINE_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'How a SQL engine turns text into rows',
+    blurb:
+      'What a query engine is, how SELECT becomes a plan, which systems do this, and the five chapters ahead.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'lexer',
+    label: 'Lexer',
+    subtitle: 'Turn SQL text into tokens',
+    blurb:
+      'Keywords, identifiers, numbers, strings, and operators. The rest of the engine never sees raw characters.',
+    status: 'ready',
+  },
+  {
+    id: 'parser',
+    label: 'Parser',
+    subtitle: 'A SELECT statement as a tree',
+    blurb:
+      'Recursive descent builds an AST: target list, FROM, WHERE, and the comparison and AND expressions inside it.',
+    status: 'ready',
+  },
+  {
+    id: 'catalog',
+    label: 'Catalog',
+    subtitle: 'CREATE TABLE, INSERT, and typed rows',
+    blurb:
+      'Tables live in memory with a fixed schema. INT and TEXT columns, inserts that reject the wrong shape.',
+    status: 'ready',
+  },
+  {
+    id: 'execute',
+    label: 'Execute',
+    subtitle: 'Scan, filter, and project',
+    blurb:
+      'A sequential scan feeds a WHERE filter and a projection. SELECT name FROM users WHERE id = 1 returns rows.',
+    status: 'ready',
+  },
+  {
+    id: 'relational',
+    label: 'Joins and aggregates',
+    subtitle: 'JOIN, GROUP BY, ORDER BY, LIMIT',
+    blurb:
+      'Nested-loop inner joins, COUNT and SUM, grouping, a sort, and a limit. One pipeline, still no indexes.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your engine against the reference, on the same queries',
+    blurb:
+      'Run a fixed set of queries and data. Correct answers first, then time versus the reference.',
+    status: 'planned',
+  },
+];
+
 const CONSENSUS_CHAPTERS: ProjectModule[] = [
   {
     id: 'overview',
@@ -207,6 +267,27 @@ const CONSENSUS_CHAPTERS: ProjectModule[] = [
 ];
 
 export const MINORS: MinorEntry[] = [
+  {
+    id: 'query-engine',
+    name: 'Query engine',
+    subtitle: 'Building a SQL engine',
+    blurb:
+      'The path from a SELECT string to rows: a lexer, a parser, a catalog, and an executor that filters, joins, and aggregates.',
+    about: [
+      'A SQL engine reads text and returns rows. The text is split into tokens, parsed into a tree, checked against a catalog of tables, then executed as a pipeline of scans, filters, joins, and aggregates.',
+      'You build a small dialect: CREATE TABLE, INSERT, and SELECT with WHERE, inner JOIN, GROUP BY, ORDER BY, and LIMIT. Tables live in memory. There is no optimizer and no index. Each chapter ends with tests that prove that piece works.',
+    ],
+    language: 'Go',
+    facts: [
+      'SQL',
+      'Parser',
+      'Executor',
+      `${QUERY_ENGINE_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
+    ],
+    status: 'planned',
+    chapters: QUERY_ENGINE_CHAPTERS,
+    languages: ['go'],
+  },
   {
     id: 'b-tree',
     name: 'B-tree',

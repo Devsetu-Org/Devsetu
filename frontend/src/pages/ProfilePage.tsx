@@ -1,24 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppState } from '../context/AppStateContext';
-import { isAdminUser } from '../services/authApi';
+import { isAdminUser, saveUsername } from '../services/authApi';
 import { IconCoins } from '../components/ChromeIcons';
 import SubscriptionsPanel from '../components/SubscriptionsPanel';
 import Avatar, { AvatarPicker } from '../components/Avatar';
 import ActivityHeatmap, { type ActivityDay } from '../components/ActivityHeatmap';
 import { fetchMyProfile, saveAvatar } from '../services/profileApi';
 
-export type ProfileSection = 'overview' | 'subscriptions' | 'preferences' | 'privacy';
+export type ProfileSection = 'overview' | 'subscriptions' | 'privacy';
+
+const USERNAME_RE = /^[a-z][a-z0-9_]{2,23}$/;
 
 const NAV_ITEMS: { id: ProfileSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'subscriptions', label: 'Subscriptions' },
-  { id: 'preferences', label: 'Preferences' },
   { id: 'privacy', label: 'Privacy' },
 ];
 
 export default function ProfilePage(): JSX.Element {
-  const { currentUser, challenges, onLogout } = useAppState();
+  const { currentUser, challenges, onLogout, onUserUpdated } = useAppState();
   const isAdmin = Boolean(currentUser?.admin) || isAdminUser(currentUser);
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get('section');
@@ -30,10 +31,39 @@ export default function ProfilePage(): JSX.Element {
   };
   const [avatar, setAvatar] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityDay[] | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(currentUser?.username || '');
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [savingUsername, setSavingUsername] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const displayName = currentUser?.name || currentUser?.email || 'You';
+  const displayName = currentUser?.username || currentUser?.name || currentUser?.email || 'You';
+  const usernameValid = USERNAME_RE.test(usernameDraft);
+  const usernameDirty = usernameDraft !== (currentUser?.username || '');
+
+  useEffect(() => {
+    setUsernameDraft(currentUser?.username || '');
+  }, [currentUser?.username]);
+
+  const closeEditor = (): void => {
+    setEditing(false);
+    setUsernameDraft(currentUser?.username || '');
+    setUsernameError(null);
+  };
+
+  const onSaveUsername = (event: React.FormEvent): void => {
+    event.preventDefault();
+    if (!usernameValid || !usernameDirty || savingUsername) return;
+    setSavingUsername(true);
+    setUsernameError(null);
+    saveUsername(usernameDraft)
+      .then((user) => onUserUpdated(user))
+      .catch((e: unknown) => {
+        const err = e as { response?: { data?: { error?: string } }; message?: string };
+        setUsernameError(err.response?.data?.error || err.message || 'Could not save that username');
+      })
+      .finally(() => setSavingUsername(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -90,25 +120,61 @@ export default function ProfilePage(): JSX.Element {
       <header className="profile-hero profile-hero--avatar">
         <Avatar avatar={avatar} name={displayName} size={72} className="profile-avatar" />
         <div className="profile-hero-copy">
-          <h1 className="profile-title">Profile</h1>
+          <h1 className="profile-title">{currentUser?.username || 'Username'}</h1>
           <p className="profile-lead">
             {currentUser?.email ? `Signed in as ${currentUser.email}` : 'Your account.'}
           </p>
           <button
             type="button"
             className="profile-avatar-change"
-            aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((open) => !open)}
+            aria-expanded={editing}
+            onClick={() => (editing ? closeEditor() : setEditing(true))}
           >
-            {pickerOpen ? 'Done' : 'Change picture'}
+            {editing ? 'Done' : 'Edit'}
           </button>
         </div>
       </header>
 
-      {pickerOpen && (
-        <section className="profile-panel profile-avatar-panel" aria-label="Choose a profile picture">
-          <AvatarPicker value={avatar} name={displayName} disabled={savingAvatar} onSelect={onSelectAvatar} />
-          {avatarError && <p className="profile-avatar-error">{avatarError}</p>}
+      {editing && (
+        <section className="profile-panel profile-edit-panel" aria-label="Edit profile">
+          <form className="profile-edit-username" onSubmit={onSaveUsername}>
+            <label className="profile-edit-label" htmlFor="profile-username">
+              Username
+            </label>
+            <div className="profile-edit-username-row">
+              <input
+                id="profile-username"
+                type="text"
+                name="username"
+                autoComplete="username"
+                spellCheck={false}
+                maxLength={24}
+                value={usernameDraft}
+                aria-invalid={Boolean(usernameError)}
+                onChange={(event) => {
+                  setUsernameError(null);
+                  setUsernameDraft(
+                    event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24),
+                  );
+                }}
+              />
+              <button type="submit" disabled={!usernameValid || !usernameDirty || savingUsername}>
+                {savingUsername ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            {usernameError ? (
+              <p className="profile-edit-error" role="alert">{usernameError}</p>
+            ) : (
+              <p className="profile-edit-hint">
+                3–24 characters. Start with a letter, then letters, numbers, or underscores.
+              </p>
+            )}
+          </form>
+          <div className="profile-edit-picture">
+            <p className="profile-edit-label">Picture</p>
+            <AvatarPicker value={avatar} name={displayName} disabled={savingAvatar} onSelect={onSelectAvatar} />
+            {avatarError && <p className="profile-edit-error">{avatarError}</p>}
+          </div>
         </section>
       )}
 
@@ -154,6 +220,10 @@ export default function ProfilePage(): JSX.Element {
               </h2>
               <dl className="profile-account-dl">
                 <div>
+                  <dt>Username</dt>
+                  <dd>{currentUser?.username || '—'}</dd>
+                </div>
+                <div>
                   <dt>Email</dt>
                   <dd>{currentUser?.email || '—'}</dd>
                 </div>
@@ -181,18 +251,6 @@ export default function ProfilePage(): JSX.Element {
           ) : null}
 
           {section === 'subscriptions' ? <SubscriptionsPanel /> : null}
-
-          {section === 'preferences' ? (
-            <section className="profile-panel" aria-labelledby="profile-prefs-heading">
-              <h2 id="profile-prefs-heading" className="profile-panel-title">
-                Preferences
-              </h2>
-              <p className="profile-panel-copy">
-                Lab defaults and notification preferences will land here. For now, sessions use your
-                account email and the track you open from Play.
-              </p>
-            </section>
-          ) : null}
 
           {section === 'privacy' ? (
             <section className="profile-panel" aria-labelledby="profile-privacy-heading">

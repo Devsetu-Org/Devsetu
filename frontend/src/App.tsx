@@ -15,6 +15,7 @@ import PlayPage from './pages/PlayPage';
 import QuizPage from './pages/QuizPage';
 import WhitePapersPage from './pages/WhitePapersPage';
 import WhiteboardPage from './pages/WhiteboardPage';
+import { WHITEBOARD_ENABLED } from './constants/whiteboard';
 import SideQuestsPage from './pages/SideQuestsPage';
 import PlaygroundsPage from './pages/PlaygroundsPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -28,6 +29,7 @@ import K8sReadingPage from './pages/K8sReadingPage';
 import ProfilePage from './pages/ProfilePage';
 import FeedbackPage, { FEEDBACK_SIGN_IN } from './pages/FeedbackPage';
 import AdminPage from './pages/AdminPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 import AdminFeedbackPage from './pages/AdminFeedbackPage';
 import AdminWaitlistPage from './pages/AdminWaitlistPage';
 import DbExplorerPage from './pages/DbExplorerPage';
@@ -56,6 +58,7 @@ import {
 import ConfirmDialog from './components/ConfirmDialog';
 import AdminOnlyRoute from './components/AdminOnlyRoute';
 import LoginModal from './components/LoginModal';
+import UsernameGate from './components/UsernameGate';
 import { buildDailyProductSalesProject } from './fixtures/dailyProductSalesL1';
 import {
   buildSparkPlaygroundChallenge,
@@ -1049,6 +1052,10 @@ export default function App(): React.JSX.Element {
     if (location.pathname === '/') signingOut = false;
   }, [location.pathname]);
 
+  const handleUserUpdated = useCallback((user: UserRecord): void => {
+    setCurrentUser(user);
+  }, []);
+
   const handleLoggedIn = (user?: UserRecord | null): void => {
     setCurrentUser(user || getCurrentUser());
     setAuthMode('interviewer');
@@ -1081,6 +1088,7 @@ export default function App(): React.JSX.Element {
     onBackToLibrary: handleBackToLibrary,
     onEnd: handleEnd,
     onLogout: handleLogout,
+    onUserUpdated: handleUserUpdated,
     onRequestLogin: requestLogin,
     refreshChallenges,
   }), [
@@ -1097,6 +1105,9 @@ export default function App(): React.JSX.Element {
     ending,
     closingLabTitle,
   ]);
+
+  const needsUsername =
+    authMode === 'interviewer' && Boolean(currentUser) && !currentUser?.username;
 
   if (authMode === 'resolving') {
     return (
@@ -1127,8 +1138,22 @@ export default function App(): React.JSX.Element {
           <Route path="track/quiz/:quizId" element={<SignedInOnlyRoute><QuizPage /></SignedInOnlyRoute>} />
           <Route path="track/papers" element={<AdminOnlyRoute><WhitePapersPage /></AdminOnlyRoute>} />
           <Route path="track/papers/:sectionId" element={<AdminOnlyRoute><WhitePapersPage /></AdminOnlyRoute>} />
-          <Route path="track/whiteboard" element={<AdminOnlyRoute><WhiteboardPage /></AdminOnlyRoute>} />
-          <Route path="track/whiteboard/:sectionId" element={<AdminOnlyRoute><WhiteboardPage /></AdminOnlyRoute>} />
+          <Route
+            path="track/whiteboard"
+            element={
+              WHITEBOARD_ENABLED
+                ? <AdminOnlyRoute><WhiteboardPage /></AdminOnlyRoute>
+                : <Navigate to="/track" replace />
+            }
+          />
+          <Route
+            path="track/whiteboard/:sectionId"
+            element={
+              WHITEBOARD_ENABLED
+                ? <AdminOnlyRoute><WhiteboardPage /></AdminOnlyRoute>
+                : <Navigate to="/track" replace />
+            }
+          />
           <Route path="track/quests" element={<SideQuestsPage />} />
           <Route path="track/quests/:topicId" element={<SideQuestsPage />} />
           <Route path="track/playgrounds" element={<PlaygroundsPage />} />
@@ -1177,6 +1202,7 @@ export default function App(): React.JSX.Element {
           <Route path="profile" element={<SignedInOnlyRoute><ProfilePage /></SignedInOnlyRoute>} />
           <Route path="feedback" element={<SignedInOnlyRoute prompt={FEEDBACK_SIGN_IN}><FeedbackPage /></SignedInOnlyRoute>} />
           <Route path="admin" element={<SignedInOnlyRoute><AdminPage /></SignedInOnlyRoute>} />
+          <Route path="admin/users" element={<SignedInOnlyRoute><AdminUsersPage /></SignedInOnlyRoute>} />
           <Route path="admin/feedback" element={<SignedInOnlyRoute><AdminFeedbackPage /></SignedInOnlyRoute>} />
           <Route path="admin/waitlist" element={<SignedInOnlyRoute><AdminWaitlistPage /></SignedInOnlyRoute>} />
           {import.meta.env.DEV && (
@@ -1246,6 +1272,9 @@ export default function App(): React.JSX.Element {
           <p>This lab is now active in another tab or window. Only one tab can drive a lab at a time.</p>
         )}
       </ConfirmDialog>
+      {needsUsername ? (
+        <UsernameGate onSaved={(user) => setCurrentUser(user)} onLogout={handleLogout} />
+      ) : null}
     </AppStateProvider>
   );
 }

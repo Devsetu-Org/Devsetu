@@ -9,6 +9,10 @@ import absoluteVsRelativeImg from '../assets/linux-readings/meet-your-linux-mach
 import globExpansionImg from '../assets/linux-readings/files-and-folders/glob-expansion.png';
 import findFunnelImg from '../assets/linux-readings/files-and-folders/find-funnel.png';
 import findExecImg from '../assets/linux-readings/files-and-folders/find-exec.png';
+import lessWindowImg from '../assets/linux-readings/reading-and-searching-text/less-window.png';
+import viTwoModesImg from '../assets/linux-readings/reading-and-searching-text/vi-two-modes.png';
+import grepSieveImg from '../assets/linux-readings/reading-and-searching-text/grep-sieve.png';
+import readingARegexImg from '../assets/linux-readings/reading-and-searching-text/reading-a-regex.png';
 
 export const LINUX_LABS_PATH = '/track/devops-engineer/linux';
 export const LINUX_READINGS_BASE = `${LINUX_LABS_PATH}/read`;
@@ -22,7 +26,7 @@ export const LINUX_READINGS: K8sReading[] = [
     id: 'meet-your-linux-machine',
     slug: 'meet-your-linux-machine',
     trackId: 'B0',
-    eyebrow: 'Linux from zero',
+    eyebrow: '',
     title: 'Meet Linux',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-00-first-shift-on-the-order-box',
@@ -298,7 +302,7 @@ export const LINUX_READINGS: K8sReading[] = [
     id: 'files-and-folders',
     slug: 'files-and-folders',
     trackId: 'B1',
-    eyebrow: 'Linux from zero',
+    eyebrow: '',
     title: 'Files and Folders: List, Organize, Find',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-01-organize-the-release-folder',
@@ -324,8 +328,26 @@ export const LINUX_READINGS: K8sReading[] = [
         id: 'how-commands-work',
         title: 'How a command line is built',
         body: [
-          'Each line you type is roughly: **command**, then **options** (flags that change behavior), then **arguments** (paths, names, or other inputs). Options often start with a dash; a double dash (`--`) sometimes introduces a long option name.',
-          'Commands like **`ls`**, **`cp`**, and **`mkdir`** are not magic built into the shell — each is a **program** on disk (usually under `/usr/bin`). Linux gives you a small, consistent **interface**: type a name, pass flags and paths, read the result. The implementations are ordinary software; see the [GNU coreutils source](https://github.com/coreutils/coreutils/tree/master/src) (`ls.c`, `cp.c`, `mkdir.c`, and the rest).',
+          'Each line you type is **command**, then **options**, then **arguments**. Options usually start with a dash. A double dash (`--`) starts a long option name. **`ls`**, **`cp`**, and **`mkdir`** are programs on disk, usually under `/usr/bin`. The shell finds the program and starts it. It does not contain those commands itself.',
+        ],
+        subsections: [
+          {
+            id: 'pwd-cd-ls',
+            title: 'pwd, cd, and ls: where you are',
+            body: [
+              '**`pwd`** prints the folder you are standing in. **`cd`** moves you. **`cd ..`** goes up one folder. **`cd ~`** goes to your home folder. **`~`** is a shortcut the shell expands before the command runs.',
+              '**`ls`** prints the names in the current folder. **`ls -l`** adds the owner, size, and date. **`ls -a`** also shows hidden names, the ones that start with a dot. A plain **`ls`** hides those, and a glob **`*`** hides them too.',
+            ],
+            code: {
+              language: 'shell',
+              code: `pwd
+cd ~/projects
+cd ..
+ls
+ls -l
+ls -a`,
+            },
+          },
         ],
         table: {
           headers: ['Piece', 'Role', 'Example on one line'],
@@ -348,50 +370,69 @@ export const LINUX_READINGS: K8sReading[] = [
           ],
         },
         after: [
-          'Try **`command --help`** for a short summary, or **`man command`** for the full manual (press `q` to quit). Tab completion is your friend: type the first letters of a command or path and press **Tab**; the shell fills in what it can or shows choices.',
+          '**`command --help`** prints a short summary. **`man command`** opens the full manual. Press **`q`** to leave it. Type the start of a command or a path and press **Tab**. The shell fills in the rest, or shows the choices.',
         ],
-        code: {
-          language: 'shell',
-          code: `pwd            # where am I?
-cd ~/projects  # go to projects under my home folder
-cd ..          # go up one folder
-ls             # list this folder
-ls -l          # list with size, owner, and date
-ls --help      # built-in cheat sheet for ls`,
-        },
       },
       {
         id: 'core-five',
         title: 'The core five: make, copy, move, delete',
         body: [
-          'Most file housekeeping on a server is five commands. Each has one option you will reach for often:',
+          'Most file work is a handful of commands. Each one does one job. The option next to it is the one you will actually use.',
+        ],
+        subsections: [
+          {
+            id: 'mkdir-touch',
+            title: 'mkdir and touch: make a folder or an empty file',
+            body: [
+              '**`mkdir`** creates a folder. **`-p`** creates any missing parent folders and does not complain if the folder is already there. **`mkdir docs/2026`** fails when **`docs`** does not exist. **`mkdir -p docs/2026`** creates both.',
+              '**`touch`** creates an empty file, or updates the timestamp if the file already exists. It does not write any contents.',
+            ],
+            code: {
+              language: 'shell',
+              code: `mkdir -p ~/projects/docs
+touch ~/projects/docs/todo.txt`,
+            },
+          },
+          {
+            id: 'cp-mv',
+            title: 'cp copies, mv moves or renames',
+            body: [
+              '**`cp`** makes a second copy. The original stays where it was. **`-r`** copies a folder and everything inside it. **`-a`** does that and also keeps the timestamps and permissions. Plain **`cp`** is enough when those details do not matter.',
+              '**`mv`** changes the name, or moves the file into another folder. On the same disk that is just a rename in the directory listing, so it is fast even for a large file. Across disks, **`mv`** copies and then deletes the original. **`mv`** and **`cp`** both replace a file that already has the destination name, without asking, unless you add **`-i`**.',
+            ],
+            code: {
+              language: 'shell',
+              code: `cp notes.txt notes-backup.txt
+cp -a docs/ docs-old/
+mv draft.txt final.txt
+mv final.txt ~/projects/docs/`,
+            },
+          },
+          {
+            id: 'rm-rmdir',
+            title: 'rm and rmdir: delete',
+            body: [
+              '**`rm`** deletes a file immediately. There is no recycle bin. **`rm -r`** deletes a folder and everything inside that folder. It does not delete the rest of the disk. **`rmdir`** deletes a folder only when the folder is empty, so it is the safe check.',
+              'Before **`rm`** or **`mv`** with a pattern, run **`ls`** with the same names and read the list.',
+            ],
+            code: {
+              language: 'shell',
+              code: `rm scratch.tmp
+rmdir ~/projects/old`,
+            },
+          },
         ],
         table: {
           headers: ['Command', 'Does', 'The option you want'],
           rows: [
             ['`mkdir`', 'Makes a folder', '`-p`: make parents too, no error if it exists'],
-            ['`cp`', 'Copies files', '`-r` for folders; `-a` to keep dates and permissions'],
+            ['`touch`', 'Makes an empty file', 'Updates the timestamp if the file already exists'],
+            ['`cp`', 'Copies. The original stays', '`-r` for folders; `-a` to keep dates and permissions'],
             ['`mv`', 'Moves **or renames**', '`-i`: ask before overwriting'],
             ['`rm`', 'Deletes files', '`-r` for folders; `-i` to confirm each'],
             ['`rmdir`', 'Deletes an **empty** folder', 'Refuses if anything is inside: a safe check'],
           ],
         },
-        codes: [
-          {
-            language: 'shell',
-            code: `mkdir -p ~/projects/docs        # make a folder; -p adds missing parents
-touch ~/projects/docs/todo.txt  # create an empty file
-cp notes.txt notes-backup.txt   # copy: both files now exist
-cp -r docs/ docs-old/           # copy a whole folder
-mv draft.txt final.txt          # rename (a move in the same folder)
-mv final.txt ~/projects/docs/   # move into another folder
-rm scratch.tmp                  # delete a file (no recycle bin)
-rmdir ~/projects/old            # delete a folder, only if it is empty`,
-          },
-        ],
-        after: [
-          'On the same disk, **`mv`** usually just updates which folder lists the name — fast even for large files. Across disks it may copy then delete. Use **`cp -p`** when you need the copy to stay **executable** or keep the same timestamps; use **`cp -a`** for whole folder trees (archive mode). Plain **`cp`** is fine when those details do not matter.',
-        ],
         callout: {
           kind: 'warn',
           title: 'There is no recycle bin',
@@ -407,7 +448,7 @@ rmdir ~/projects/old            # delete a folder, only if it is empty`,
           'A **glob** is a **filename pattern** — wildcards like `*` and `?` that stand in for part of a name, so you can name a whole group of files at once instead of typing each one. The important part is *who* expands it: the **shell**, before the command runs. The command only sees the finished list of names.',
           'For the examples below, picture a folder with these files: `report.pdf`, `slides.pdf`, `notes.txt`, `2024-summary.txt`, `photo-1.jpg`, `photo-2.jpg`, and `photo-10.jpg`.',
         ],
-        table: {
+        tableAfter: {
           headers: ['Pattern', 'What it matches', 'Example (you type → shell expands to)'],
           rows: [
             [
@@ -523,6 +564,7 @@ mv "$img" ~/pictures/               # double quotes keep it one name`,
         body: [
           'Globs only look in **one folder**. When a file might be anywhere under your home folder, deep inside **`~/projects`**, or in a scratch area like **`/tmp`**, you need a tool that **walks** from a starting folder down through subfolders and filters each path. That tool is **`find`**.',
           'Every **`find`** line has the same shape: **where** to start, **tests** each path must pass, and an **action** (printing paths is the default). The funnel picture is that idea: every file under the start folder is checked; only paths that pass all tests are kept.',
+          'The sign in front of a number is the part people reverse. **`+`** means more than. **`-`** means less than. **`-size +10M`** is larger than 10 megabytes. **`-mtime -2`** was changed within the last 2 days. **`-mtime +2`** was changed more than 2 days ago. Quote the pattern (`-name \'*.conf\'`) so the shell does not expand the star in the folder you are standing in.',
         ],
         figure: {
           image: findFunnelImg,
@@ -532,7 +574,7 @@ mv "$img" ~/pictures/               # double quotes keep it one name`,
             'Example: `find ~/projects -type f -size +1M -mtime -7` — start at `~/projects`, keep only **files** (`-type f`) larger than 1 MiB (`-size +1M`) touched in the last 7 days (`-mtime -7`).',
           flush: true,
         },
-        table: {
+        tableAfter: {
           headers: ['Test', 'What it checks', 'Example (what it means)'],
           rows: [
             [
@@ -600,7 +642,7 @@ find /tmp -type d -empty                       # empty folders in /tmp`,
           caption: '{} is replaced by each file. Print first, act second.',
           flush: true,
         },
-        table: {
+        tableAfter: {
           headers: ['Action', 'Does', 'Note'],
           rows: [
             ['`-print`', 'Prints each path', 'The default'],
@@ -678,6 +720,8 @@ find ~/Downloads -name '*.pdf' -exec cp {} ~/projects/docs/ \\;  # copy each PDF
             ['Where am I / go there', '`pwd`, `cd path`'],
             ['List a folder', '`ls`, `ls -l`'],
             ['Make nested folders', '`mkdir -p a/b/c`'],
+            ['Make an empty file', '`touch notes.txt`'],
+            ['Show hidden names', '`ls -a`'],
             ['Copy keeping mode/time', '`cp -p file dest/`'],
             ['Copy a folder tree', '`cp -a src/ dest/`'],
             ['Rename or move', '`mv old new`'],
@@ -689,10 +733,10 @@ find ~/Downloads -name '*.pdf' -exec cp {} ~/projects/docs/ \\;  # copy each PDF
       },
     ],
     takeaways: [
-      'A command line is **command + options + arguments**; **`pwd`**, **`cd`**, and **`ls`** orient you; **`--help`** / **`man`** and **Tab** completion cover the rest. File commands are **programs** (e.g. GNU coreutils), not shell builtins.',
-      'Five commands handle most file work: **`mkdir -p`**, **`cp`** (**`-p`** / **`-a`**), **`mv`** (also rename), **`rm`**, **`rmdir`**. There is **no recycle bin** — **`rm -r`** removes a whole **folder tree** under that name; preview with **`ls`**, or use **`-i`**, before destructive steps.',
+      'A command line is **command**, then **options**, then **arguments**. **`pwd`**, **`cd`**, and **`ls -a`** show where you are, including hidden names. **`--help`**, **`man`**, and **Tab** cover the rest.',
+      '**`mkdir -p`** makes folders. **`touch`** makes an empty file. **`cp`** copies and **`mv`** renames or moves. **`rm`** deletes immediately. There is no recycle bin. Preview a pattern with **`ls`** before **`rm`** or **`mv`**.',
       '**Globs** are expanded by the **shell** before the program runs; quote names with spaces and always write **`"$var"`**.',
-      '**`find`** walks from a starting path with tests (name, type, size, age, owner); run the same query **without** **`-delete`** / **`-exec`** until the match list looks right.',
+      '**`find`** walks from a starting path and keeps paths that pass every test. **`+`** means more than and **`-`** means less than, for both size and age. Print the matches before you add **`-delete`** or **`-exec`**.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -710,7 +754,7 @@ find ~/Downloads -name '*.pdf' -exec cp {} ~/projects/docs/ \\;  # copy each PDF
     id: 'reading-and-searching-text',
     slug: 'reading-and-searching-text',
     trackId: 'B2',
-    eyebrow: 'Work with text files',
+    eyebrow: '',
     title: 'Read, Edit and Search Text: less, tail, vi, grep',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-03-read-the-order-logs',
@@ -794,16 +838,52 @@ less +G file.txt          # open at the end of the file
 less +F /var/log/app.log  # open in follow mode`,
             },
           },
+          {
+            id: 'one-line',
+            title: 'One exact line',
+            body: [
+              '**`head`** and **`tail`** give you a block of lines. They do not give you line 1500 by itself. **`sed -n \'1500p\'`** prints that one line and nothing else. **`-n`** stops sed from printing every line. **`p`** prints the line you named.',
+              'In **`less`**, type the line number and then **`g`** to jump there. **`1500g`** lands on line 1500. **`less`** still only shows a window. It does not copy the file. **`head -n 1500 file.txt | tail -n 1`** is that same line: take the first 1500 lines, then keep the last one.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sed -n '1500p' file.txt
+less +1500 file.txt
+head -n 1500 file.txt | tail -n 1`,
+            },
+          },
+          {
+            id: 'save-output',
+            title: 'Save the lines you printed',
+            body: [
+              '**`>`** sends normal output into a file and replaces that file if it already exists. The command still runs. The lines go into the file instead of onto the screen. **`wc -l file.txt`** prints the count and then the file name. **`wc -l < file.txt`** feeds the file in as input, so the output is the number alone.',
+            ],
+            code: {
+              language: 'shell',
+              code: `wc -l < file.txt > count.txt
+head -n 10 file.txt > start.txt
+tail -n 5 file.txt > end.txt`,
+            },
+          },
         ],
-        table: {
+        figure: {
+          image: lessWindowImg,
+          imageAlt:
+            'Hand-drawn sketch: a tall log file with a small window over part of it. Space and b move the window. Slash searches, G jumps to the end, F follows new lines.',
+          caption: 'less shows a window onto the file. It does not load the whole file, and it does not change it.',
+          flush: true,
+        },
+        tableAfter: {
           headers: ['Tool', 'What it does', 'Use it when…'],
           rows: [
             ['`ls -lh` / `wc -l`', 'Shows size / counts lines', 'Before opening any file you do not know'],
             ['`cat`', 'Prints the **whole** file', 'The file is short (a note, a config)'],
             ['`head -n N`', 'First **N** lines', 'You want to see how the file starts'],
             ['`tail -n N`', 'Last **N** lines', 'You want the **latest** lines'],
-            ['`tail -f`', 'Last lines, then **keeps printing** new ones', 'A program is still writing to the file, e.g. a log'],
+            ['`tail -f`', 'Last lines, then **keeps printing** new ones', 'A program is still writing to the file, for example a log'],
             ['`less`', 'Scrollable, searchable window on the file', 'You need to read or hunt inside a big file'],
+            ['`sed -n \'Np\'`', 'Exactly line N', 'You need one numbered line, not a block'],
+            ['`>`', 'Saves normal output in a file', 'The answer should be a file, not only the screen'],
           ],
         },
       },
@@ -811,30 +891,51 @@ less +F /var/log/app.log  # open in follow mode`,
         id: 'vim-survival',
         title: 'Edit: vi',
         body: [
-          '**`vi`** is the text editor found on practically every Linux machine; most systems actually run **`vim`** (“vi improved”) when you type **`vi`** — same keys. It works on any text file — notes, scripts, configs.',
-          'It is not only for editing. People open files in **`vi`** just to **read** them (**`view file`** or **`vi -R file`** opens read-only, so you cannot change anything by accident), and to **create** new files: **`vi newfile.txt`** opens an empty buffer, and the file is created on disk the first time you save with **`:w`**.',
-          'To practise editing, take a small config file, **`/etc/app/app.conf`**:',
+          '**`vi`** is the text editor on almost every Linux machine. Typing **`vi`** usually starts **`vim`**, with the same keys. It edits notes, scripts, and configs, and it can open a file read-only with **`vi -R`** or **`view`**. **`vi newfile.txt`** starts an empty file. The file appears on disk when you save.',
         ],
-        codes: [
+        subsections: [
           {
-            language: 'ini',
-            filename: 'app.conf',
-            code: `PORT=8080
-LOG_LEVEL=info
-WELCOME=Hello!`,
+            id: 'vi-modes',
+            title: 'Two modes',
+            body: [
+              '**`vi`** starts in **Normal** mode. Keys are commands. **`j`** moves down, **`k`** moves up, and the arrow keys work too. Typing a letter does not insert that letter. If the cursor jumps when you type, you are still in Normal mode.',
+              '**`i`** switches to **Insert** mode, where keys are text. **`a`** does the same, one character to the right. **Esc** returns to Normal mode. Almost every stuck moment in **`vi`** is “I am in the wrong mode.”',
+            ],
+          },
+          {
+            id: 'vi-insert-line',
+            title: 'Add a line, save, or leave',
+            body: [
+              'In Normal mode, **`o`** opens a blank line under the cursor and switches to Insert mode. **`O`** opens a line above. That is how you add a setting that is not in the file yet. **`/`** then a word jumps to that word. **`n`** jumps to the next match. **`dd`** deletes the current line. **`u`** undoes.',
+              '**`:wq`** writes the file and quits. **`:q!`** quits and throws away the changes. The colon means the command goes to the bottom of the screen, and it only works from Normal mode.',
+            ],
+            code: {
+              language: 'text',
+              code: `vi app.conf
+/WELCOME
+o
+max_retries = 5
+Esc
+:wq`,
+            },
           },
         ],
-        after: [
-          'Open it with **`vi /etc/app/app.conf`**. You start in **Normal** mode, where keys are commands, not text. Move to the **`WELCOME=`** line, press **`i`** to switch to **Insert** mode, and type. Press **Esc** to go back to Normal mode, then **`:wq`** to save and quit. If you make a mess, **`:q!`** quits without saving.',
-        ],
+        figure: {
+          image: viTwoModesImg,
+          imageAlt:
+            'Hand-drawn sketch: Normal mode on the left, where keys are commands, and Insert mode on the right, where keys are text. Esc returns to Normal. i or o enters Insert.',
+          caption: 'Normal mode runs commands. Insert mode types text. Esc always gets you back.',
+          flush: true,
+        },
         tableAfter: {
           headers: ['Goal', 'Keys'],
           rows: [
-            ['Move around', 'Arrow keys or **`h j k l`**'],
-            ['Start typing', '**`i`** (before cursor) or **`a`** (after)'],
+            ['Move around', 'Arrow keys, or **`h j k l`**'],
+            ['Start typing', '**`i`** before the cursor, **`a`** after it'],
+            ['Open a new line', '**`o`** below, **`O`** above'],
             ['Back to Normal mode', '**Esc**'],
             ['Delete a line / undo', '**`dd`** / **`u`**'],
-            ['Search', '**`/text`** then **`n`**'],
+            ['Jump to a word', '**`/word`** then **`n`**'],
             ['Save and quit', '**`:wq`**'],
             ['Quit without saving', '**`:q!`**'],
           ],
@@ -844,26 +945,66 @@ WELCOME=Hello!`,
         id: 'sed-in-place',
         title: 'Edit: sed for one-line changes',
         body: [
-          'For a single, predictable change in a text file you do not need an editor. **`sed`** applies an edit to every line and prints the result; **`s/old/new/`** means “replace **old** with **new**.” Without **`-i`** it only previews; with **`-i`** it writes the change into the file. Below it changes values in the same **`app.conf`**.',
+          '**`sed`** edits every line of a text file with a small instruction, then prints the result. Use it when the change is the same on every line. Use **`vi`** when you have to look at the lines around the change, or insert one new line in the middle of a section.',
         ],
-        code: {
-          language: 'shell',
-          code: `sed 's/PORT=8080/PORT=9090/' /etc/app/app.conf                    # preview only: file unchanged
-sed -i 's/PORT=8080/PORT=9090/' /etc/app/app.conf                 # write the change into the file
-sed -i.bak 's/LOG_LEVEL=info/LOG_LEVEL=debug/' /etc/app/app.conf  # same, but keep app.conf.bak`,
-        },
+        subsections: [
+          {
+            id: 'sed-preview',
+            title: 'Preview, then write',
+            body: [
+              '**`s/old/new/`** means replace **old** with **new**. Without **`-i`**, sed only prints the result. The file stays as it was. With **`-i`**, it writes the result back into the file. **`-i.bak`** also keeps a copy named **`file.bak`**.',
+              'Run the command once without **`-i`** and read the output. Add **`-i`** only when that output is the file you want.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sed 's/PORT=8080/PORT=9090/' app.conf
+sed -i 's/PORT=8080/PORT=9090/' app.conf
+sed -i.bak 's/LOG_LEVEL=info/LOG_LEVEL=debug/' app.conf`,
+            },
+          },
+          {
+            id: 'sed-global',
+            title: 'Every match, and more than one edit',
+            body: [
+              '**`s/old/new/`** changes the first **old** on each line and leaves any later one on that line alone. A **`g`** at the end changes every **old** on the line: **`s/old/new/g`**.',
+              '**`-e`** adds another instruction. Sed runs them in order on each line. One **`-e`** can replace text. The next can delete.',
+              'In the pattern, a bare **`.`** means any one character. **`s/old.host/new.host/`** also changes **`oldXhost`**. Write **`\\.`** when you mean a real dot: **`s/old\\.host/new.host/g`**.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sed 's/old\\.host/new.host/g' app.conf
+sed -e 's/old\\.host/new.host/g' -e 's/debug/info/' app.conf`,
+            },
+          },
+          {
+            id: 'sed-delete',
+            title: 'Delete a line, or uncomment one',
+            body: [
+              '**`/TODO/d`** deletes every line that contains **TODO**. **`^`** means the start of the line, so **`s/^# //`** removes a hash and a space from the front of a line and leaves the rest. That is how a commented setting becomes a real one.',
+              'Sed still walks line by line. It will not open a blank line under a heading for you. That insert is the **`o`** key in **`vi`**.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sed '/TODO/d' app.conf
+sed 's/^# //' app.conf`,
+            },
+          },
+        ],
         tableAfter: {
           headers: ['Use', 'When'],
           rows: [
-            ['**`vi`**', 'Several edits, or you need to read the file around the change'],
-            ['**`sed -i`**', 'One predictable replacement, in a script, or across many files'],
+            ['**`sed`** without **`-i`**', 'See the result before anything is written'],
+            ['**`sed -i`**', 'The same replacement, or the same deletion, on many lines'],
+            ['**`s/old/new/g`**', 'Every match on the line, not only the first'],
+            ['**`\\.`**', 'A real dot. A bare `.` matches any one character'],
+            ['**`vi`**', 'You need to read around the change, or insert one new line'],
           ],
         },
         callout: {
           kind: 'warn',
           title: 'Preview before -i',
           body: [
-            'Run **`sed`** without **`-i`** first and check the output. A wrong pattern with **`-i`** changes the real file straight away.',
+            'A wrong pattern with **`-i`** changes the real file immediately. Print the result first, then add **`-i`**.',
           ],
         },
       },
@@ -871,33 +1012,66 @@ sed -i.bak 's/LOG_LEVEL=info/LOG_LEVEL=debug/' /etc/app/app.conf  # same, but ke
         id: 'grep-basics',
         title: 'Search: grep',
         body: [
-          '**`grep PATTERN FILE`** reads any text file line by line and prints only the lines that contain the pattern — the fastest way to answer “where does this appear?”. You will use it most on **log files**, so the examples search an application log, **`/var/log/app.log`**.',
+          '**`grep PATTERN FILE`** reads a text file line by line and prints only the lines that contain the pattern. It does not change the lines. It decides which ones survive.',
         ],
-        table: {
-          headers: ['Option', 'What it does'],
-          rows: [
-            ['`-i`', 'Ignore upper/lower case'],
-            ['`-v`', 'Invert: lines that do **not** match'],
-            ['`-c`', 'Count matching lines'],
-            ['`-n`', 'Show line numbers'],
-            ['`-w`', 'Whole words only (`ERROR` but not `ERROR404`)'],
-            ['`-r`', 'Search every file under a folder'],
-            ['`-A` / `-B` / `-C` N', 'Show N lines after / before / around each match'],
-            ['`-F`', 'Treat the pattern as plain text, no special characters'],
-          ],
-        },
-        codes: [
+        subsections: [
           {
-            language: 'shell',
-            code: `grep ERROR /var/log/app.log               # lines containing ERROR
-grep -i error /var/log/app.log            # ERROR, error, Error…
-grep -c ERROR /var/log/app.log            # how many lines match
-grep -n 'user=ravi' /var/log/app.log      # matches with line numbers
-grep -v INFO /var/log/app.log             # everything except INFO
-grep -B2 -A2 'code=502' /var/log/app.log  # 2 lines of context around each match
-grep -r PORT /etc/app/                    # search every file under a folder`,
+            id: 'grep-flags',
+            title: 'Case, counts, and context',
+            body: [
+              '**`-i`** ignores upper and lower case, so **`error`** also matches **`ERROR`** and **`Error`**. **`-v`** prints the lines that do **not** match. **`-n`** adds the line number. **`-c`** does not print the lines. It prints how many lines matched.',
+              '**`-A`**, **`-B`**, and **`-C`** keep a few lines after, before, or around each match, so you can see the setting next to the line you found. **`-r`** searches every file under a folder. **`-l`** prints only the names of the files that matched, not the lines.',
+              'A line that starts with **`#`** is a comment. **`grep -v \'^#\'`** drops those lines, so a word that only appears in a comment does not count as a setting.',
+            ],
+            code: {
+              language: 'shell',
+              code: `grep -i error app.log
+grep -c error app.log
+grep -n 'user=ada' app.log
+grep -v '^#' app.conf
+grep -B2 -A2 retry app.log
+grep -rl retry /etc/app/`,
+            },
+          },
+          {
+            id: 'grep-word',
+            title: 'A whole word, not a longer code',
+            body: [
+              'Plain **`grep`** matches the letters anywhere. **`grep 12 app.log`** matches **`id=12`**, and it also matches **`id=123`** and **`id=12a`**, because those lines contain the characters **`12`**.',
+              '**`-w`** requires a word edge on both sides. **`grep -w 12`** matches **`id=12`** and skips **`id=123`**. **`-c`** and **`-w`** combine: **`grep -cw 12 app.log`** counts the lines where **`12`** is a whole word. **`-c`** is the count. **`-w`** is the word edge.',
+              '**`-o`** prints only the matched text, not the rest of the line. **`grep -oE \'id=[0-9]+\'`** prints each **`id=`** value on its own line. Pipe that list into **`sort | uniq`** when you want each value once. The pipes post covers that second half.',
+            ],
+            code: {
+              language: 'shell',
+              code: `grep 12 app.log
+grep -w 12 app.log
+grep -cw 12 app.log
+grep -oE 'id=[0-9]+' app.log`,
+            },
           },
         ],
+        figure: {
+          image: grepSieveImg,
+          imageAlt:
+            'Hand-drawn sieve: lines from a log fall through grep, and only the matching lines come out the bottom.',
+          caption: 'Lines go in. Only the matching lines come out. The file is unchanged.',
+          flush: true,
+        },
+        tableAfter: {
+          headers: ['Option', 'What it does'],
+          rows: [
+            ['`-i`', 'Ignore upper and lower case'],
+            ['`-v`', 'Lines that do **not** match'],
+            ['`-c`', 'Count matching lines instead of printing them'],
+            ['`-n`', 'Show line numbers'],
+            ['`-w`', 'Whole word only, so `12` does not match `123`'],
+            ['`-o`', 'Print only the matched text, not the whole line'],
+            ['`-r`', 'Search every file under a folder'],
+            ['`-l`', 'Print the name of each file that matched'],
+            ['`-A` / `-B` / `-C` N', 'N lines after / before / around each match'],
+            ['`-F`', 'Treat the pattern as plain text'],
+          ],
+        },
       },
       {
         id: 'regex-basics',
@@ -905,14 +1079,21 @@ grep -r PORT /etc/app/                    # search every file under a folder`,
         body: [
           'Sometimes you are looking for a **shape** rather than a fixed word — “any 5xx error code” or “lines that start with today’s date.” A **regular expression** (regex) describes that shape. Use **`grep -E`** and put the pattern in **single quotes** so the shell leaves it alone.',
         ],
-        table: {
+        figure: {
+          image: readingARegexImg,
+          imageAlt:
+            'Hand-drawn sketch: a regex read left to right, each piece labeled as start of line, literal text, one or more letters, or end of line.',
+          caption: 'Read a pattern from the left. Each piece matches one part of the line.',
+          flush: true,
+        },
+        tableAfter: {
           headers: ['Piece', 'Meaning', 'Example'],
           rows: [
-            ['`.`', 'Any one character', '`5.2` matches `502`, `512`…'],
+            ['`.`', 'Any one character', '`5.2` matches `502`, `512`'],
             ['`[0-9]`', 'One character from a set', '`code=5[0-9]`'],
-            ['`+` / `*`', 'Previous item one-or-more / zero-or-more times', '`[0-9]+` = a number'],
-            ['`{n}`', 'Previous item exactly n times', '`[0-9]{2}` = two digits'],
-            ['`^` / `$`', 'Start / end of the line', '`^2026` = lines starting with 2026'],
+            ['`+` / `*`', 'The previous item, one-or-more / zero-or-more times', '`[0-9]+` is a number'],
+            ['`{n}`', 'The previous item, exactly n times', '`[0-9]{2}` is two digits'],
+            ['`^` / `$`', 'Start / end of the line', '`^2026` is lines that start with 2026'],
             ['`a|b`', 'Either side', '`WARN|ERROR`'],
           ],
         },
@@ -940,19 +1121,22 @@ grep -E 'code=5[0-9]{2}' /var/log/app.log  # any 5xx code: 500, 502, 503…`,
             ['Read', 'Size of a file', '`ls -lh file`, `wc -l file`'],
             ['Read', 'Latest lines / watch live', '`tail -n 50 file`, `tail -f file`'],
             ['Read', 'Scroll and search', '`less file`, then `/text`'],
-            ['Edit', 'Edit by hand', '`vi file` → `i` … **Esc** → `:wq`'],
-            ['Edit', 'Replace text in place', "`sed -i 's/old/new/' file`"],
+            ['Read', 'Exactly line 1500', "`sed -n '1500p' file`"],
+            ['Edit', 'Insert a line and save', '`vi file` → `/word` → `o` → **Esc** → `:wq`'],
+            ['Edit', 'Replace every match', "`sed -i 's/old/new/g' file`"],
+            ['Edit', 'Delete matching lines', "`sed '/TODO/d' file`"],
+            ['Search', 'Count a whole word', '`grep -cw 12 file`'],
+            ['Search', 'Only the matched text', "`grep -oE 'id=[0-9]+' file`"],
             ['Search', 'Matching lines', '`grep -n pattern file`'],
-            ['Search', 'Count matches', '`grep -c pattern file`'],
             ['Search', 'Search a folder', '`grep -r pattern dir/`'],
           ],
         },
       },
     ],
     takeaways: [
-      '**Read**: size a file with **`ls -lh`** / **`wc -l`**; use **`less`** for big files, **`head`** / **`tail`** for the ends, **`tail -f`** to watch it grow.',
-      '**Edit**: **`vi`** for hand edits (**`i`**, **Esc**, **`:wq`**, **`:q!`**); **`sed \'s/old/new/\'`** for one-line changes — preview before **`-i`**.',
-      '**Search**: **`grep`** prints matching lines; **`-i -v -c -n -w -r`** cover most needs, and **`-E`** with a quoted regex matches shapes.',
+      '**Read**: size a file with **`ls -lh`** and **`wc -l`**. Use **`less`** for a big file, **`tail -f`** to watch it grow, and **`sed -n \'Np\'`** for one exact line.',
+      '**Edit**: **`vi`** has Normal mode and Insert mode. **`o`** opens a new line. **`:wq`** saves. **`sed`** replaces or deletes lines. **`g`** means every match on the line. Preview before **`-i`**.',
+      '**Search**: **`grep`** keeps matching lines. **`-c`** counts them. **`-w`** requires a whole word, so **`12`** does not match **`123`**. **`-o`** prints only the match. **`-E`** matches a shape.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [

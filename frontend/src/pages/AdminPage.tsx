@@ -3,41 +3,130 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAppState } from '../context/AppStateContext';
 import { isAdminUser } from '../services/authApi';
 import {
-  approveAdminUser,
+  fetchAdminOverview,
   fetchAdminSettings,
-  fetchAdminUsers,
-  rejectAdminUser,
   saveAdminSettings,
-  updateAdminUserRole,
-  type AdminUser,
+  type AdminOverview,
+  type AdminOverviewDay,
 } from '../services/adminApi';
-import {
-  REVIEW_TRACKS,
-  USER_ROLE_LABELS,
-  USER_ROLES,
-  type UserRole,
-  reviewTrackLabel,
-  userRoleLabel,
-} from '../constants/roles';
 
-type RoleDraft = {
-  role: UserRole;
-  reviewTracks: string[];
-};
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const DEFAULT_DRAFT: RoleDraft = { role: 'learner', reviewTracks: [] };
+function errorMessage(e: unknown, fallback: string): string {
+  const err = e as { response?: { data?: { error?: string } }; message?: string };
+  return err.response?.data?.error || err.message || fallback;
+}
 
-function draftFromUser(user: AdminUser): RoleDraft {
-  const role = (user.role && USER_ROLES.includes(user.role) ? user.role : 'learner') as UserRole;
+function dayParts(day: string): { num: string; month: string } {
+  const [, month, date] = day.split('-');
   return {
-    role: user.admin ? 'admin' : role,
-    reviewTracks: role === 'reviewer' ? [...(user.reviewTracks || [])] : [],
+    num: String(Number(date) || ''),
+    month: MONTHS[Number(month) - 1] || '',
   };
+}
+
+function trend(current: number, previous: number): { text: string; dir: 'up' | 'down' | 'flat' } {
+  const delta = current - previous;
+  if (delta === 0) return { text: 'Same as the 7 days before', dir: 'flat' };
+  const sign = delta > 0 ? '+' : '';
+  return {
+    text: `${sign}${delta.toLocaleString()} vs the 7 days before`,
+    dir: delta > 0 ? 'up' : 'down',
+  };
+}
+
+function statText(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return value.toLocaleString();
+}
+
+function ActivitySeries({
+  label,
+  tone,
+  days,
+  value,
+}: {
+  label: string;
+  tone: 'signups' | 'submissions';
+  days: AdminOverviewDay[];
+  value: (day: AdminOverviewDay) => number;
+}): JSX.Element {
+  const counts = days.map(value);
+  const max = Math.max(1, ...counts);
+  const sum = counts.reduce((total, n) => total + n, 0);
+  return (
+    <div className="admin-home-series">
+      <div className="admin-home-series-head">
+        <span>
+          <span className={`admin-home-swatch admin-home-swatch--${tone}`} aria-hidden />
+          {label}
+        </span>
+        <span>{sum.toLocaleString()} in 14 days</span>
+      </div>
+      <div className="admin-home-bars" role="img" aria-label={`${label} for each of the last 14 days`}>
+        {days.map((day, index) => {
+          const count = counts[index];
+          const parts = dayParts(day.day);
+          const height = count === 0 ? 0 : Math.max((count / max) * 100, 8);
+          return (
+            <div key={day.day} className="admin-home-bar-col" title={`${parts.num} ${parts.month}: ${count}`}>
+              <div className="admin-home-bar-track">
+                <div
+                  className={`admin-home-bar admin-home-bar--${tone}`}
+                  style={{ height: `${height}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ActivityChart({
+  days,
+  totalSubmissions,
+}: {
+  days: AdminOverviewDay[];
+  totalSubmissions: number;
+}): JSX.Element {
+  return (
+    <div className="admin-home-chart-body">
+      <div className="admin-home-chart-head">
+        <h2 id="admin-activity-heading">Last 14 days</h2>
+        <span>{totalSubmissions.toLocaleString()} submissions in all</span>
+      </div>
+      <ActivitySeries label="Signups" tone="signups" days={days} value={(day) => day.signups} />
+      <ActivitySeries
+        label="Submissions"
+        tone="submissions"
+        days={days}
+        value={(day) => day.submissions}
+      />
+      <div className="admin-home-day-labels">
+        {days.map((day, index) => {
+          const parts = dayParts(day.day);
+          const prevMonth = index > 0 ? dayParts(days[index - 1].day).month : '';
+          return (
+            <span key={day.day} className="admin-home-day-label">
+              {parts.num}
+              {parts.month !== prevMonth ? <span>{parts.month}</span> : null}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function AdminPage(): JSX.Element {
   const { currentUser } = useAppState();
   const isAdmin = Boolean(currentUser?.admin) || isAdminUser(currentUser);
+
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
 
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [watcherEnabled, setWatcherEnabled] = useState(true);
@@ -46,34 +135,15 @@ export default function AdminPage(): JSX.Element {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
-  const [pending, setPending] = useState<AdminUser[]>([]);
-  const [active, setActive] = useState<AdminUser[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState<string | null>(null);
-  const [actionId, setActionId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, RoleDraft>>({});
-  const loadUsers = useCallback(async () => {
-    setUsersLoading(true);
-    setUsersError(null);
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true);
+    setOverviewError(null);
     try {
-      const [pendingUsers, activeUsers] = await Promise.all([
-        fetchAdminUsers('pending'),
-        fetchAdminUsers('active'),
-      ]);
-      setPending(pendingUsers);
-      setActive(activeUsers);
-      setDrafts((prev) => {
-        const next: Record<string, RoleDraft> = { ...prev };
-        for (const u of [...pendingUsers, ...activeUsers]) {
-          if (!next[u.id]) next[u.id] = draftFromUser(u);
-        }
-        return next;
-      });
+      setOverview(await fetchAdminOverview(new Date().getTimezoneOffset()));
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setUsersError(err.response?.data?.error || err.message || 'Could not load users');
+      setOverviewError(errorMessage(e, 'Could not load stats'));
     } finally {
-      setUsersLoading(false);
+      setOverviewLoading(false);
     }
   }, []);
 
@@ -89,54 +159,18 @@ export default function AdminPage(): JSX.Element {
         setWatcherEnabled(s.sparkJobWatcherEnabled);
         setClusterSynced(s.clusterSynced);
       })
-      .catch((e: { response?: { data?: { error?: string } }; message?: string }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        setSettingsError(e.response?.data?.error || e.message || 'Could not load settings');
+        setSettingsError(errorMessage(e, 'Could not load settings'));
       })
       .finally(() => {
         if (!cancelled) setSettingsLoading(false);
       });
-    void loadUsers();
+    void loadOverview();
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, loadUsers]);
-
-  if (!isAdmin) {
-    return <Navigate to="/profile" replace />;
-  }
-
-  function getDraft(userId: string): RoleDraft {
-    return drafts[userId] || DEFAULT_DRAFT;
-  }
-
-  function setDraft(userId: string, patch: Partial<RoleDraft>): void {
-    setDrafts((prev) => {
-      const current = prev[userId] || DEFAULT_DRAFT;
-      const nextRole = patch.role ?? current.role;
-      return {
-        ...prev,
-        [userId]: {
-          role: nextRole,
-          reviewTracks:
-            nextRole === 'reviewer'
-              ? patch.reviewTracks !== undefined
-                ? patch.reviewTracks
-                : current.reviewTracks
-              : [],
-        },
-      };
-    });
-  }
-
-  function toggleTrack(userId: string, trackId: string): void {
-    const draft = getDraft(userId);
-    const has = draft.reviewTracks.includes(trackId);
-    const reviewTracks = has
-      ? draft.reviewTracks.filter((t) => t !== trackId)
-      : [...draft.reviewTracks, trackId];
-    setDraft(userId, { reviewTracks });
-  }
+  }, [isAdmin, loadOverview]);
 
   async function onToggleRegistration(): Promise<void> {
     const next = !registrationOpen;
@@ -148,8 +182,7 @@ export default function AdminPage(): JSX.Element {
       setWatcherEnabled(s.sparkJobWatcherEnabled);
       setClusterSynced(s.clusterSynced);
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setSettingsError(err.response?.data?.error || err.message || 'Could not save');
+      setSettingsError(errorMessage(e, 'Could not save'));
     } finally {
       setSettingsSaving(false);
     }
@@ -168,315 +201,202 @@ export default function AdminPage(): JSX.Element {
         setSettingsError('Saved, but the Spark cluster did not take the change. Try again.');
       }
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setSettingsError(err.response?.data?.error || err.message || 'Could not save');
+      setSettingsError(errorMessage(e, 'Could not save'));
     } finally {
       setSettingsSaving(false);
     }
   }
 
-  async function onApprove(userId: string): Promise<void> {
-    const draft = getDraft(userId);
-    if (draft.role === 'reviewer' && draft.reviewTracks.length === 0) {
-      setUsersError('Pick at least one track for a reviewer.');
-      return;
-    }
-    setActionId(userId);
-    setUsersError(null);
-    try {
-      await approveAdminUser(userId, draft);
-      await loadUsers();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setUsersError(err.response?.data?.error || err.message || 'Approve failed');
-    } finally {
-      setActionId(null);
-    }
+  if (!isAdmin) {
+    return <Navigate to="/profile" replace />;
   }
 
-  async function onSaveRole(userId: string): Promise<void> {
-    const draft = getDraft(userId);
-    if (draft.role === 'reviewer' && draft.reviewTracks.length === 0) {
-      setUsersError('Pick at least one track for a reviewer.');
-      return;
-    }
-    setActionId(userId);
-    setUsersError(null);
-    try {
-      await updateAdminUserRole(userId, draft);
-      await loadUsers();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setUsersError(err.response?.data?.error || err.message || 'Could not update role');
-    } finally {
-      setActionId(null);
-    }
-  }
-
-  async function onReject(userId: string): Promise<void> {
-    setActionId(userId);
-    setUsersError(null);
-    try {
-      await rejectAdminUser(userId);
-      await loadUsers();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } }; message?: string };
-      setUsersError(err.response?.data?.error || err.message || 'Reject failed');
-    } finally {
-      setActionId(null);
-    }
-  }
-
-  function renderRoleControls(user: AdminUser): JSX.Element {
-    const draft = getDraft(user.id);
-    return (
-      <div className="admin-role-controls">
-        <label className="admin-role-field">
-          <span className="admin-role-label">Role</span>
-          <select
-            className="admin-role-select"
-            value={draft.role}
-            aria-label={`Role for ${user.email}`}
-            onChange={(e) => setDraft(user.id, { role: e.target.value as UserRole })}
-          >
-            {USER_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {USER_ROLE_LABELS[role]}
-              </option>
-            ))}
-          </select>
-        </label>
-        {draft.role === 'reviewer' ? (
-          <fieldset className="admin-track-fieldset">
-            <legend>Allowed review tracks</legend>
-            <p className="admin-track-hint">
-              Choose which Play tracks this reviewer can review.
-            </p>
-            <div className="admin-track-list">
-              {REVIEW_TRACKS.map((track) => {
-                const checked = draft.reviewTracks.includes(track.id);
-                return (
-                  <label key={track.id} className="admin-track-option">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleTrack(user.id, track.id)}
-                    />
-                    <span>{track.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-            {draft.reviewTracks.length > 0 ? (
-              <div className="admin-track-chips" aria-label="Selected tracks">
-                {draft.reviewTracks.map((id) => (
-                  <span key={id} className="admin-track-chip">
-                    {reviewTrackLabel(id)}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="admin-track-hint admin-track-hint--warn">
-                Select at least one track before approving or saving.
-              </p>
-            )}
-          </fieldset>
-        ) : null}
-      </div>
-    );
-  }
-
-  function renderUserRow(
-    user: AdminUser,
-    actions: 'pending' | 'active',
-  ): JSX.Element {
-    const busy = actionId === user.id;
-    const draft = getDraft(user.id);
-    const dirty =
-      actions === 'active' &&
-      (draft.role !== (user.admin ? 'admin' : user.role || 'learner') ||
-        JSON.stringify(draft.reviewTracks) !==
-          JSON.stringify(user.role === 'reviewer' ? user.reviewTracks || [] : []));
-
-    return (
-      <li key={user.id} className="admin-user-row">
-        <div className="admin-user-main">
-          <div className="admin-user-meta">
-            <strong>{user.email}</strong>
-            {user.name ? <span>{user.name}</span> : null}
-            {actions === 'active' ? (
-              <span className="admin-user-role-badge">
-                {userRoleLabel(user.role)}
-                {user.role === 'reviewer' && (user.reviewTracks || []).length > 0
-                  ? ` · ${(user.reviewTracks || []).map(reviewTrackLabel).join(', ')}`
-                  : null}
-              </span>
-            ) : null}
-          </div>
-          {renderRoleControls(user)}
-        </div>
-        <div className="admin-user-actions">
-          {actions === 'pending' ? (
-            <>
-              <button
-                type="button"
-                className="admin-btn admin-btn--approve"
-                disabled={busy}
-                onClick={() => void onApprove(user.id)}
-              >
-                {busy ? '…' : 'Approve'}
-              </button>
-              <button
-                type="button"
-                className="admin-btn admin-btn--reject"
-                disabled={busy}
-                onClick={() => void onReject(user.id)}
-              >
-                Reject
-              </button>
-            </>
-          ) : null}
-          {actions === 'active' ? (
-            <button
-              type="button"
-              className="admin-btn admin-btn--approve"
-              disabled={busy || !dirty}
-              onClick={() => void onSaveRole(user.id)}
-            >
-              {busy ? '…' : 'Save role'}
-            </button>
-          ) : null}
-        </div>
-      </li>
-    );
-  }
+  const users = overview?.users;
+  const submissions = overview?.submissions;
+  const signupTrend = users ? trend(users.last7, users.prev7) : null;
+  const submitTrend = submissions ? trend(submissions.last7, submissions.prev7) : null;
+  const pending = users?.pending ?? 0;
+  const switchesDisabled = settingsLoading || settingsSaving;
 
   return (
-    <div className="app-page profile-page admin-page">
-      <div className="profile-shell">
-        <header className="profile-hero">
-          <p className="profile-eyebrow">Platform</p>
-          <h1 className="profile-title">Admin</h1>
-          <p className="profile-lead">
-            Approve signups, assign roles (Admin, Reviewer, Learner), and manage platform settings.
-          </p>
-        </header>
+    <div className="app-page admin-home">
+      <header className="admin-home-header">
+        <p className="app-page-eyebrow">Platform</p>
+        <h1 className="admin-home-title">Admin</h1>
+        <p className="admin-home-lead">
+          Who has joined, what was submitted, and the switches that run the platform.
+        </p>
+      </header>
 
-        <div className="profile-stack">
-          <section className="profile-panel" aria-labelledby="admin-insights-heading">
-            <h2 id="admin-insights-heading" className="profile-panel-title">
-              Insights
-            </h2>
-            <Link to="/admin/feedback" className="admin-insight-link">
-              <span className="admin-insight-copy">
-                <strong>Lab feedback</strong>
-                <span>Feedback from reviewers and admins across every lab, with trends and filters.</span>
-              </span>
-              <span className="admin-insight-arrow" aria-hidden>
-                →
-              </span>
-            </Link>
-            <Link to="/admin/waitlist" className="admin-insight-link">
-              <span className="admin-insight-copy">
-                <strong>Waitlist</strong>
-                <span>Landing page sign-ups by day, group, source, and college or company.</span>
-              </span>
-              <span className="admin-insight-arrow" aria-hidden>
-                →
-              </span>
-            </Link>
-          </section>
-
-          <section className="profile-panel" aria-labelledby="admin-registration-heading">
-            <h2 id="admin-registration-heading" className="profile-panel-title">
-              Registration
-            </h2>
-            <div className="profile-setting-row">
-              <div className="profile-setting-copy">
-                <h3>Allow open registration</h3>
-                <p>
-                  When on, new signups become active immediately as Learners. When off, they wait
-                  in the approval queue where you pick a role.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="profile-switch"
-                role="switch"
-                aria-checked={registrationOpen}
-                aria-label="Allow open registration"
-                disabled={settingsLoading || settingsSaving}
-                onClick={() => void onToggleRegistration()}
-              >
-                <span>{registrationOpen ? 'On' : 'Off'}</span>
-              </button>
-            </div>
-            {settingsLoading ? <p className="profile-setting-status">Loading…</p> : null}
-            {settingsError ? (
-              <p className="profile-setting-status profile-setting-status--error">{settingsError}</p>
-            ) : null}
-          </section>
-
-          <section className="profile-panel" aria-labelledby="admin-pending-heading">
-            <h2 id="admin-pending-heading" className="profile-panel-title">
-              Pending approvals
-            </h2>
-            {usersLoading ? <p className="profile-setting-status">Loading…</p> : null}
-            {usersError ? (
-              <p className="profile-setting-status profile-setting-status--error">{usersError}</p>
-            ) : null}
-            {!usersLoading && pending.length === 0 ? (
-              <p className="profile-setting-status">No pending signups.</p>
-            ) : null}
-            {pending.length > 0 ? (
-              <ul className="admin-user-list">{pending.map((u) => renderUserRow(u, 'pending'))}</ul>
-            ) : null}
-          </section>
-
-          <section className="profile-panel" aria-labelledby="admin-active-heading">
-            <h2 id="admin-active-heading" className="profile-panel-title">
-              Active users
-            </h2>
-            <p className="profile-setting-status admin-section-lead">
-              Change roles anytime. Reviewers must have at least one track.
-            </p>
-            {!usersLoading && active.length === 0 ? (
-              <p className="profile-setting-status">No active users.</p>
-            ) : null}
-            {active.length > 0 ? (
-              <ul className="admin-user-list">{active.map((u) => renderUserRow(u, 'active'))}</ul>
-            ) : null}
-          </section>
-
-          <section className="profile-panel" aria-labelledby="admin-spark-heading">
-            <h2 id="admin-spark-heading" className="profile-panel-title">
-              Spark settings
-            </h2>
-            <div className="profile-setting-row">
-              <div className="profile-setting-copy">
-                <h3>Spark job watcher</h3>
-                <p>
-                  When on, the cluster kills jobs that exceed the lab hard time limit. Turn off
-                  while testing long runs.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="profile-switch"
-                role="switch"
-                aria-checked={watcherEnabled}
-                aria-label="Spark job watcher"
-                disabled={settingsLoading || settingsSaving}
-                onClick={() => void onToggleWatcher()}
-              >
-                <span>{watcherEnabled ? 'On' : 'Off'}</span>
-              </button>
-            </div>
-            {!settingsLoading && !clusterSynced && !settingsError ? (
-              <p className="profile-setting-status">Cluster did not confirm the last change.</p>
-            ) : null}
-          </section>
+      {overviewError ? (
+        <div className="alert app-page-alert admin-home-alert" role="alert">
+          <span>{overviewError}</span>
+          <button type="button" className="admin-btn" onClick={() => void loadOverview()}>
+            Retry
+          </button>
         </div>
+      ) : null}
+
+      <section className="admin-home-kpis" aria-label="Summary" aria-busy={overviewLoading}>
+        <article className="admin-home-card admin-home-kpi">
+          <span className="admin-home-kpi-label">Signed up</span>
+          <strong className="admin-home-kpi-value">{statText(users?.total)}</strong>
+          <span className="admin-home-kpi-detail">
+            {users
+              ? `${users.yesterday.toLocaleString()} yesterday · ${users.pending.toLocaleString()} waiting`
+              : ' '}
+          </span>
+        </article>
+        <article className="admin-home-card admin-home-kpi">
+          <span className="admin-home-kpi-label">Signups, last 7 days</span>
+          <strong className="admin-home-kpi-value">{statText(users?.last7)}</strong>
+          <span className={`admin-home-kpi-detail${signupTrend ? ` is-${signupTrend.dir}` : ''}`}>
+            {signupTrend ? signupTrend.text : ' '}
+          </span>
+        </article>
+        <article className="admin-home-card admin-home-kpi">
+          <span className="admin-home-kpi-label">Submissions yesterday</span>
+          <strong className="admin-home-kpi-value">{statText(submissions?.yesterday)}</strong>
+          <span className="admin-home-kpi-detail">
+            {submissions
+              ? `${submissions.passedYesterday.toLocaleString()} passed`
+              : ' '}
+          </span>
+        </article>
+        <article className="admin-home-card admin-home-kpi">
+          <span className="admin-home-kpi-label">Submissions, last 7 days</span>
+          <strong className="admin-home-kpi-value">{statText(submissions?.last7)}</strong>
+          <span className={`admin-home-kpi-detail${submitTrend ? ` is-${submitTrend.dir}` : ''}`}>
+            {submitTrend ? submitTrend.text : ' '}
+          </span>
+        </article>
+      </section>
+
+      {users && pending > 0 ? (
+        <Link to="/admin/users?status=pending" className="admin-home-pending">
+          <strong>
+            {pending === 1
+              ? '1 person is waiting for approval'
+              : `${pending.toLocaleString()} people are waiting for approval`}
+          </strong>
+          <span>Review</span>
+        </Link>
+      ) : null}
+
+      <div className="admin-home-stage">
+        <section className="admin-home-card admin-home-chart" aria-labelledby="admin-activity-heading">
+          {overview ? (
+            <ActivityChart days={overview.days} totalSubmissions={overview.submissions.total} />
+          ) : (
+            <div className="admin-home-chart-body">
+              <h2 id="admin-activity-heading">Last 14 days</h2>
+              <p className="admin-home-placeholder">
+                {overviewError && !overviewLoading ? "Activity didn't load." : 'Loading activity…'}
+              </p>
+            </div>
+          )}
+        </section>
+
+        <section className="admin-home-card admin-home-rail" aria-label="Manage">
+          <h2>Manage</h2>
+          <div className="admin-home-links">
+            <Link
+              to={pending > 0 ? '/admin/users?status=pending' : '/admin/users'}
+              className={`admin-home-link${pending > 0 ? ' admin-home-link--alert' : ''}`}
+            >
+              <span className="admin-home-link-copy">
+                <strong>People</strong>
+                <span>
+                  {users
+                    ? `${users.active.toLocaleString()} active · ${users.pending.toLocaleString()} waiting`
+                    : 'Accounts, roles, and approvals'}
+                </span>
+              </span>
+              <span className="admin-home-link-arrow" aria-hidden>
+                →
+              </span>
+            </Link>
+            <Link to="/admin/feedback" className="admin-home-link">
+              <span className="admin-home-link-copy">
+                <strong>Lab feedback</strong>
+                <span>Reviews written across every lab</span>
+              </span>
+              <span className="admin-home-link-arrow" aria-hidden>
+                →
+              </span>
+            </Link>
+            <Link to="/admin/waitlist" className="admin-home-link">
+              <span className="admin-home-link-copy">
+                <strong>Waitlist</strong>
+                <span>Landing page sign-ups</span>
+              </span>
+              <span className="admin-home-link-arrow" aria-hidden>
+                →
+              </span>
+            </Link>
+          </div>
+        </section>
+      </div>
+
+      {settingsError ? (
+        <p className="profile-setting-status profile-setting-status--error" role="alert">
+          {settingsError}
+        </p>
+      ) : null}
+
+      <div className="admin-home-settings">
+        <section className="admin-home-card admin-home-setting" aria-labelledby="admin-registration-heading">
+          <div className="profile-setting-row">
+            <div className="profile-setting-copy">
+              <h2 id="admin-registration-heading" className="admin-home-setting-title">
+                Open registration
+              </h2>
+              <p>
+                When this is on, new signups become learners immediately. When it is off, they wait
+                for an approval and a role.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="profile-switch"
+              role="switch"
+              aria-checked={registrationOpen}
+              aria-label="Open registration"
+              disabled={switchesDisabled}
+              onClick={() => void onToggleRegistration()}
+            >
+              <span>{settingsLoading ? '…' : registrationOpen ? 'On' : 'Off'}</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="admin-home-card admin-home-setting" aria-labelledby="admin-spark-heading">
+          <div className="profile-setting-row">
+            <div className="profile-setting-copy">
+              <h2 id="admin-spark-heading" className="admin-home-setting-title">
+                Spark job watcher
+              </h2>
+              <p>
+                When this is on, the cluster stops jobs that run past the lab time limit. Turn it
+                off while testing a long run.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="profile-switch"
+              role="switch"
+              aria-checked={watcherEnabled}
+              aria-label="Spark job watcher"
+              disabled={switchesDisabled}
+              onClick={() => void onToggleWatcher()}
+            >
+              <span>{settingsLoading ? '…' : watcherEnabled ? 'On' : 'Off'}</span>
+            </button>
+          </div>
+          {!settingsLoading && !clusterSynced && !settingsError ? (
+            <p className="profile-setting-status">Cluster did not confirm the last change.</p>
+          ) : null}
+        </section>
       </div>
     </div>
   );

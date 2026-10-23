@@ -35,6 +35,14 @@ import {
 import { LSM_TREE_OVERVIEW } from './lsmTreeOverview';
 import { B_TREE_OVERVIEW } from './bTreeOverview';
 import { CONSENSUS_OVERVIEW } from './consensusOverview';
+import { QUERY_ENGINE_OVERVIEW } from './queryEngineOverview';
+import {
+  QUERY_ENGINE_CATALOG_GO,
+  QUERY_ENGINE_EXECUTE_GO,
+  QUERY_ENGINE_LEXER_GO,
+  QUERY_ENGINE_PARSER_GO,
+  QUERY_ENGINE_RELATIONAL_GO,
+} from './queryEngineChaptersGo';
 import { CINDER_EVENT_LOOP } from './cinderEventLoop';
 import type { LanguageId } from '../../constants/languages';
 import type { ChapterReading, ProjectModuleContent } from './types';
@@ -69,6 +77,11 @@ const MINOR_CHAPTER_CONTENT: ProjectModuleContent[] = [
   CONSENSUS_COMMIT_GO,
   CONSENSUS_PERSISTENCE_GO,
   CONSENSUS_CLIENTS_GO,
+  QUERY_ENGINE_LEXER_GO,
+  QUERY_ENGINE_PARSER_GO,
+  QUERY_ENGINE_CATALOG_GO,
+  QUERY_ENGINE_EXECUTE_GO,
+  QUERY_ENGINE_RELATIONAL_GO,
 ];
 
 const DEFAULT_LANGUAGE: LanguageId = 'go';
@@ -93,6 +106,7 @@ const MINOR_READINGS = new Map<string, ChapterReading>([
   ['lsm-tree/overview', LSM_TREE_OVERVIEW],
   ['b-tree/overview', B_TREE_OVERVIEW],
   ['consensus/overview', CONSENSUS_OVERVIEW],
+  ['query-engine/overview', QUERY_ENGINE_OVERVIEW],
 ]);
 
 export function getModuleContent(

@@ -4,6 +4,8 @@ export interface UserRecord {
   id: string;
   email: string;
   name?: string | null;
+  /** Public handle. Null until a new account claims one. */
+  username?: string | null;
   /** Authoring / content-edit access (admin role or ADMIN_EMAILS). */
   admin?: boolean;
   /** Platform role assigned by an admin. Defaults to learner. */
@@ -457,6 +459,8 @@ export interface AppState {
   onBackToLibrary: () => void;
   onEnd: () => Promise<void>;
   onLogout: () => void;
+  /** Persist a freshly saved account (username, and anything else /me returns). */
+  onUserUpdated: (user: UserRecord) => void;
   /** Guests browse freely; this opens the sign-in modal. */
   onRequestLogin: (returnTo?: string, prompt?: { title: string; body: string }) => void;
   /** Reload the lab list (e.g. after a purchase changes which labs are locked). */

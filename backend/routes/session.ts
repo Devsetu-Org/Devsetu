@@ -695,6 +695,17 @@ router.post('/:id/board/submit', requireSessionAccess, express.json({ limit: '25
   }
 });
 
+router.get('/:id/board/submissions', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const session = getBoardSession(req.params.id, res);
+    if (!session) return;
+    const submissions = await boardLifecycle.listBoardSubmissions(session.id);
+    res.json({ sessionId: session.id, submissions });
+  } catch (e) {
+    next(e);
+  }
+});
+
 function sendBoardGameError(e: unknown, res: ExpressResponse, next: ExpressNextFunction): void {
   const err = e as Error & { status?: number };
   if (err && (err.status === 400 || err.status === 409)) {
