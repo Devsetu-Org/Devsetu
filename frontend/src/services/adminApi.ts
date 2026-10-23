@@ -15,6 +15,34 @@ export interface AdminUser extends UserRecord {
   status: AdminUserStatus;
   role: UserRole;
   reviewTracks: string[];
+  createdAt?: number | null;
+}
+
+export interface AdminOverviewDay {
+  day: string;
+  signups: number;
+  submissions: number;
+}
+
+export interface AdminOverview {
+  users: {
+    total: number;
+    active: number;
+    pending: number;
+    rejected: number;
+    yesterday: number;
+    last7: number;
+    prev7: number;
+  };
+  submissions: {
+    total: number;
+    yesterday: number;
+    last7: number;
+    prev7: number;
+    passedYesterday: number;
+    passedLast7: number;
+  };
+  days: AdminOverviewDay[];
 }
 
 export interface ApproveUserInput {
@@ -35,6 +63,14 @@ export async function saveAdminSettings(patch: {
     headers: getAuthHeader(),
   });
   return data as AdminSettings;
+}
+
+export async function fetchAdminOverview(tzOffsetMin: number): Promise<AdminOverview> {
+  const { data } = await axios.get('/api/admin/overview', {
+    headers: getAuthHeader(),
+    params: { tz: tzOffsetMin },
+  });
+  return data as AdminOverview;
 }
 
 export async function fetchAdminUsers(status?: AdminUserStatus): Promise<AdminUser[]> {

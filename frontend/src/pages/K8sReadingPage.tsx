@@ -9,14 +9,6 @@ import {
 } from '../constants/k8sReadings';
 import { READING_TRACKS, type ReadingTrackId } from '../constants/readingTracks';
 import ReadOnlyCodePane from '../components/ReadOnlyCodePane';
-import {
-  ReadingCurationBlock,
-  ReadingCurationProvider,
-  ReadingCurationToolbar,
-  readingCurationBlockId,
-} from '../components/ReadingCuration';
-import { useAppState } from '../context/AppStateContext';
-import { isAdminUser, getCurrentUser } from '../services/authApi';
 
 function RichTextInline({ text }: { text: string }): JSX.Element {
   // Order matters: **`code`** / *`code`* before **bold** / *italic*, then `code`.
@@ -223,10 +215,8 @@ function ReadingFlow({ flow }: { flow: K8sReadingFlow }): JSX.Element {
 
 export function ReadingSection({
   section,
-  readingPrefix,
 }: {
   section: K8sReadingSection;
-  readingPrefix: string;
 }): JSX.Element | null {
   if (
     !section.title &&
@@ -239,8 +229,6 @@ export function ReadingSection({
     return null;
   }
 
-  const sectionBase = readingCurationBlockId(readingPrefix, 'section', section.id);
-
   const figureClass = [
     'spark-primer-figure',
     section.figure?.compact ? 'spark-primer-figure--compact' : '',
@@ -251,115 +239,72 @@ export function ReadingSection({
 
   return (
     <section id={section.id} className="spark-primer-section">
-      {section.title ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/title`}>
-          <h2 className="spark-primer-section-title">{section.title}</h2>
-        </ReadingCurationBlock>
-      ) : null}
+      {section.title ? <h2 className="spark-primer-section-title">{section.title}</h2> : null}
       {section.body.map((paragraph, bi) => (
-        <ReadingCurationBlock key={`${section.id}-body-${bi}`} blockId={`${sectionBase}/body/${bi}`}>
-          <p className="spark-primer-copy">
-            <RichText text={paragraph} />
-          </p>
-        </ReadingCurationBlock>
+        <p key={`${section.id}-body-${bi}`} className="spark-primer-copy">
+          <RichText text={paragraph} />
+        </p>
       ))}
       {section.subsections?.map((subsection) => {
-        const subBase = `${sectionBase}/subsection/${subsection.id}`;
         const subAnchor = `${section.id}--${subsection.id}`;
         return (
           <div key={subsection.id} id={subAnchor} className="spark-primer-subsection">
-            <ReadingCurationBlock blockId={`${subBase}/title`}>
-              <h3 className="spark-primer-subsection-title">{subsection.title}</h3>
-            </ReadingCurationBlock>
+            <h3 className="spark-primer-subsection-title">{subsection.title}</h3>
             {subsection.body.map((paragraph, bi) => (
-              <ReadingCurationBlock key={`${subAnchor}-body-${bi}`} blockId={`${subBase}/body/${bi}`}>
-                <p className="spark-primer-copy">
-                  <RichText text={paragraph} />
-                </p>
-              </ReadingCurationBlock>
+              <p key={`${subAnchor}-body-${bi}`} className="spark-primer-copy">
+                <RichText text={paragraph} />
+              </p>
             ))}
-            {subsection.code ? (
-              <ReadingCurationBlock blockId={`${subBase}/code`}>
-                <ReadingCodeBlock block={subsection.code} />
-              </ReadingCurationBlock>
-            ) : null}
+            {subsection.code ? <ReadingCodeBlock block={subsection.code} /> : null}
           </div>
         );
       })}
-      {section.table ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/table`}>
-          <ReadingTable table={section.table} />
-        </ReadingCurationBlock>
-      ) : null}
+      {section.table ? <ReadingTable table={section.table} /> : null}
       {section.bullets && section.bullets.length > 0 ? (
         <ul className="spark-primer-example-list spark-primer-bullets">
           {section.bullets.map((item, bi) => (
-            <ReadingCurationBlock
-              key={`${section.id}-bullet-${bi}`}
-              as="li"
-              blockId={`${sectionBase}/bullet/${bi}`}
-            >
+            <li key={`${section.id}-bullet-${bi}`}>
               <RichText text={item} />
-            </ReadingCurationBlock>
+            </li>
           ))}
         </ul>
       ) : null}
       {section.quote ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/quote`}>
-          <blockquote className="spark-primer-quote">
-            <RichText text={section.quote} />
-          </blockquote>
-        </ReadingCurationBlock>
+        <blockquote className="spark-primer-quote">
+          <RichText text={section.quote} />
+        </blockquote>
       ) : null}
-      {section.flows?.map((flow, fi) => (
-        <ReadingCurationBlock key={flow.title} blockId={`${sectionBase}/flow/${fi}`}>
-          <ReadingFlow flow={flow} />
-        </ReadingCurationBlock>
+      {section.flows?.map((flow) => (
+        <ReadingFlow key={flow.title} flow={flow} />
       ))}
       {section.codes?.map((block, ci) => (
-        <ReadingCurationBlock key={block.code.slice(0, 40)} blockId={`${sectionBase}/code/${ci}`}>
-          <ReadingCodeBlock block={block} />
-        </ReadingCurationBlock>
+        <ReadingCodeBlock key={block.code.slice(0, 40) + String(ci)} block={block} />
       ))}
       {section.figure ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/figure`}>
-          <figure className={figureClass}>
-            <img src={section.figure.image} alt={section.figure.imageAlt} loading="lazy" />
-            <figcaption>{section.figure.caption}</figcaption>
-          </figure>
-        </ReadingCurationBlock>
+        <figure className={figureClass}>
+          <img src={section.figure.image} alt={section.figure.imageAlt} loading="lazy" />
+          <figcaption>{section.figure.caption}</figcaption>
+        </figure>
       ) : null}
       {section.after?.map((paragraph, ai) => (
-        <ReadingCurationBlock key={`${section.id}-after-${ai}`} blockId={`${sectionBase}/after/${ai}`}>
-          <p className="spark-primer-copy">
-            <RichText text={paragraph} />
-          </p>
-        </ReadingCurationBlock>
+        <p key={`${section.id}-after-${ai}`} className="spark-primer-copy">
+          <RichText text={paragraph} />
+        </p>
       ))}
-      {section.code ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/code-single`}>
-          <ReadingCodeBlock block={section.code} />
-        </ReadingCurationBlock>
-      ) : null}
-      {section.tableAfter ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/table-after`}>
-          <ReadingTable table={section.tableAfter} />
-        </ReadingCurationBlock>
-      ) : null}
+      {section.code ? <ReadingCodeBlock block={section.code} /> : null}
+      {section.tableAfter ? <ReadingTable table={section.tableAfter} /> : null}
       {section.callout ? (
-        <ReadingCurationBlock blockId={`${sectionBase}/callout`}>
-          <aside
-            className={`markdown-callout markdown-callout--${section.callout.kind} spark-primer-callout`}
-            aria-label={section.callout.title}
-          >
-            <p className="markdown-callout-label">{section.callout.title}</p>
-            {section.callout.body.map((paragraph) => (
-              <p key={paragraph.slice(0, 56)}>
-                <RichText text={paragraph} />
-              </p>
-            ))}
-          </aside>
-        </ReadingCurationBlock>
+        <aside
+          className={`markdown-callout markdown-callout--${section.callout.kind} spark-primer-callout`}
+          aria-label={section.callout.title}
+        >
+          <p className="markdown-callout-label">{section.callout.title}</p>
+          {section.callout.body.map((paragraph) => (
+            <p key={paragraph.slice(0, 56)}>
+              <RichText text={paragraph} />
+            </p>
+          ))}
+        </aside>
       ) : null}
     </section>
   );
@@ -371,9 +316,6 @@ export default function K8sReadingPage({
   trackId?: ReadingTrackId;
 }): JSX.Element {
   const { readingSlug } = useParams<{ readingSlug: string }>();
-  const { currentUser } = useAppState();
-  const isAdmin =
-    isAdminUser(currentUser) || isAdminUser(getCurrentUser());
   const track = READING_TRACKS[trackId];
   const reading = useMemo(() => track.getReading(readingSlug), [track, readingSlug]);
 
@@ -381,12 +323,12 @@ export default function K8sReadingPage({
     return <Navigate to={track.labsPath} replace />;
   }
 
-  const readingPrefix = `${trackId}/${reading.slug}`;
   const tocSections = reading.sections.filter((s) => s.title);
 
-  const article = (
+  return (
+    <div className="app-page spark-primer-page">
     <article
-      className={`spark-primer-notebook${reading.showBlogStamp ? ' spark-primer-notebook--stamped' : ''}${isAdmin ? ' spark-primer-notebook--curation' : ''}`}
+      className={`spark-primer-notebook${reading.showBlogStamp ? ' spark-primer-notebook--stamped' : ''}`}
     >
       {reading.showBlogStamp ? (
         <img
@@ -412,14 +354,10 @@ export default function K8sReadingPage({
           <p className="spark-primer-eyebrow">{reading.eyebrow}</p>
         ) : null}
         <h1 className="spark-primer-title">{reading.title}</h1>
-        <ReadingCurationBlock blockId={readingCurationBlockId(readingPrefix, 'lede')}>
-          <p className="spark-primer-lede">
-            <RichText text={reading.lede} />
-          </p>
-        </ReadingCurationBlock>
+        <p className="spark-primer-lede">
+          <RichText text={reading.lede} />
+        </p>
       </header>
-
-      <ReadingCurationToolbar />
 
       <nav className="spark-primer-toc" aria-label="On this page">
         {tocSections.map((section) => (
@@ -433,21 +371,17 @@ export default function K8sReadingPage({
       </nav>
 
       {reading.sections.map((section) => (
-        <ReadingSection key={section.id} section={section} readingPrefix={readingPrefix} />
+        <ReadingSection key={section.id} section={section} />
       ))}
 
       <section id="takeaways" className="spark-primer-section">
         <p className="spark-primer-section-eyebrow">Takeaways</p>
         <h2 className="spark-primer-section-title">What to keep</h2>
         <ul className="spark-primer-example-list spark-primer-bullets">
-          {reading.takeaways.map((item, ti) => (
-            <ReadingCurationBlock
-              key={item}
-              as="li"
-              blockId={readingCurationBlockId(readingPrefix, 'takeaways', String(ti))}
-            >
+          {reading.takeaways.map((item) => (
+            <li key={item}>
               <RichText text={item} />
-            </ReadingCurationBlock>
+            </li>
           ))}
         </ul>
       </section>
@@ -462,11 +396,9 @@ export default function K8sReadingPage({
                 ? reading.relatedLabsIntro
                 : track.relatedLabsIntro;
             return relatedIntro.trim() ? (
-              <ReadingCurationBlock blockId={readingCurationBlockId(readingPrefix, 'related-intro')}>
-                <p className="spark-primer-copy">
-                  <RichText text={relatedIntro} />
-                </p>
-              </ReadingCurationBlock>
+              <p className="spark-primer-copy">
+                <RichText text={relatedIntro} />
+              </p>
             ) : null;
           })()}
           <ul className="spark-primer-links">
@@ -489,11 +421,9 @@ export default function K8sReadingPage({
         <section id="next" className="spark-primer-section spark-primer-next">
           <p className="spark-primer-section-eyebrow">{reading.followOn.eyebrow}</p>
           <h2 className="spark-primer-section-title">{reading.followOn.title}</h2>
-          <ReadingCurationBlock blockId={readingCurationBlockId(readingPrefix, 'follow-on')}>
-            <p className="spark-primer-copy">
-              <RichText text={reading.followOn.intro} />
-            </p>
-          </ReadingCurationBlock>
+          <p className="spark-primer-copy">
+            <RichText text={reading.followOn.intro} />
+          </p>
           <ul className="spark-primer-links">
             {reading.followOn.links.map((link) => (
               <li key={link.href}>
@@ -504,17 +434,6 @@ export default function K8sReadingPage({
         </section>
       ) : null}
     </article>
-  );
-
-  return (
-    <div className="app-page spark-primer-page">
-      {isAdmin ? (
-        <ReadingCurationProvider trackId={trackId} readingSlug={readingSlug} isAdmin={isAdmin}>
-          {article}
-        </ReadingCurationProvider>
-      ) : (
-        article
-      )}
     </div>
   );
 }

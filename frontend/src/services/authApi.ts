@@ -44,6 +44,17 @@ export type SignupResult =
   | { pending: true; message: string; user: UserRecord }
   | { pending?: false; token: string; user: UserRecord };
 
+export async function saveUsername(username: string): Promise<UserRecord> {
+  const { data } = await axios.put(
+    '/api/auth/username',
+    { username },
+    { headers: getAuthHeader() },
+  );
+  const user = (data as { user: UserRecord }).user;
+  saveUser(user);
+  return user;
+}
+
 export async function signup(
   email: string,
   password: string,

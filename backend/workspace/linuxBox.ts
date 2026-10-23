@@ -15,8 +15,10 @@
  * Kubernetes API access here: the backend creates the pod and the terminal execs into it
  * with controller credentials.
  *
- * Machines are not persisted: every open starts a fresh box and runs setup.sh;
- * ending the lab deletes it.
+ * Ending a lab stops the pod so the node is free, after copying the filesystem
+ * (except proc, sys, dev, run, and tmp) to the snapshot store. The next open
+ * restores that copy, so files survive an idle lock. Reset throws the copy
+ * away and runs setup.sh on a new box.
  *
  * No-root labs (platformSpec.box.unprivileged, the free shell/file-navigation set) skip
  * systemd and the added capabilities: a plain `sleep infinity` PID 1, RuntimeDefault
@@ -25,6 +27,12 @@
  */
 
 import type { BoxFlavor, LinuxBoxSpec } from '../types/domain';
+import type { ChildProcess } from 'child_process';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
 
 const k8s = require('./k8sCluster');
 
@@ -329,6 +337,138 @@ async function deleteBox(ns: string): Promise<void> {
   );
 }
 
+/** Same root as namespace snapshots, so a learner cannot write their own restore. */
+const WORK_ROOT =
+  String(process.env.K8S_LAB_SNAPSHOT_ROOT || '').trim()
+  || path.join(os.homedir(), '.devlabs', 'k8s-snapshots');
+const WORK_SAVE_TIMEOUT_MS = 5 * 60 * 1000;
+const WORK_BYTES_MAX = 4 * 1024 * 1024 * 1024;
+
+function workArchivePath(ns: string, challengeId: string): string {
+  const safeNs = ns.replace(/[^a-z0-9-]/g, '_');
+  const safeId = (challengeId || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+  return path.join(WORK_ROOT, safeNs, `${safeId}.box.tar`);
+}
+
+function hasBoxWork(ns: string, challengeId: string): boolean {
+  try {
+    return fs.statSync(workArchivePath(ns, challengeId)).size > 512;
+  } catch {
+    return false;
+  }
+}
+
+function discardBoxWork(ns: string, challengeId: string): void {
+  fs.rmSync(workArchivePath(ns, challengeId), { force: true });
+}
+
+async function boxIsReady(ns: string): Promise<boolean> {
+  const r = await k8s.runKubectl(
+    ['get', 'pod', BOX_POD, '-n', ns, '-o', 'jsonpath={.status.containerStatuses[0].ready}'],
+    { timeoutMs: 15_000 },
+  );
+  return r.code === 0 && String(r.stdout || '').trim() === 'true';
+}
+
+function spawnKubectl(
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): ChildProcess {
+  const child = spawn('kubectl', args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+  child.on('close', () => clearTimeout(timer));
+  return child;
+}
+
+/**
+ * Copy the box filesystem out, then the caller deletes the pod. Throws on
+ * failure so the pod is left running and the work is not thrown away.
+ */
+async function saveBoxWork(ns: string, challengeId: string): Promise<void> {
+  const dest = workArchivePath(ns, challengeId);
+  fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
+  const partial = `${dest}.partial`;
+  const cmd = await k8s.controllerKubectlCommand([
+    'exec', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--',
+    'sh', '-c',
+    'if command -v systemctl >/dev/null 2>&1; then systemctl stop docker >/dev/null 2>&1 || true; fi; exec tar -C / -cf - --exclude=./proc --exclude=./sys --exclude=./dev --exclude=./run --exclude=./tmp --exclude=./var/cache .',
+  ]);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawnKubectl(cmd.args, cmd.env, WORK_SAVE_TIMEOUT_MS);
+    const stdout = child.stdout;
+    const errStream = child.stderr;
+    if (!stdout || !errStream) {
+      child.kill('SIGKILL');
+      throw new Error('box snapshot could not capture kubectl output');
+    }
+    const out = fs.createWriteStream(partial);
+    let bytes = 0;
+    let stderr = '';
+    let failed: Error | null = null;
+    const fail = (err: Error) => {
+      if (failed) return;
+      failed = err;
+      child.kill('SIGKILL');
+    };
+    stdout.on('data', (chunk: Buffer) => {
+      bytes += chunk.length;
+      if (bytes > WORK_BYTES_MAX) fail(new Error('box snapshot is larger than 4 GiB'));
+    });
+    stdout.pipe(out);
+    errStream.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+      if (stderr.length > 4000) stderr = stderr.slice(-4000);
+    });
+    child.on('error', (err: Error) => fail(err));
+    child.on('close', (code: number | null) => {
+      out.end(() => {
+        if (failed || code !== 0 || bytes <= 512) {
+          fs.rmSync(partial, { force: true });
+          reject(failed || new Error((stderr || `box snapshot failed (exit ${code})`).trim()));
+          return;
+        }
+        fs.renameSync(partial, dest);
+        resolve();
+      });
+    });
+  });
+}
+
+/** Put a saved filesystem back onto a freshly booted box. */
+async function restoreBoxWork(ns: string, challengeId: string): Promise<void> {
+  const src = workArchivePath(ns, challengeId);
+  const cmd = await k8s.controllerKubectlCommand([
+    'exec', '-i', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--',
+    'sh', '-c',
+    'if command -v systemctl >/dev/null 2>&1; then systemctl stop docker >/dev/null 2>&1 || true; fi; tar -C / -xf -; if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload >/dev/null 2>&1 || true; systemctl start docker >/dev/null 2>&1 || true; fi',
+  ]);
+  await new Promise<void>((resolve, reject) => {
+    const child = spawnKubectl(cmd.args, cmd.env, WORK_SAVE_TIMEOUT_MS);
+    const errStream = child.stderr;
+    const stdin = child.stdin;
+    if (!errStream || !stdin) {
+      child.kill('SIGKILL');
+      reject(new Error('box restore could not attach to kubectl'));
+      return;
+    }
+    let stderr = '';
+    errStream.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+      if (stderr.length > 4000) stderr = stderr.slice(-4000);
+    });
+    const input = fs.createReadStream(src);
+    input.on('error', (err: Error) => reject(err));
+    stdin.on('error', () => undefined);
+    input.pipe(stdin);
+    child.on('error', (err: Error) => reject(err));
+    child.on('close', (code: number | null) => {
+      if (code !== 0) reject(new Error((stderr || `box restore failed (exit ${code})`).trim()));
+      else resolve();
+    });
+  });
+}
+
 /** devlabs.io/pool the flavor's boxes are scheduled on. */
 function poolFor(flavor: BoxFlavor): string {
   return FLAVORS[flavor].pool;
@@ -365,6 +505,11 @@ module.exports = {
   boxNamespace,
   recreateBox,
   deleteBox,
+  hasBoxWork,
+  discardBoxWork,
+  boxIsReady,
+  saveBoxWork,
+  restoreBoxWork,
   poolFor,
   scriptEnv,
   shellExecArgs,

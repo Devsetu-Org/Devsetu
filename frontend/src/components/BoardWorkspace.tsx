@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IconLibrary, IconSubmit } from './ChromeIcons';
+import { IconSubmit } from './ChromeIcons';
 import MarkdownProse from './MarkdownProse';
 import {
   answerBoardFinale,
   checkBoardStep,
   fetchBoardState,
+  fetchBoardSubmissions,
   judgeBoardClaims,
   saveBoardGraph,
   submitBoard,
+  type BoardSubmissionRecord,
 } from '../services/sessionApi';
+import { SubmitReaction, type GradeModalPhase } from './SubmitReaction';
 import type {
   ActiveSession,
   BoardGameState,
@@ -23,26 +26,35 @@ import type {
 interface BoardWorkspaceProps {
   challenge: ChallengePublic | ChallengeFull | null | undefined;
   session: ActiveSession;
-  onClose?: () => void;
 }
 
 const EMPTY_PIECES: PublicBoardPiece[] = [];
 const SLOT_W = 228;
 const SLOT_H = 70;
 
+function storyText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function boardStory(challenge: ChallengePublic | ChallengeFull | null | undefined): {
   overview: string;
+  briefing: string;
+  incident: string;
   yourTask: string;
   steps: string[];
   hints: string[];
+  paperHref: string;
 } {
   const ps = challenge?.problemStatement;
   const rec = ps && typeof ps === 'object' && !Array.isArray(ps)
     ? (ps as {
       overview?: unknown;
+      briefing?: unknown;
+      incident?: unknown;
       yourTask?: unknown;
       yourTaskSteps?: unknown;
       hints?: unknown;
+      paperHref?: unknown;
     })
     : {};
   const steps = Array.isArray(rec.yourTaskSteps)
@@ -52,10 +64,13 @@ function boardStory(challenge: ChallengePublic | ChallengeFull | null | undefine
     ? rec.hints.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
     : [];
   return {
-    overview: typeof rec.overview === 'string' ? rec.overview.trim() : '',
-    yourTask: typeof rec.yourTask === 'string' ? rec.yourTask.trim() : '',
+    overview: storyText(rec.overview),
+    briefing: storyText(rec.briefing),
+    incident: storyText(rec.incident),
+    yourTask: storyText(rec.yourTask),
     steps,
     hints,
+    paperHref: storyText(rec.paperHref),
   };
 }
 
@@ -113,18 +128,6 @@ function errorMessage(err: unknown, fallback: string): string {
     || fallback;
 }
 
-function Hearts({ game }: { game: BoardGameState }): JSX.Element | null {
-  if (game.livesMax == null || game.lives == null) return null;
-  const lives = game.lives;
-  return (
-    <span className={`board-lives${lives === 0 ? ' is-out' : ''}`} title={`${lives} of ${game.livesMax} lives left`}>
-      {Array.from({ length: game.livesMax }, (_, i) => (
-        <span key={i} aria-hidden>{i < lives ? '♥' : '♡'}</span>
-      ))}
-    </span>
-  );
-}
-
 function hitBoardDrop(clientX: number, clientY: number): { slotId: string | null; palette: boolean } {
   const stack = document.elementsFromPoint(clientX, clientY);
   for (const node of stack) {
@@ -143,7 +146,6 @@ function hitBoardDrop(clientX: number, clientY: number): { slotId: string | null
 export default function BoardWorkspace({
   challenge,
   session,
-  onClose,
 }: BoardWorkspaceProps): JSX.Element {
   const spec = challenge?.boardSpec;
   const pieces = spec?.pieces || EMPTY_PIECES;
@@ -182,7 +184,6 @@ export default function BoardWorkspace({
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [grade, setGrade] = useState<BoardGradeResult | null>(null);
-  const [dirtySinceGrade, setDirtySinceGrade] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -197,6 +198,8 @@ export default function BoardWorkspace({
   const [showClaimResults, setShowClaimResults] = useState(false);
   const [finaleFeedback, setFinaleFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [submissions, setSubmissions] = useState<BoardSubmissionRecord[]>([]);
+  const [gradeModal, setGradeModal] = useState<GradeModalPhase | null>(null);
   const mode = spec?.game?.mode || 'classic';
   const finale = spec?.finale || null;
   const trayLabel = spec?.trayLabel || 'Unused';
@@ -230,6 +233,30 @@ export default function BoardWorkspace({
     up: (ev: PointerEvent) => void;
   } | null>(null);
   const story = boardStory(challenge);
+  const storyTabs = useMemo(() => {
+    if (!story.briefing && !story.incident) return [];
+    const tabs: Array<{ id: string; label: string; href?: string }> = [];
+    if (story.briefing) tabs.push({ id: 'crawler', label: 'Crawler' });
+    if (story.incident) tabs.push({ id: 'incident', label: 'Incident' });
+    if (story.overview) tabs.push({ id: 'brief', label: 'Brief' });
+    if (story.yourTask || story.steps.length > 0) tabs.push({ id: 'task', label: 'Task' });
+    if (story.paperHref) tabs.push({ id: 'paper', label: 'Paper', href: story.paperHref });
+    if (mode === 'unlock') tabs.push({ id: 'clues', label: 'Clues' });
+    tabs.push({ id: 'submissions', label: 'Submissions' });
+    return tabs;
+  }, [story.briefing, story.incident, story.overview, story.yourTask, story.steps.length, story.paperHref, mode]);
+  const [storyTab, setStoryTab] = useState('incident');
+  const activeStoryTab = storyTabs.some((tab) => tab.id === storyTab)
+    ? storyTab
+    : (storyTabs.find((tab) => tab.id === 'incident')?.id || storyTabs[0]?.id || '');
+
+  useEffect(() => {
+    let live = true;
+    fetchBoardSubmissions(session.id)
+      .then((rows) => { if (live) setSubmissions(rows); })
+      .catch(() => { if (live) setSubmissions([]); });
+    return () => { live = false; };
+  }, [session.id]);
 
   const world = useMemo(() => {
     const maxX = slots.reduce((m, s) => Math.max(m, s.x + SLOT_W), 640);
@@ -266,9 +293,8 @@ export default function BoardWorkspace({
   const applyFills = useCallback((nextFills: Record<string, string | null>, reset = false) => {
     setFills(nextFills);
     setSaveError(null);
-    setDirtySinceGrade(reset ? false : Boolean(grade));
     persist(nextFills, reset);
-  }, [grade, persist]);
+  }, [persist]);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,7 +307,6 @@ export default function BoardWorkspace({
         setFills(state?.fills && typeof state.fills === 'object' ? state.fills : {});
         setGrade(state?.lastGrade ?? null);
         setGame(state?.game ?? null);
-        setDirtySinceGrade(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -348,18 +373,6 @@ export default function BoardWorkspace({
     : selectedPieceId && !usedIds.has(selectedPieceId)
       ? byId.get(selectedPieceId) || null
       : null;
-
-  const checkById = useMemo(() => {
-    const map = new Map<string, BoardGradeResult['checks'][number]>();
-    if (!grade || dirtySinceGrade) return map;
-    for (const c of grade.checks) map.set(c.id, c);
-    return map;
-  }, [grade, dirtySinceGrade]);
-
-  const failedChecks = useMemo(() => {
-    if (!grade || dirtySinceGrade) return [];
-    return grade.checks.filter((c) => !c.passed);
-  }, [grade, dirtySinceGrade]);
 
   const lockedStep = (slotId: string): boolean => mode === 'unlock' && isRequiredSlot(slotId);
 
@@ -434,7 +447,6 @@ export default function BoardWorkspace({
     setFills(empty);
     setTrayOrder(pieces.map((p) => p.id));
     setGrade(null);
-    setDirtySinceGrade(false);
     setSelectedSlotId(null);
     setSelectedPieceId(null);
     setDropSlot(null);
@@ -478,12 +490,19 @@ export default function BoardWorkspace({
   const handleSubmit = async (): Promise<void> => {
     setSubmitting(true);
     setSaveError(null);
+    setGradeModal('grading');
+    const started = Date.now();
     try {
       const res = await submitBoard(session.id, { fills: fillsRef.current });
       setGrade(res.grade);
-      setDirtySinceGrade(false);
       applyServerState(res.boardState);
+      const rows = await fetchBoardSubmissions(session.id).catch(() => null);
+      if (rows) setSubmissions(rows);
+      const wait = 900 - (Date.now() - started);
+      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
+      setGradeModal(res.grade.passed ? 'pass' : 'fail');
     } catch (err: unknown) {
+      setGradeModal(null);
       const msg =
         (err as { response?: { data?: { error?: string } }; message?: string })?.response?.data
           ?.error
@@ -501,8 +520,6 @@ export default function BoardWorkspace({
     if (slot.optional) parts.push('is-optional');
     if (selectedSlotId === slot.id) parts.push('is-selected');
     if (dropSlot === slot.id) parts.push('is-drop');
-    const check = checkById.get(slot.id);
-    if (check && filled) parts.push(check.passed ? 'is-ok' : 'is-bad');
     if (pieceDragPos && fills[slot.id] === pieceDragPos.pieceId) parts.push('is-dragging');
     if (mode === 'unlock' && !slot.optional) {
       if (slot.id === currentStepSlotId) parts.push('is-current');
@@ -609,12 +626,11 @@ export default function BoardWorkspace({
     <div className="workspace board-workspace">
       <header className="board-top">
         <div className="board-top-copy">
-          <p className="board-kicker">{spec?.kicker || 'Whiteboard · Fill the board'}</p>
+          {spec?.kicker && <p className="board-kicker">{spec.kicker}</p>}
           <h1 className="board-title">{challenge?.title || 'Board'}</h1>
         </div>
         <div className="board-top-actions">
           {saveError && <span className="board-save-error">{saveError}</span>}
-          {game && <Hearts game={game} />}
           {grade?.passed && grade.stars != null && (
             <span className="board-stars" title={`${grade.stars} of 3 stars`}>
               {'★'.repeat(grade.stars)}{'☆'.repeat(3 - grade.stars)}
@@ -624,17 +640,6 @@ export default function BoardWorkspace({
             <span className="board-score">
               Step {Math.min(game.step + 1, requiredSlots.length)} of {requiredSlots.length}
             </span>
-          )}
-          {grade && !dirtySinceGrade && mode !== 'unlock' && (
-            <span className={`board-score${grade.passed ? ' pass' : ' fail'}`}>
-              {grade.correctRequired}/{grade.requiredCount}
-              {grade.passed ? ' passed' : ''}
-            </span>
-          )}
-          {onClose && (
-            <button type="button" className="board-icon-btn" title="Back to Whiteboard" onClick={onClose}>
-              <IconLibrary color="currentColor" />
-            </button>
           )}
           <button
             type="button"
@@ -673,30 +678,6 @@ export default function BoardWorkspace({
         </div>
       )}
 
-      {grade && (
-        <div className={`board-grade-strip${grade.passed ? ' pass' : ' fail'}${dirtySinceGrade ? ' stale' : ''}`}>
-          <strong>
-            {dirtySinceGrade ? 'Blocks changed — submit again to regrade.' : grade.summary}
-          </strong>
-          {!dirtySinceGrade && game?.finaleCorrect && game.finaleExplanation && (
-            <p className="board-grade-note">{game.finaleExplanation}</p>
-          )}
-          {!dirtySinceGrade && failedChecks.length > 0 && (
-            <details>
-              <summary>{failedChecks.length} to fix</summary>
-              <ul>
-                {failedChecks.map((c) => (
-                  <li key={c.id}>
-                    {c.label}
-                    {c.detail ? ` — ${c.detail}` : ''}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
-
       {finale && grade?.needsFinale && !gameOver && (
         <section className="board-finale" aria-label="Final question">
           <h2>{finale.prompt}</h2>
@@ -723,56 +704,181 @@ export default function BoardWorkspace({
         <div className={`board-story-rail${storyOpen ? '' : ' is-collapsed'}`}>
           {storyOpen ? (
             <section className="board-story" aria-label="Story">
-              <header className="board-rail-head">
-                <h2>Story</h2>
-                <button
-                  type="button"
-                  className="board-place-btn"
-                  onClick={() => setStoryOpen(false)}
-                >
-                  Hide
-                </button>
-              </header>
-              <div className="board-story-body">
-                {story.overview && (
-                  <MarkdownProse text={story.overview} className="markdown-prose board-story-prose" />
-                )}
-                {mode === 'unlock' && (
-                  <section className="board-story-clues">
-                    <h3>Clues found · {game?.clues.length ?? 0}</h3>
-                    {game && game.clues.length > 0 ? (
-                      <ol>
-                        {game.clues.map((clue) => (
-                          <li key={clue}>{clue}</li>
-                        ))}
-                      </ol>
+              {storyTabs.length > 0 ? (
+                <div className="board-story-tabs" role="tablist" aria-label="Story sections">
+                  {storyTabs.map((tab) => (
+                    tab.href ? (
+                      <a
+                        key={tab.id}
+                        className="board-story-tab"
+                        href={tab.href}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {tab.label}
+                        <span aria-hidden> ↗</span>
+                      </a>
                     ) : (
-                      <p>Lock in the first step to get your first clue.</p>
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      id={`board-story-tab-${tab.id}`}
+                      className={`board-story-tab${activeStoryTab === tab.id ? ' is-on' : ''}`}
+                      aria-selected={activeStoryTab === tab.id}
+                      onClick={() => setStoryTab(tab.id)}
+                        >
+                          {tab.label}
+                          {tab.id === 'submissions' && submissions.length > 0 && (
+                            <span className="board-story-tab-count">{submissions.length}</span>
+                          )}
+                        </button>
+                    )
+                  ))}
+                </div>
+              ) : (
+                <header className="board-rail-head">
+                  <h2>Story</h2>
+                  <button
+                    type="button"
+                    className="board-place-btn"
+                    onClick={() => setStoryOpen(false)}
+                  >
+                    Hide
+                  </button>
+                </header>
+              )}
+              <div className="board-story-body">
+                {storyTabs.length > 0 ? (
+                  <div
+                    className="board-story-tabpanel"
+                    role="tabpanel"
+                    aria-labelledby={`board-story-tab-${activeStoryTab}`}
+                  >
+                      {activeStoryTab === 'crawler' && (
+                        <MarkdownProse text={story.briefing} className="markdown-prose board-story-prose" />
+                      )}
+                      {activeStoryTab === 'incident' && (
+                        <div className="board-story-incident">
+                          <MarkdownProse text={story.incident} className="markdown-prose board-story-prose" />
+                        </div>
+                      )}
+                      {activeStoryTab === 'brief' && (
+                        <MarkdownProse text={story.overview} className="markdown-prose board-story-prose" />
+                      )}
+                      {activeStoryTab === 'task' && (
+                        <section className="board-story-task">
+                          {story.yourTask && <p>{story.yourTask}</p>}
+                          {story.steps.length > 0 && (
+                            <ol>
+                              {story.steps.map((step) => (
+                                <li key={step}>{step}</li>
+                              ))}
+                            </ol>
+                          )}
+                        </section>
+                      )}
+                      {activeStoryTab === 'submissions' && (
+                        <div className="k8s-submission-table board-submission-table">
+                          {submissions.length === 0 ? (
+                            <p className="k8s-submission-empty">
+                              No submissions yet. Submit grades the board. The verdict is Accepted or Wrong Answer.
+                            </p>
+                          ) : (
+                            <>
+                              <div className="k8s-submission-head">
+                                <span>#</span>
+                                <span>ID</span>
+                                <span>Verdict</span>
+                                <span>Submitted</span>
+                              </div>
+                              {submissions.map((sub, index) => {
+                                const attempt = submissions.length - index;
+                                const when = sub.submittedAt
+                                  ? new Date(sub.submittedAt).toLocaleString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                  : '';
+                                const verdict = sub.passed ? 'Accepted' : 'Wrong Answer';
+                                return (
+                                  <div
+                                    key={sub.id}
+                                    className={`k8s-submission-row${sub.passed ? ' is-pass' : ' is-fail'}`}
+                                  >
+                                    <span className="k8s-submission-num">{attempt}</span>
+                                    <span className="k8s-submission-sid" title={sub.id}>
+                                      {sub.id.replace(/-/g, '').slice(0, 8)}
+                                    </span>
+                                    <span className="k8s-submission-verdict">{verdict}</span>
+                                    <span className="k8s-submission-time">{when}</span>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {activeStoryTab === 'clues' && (
+                        <section className="board-story-clues">
+                          <h3>Clues found · {game?.clues.length ?? 0}</h3>
+                          {game && game.clues.length > 0 ? (
+                            <ol>
+                              {game.clues.map((clue) => (
+                                <li key={clue}>{clue}</li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <p>Lock in the first step to get your first clue.</p>
+                          )}
+                        </section>
+                      )}
+                  </div>
+                ) : (
+                  <>
+                    {story.overview && (
+                      <MarkdownProse text={story.overview} className="markdown-prose board-story-prose" />
                     )}
-                  </section>
-                )}
-                {(story.yourTask || story.steps.length > 0) && (
-                  <section className="board-story-task">
-                    <h3>Your task</h3>
-                    {story.yourTask && <p>{story.yourTask}</p>}
-                    {story.steps.length > 0 && (
-                      <ol>
-                        {story.steps.map((step) => (
-                          <li key={step}>{step}</li>
-                        ))}
-                      </ol>
+                    {mode === 'unlock' && (
+                      <section className="board-story-clues">
+                        <h3>Clues found · {game?.clues.length ?? 0}</h3>
+                        {game && game.clues.length > 0 ? (
+                          <ol>
+                            {game.clues.map((clue) => (
+                              <li key={clue}>{clue}</li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p>Lock in the first step to get your first clue.</p>
+                        )}
+                      </section>
                     )}
-                  </section>
-                )}
-                {story.hints.length > 0 && (
-                  <details className="board-story-hints">
-                    <summary>Hints</summary>
-                    <ul>
-                      {story.hints.map((hint) => (
-                        <li key={hint}>{hint}</li>
-                      ))}
-                    </ul>
-                  </details>
+                    {(story.yourTask || story.steps.length > 0) && (
+                      <section className="board-story-task">
+                        <h3>Your task</h3>
+                        {story.yourTask && <p>{story.yourTask}</p>}
+                        {story.steps.length > 0 && (
+                          <ol>
+                            {story.steps.map((step) => (
+                              <li key={step}>{step}</li>
+                            ))}
+                          </ol>
+                        )}
+                      </section>
+                    )}
+                    {story.hints.length > 0 && (
+                      <details className="board-story-hints">
+                        <summary>Hints</summary>
+                        <ul>
+                          {story.hints.map((hint) => (
+                            <li key={hint}>{hint}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </>
                 )}
               </div>
             </section>
@@ -1112,6 +1218,9 @@ export default function BoardWorkspace({
           <span className="board-node-kind">{dragGhostPiece.kind}</span>
           <span className="board-chip-title">{dragGhostPiece.title}</span>
         </div>
+      )}
+      {gradeModal && (
+        <SubmitReaction phase={gradeModal} onClose={() => setGradeModal(null)} />
       )}
     </div>
   );

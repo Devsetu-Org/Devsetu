@@ -180,6 +180,10 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
                 </strong>
                 <p className="project-tile-subtitle">{minor.subtitle}</p>
                 <p className="playground-tile-blurb">{minor.blurb}</p>
+                <span className="playground-tile-cta">
+                  Start {minor.name} here
+                  <span aria-hidden>→</span>
+                </span>
               </div>
             );
           }
@@ -192,7 +196,7 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
               <p className="project-tile-subtitle">{minor.subtitle}</p>
               <p className="playground-tile-blurb">{minor.blurb}</p>
               <span className="playground-tile-cta">
-                Open {minor.name}
+                Start {minor.name} here
                 <span aria-hidden>→</span>
               </span>
             </Link>
@@ -263,8 +267,6 @@ function MinorReading({
   const firstNumber = chapters[0]?.kind === 'reading' ? 0 : 1;
   const next = chapters.slice(index + 1).find((c) => chapterOpen(minor, c, language));
   const nextNumber = next ? String(chapters.indexOf(next) + firstNumber).padStart(2, '0') : '';
-  const prefix = `minor/${minor.id}/${chapter.id}`;
-
   return (
     <div className="app-page spark-primer-page">
       <article
@@ -307,7 +309,7 @@ function MinorReading({
         </nav>
 
         {reading.sections.map((section) => (
-          <ReadingSection key={section.id} section={section} readingPrefix={prefix} />
+          <ReadingSection key={section.id} section={section} />
         ))}
 
         <section id="takeaways" className="spark-primer-section">

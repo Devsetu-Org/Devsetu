@@ -16,7 +16,9 @@ const {
   updateUserAuth,
   updateLastLogin,
   setUserStatus,
+  setUsername,
 } = require('../auth/companyStore');
+const { parseUsername } = require('../auth/username');
 const { getRegistrationOpen } = require('../admin/settings');
 const {
   googleConfigured,
@@ -39,6 +41,7 @@ function publicUser(user: {
   role?: string;
   reviewTracks?: string[];
   isAdmin?: boolean;
+  username?: string | null;
 }) {
   const admin = resolveAdminFlag(user) || user.role === 'admin';
   const role = admin ? 'admin' : (user.role || 'learner');
@@ -46,6 +49,7 @@ function publicUser(user: {
     id: user.id,
     email: user.email,
     name: user.name ?? null,
+    username: user.username ?? null,
     status: user.status,
     role,
     reviewTracks: role === 'reviewer' ? (user.reviewTracks || []) : [],
@@ -61,6 +65,7 @@ function issueAuthResponse(user: {
   role?: string;
   reviewTracks?: string[];
   isAdmin?: boolean;
+  username?: string | null;
 }) {
   const publicProfile = publicUser(user);
   const token = signUserToken({
@@ -279,6 +284,47 @@ router.get('/google/callback', async (req: ExpressRequest, res: ExpressResponse)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Google sign-in failed';
     return redirectToApp(res, { error: msg });
+  }
+});
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
+}
+
+/** PUT /api/auth/username { username } — claim on first sign-in, or change it later. */
+router.put('/username', requireInterviewer, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const userId = String(req.user?.sub || req.user?.userId || '');
+    const parsed = parseUsername((req.body as { username?: unknown } | undefined)?.username);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    const current = await findUserById(userId);
+    if (!current) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (current.username === parsed.username) {
+      res.json({ user: publicUser(current) });
+      return;
+    }
+    try {
+      const updated = await setUsername(userId, parsed.username);
+      if (!updated) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      res.json({ user: publicUser(updated) });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        res.status(409).json({ error: 'That username is taken' });
+        return;
+      }
+      throw err;
+    }
+  } catch (e) {
+    next(e);
   }
 });
 

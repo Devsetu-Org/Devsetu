@@ -979,14 +979,14 @@ export default function K8sLabWorkspace({
                   <p>
                     {idleLocked
                       ? (box
-                        ? 'It was locked because of inactivity, so the machine was stopped.'
+                        ? 'It was locked because of inactivity, so the machine was stopped. Your files were kept.'
                         : 'It was locked because of inactivity, so the lab was paused.')
                       : lockedMessage}
                   </p>
                   <p className="k8s-lab-locked-hint">
                     {idleLocked
                       ? (box
-                        ? 'Resume starts a fresh machine. You can still read the description and the rest of the brief on the left.'
+                        ? 'Resume starts the machine again with your files on it. You can still read the description and the rest of the brief on the left.'
                         : 'Resume brings your lab back. You can still read the description and the rest of the brief on the left.')
                       : 'You can still read the description and the rest of the brief on the left.'}
                   </p>

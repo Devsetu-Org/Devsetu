@@ -1,0 +1,146 @@
+{
+  "id": "gfs-01-crawl-append-timeout",
+  "number": 511,
+  "finalized": true,
+  "title": "The crawl writer timed out",
+  "description": "A 48 KB crawl record timed out against a chunk with 20 KB free. Decide what the writer does next, using the numbers on the call.",
+  "difficulty": "L2",
+  "tags": [
+    "data-systems",
+    "distributed-file-systems",
+    "gfs",
+    "record-append",
+    "incident",
+    "board"
+  ],
+  "category": "data-systems",
+  "sandboxType": "board",
+  "problemStatement": {
+    "briefing": "A **crawler** is the program that walks the web for a search engine. It starts from a set of URLs, downloads each page, pulls the links out, and queues those links so another machine can fetch them. What it saves is the raw material for the index: the URL, and enough of the page to rank later.\n\nThis crawler is **400 fetchers**. Each one downloads a page and appends **one record** to a single shared file, `crawl/log`, on GFS. The file is **2.4 TB**. A record is **48 KB**. The first 16 bytes are the record id. `url-88421` is one page the crawler just fetched. Chunks are **64 MB**, kept in **3 replicas**.\n\nThe fetchers follow five rules:\n\n1. **A fetched URL must reach the log.** `url-88421` may be the only copy of that page.\n2. **One record id becomes one page.** A second copy of `url-88421` is not a second page in the index.\n3. **A record is never split.** 48 KB stays one contiguous piece. A chunk holds 64 MB and then stops.\n4. **An append is finished only when all 3 replicas have applied it.**\n5. **The master keeps metadata, not file bytes.** It is not restarted because one chunkserver went quiet.",
+    "incident": "**02:18.** You are on call for the crawl store.\n\nPager: `append timeout, chunk 7f3a, primary rack-b4 not answering.`\n\n| | |\n|---|---|\n| Record | `url-88421`, **48 KB** |\n| Chunk `7f3a` | **63.98 MB** of 64 MB used, **20 KB** free |\n| Primary `rack-b4` | no heartbeat for **90 seconds** |\n| Replicas `rack-c1`, `rack-a7` | healthy |\n| Fetcher wait | **30 seconds**, then timeout |\n| Primary lease | **60 seconds** |\n\n**Priya**, who owns the fetcher, joins the call: *“That URL might be the only copy we have. I can retry, but I will not ship a second copy of the same page into the index. I am not restarting the master for one chunkserver. Tell me what already happened to the 48 KB, and what the writer does next.”*",
+    "yourTask": "Order the moves that answer Priya, from what the 48 KB did not do to how the index treats url-88421. The blocks on the canvas are labelled with the numbers from the Incident tab. A card that breaks one of the five rules stays in Unused. You have three lives. A wrong Submit costs one.",
+    "yourTaskSteps": [
+      "Read the number on each block. The move has to fit that number and the five rules.",
+      "Drag a card onto a block, or select a card and then click the block.",
+      "The dashed block is optional. The call can be answered without it.",
+      "Leave any card that breaks a rule in Unused.",
+      "Submit."
+    ],
+    "paperHref": "/api/papers/monthly/gfs",
+    "moat": "Setter notes, not shown to learners.\n\nRequired chain: leave-gap → new-primary → pad-chunk → retry-next → index-once.\nOptional splice: pipeline-bytes on pad-chunk → retry-next.\n\nThe 20 KB gap is the point of the board: a 48 KB record cannot already be inside 7f3a, and it must not be split into that gap. The primary pads to 64 MB and the same record id is retried on the next chunk. All 3 replicas must apply it. The indexer dedupes.\n\nTraps: split-record (rule 3), already-there (rule 1), quorum (rule 4), restart-master (rule 5), old-primary (lease math).\nLives 3. No finale."
+  },
+  "platformSpec": {
+    "passMessage": "url-88421 was not in the 20 KB gap. New primary, pad 7f3a, retry the whole record, index it once.",
+    "game": { "mode": "classic", "lives": 3 },
+    "pieces": [
+      {
+        "id": "leave-gap",
+        "title": "Leave the 20 KB gap alone",
+        "blurb": "48 KB does not fit in the 20 KB left in chunk 7f3a, so url-88421 is not in that chunk and must not be written into the gap.",
+        "prompt": "7f3a · 20 KB free · record 48 KB",
+        "kind": "stage",
+        "gold": "required",
+        "parent": null,
+        "trapIfPlaced": null
+      },
+      {
+        "id": "new-primary",
+        "title": "Ask the master for a new primary",
+        "blurb": "rack-b4 has been silent for 90 seconds. The lease lasts 60. The master grants a new lease to rack-c1 or rack-a7.",
+        "prompt": "rack-b4 silent 90 s · lease 60 s",
+        "kind": "stage",
+        "gold": "required",
+        "parent": "leave-gap",
+        "trapIfPlaced": null
+      },
+      {
+        "id": "pad-chunk",
+        "title": "Pad 7f3a to 64 MB and move on",
+        "blurb": "The new primary fills 7f3a out to the 64 MB chunk size, tells the other replicas to do the same, and tells the fetcher to retry on the next chunk. The 48 KB stays one record.",
+        "prompt": "Chunk 64 MB · record stays whole",
+        "kind": "mechanism",
+        "gold": "required",
+        "parent": "new-primary",
+        "trapIfPlaced": null
+      },
+      {
+        "id": "pipeline-bytes",
+        "title": "Push the 48 KB along the replica chain",
+        "blurb": "The fetcher sends the bytes to the nearest replica, which forwards them to the next. The master names the replicas and never sees the 48 KB.",
+        "prompt": "Optional · path of the 48 KB",
+        "kind": "mechanism",
+        "gold": "optional",
+        "parent": "pad-chunk",
+        "child": "retry-next",
+        "trapIfPlaced": null
+      },
+      {
+        "id": "retry-next",
+        "title": "Retry url-88421 on the next chunk",
+        "blurb": "Same record, same id. The primary chooses the offset. The append is done only when all 3 replicas have applied the 48 KB.",
+        "prompt": "3 replicas · record url-88421",
+        "kind": "stage",
+        "gold": "required",
+        "parent": "pad-chunk",
+        "trapIfPlaced": null
+      },
+      {
+        "id": "index-once",
+        "title": "Index one page for url-88421",
+        "blurb": "The indexer checksums every record, skips the padding at the end of 7f3a, and keeps a single page for this id even if a lost reply made the retry land twice.",
+        "prompt": "Index · one page per record id",
+        "kind": "stage",
+        "gold": "required",
+        "parent": "retry-next",
+        "trapIfPlaced": null
+      },
+      {
+        "id": "split-record",
+        "title": "Write 20 KB now, the other 28 KB on the next chunk",
+        "blurb": "Use the space left in 7f3a so the append does not have to wait for a new chunk.",
+        "kind": "stage",
+        "gold": "tray",
+        "parent": null,
+        "trapIfPlaced": "Breaks rule 3. A record is one contiguous piece. 48 KB is larger than the 20 KB left, so the chunk is padded and the whole record is retried."
+      },
+      {
+        "id": "already-there",
+        "title": "It already landed in 7f3a. Do not retry.",
+        "blurb": "The fetcher timed out after 30 seconds, which means the primary applied the 48 KB and died before the reply.",
+        "kind": "stage",
+        "gold": "tray",
+        "parent": null,
+        "trapIfPlaced": "Breaks rule 1. 20 KB free cannot hold a 48 KB record, so this append never landed in 7f3a. Skipping the retry drops the only copy of url-88421."
+      },
+      {
+        "id": "quorum",
+        "title": "Call it saved once 2 of the 3 replicas ack",
+        "blurb": "rack-c1 and rack-a7 are healthy. Two copies are enough to move on to the next URL.",
+        "kind": "mechanism",
+        "gold": "tray",
+        "parent": null,
+        "trapIfPlaced": "Breaks rule 4. The replica that missed the record can serve a reader a file without url-88421. The writer retries until all 3 have applied it."
+      },
+      {
+        "id": "restart-master",
+        "title": "Restart the master and rebuild the 48 KB from its log",
+        "blurb": "The master is the source of truth for crawl/log. Replaying its log will put url-88421 back.",
+        "kind": "stage",
+        "gold": "tray",
+        "parent": null,
+        "trapIfPlaced": "Breaks rule 5. crawl/log is 2.4 TB. The master keeps metadata, not file bytes. Restarting it does not recover this record."
+      },
+      {
+        "id": "old-primary",
+        "title": "Keep the lease and write the retry to rack-b4",
+        "blurb": "The lease was granted to rack-b4. Wait for it to answer and send the 48 KB there.",
+        "kind": "stage",
+        "gold": "tray",
+        "parent": null,
+        "trapIfPlaced": "rack-b4 has been silent for 90 seconds. The lease is 60 seconds, so it is no longer primary. The master has to name a new one."
+      }
+    ]
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

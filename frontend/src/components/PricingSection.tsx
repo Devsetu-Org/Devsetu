@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useInView } from '../hooks/useInView';
 import { useAppState } from '../context/AppStateContext';
-import { LAUNCH_OFFER, PRICING_PATH, PRICING_PLANS, offerPrice } from '../constants/pricing';
+import { PRICING_PATH, PRICING_PLANS } from '../constants/pricing';
 import {
   apiErrorMessage,
   fetchBillingConfig,
@@ -26,21 +26,10 @@ function formatDay(ms: number): string {
   return new Date(ms).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function useRemainingMs(until: Date): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
-  }, []);
-  return Math.max(0, until.getTime() - now);
-}
-
 export default function PricingSection(): JSX.Element {
   const navigate = useNavigate();
   const { currentUser, onRequestLogin, refreshChallenges } = useAppState();
   const reveal = useInView<HTMLElement>();
-  const remainingMs = useRemainingMs(LAUNCH_OFFER.endsAt);
-  const offerLive = remainingMs > 0;
 
   const [billingOpen, setBillingOpen] = useState(false);
   const [mode, setMode] = useState<BillingMode>('one_time');
@@ -127,19 +116,6 @@ export default function PricingSection(): JSX.Element {
       aria-label="Pricing"
     >
       <h2 className="landing-section-title pricing-plans-title">Pricing</h2>
-      {offerLive && (
-        <div className="pricing-offer">
-          <div className="pricing-offer-copy">
-            <p className="pricing-offer-title">
-              Launch offer: <span>{LAUNCH_OFFER.percentOff}% off</span> your first month on every track
-            </p>
-            <p className="pricing-offer-note">
-              We open in the first week of November. For more details,{' '}
-              <Link to="/#waitlist">join the waitlist</Link>.
-            </p>
-          </div>
-        </div>
-      )}
       <div className="pricing-plans-grid">
         {PRICING_PLANS.map((plan) => {
           const owned = entitlements.includes(plan.id);
@@ -160,17 +136,9 @@ export default function PricingSection(): JSX.Element {
               )}
               <h3 className="landing-pricing-plan-name">{plan.name}</h3>
               <p className="landing-pricing-plan-price">
-                {offerLive && <s className="pricing-plan-was">₹{plan.price}</s>}
-                <span className="landing-pricing-plan-amount">
-                  ₹{offerLive ? offerPrice(plan.price) : plan.price}
-                </span>
+                <span className="landing-pricing-plan-amount">₹{plan.price}</span>
                 <span className="landing-pricing-plan-period">/ month</span>
               </p>
-              {offerLive && (
-                <p className="pricing-plan-then">
-                  then ₹{plan.price} / {billingOpen && oneTime ? 'extra month' : 'month'}
-                </p>
-              )}
               <ul className="landing-pricing-plan-includes">
                 {plan.checklist.map((item) => (
                   <li key={item}>{item}</li>

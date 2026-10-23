@@ -38,16 +38,16 @@ export const PLAY_DOMAINS: PlayDomain[] = [
     id: 'devops-engineer',
     label: 'DevOps Engineer',
     blurb:
-      'How companies ship and operate software. Start with the DevOps readings, then practice on Linux, containers, and Kubernetes.',
+      'How companies ship and operate software. One short reading, then practice on Linux, containers, and Kubernetes.',
     panels: [
       {
         id: 'introduction',
         label: 'Introduction',
-        subtitle: 'How companies ship and run software',
+        subtitle: 'One short read, then the labs',
         tileBlurb:
-          'What DevOps is, and why a company bothers with it. How the team splits the work, and the tools that show up: pipelines, config, cloud, and code for the infrastructure.',
+          'Why a company needs a DevOps engineer, the skills they carry, and the tools you will hear named.',
         blurb:
-          'What DevOps is, why companies run it, how teams organize the work, and the skills and tools involved — pipelines, configuration management, infrastructure as code, cloud, and the rest.',
+          'A starter: why a company needs a DevOps engineer, the skills that person carries, and the tools that go with them.',
         challengeIds: [],
       },
       {

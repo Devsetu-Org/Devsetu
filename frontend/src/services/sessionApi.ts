@@ -194,3 +194,16 @@ export async function submitBoard(
   );
   return data;
 }
+
+export interface BoardSubmissionRecord {
+  id: string;
+  passed: boolean;
+  submittedAt: number;
+}
+
+export async function fetchBoardSubmissions(sessionId: string): Promise<BoardSubmissionRecord[]> {
+  const { data } = await axios.get(`/api/session/${sessionId}/board/submissions`, {
+    headers: getAuthHeader(),
+  });
+  return ((data as { submissions?: BoardSubmissionRecord[] }).submissions || []);
+}

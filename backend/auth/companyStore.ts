@@ -23,8 +23,16 @@ export interface AuthUser extends UserRecord {
   role: UserRole;
   reviewTracks: string[];
   isAdmin: boolean;
+  username: string | null;
+  createdAt: number | null;
   passwordHash?: string | null;
   googleSub?: string | null;
+}
+
+function epochMs(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function mapReviewTracks(raw: unknown): string[] {
@@ -48,10 +56,12 @@ function mapUser(row: Record<string, unknown> | null | undefined): AuthUser | nu
     id: String(row.id),
     email: String(row.email),
     name: (row.name as string | null) || null,
+    username: row.username ? String(row.username) : null,
     status: (String(row.status || 'pending') as UserStatus),
     role,
     reviewTracks,
     isAdmin: Boolean(row.is_admin) || roleImpliesAdmin(role),
+    createdAt: epochMs(row.created_at),
   };
 }
 
@@ -66,9 +76,9 @@ function mapUserWithHash(row: Record<string, unknown> | null | undefined): AuthU
 }
 
 const USER_SELECT =
-  'id, email, name, status, role, review_tracks, is_admin, password_hash, google_sub, created_at, last_login_at';
+  'id, email, name, username, status, role, review_tracks, is_admin, password_hash, google_sub, created_at, last_login_at';
 const USER_SELECT_PUBLIC =
-  'id, email, name, status, role, review_tracks, is_admin';
+  'id, email, name, username, status, role, review_tracks, is_admin';
 
 async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -270,6 +280,18 @@ async function listUsers(status?: UserStatus | null): Promise<AuthUser[]> {
   return rows.map((r: Record<string, unknown>) => mapUser(r)!).filter(Boolean);
 }
 
+/** Set or change a username. Returns null when the account is missing. */
+async function setUsername(userId: string, username: string): Promise<AuthUser | null> {
+  const { rows } = await pool.query(
+    `UPDATE users
+        SET username = $1
+      WHERE id = $2
+      RETURNING ${USER_SELECT_PUBLIC}`,
+    [username, userId],
+  );
+  return mapUser(rows[0]);
+}
+
 async function updateLastLogin(userId: string): Promise<void> {
   await pool.query(`UPDATE users SET last_login_at = $1 WHERE id = $2`, [Date.now(), userId]);
 }
@@ -287,5 +309,6 @@ module.exports = {
   setUserRole,
   approveUser,
   listUsers,
+  setUsername,
   updateLastLogin,
 };

@@ -1,13 +1,16 @@
 /** Linux track readings B3–B13 (labs 05+). Each post stands alone with its own story. */
 
 import type { K8sReading } from './k8sReadings';
+import groupsOnOneUserImg from '../assets/linux-readings/users-groups-and-permissions/groups-on-one-user.png';
+import whichBitsApplyImg from '../assets/linux-readings/users-groups-and-permissions/which-bits-apply.png';
+import pipeLeftToRightImg from '../assets/linux-readings/pipes-and-pipelines/pipe-left-to-right.png';
 
 export const LINUX_READINGS_EXTENDED: K8sReading[] = [
   {
     id: 'pipes-and-pipelines',
     slug: 'pipes-and-pipelines',
     trackId: 'B3',
-    eyebrow: 'Connect small tools',
+    eyebrow: '',
     title: 'Pipes and Pipelines: sort, uniq, wc, cut, awk',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-05-pipeline-for-the-daily-order-report',
@@ -53,16 +56,46 @@ export const LINUX_READINGS_EXTENDED: K8sReading[] = [
         id: 'pipe-mechanics',
         title: 'What is a pipe?',
         body: [
-          'A **pipe** is the **`|`** between two commands. The output of the left command becomes the input of the right one — no temporary files needed.',
-          'Only normal output (**stdout**) flows through. Errors (**stderr**) still print on your screen, which is why a typo in the first command shows up even when the rest of the pipe prints nothing.',
+          'A **pipe** is the **`|`** between two commands. The normal output of the left command becomes the input of the right one. You do not need a temporary file.',
+          'Only **stdout** flows through. **stderr**, the error stream, still prints on your screen. A typo in the first command shows up even when the rest of the pipe prints nothing. Read a pipeline from the left. Each command does one job.',
         ],
-        table: {
+        figure: {
+          image: pipeLeftToRightImg,
+          imageAlt:
+            'Hand-drawn sketch: grep passes its output to cut, and cut passes its output to sort. Errors point down and stay on the screen.',
+          caption: 'Normal output moves to the next command. Errors stay on the screen.',
+          flush: true,
+        },
+        tableAfter: {
           headers: ['Piece', 'Meaning'],
           rows: [
             ['`|`', 'Send the left command’s output into the right command'],
             ['stdout', 'Normal output — flows through the pipe'],
             ['stdin', 'Where the right-hand command reads from'],
             ['stderr', 'Errors — stays on the screen'],
+          ],
+        },
+      },
+      {
+        id: 'redirection',
+        title: 'Send output to a file',
+        body: [
+          'A pipe connects two commands. A redirection connects a command to a file. **`>`** sends stdout into a file and replaces whatever was in that file. **`>>`** adds to the end instead. **`2>`** sends stderr into a file. The **`2`** is the error stream.',
+          'A program can write both streams at once. **`command > results.txt 2> warnings.txt`** puts the normal lines in one file and the warnings in another. Leave off the **`2>`** and the warnings stay mixed into your terminal, or into the same file if you only used **`>`**.',
+        ],
+        code: {
+          language: 'shell',
+          code: `grep ',successful,' snacks.csv > ok.csv
+grep ',successful,' snacks.csv >> ok.csv
+command > results.txt 2> warnings.txt`,
+        },
+        tableAfter: {
+          headers: ['Symbol', 'What it does'],
+          rows: [
+            ['`>`', 'Normal output into a file. Replaces the file'],
+            ['`>>`', 'Normal output added to the end of a file'],
+            ['`2>`', 'Errors into a file. The `2` is the error stream'],
+            ['`<`', 'A file fed in as input, so the command is not given a file name'],
           ],
         },
       },
@@ -179,10 +212,10 @@ head snacks.csv`,
           },
           {
             id: 'wc-and-awk',
-            title: 'Two more: wc and awk',
+            title: 'wc counts lines, awk can add',
             body: [
-              '**`wc -l`** counts lines — put it at the end of a pipe to answer “how many?”.',
-              '**`awk`** can pick rows, pick columns, and do math in one command. Here it skips the header, keeps successful rows, adds up column 5 (cents), and prints the total.',
+              '**`wc -l`** counts lines. Put it at the end of a pipe when the question is “how many?”.',
+              '**`awk`** splits each line into fields and can do arithmetic. **`-F,`** says the fields are separated by commas. **`$1`** is the first field, **`$4`** the fourth, **`$5`** the fifth. **`NR`** is the line number, starting at 1, so **`NR>1`** skips a header row. The **`{sum += $5}`** block runs on every line that passed the test. **`END {print sum}`** runs once, after the last line, and prints the total.',
             ],
             code: {
               language: 'shell',
@@ -244,7 +277,8 @@ awk -F, 'NR>1 && $4=="successful" {sum += $5} END {print sum}' snacks.csv`,
             ['Count matching lines', '`grep pattern file | wc -l`'],
             ['Unique values', '`cut ... | sort -u`'],
             ['Top N counts', "`grep ... | cut ... | sort | uniq -c | sort -rn | head -N`"],
-            ['Sum a numeric column', '`awk -F, \'... {sum+=$col} END {print sum}\' file`'],
+            ['Sum a numeric column', '`awk -F, \'NR>1 {sum+=$5} END {print sum}\' file`'],
+            ['Normal output in one file, errors in another', '`command > results.txt 2> warnings.txt`'],
           ],
         },
       },
@@ -253,7 +287,7 @@ awk -F, 'NR>1 && $4=="successful" {sum += $5} END {print sum}' snacks.csv`,
       'Scrolling huge logs to compute **top N**, **counts**, or **sums** is slow and error-prone — use **filters** instead.',
       '**`|`** connects **stdout → stdin**; read pipelines **left to right**, one job per command.',
       '**`grep`** narrows lines; **`cut`** picks columns; **`sort`** + **`uniq -c`** count repeats; **`head`** / **`wc -l`** finish the answer.',
-      '**`awk`** handles conditions and **totals**; debug by running the **leftmost** commands first and adding **`| head`**. ',
+      '**`awk`** names fields **`$1`**, **`$2`**, and adds them up in **`END`**. **`>`** and **`2>`** save normal output and errors in different files. Debug from the left, and add **`| head`**.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -267,125 +301,165 @@ awk -F, 'NR>1 && $4=="successful" {sum += $5} END {print sum}' snacks.csv`,
     id: 'users-groups-and-permissions',
     slug: 'users-groups-and-permissions',
     trackId: 'B4',
-    eyebrow: 'Who can touch what',
+    eyebrow: '',
     title: 'Users, Groups, and Permissions',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-07-onboard-the-payments-team',
     lede:
-      'Linux is **multi-user**: many people and programs share one machine, so every file records **who owns it** and **who may read, change, or run it**. This post covers the pieces in order — **users and groups**, **permission bits**, how to **change** them, and **ACLs** for the exceptions.',
+      'A Linux machine is shared. People and programs each run as a **user**, and every file records **who owns it** and **who else may read, change, or enter it**. This post walks through accounts and groups, how Linux picks the permission bits that apply, how to change them, and the two cases that show up once a team shares a folder.',
     sections: [
       {
         id: 'identity',
         title: 'Users and groups: who you are',
         body: [
-          'Every person — and many programs, like a web server — runs as a **user**. A **group** is a named set of users, so you can give a whole team access at once instead of one person at a time. Every file belongs to exactly **one user** and **one group**.',
+          'Every person, and many programs, runs as a **user**. A web service usually has its own user, so it is not running as you. A **group** is a named list of users. You grant access to the group once, and everyone in it gets that access.',
+          'One login can belong to several groups. Exactly one of them is the **primary group**. The others are **extra groups**. Every file still has only one owner and one group.',
         ],
         subsections: [
           {
             id: 'whoami-id',
             title: 'whoami and id: check who you are',
             body: [
-              '**`whoami`** prints your user name. **`id`** shows more: your numeric user id (**uid**), your main group (**gid**), and every group you belong to. Linux checks the numbers, not the names — names are just labels for people.',
+              '**`whoami`** prints the name of the user running the command. **`id`** prints the numbers Linux actually checks: your user id (**uid**), your primary group id (**gid**), and every group you belong to. Names are labels for people. Permission checks use the numbers.',
+              '**`gid=`** is the primary group. **`groups=`** lists every group, and that list includes the primary group. **`id ravi`** prints the same facts for someone else.',
             ],
             code: {
               language: 'shell',
-              code: `whoami   # asha
-id       # uid=1001(asha) gid=1001(asha) groups=1001(asha),1002(developers)
-id ravi  # same, for another user`,
+              code: `whoami
+id
+# uid=1001(asha) gid=1001(asha) groups=1001(asha),4(adm),1002(developers)
+id ravi`,
             },
           },
           {
             id: 'passwd-group-files',
             title: '/etc/passwd and /etc/group: where accounts live',
             body: [
-              'Accounts are stored in two plain text files, one line per account, with fields separated by colons. Anyone can read them; only root can change them.',
-              '**`/etc/passwd`** has seven fields per user: **name**, **x** (a placeholder — the real password hash lives in **`/etc/shadow`**, which only root can read), **uid**, **gid** of the user’s main group, a **comment** (often the full name), the **home folder**, and the **login shell**. Service accounts such as **`www-data`** usually have a uid below 1000 and the shell **`/usr/sbin/nologin`**, so nobody can log in as them.',
-              '**`/etc/group`** has four fields per group: **name**, **x**, **gid**, and a comma-separated list of **members**. That list only shows people who joined as an extra group — a user’s main group comes from the gid in **`/etc/passwd`**. **`getent`** looks up either file by name, which is handy on systems where accounts also come from a directory service.',
+              'Accounts live in two text files. Anyone can read them. Only root can change them. Look a line up with **`getent`**, which also works when accounts come from a company directory and not only from these files.',
+              '**`/etc/passwd`** has one line per user, seven fields separated by colons. Take Asha’s line apart:',
+              '**`asha`** is the login name. **`x`** means the password is not stored here. The hash is in **`/etc/shadow`**, which only root can read. **`1001`** is the uid. The next **`1001`** is the gid of her **primary group**. Then come a comment (often the full name), the home folder **`/home/asha`**, and the login shell **`/bin/bash`**. The shell is the program that starts when she logs in. **`/usr/sbin/nologin`** is a shell that refuses to start a session, which is why service accounts use it.',
+              '**`/etc/group`** has one line per group, four fields: **name**, **`x`**, **gid**, and a comma-separated list of **extra members**. That list does not repeat the people whose primary group this is. Asha’s primary group is **`asha`** because her passwd line says gid 1001. She is also in **`developers`** because her name is written on that group’s line. Both show up in **`id`**.',
             ],
             code: {
               language: 'shell',
-              code: `grep asha /etc/passwd       # asha:x:1001:1001:Asha Rao:/home/asha:/bin/bash
-grep www-data /etc/passwd   # www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
-grep developers /etc/group  # developers:x:1002:asha,ravi
-getent passwd ravi          # look up one user
-getent group developers     # look up one group`,
+              code: `getent passwd asha
+# asha:x:1001:1001:Asha Rao:/home/asha:/bin/bash
+getent passwd www-data
+# www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+getent group asha
+# asha:x:1001:
+getent group developers
+# developers:x:1002:asha,ravi`,
+            },
+          },
+          {
+            id: 'builtin-groups',
+            title: 'Groups that are already on the box',
+            body: [
+              'You do not create every group. A new Ubuntu machine already has a long list in **`/etc/group`**. Two of them matter as soon as you hand out access.',
+              '**`adm`** can read many system logs under **`/var/log`**, such as **`syslog`** and **`auth.log`**. A normal login cannot open those files. Membership in **`adm`** does not give a root shell. Add the person who has to read logs. Leave everyone else out.',
+              '**`sudo`** is different. On Ubuntu, members of **`sudo`** may run any command as root. That is full admin access. A person who should only restart one service does not belong in this group. Give that team its own group, and write a rule that names the commands they may run.',
+            ],
+            code: {
+              language: 'shell',
+              code: `getent group adm
+# adm:x:4:syslog
+getent group sudo
+# sudo:x:27:learner`,
             },
           },
           {
             id: 'root-sudo',
-            title: 'root and sudo: the all-powerful account',
+            title: 'root and sudo: running one command as admin',
             body: [
-              '**root** (uid **0**) is the administrator account: permission checks do not apply to it, so it can read, change, or delete anything. Creating users, editing system files, and giving files away all need root.',
-              'Instead of logging in as root, you put **`sudo`** in front of a single command. It asks for **your** password, checks that you are allowed to use it, and runs just that one command as root. Every command in the next three subsections starts with **`sudo`** for this reason.',
+              '**root** (uid **0**) skips permission checks. It can read, change, and delete anything. Creating users and editing system files needs root.',
+              'You almost never log in as root. **`sudo`** runs one command as root, then stops. It looks up a rule to decide whether you are allowed. Those rules live in **`/etc/sudoers`** and in small files under **`/etc/sudoers.d/`**. One file per team keeps the rules easy to read.',
+              'A rule names a user, or a whole group when the name starts with **`%`**. It can allow every command, or only the commands you write out. Write each command as a full path, because sudo matches the path, not the short name. **`NOPASSWD:`** means sudo does not ask for a password for those commands. Anything not listed is refused. This line lets the **`developers`** group restart one service and check that it is running, and nothing else: **`%developers ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`**. **`ALL`** means any host. **`(root)`** means run as root. The two commands are separated by a comma.',
+              'Edit the file with **`visudo -f`**, then check it with **`visudo -cf`**. visudo rejects a broken line instead of saving it. The file must be owned by **`root:root`** and mode **`440`**. If the owner or the mode is looser, sudo ignores the file.',
             ],
             code: {
               language: 'shell',
-              code: `sudo cat /etc/shadow  # read a root-only file
-sudo -l               # what am I allowed to run with sudo?
-sudo -u ravi whoami   # run a command as another user: ravi`,
+              code: `sudo -l
+sudo visudo -f /etc/sudoers.d/developers
+sudo chmod 440 /etc/sudoers.d/developers
+sudo visudo -cf /etc/sudoers.d/developers`,
             },
           },
           {
             id: 'useradd',
             title: 'useradd: create a user',
             body: [
-              '**`useradd`** creates a new account: it adds a line to **`/etc/passwd`**, picks the next free uid, and usually creates a main group with the same name. On its own it does very little else — no home folder on many systems and no password — so a few flags are almost always added.',
-              'The new user cannot log in until you set a password with **`passwd`**. To remove an account later, use **`userdel`** (add **`-r`** to delete the home folder too).',
+              '**`useradd`** adds one line to **`/etc/passwd`** and picks the next free uid. On its own that is a bare account: many systems create no home folder, and the new user has no password, so they cannot log in.',
+              '**`-m`** creates **`/home/<name>`** and gives that folder to the new user. **`-s /bin/bash`** sets the login shell. **`-c`** sets the comment, usually the person’s name. **`-G`** adds extra groups at the same time. It does not change the primary group. Set a password with **`passwd`** before the person logs in.',
             ],
             code: {
               language: 'shell',
-              code: `sudo useradd -m ravi                  # -m: also create /home/ravi
-sudo useradd -m -s /bin/bash ravi     # -s: choose the login shell
-sudo useradd -m -c 'Ravi Kumar' ravi  # -c: full name in the comment field
-sudo useradd -m -G developers ravi    # -G: extra groups to join right away
-sudo passwd ravi                      # set a password so ravi can log in
-sudo userdel -r ravi                  # delete ravi and the home folder`,
+              code: `sudo useradd -m -s /bin/bash -c 'Ravi Kumar' -G developers ravi
+sudo passwd ravi
+# home is /home/ravi, owned by ravi, shell is bash, extra group developers`,
             },
           },
           {
             id: 'groupadd',
             title: 'groupadd: create a group',
             body: [
-              '**`groupadd`** creates a new, empty group by adding a line to **`/etc/group`**. Create one group per team or role — **developers**, **backups**, **payments** — and grant access to the group instead of to individual people.',
-              'Use **`-g`** if the group must have a specific gid (for example, to match another server), and **`groupdel`** to remove a group nobody uses any more.',
+              '**`groupadd`** adds an empty group to **`/etc/group`**. Create one group for a team or a role, then grant access to the group instead of to each person. The group stays empty until you add members with **`useradd -G`** or **`usermod -aG`**.',
+              '**`-g`** picks the gid yourself, which matters when two machines must agree on the number. **`groupdel`** removes a group that nobody uses.',
             ],
             code: {
               language: 'shell',
-              code: `sudo groupadd developers       # create the group
-sudo groupadd -g 1500 backups  # -g: choose the gid yourself
-getent group developers        # check it: developers:x:1002:
-sudo groupdel backups          # remove a group`,
+              code: `sudo groupadd developers
+getent group developers
+# developers:x:1002:
+sudo groupadd -g 1500 backups
+sudo groupdel backups`,
             },
           },
           {
             id: 'usermod',
             title: 'usermod: change an existing user',
             body: [
-              '**`usermod`** changes an account that already exists. Its most common job is adding someone to a group with **`-aG`**. The **`-a`** (append) is essential: **`-G`** on its own **replaces** the user’s whole list of extra groups, silently removing them from every other group.',
-              'Group changes apply to **new** logins. After adding yourself to a group, log out and back in (or open a new SSH session) before **`id`** shows it. To take someone out of a group, use **`gpasswd -d`**.',
+              '**`usermod`** edits an account that already exists. Adding a group is **`-aG`**. **`-a`** means append. **`-G`** alone **replaces** the whole list of extra groups, so the user falls out of every group you forgot to type, including **`sudo`**.',
+              'A new group shows up on the **next** login. **`id`** in the current session can still show the old list. Open a new session before you trust it. **`gpasswd -d`** removes one person from one group and leaves their other groups alone.',
+              'To retire an account and keep their files, do two things. **`-L`** locks the password, so a password login fails. **`-s /usr/sbin/nologin`** sets a shell that will not start a session. The home folder stays. **`passwd -S`** prints the state: the second field is **`L`** when the password is locked. **`userdel -r`** is the other choice. It deletes the account and the home folder.',
             ],
             code: {
               language: 'shell',
-              code: `sudo usermod -aG developers ravi  # add ravi to developers, keep other groups
-sudo usermod -s /bin/zsh ravi     # -s: change the login shell
-sudo usermod -L ravi              # -L: lock the account (no password logins)
-sudo usermod -U ravi              # -U: unlock it again
-sudo gpasswd -d ravi developers   # remove ravi from developers
-id ravi                           # check the result`,
+              code: `sudo usermod -aG developers,adm ravi
+sudo gpasswd -d ravi adm
+sudo usermod -L -s /usr/sbin/nologin ravi
+sudo passwd -S ravi
+# ravi L ...
+id ravi`,
             },
           },
         ],
-        table: {
+        figure: {
+          image: groupsOnOneUserImg,
+          imageAlt:
+            'Hand-drawn sketch: a user has a primary group from /etc/passwd and one extra group named team. The groups adm and sudo already exist on the box.',
+          caption:
+            'The primary group comes from the user record. Extra groups are added. adm and sudo are already on the box.',
+          flush: true,
+        },
+        tableAfter: {
           headers: ['Command', 'What it does'],
           rows: [
-            ['`whoami` / `id`', 'Show your user name / uid, gid, and groups'],
-            ['`/etc/passwd` / `/etc/group`', 'Text files listing users / groups and members'],
-            ['`sudo command`', 'Run one command as root'],
-            ['`useradd -m user`', 'Create a user with a home folder'],
-            ['`passwd user`', 'Set a user’s password'],
-            ['`groupadd group`', 'Create a group'],
-            ['`usermod -aG group user`', 'Add a user to a group'],
-            ['`gpasswd -d user group`', 'Remove a user from a group'],
+            ['`whoami` / `id`', 'Show your name / uid, primary group, and extra groups'],
+            ['`getent passwd` / `getent group`', 'Look up one user or one group'],
+            ['`sudo -l`', 'Show which commands you may run as root'],
+            ['`useradd -m -s /bin/bash -G group user`', 'Create a user with a home, bash, and extra groups'],
+            ['`passwd user`', 'Set a password so the user can log in'],
+            ['`groupadd group`', 'Create an empty group'],
+            ['`usermod -aG group user`', 'Add extra groups without dropping the ones they have'],
+            ['`usermod -L -s /usr/sbin/nologin user`', 'Lock the password and stop new sessions. Keep the home'],
+          ],
+        },
+        callout: {
+          kind: 'warn',
+          title: '-G replaces the extra groups',
+          body: [
+            '**`usermod -G developers ravi`** sets Ravi’s extra groups to that list and nothing else. If he was in **`sudo`**, he is not anymore. Use **`-aG`** when you mean “also add this group.”',
           ],
         },
       },
@@ -393,35 +467,36 @@ id ravi                           # check the result`,
         id: 'permission-bits',
         title: 'Permissions: reading ls -l',
         body: [
-          'Every file carries three sets of permissions: one for its **user** (owner), one for its **group**, and one for **others** — everyone else. **`ls -l`** shows them at the start of each line.',
+          'Every file carries nine permission letters, in three sets of three: the **owner**, the **group**, and **others** (everyone else). **`ls -l`** prints them at the start of the line. Linux does not combine the three sets. It picks one.',
         ],
         subsections: [
           {
             id: 'read-ls-l',
             title: 'Run ls -l',
             body: [
-              '**`ls -l`** (long listing) prints one line per file with its permissions, owner, group, size, and date. Add **`-d`** to see a folder itself rather than what is inside it.',
+              '**`ls -l`** prints one line per file: type, permissions, owner, group, size, and date. Add **`-d`** when you want the folder itself. Without **`-d`**, **`ls -l`** lists what is inside the folder.',
             ],
             code: {
               language: 'shell',
-              code: `$ ls -l notes.txt
--rw-r----- 1 asha developers 1204 Oct  4 09:15 notes.txt`,
+              code: `ls -l notes.txt
+# -rw-r----- 1 asha developers 1204 Oct  4 09:15 notes.txt
+ls -ld /srv/team`,
             },
           },
           {
             id: 'ls-l-parts',
             title: 'What each part of the line means',
             body: [
-              'Read the line from left to right. The very first character is the **type** of the entry. The next **nine** characters are the permissions, in three groups of three: first for the **owner**, then for the **group**, then for **others**. In each group the positions are always **read**, **write**, **execute** — a letter means allowed, a dash means not.',
-              'Then come the owner and group names, so you can tell **who** each group of three applies to. In this example, asha can read and edit the file, members of developers can read it, and everyone else cannot open it at all.',
+              'Read left to right. The first character is the **type**: **`-`** a file, **`d`** a directory, **`l`** a link. The next nine characters are the permissions, three for the owner, three for the group, three for others. Inside each trio the order is always **read**, **write**, **execute**. A letter means allowed. A dash means not.',
+              'The names that follow tell you who those trios belong to. Here Asha is the owner and **`developers`** is the group. Asha’s trio is **`rw-`**. The group’s trio is **`r--`**. Everyone else’s trio is **`---`**.',
             ],
             code: {
               language: 'text',
               code: `-            type: - file, d directory, l link
-rw-          owner (asha) can read and write
-r--          group (developers) can only read
----          others can do nothing
-1            number of links (ignore for now)
+rw-          owner (asha): read and write
+r--          group (developers): read
+---          others: nothing
+1            links (ignore for now)
 asha         owner
 developers   group
 1204         size in bytes
@@ -430,38 +505,55 @@ notes.txt    name`,
             },
           },
           {
+            id: 'which-bits',
+            title: 'Which three letters Linux uses',
+            body: [
+              'Linux asks three questions, in order, and stops at the first yes.',
+              'Are you the **owner**? Then only the owner trio counts. The group trio does not add rights, and it does not take them away. If Asha’s trio is **`r--`** and the group trio is **`rwx`**, Asha can still only read, even though she is in the group.',
+              'If you are not the owner, are you in the file’s **group**? Then only the group trio counts. Ravi is in **`developers`** and does not own the file, so he gets **`r--`**.',
+              'Otherwise you are **others**, and only the last trio counts. A guest gets **`---`** and cannot open the file.',
+            ],
+          },
+          {
             id: 'rwx-meaning',
             title: 'r, w, x on files and on directories',
             body: [
-              'On a **file** the letters mean what you expect: **r** read the contents, **w** change them, **x** run it as a program or script.',
-              'On a **directory** they mean something slightly different: **r** lets you **list** the names inside, **w** lets you **create, rename, or delete** files in it, and **x** lets you **enter** it (**`cd`**) and reach the files inside. A folder with **r** but no **x** shows names you cannot open; that is why folders almost always get **x** together with **r**.',
+              'On a **file**, the letters mean what they say. **`r`** reads the contents. **`w`** changes them. **`x`** runs the file as a program or a script.',
+              'On a **directory** they mean something else, because a directory is a list of names. **`r`** lets you **list** the names. **`x`** lets you **enter** it with **`cd`** and open what is inside. **`w`** lets you **create, rename, or delete** names in it. Write on a directory is not “edit the files.” It is “change the list of names.”',
+              'A directory with **`r`** and no **`x`** can show you names you cannot open. That is why a directory you can use almost always has **`x`** next to **`r`**.',
             ],
           },
           {
             id: 'octal',
             title: 'Permissions as numbers',
             body: [
-              'Each permission letter has a value: **r = 4**, **w = 2**, **x = 1**, and a dash is **0**. To turn a set of three letters into one digit, add up the values of the letters that are present. Do that for owner, group, and others, and you get a three-digit number.',
-              'Example: **`rwxr-x---`**. Owner **`rwx`** = 4 + 2 + 1 = **7**. Group **`r-x`** = 4 + 0 + 1 = **5**. Others **`---`** = **0**. The number is **750**. The block below works through a few more.',
-              'Going the other way works the same: split the number into digits and break each one back into 4, 2, and 1. **640** → 6 = 4 + 2 = **`rw-`**, 4 = **`r--`**, 0 = **`---`**, so **`rw-r-----`**. Because 4, 2, and 1 never overlap, every digit from 0 to 7 has exactly one meaning.',
-              'A handful of numbers cover most cases: **644** for normal files, **600** for private files like keys, **755** for programs and public folders, **700** for private folders, **770** for team folders. **`stat`** prints a file’s number directly.',
+              'Each letter has a value: **`r` = 4**, **`w` = 2**, **`x` = 1**. A dash is 0. Add the letters that are present in one trio and you get a digit from 0 to 7. Three trios make a three-digit number.',
+              '**`rwxr-x---`**: owner **`rwx`** = 4+2+1 = **7**, group **`r-x`** = 4+0+1 = **5**, others **`---`** = **0**. The number is **750**. The other direction is the same split. **640** is 6 = 4+2 = **`rw-`**, 4 = **`r--`**, 0 = **`---`**, so **`rw-r-----`**.',
+              'A few numbers cover most files. **644** is a normal file, everyone can read, only the owner can change it. **600** is private, owner only, which is what a key should be. **755** is a program or a public folder. **750** is a folder the group can enter and the rest cannot. **770** is a folder for the owner and the group only. **`stat -c %a file`** prints the number.',
             ],
             code: {
               language: 'text',
-              code: `permissions   owner      group      others     number
-rwxr-xr-x     rwx 4+2+1  r-x 4+0+1  r-x 4+0+1  755
-rw-r--r--     rw- 4+2+0  r-- 4+0+0  r-- 4+0+0  644
-rwxr-x---     rwx 4+2+1  r-x 4+0+1  --- 0+0+0  750
-rw-------     rw- 4+2+0  --- 0+0+0  --- 0+0+0  600`,
+              code: `letters       owner     group     others    number
+rwxr-xr-x     4+2+1=7   4+0+1=5   4+0+1=5   755
+rw-r--r--     4+2+0=6   4+0+0=4   4+0+0=4   644
+rwxr-x---     4+2+1=7   4+0+1=5   0+0+0=0   750
+rw-------     4+2+0=6   0         0         600`,
             },
           },
         ],
-        table: {
+        figure: {
+          image: whichBitsApplyImg,
+          imageAlt:
+            'Hand-drawn sketch: the owner gets rw-, someone in the group gets r--, and everyone else gets ---. Linux uses only one of those sets.',
+          caption: 'Linux picks one set. Owner first, then group, then everyone else.',
+          flush: true,
+        },
+        tableAfter: {
           headers: ['Letter', 'Value', 'On a file', 'On a directory'],
           rows: [
             ['`r`', '4', 'Read the contents', 'List the names inside'],
-            ['`w`', '2', 'Change the contents', 'Create, rename, delete files inside'],
-            ['`x`', '1', 'Run it as a program', 'Enter it and reach files inside'],
+            ['`w`', '2', 'Change the contents', 'Create, rename, or delete names inside'],
+            ['`x`', '1', 'Run it as a program', 'Enter it and open what is inside'],
           ],
         },
       },
@@ -469,57 +561,61 @@ rw-------     rw- 4+2+0  --- 0+0+0  --- 0+0+0  600`,
         id: 'changing-permissions',
         title: 'Changing access: chmod, chown, chgrp',
         body: [
-          'Three commands change who can do what. Only the file’s owner (or root) can change its permissions, and only root can give a file to another user.',
+          'Three commands change who can do what. The owner can change the mode of their own file. Giving a file to another user needs root.',
         ],
         subsections: [
           {
             id: 'chmod-symbolic',
             title: 'chmod with letters',
             body: [
-              '**`chmod`** changes permission bits. The letter form reads like a sentence: **who** (**`u`** user, **`g`** group, **`o`** others, **`a`** all), then **`+`** add, **`-`** remove, or **`=`** set exactly, then **which** permissions.',
+              '**`chmod`** changes the nine letters. The letter form reads as a sentence: **who**, then **what to do**, then **which letters**. Who is **`u`** for the owner (user), **`g`** for the group, **`o`** for others, or **`a`** for all three. **`+`** adds, **`-`** removes, **`=`** sets the trio to exactly those letters.',
             ],
             code: {
               language: 'shell',
-              code: `chmod u+x deploy.sh          # let the owner run it
-chmod g+w notes.txt          # let the group edit it
-chmod o-rwx notes.txt        # take everything away from others
-chmod u=rw,g=r,o= notes.txt  # set all three exactly`,
+              code: `chmod u+x deploy.sh
+# owner may run it; group and others stay as they were
+chmod g+w notes.txt
+chmod o-rwx notes.txt
+chmod u=rw,g=r,o= notes.txt
+# owner rw, group r, others nothing: the same as 640`,
             },
           },
           {
             id: 'chmod-octal',
             title: 'chmod with numbers',
             body: [
-              'The number form sets all nine bits at once, using the values from the previous section. It is shorter when you know the end result you want. Add **`-R`** to apply a change to a folder and everything inside it — carefully, since files and folders usually need different bits.',
+              'The number form sets all nine letters at once. Use it when you already know the end state. **`chmod 640 notes.txt`** is owner read-write, group read, others nothing. **`chmod 600`** on a key means even the group cannot read it.',
+              '**`-R`** walks a folder and everything inside it. Files and folders usually need different letters, because a folder needs **`x`** to be entered and a file often should not be executable. Apply **`-R`** only when you mean every item in the tree.',
             ],
             code: {
               language: 'shell',
-              code: `chmod 640 notes.txt          # rw- r-- ---
-chmod 600 ~/.ssh/id_ed25519  # private key: owner only
-chmod 755 deploy.sh          # everyone can run, only owner can edit
-chmod 770 /srv/team          # team folder: owner and group only`,
+              code: `chmod 640 notes.txt
+chmod 600 ~/.ssh/id_ed25519
+chmod 755 deploy.sh
+chmod 750 /srv/app`,
             },
           },
           {
             id: 'chown-chgrp',
             title: 'chown and chgrp: change owner and group',
             body: [
-              '**`chown user file`** gives a file to another user; **`chown user:group file`** sets both at once. **`chgrp group file`** changes only the group. Giving files away needs **`sudo`**; changing the group works without it if you are a member of the new group.',
+              '**`chown user file`** gives the file a new owner. **`chown user:group file`** sets both in one step. **`chgrp group file`** changes only the group. Changing the owner needs **`sudo`**. Changing the group does not, if you own the file and you are a member of the new group.',
+              'The group you set here is the group whose trio **`ls -l`** will use. It is not “every group the owner belongs to.” A file has one group.',
             ],
             code: {
               language: 'shell',
-              code: `sudo chown ravi report.txt               # ravi now owns it
-sudo chown ravi:developers report.txt    # owner and group together
-chgrp developers notes.txt               # group only
-sudo chown -R ravi:developers /srv/team  # a whole folder tree`,
+              code: `sudo chown ravi report.txt
+sudo chown ravi:developers report.txt
+chgrp developers notes.txt
+sudo chown -R app:developers /var/log/app`,
             },
           },
         ],
         table: {
           headers: ['Command', 'Changes', 'Example'],
           rows: [
-            ['`chmod` (letters)', 'Add or remove specific bits', '`chmod g+w file`'],
-            ['`chmod` (numbers)', 'Set all bits at once', '`chmod 640 file`'],
+            ['`chmod` with letters', 'Add or remove specific letters', '`chmod g+w file`'],
+            ['`chmod` with numbers', 'Set all nine letters', '`chmod 640 file`'],
             ['`chown`', 'Owner, or owner and group', '`chown ravi:developers file`'],
             ['`chgrp`', 'Group only', '`chgrp developers file`'],
           ],
@@ -527,32 +623,43 @@ sudo chown -R ravi:developers /srv/team  # a whole folder tree`,
       },
       {
         id: 'shared-folders',
-        title: 'Shared team folders: group + setgid',
+        title: 'Shared team folders: setgid and the sticky bit',
         body: [
-          'A common task: a folder the whole **developers** group can work in, closed to everyone else. Give the folder to the group and set **770**.',
-          'One problem remains: a new file normally gets its creator’s own group, so teammates may not be able to edit it. The **setgid** bit on the folder (**`chmod g+s`**, or the leading **2** in **2770**) fixes that — every new file inside inherits the folder’s group. In **`ls -l`** it shows as an **`s`** in the group’s **x** spot.',
+          'A team folder is a directory the group can work in, and nobody else can. Give the directory to the group and set **770**: owner and group get **`rwx`**, others get nothing.',
+          'That is not quite enough. A new file takes the **primary group of whoever created it**, not the group of the folder. Asha’s new file is group **`asha`**. Ravi is not in group **`asha`**, so the group trio on that file does not apply to him, and the file is closed to the rest of the team.',
+          '**setgid** on the directory fixes the group. **`chmod g+s`**, or a leading **`2`** in the number, makes every new file inside inherit the **directory’s** group. In **`ls -l`** the group’s **`x`** shows as **`s`**. **`2770`** is setgid plus **770**, and it lists as **`drwxrws---`**.',
+          'Write permission on a directory has a second surprise. Anyone who can write the directory can delete or rename any name in it, including a file they do not own. The **sticky bit** stops that. With the sticky bit on, you may delete or rename only the names you own. Root still can. **`/tmp`** works this way: everyone can create files there, and you cannot remove someone else’s.',
+          'The sticky bit is a leading **`1`**. On a directory where others have no execute, **`ls -l`** shows it as a capital **`T`** at the end. **`3770`** is sticky plus setgid plus **770**: **`drwxrws--T`**. Members can create and read. A new file stays in the team group. A member cannot delete a teammate’s file.',
         ],
         code: {
           language: 'shell',
-          code: `sudo mkdir /srv/team             # create the folder
-sudo chgrp developers /srv/team  # folder belongs to the team
-sudo chmod 2770 /srv/team        # rwx for owner and group, setgid on
-ls -ld /srv/team                 # drwxrws--- root developers /srv/team`,
+          code: `sudo mkdir /srv/team
+sudo chgrp developers /srv/team
+sudo chmod 2770 /srv/team
+ls -ld /srv/team
+# drwxrws--- root developers /srv/team
+
+sudo chmod 3770 /srv/team
+ls -ld /srv/team
+# drwxrws--T root developers /srv/team`,
         },
       },
       {
         id: 'acls',
-        title: 'ACLs: exceptions for one person',
+        title: 'ACLs: one extra person',
         body: [
-          'Owner, group, and others cover most needs. When one extra person needs access — without adding them to the whole group or opening the file to everyone — use an **ACL** (access control list): an extra rule attached to the file for a specific user or group.',
-          '**`setfacl -m`** adds a rule, **`getfacl`** shows all rules, and **`setfacl -x`** removes one. A file with ACLs shows a **`+`** at the end of its permissions in **`ls -l`**, which is your hint to run **`getfacl`**.',
+          'Owner, group, and others cover a team. They do not cover “this one person, and not the rest of their colleagues.” An **ACL** (access control list) is an extra rule on a file or directory for one user or one group.',
+          '**`setfacl -m u:ravi:r-x`** adds a rule: user Ravi may read and enter, and nobody else’s access changes. **`getfacl`** prints the owner trio, the group trio, the others trio, and every extra rule. **`setfacl -x u:ravi`** removes Ravi’s rule. **`ls -l`** puts a **`+`** at the end of the letters when an ACL is present. The nine letters cannot show the extra rule, so the **`+`** is the hint to run **`getfacl`**.',
+          'A rule on a directory applies to that directory. It does **not** copy onto files created later. A **default** ACL does. **`setfacl -d -m`** stores a rule that new files and new folders inside the directory inherit. Set both when the extra person must read what arrives tomorrow as well as what is there today. A new file keeps only the letters the creator asked for, so a normal file stays non-executable even when the default rule includes **`x`**.',
         ],
         code: {
           language: 'shell',
-          code: `setfacl -m u:ravi:r report.txt  # ravi may read, nothing else changes
-getfacl report.txt              # list owner, group, others, and extra rules
-ls -l report.txt                # -rw-r-----+  (the + means: has ACLs)
-setfacl -x u:ravi report.txt    # remove ravi’s rule`,
+          code: `setfacl -m u:ravi:r-x /srv/team
+setfacl -d -m u:ravi:r-x /srv/team
+getfacl /srv/team
+ls -ld /srv/team
+# drwxrws---+   the + means an ACL is present
+setfacl -x u:ravi /srv/team`,
         },
       },
       {
@@ -562,29 +669,29 @@ setfacl -x u:ravi report.txt    # remove ravi’s rule`,
         tableAfter: {
           headers: ['Goal', 'Command'],
           rows: [
-            ['Who am I / which groups', '`whoami`, `id`, `id user`'],
+            ['Who am I, and which groups', '`id`'],
             ['Look up an account', '`getent passwd user`, `getent group group`'],
-            ['Run one command as root', '`sudo command`'],
-            ['Create / delete a user', '`sudo useradd -m user`, `sudo userdel -r user`'],
-            ['Set a password', '`sudo passwd user`'],
-            ['Create / delete a group', '`sudo groupadd group`, `sudo groupdel group`'],
-            ['Add / remove group member', '`sudo usermod -aG group user`, `sudo gpasswd -d user group`'],
-            ['Lock / unlock an account', '`sudo usermod -L user`, `sudo usermod -U user`'],
-            ['See permissions', '`ls -l file`, `ls -ld dir`, `stat -c \'%a\' file`'],
-            ['Change permissions', '`chmod g+w file`, `chmod 640 file`, `chmod -R …`'],
-            ['Change owner / group', '`sudo chown user:group file`, `chgrp group file`'],
-            ['Team folder', '`chgrp team dir` + `chmod 2770 dir`'],
-            ['Extra access for one user', '`setfacl -m u:name:r file`'],
-            ['Show / remove ACL rules', '`getfacl file`, `setfacl -x u:name file`'],
+            ['See what sudo will allow', '`sudo -l`'],
+            ['Allow one group two commands', '`%group ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`'],
+            ['Check a sudoers file', '`sudo visudo -cf /etc/sudoers.d/name`'],
+            ['Create a user with a home and bash', '`sudo useradd -m -s /bin/bash -G group user`'],
+            ['Add a group, keep the others', '`sudo usermod -aG group user`'],
+            ['Retire an account, keep the home', '`sudo usermod -L -s /usr/sbin/nologin user`'],
+            ['See the mode as a number', "`stat -c '%a' file`"],
+            ['Owner read-write, group read', '`chmod 640 file`'],
+            ['Set owner and group', '`sudo chown user:group file`'],
+            ['Team folder, inherit the group', '`sudo chmod 2770 dir`'],
+            ['Also stop members deleting each other’s files', '`sudo chmod 3770 dir`'],
+            ['One extra person, including future files', '`setfacl -m u:name:r-x dir` and `setfacl -d -m u:name:r-x dir`'],
           ],
         },
       },
     ],
     takeaways: [
-      '**Users** run everything; **groups** let you grant access to a team. Check yourself with **`id`**; add members with **`usermod -aG`**.',
-      'Every file has an **owner**, a **group**, and **rwx** for user / group / others. On directories, **x** means “enter” and **w** means “create or delete inside.”',
-      '**`chmod`** changes bits (letters or numbers like **640** / **755**); **`chown`** and **`chgrp`** change who the file belongs to.',
-      'Team folders use a shared **group** plus **setgid**; **ACLs** handle one-off exceptions.',
+      'A user has one **primary group** from **`/etc/passwd`** and any number of **extra groups** from **`/etc/group`**. **`adm`** reads logs. The **`sudo`** group can run anything as root. A narrower job belongs in its own group and a **sudoers** file.',
+      '**`usermod -aG`** adds a group. **`-G`** alone replaces the list. **`-L`** plus a **`nologin`** shell retires an account and leaves the home in place.',
+      'Linux uses **one** permission trio: owner, else group, else others. On a directory, **`x`** means enter and **`w`** means create or delete names.',
+      '**`2770`** keeps a team folder in the team group. **`3770`** also stops members deleting each other’s files. An **ACL**, with a **default** ACL, is how one extra person gets in without joining the group.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -597,7 +704,7 @@ setfacl -x u:ravi report.txt    # remove ravi’s rule`,
     id: 'processes-and-signals',
     slug: 'processes-and-signals',
     trackId: 'B5',
-    eyebrow: 'What is running',
+    eyebrow: '',
     title: 'Processes and Signals: ps, top, kill, nice',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-10-hunt-the-runaway-process',
@@ -939,7 +1046,7 @@ ps -eo pid,ni,comm --sort=-ni | head  # nicest processes first`,
     id: 'background-jobs-and-nohup',
     slug: 'background-jobs-and-nohup',
     trackId: 'B6',
-    eyebrow: 'Keep work running',
+    eyebrow: '',
     title: 'Background Jobs: &, jobs, nohup, tmux',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-11-keep-the-batch-running-after-logout',
@@ -1211,7 +1318,7 @@ screen -r backup  # reattach`,
     id: 'systemd-and-journalctl',
     slug: 'systemd-and-journalctl',
     trackId: 'B7',
-    eyebrow: 'Services that start on boot',
+    eyebrow: '',
     title: 'Services with systemd: systemctl, unit files, journalctl',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-12-run-order-processor-as-a-service',
@@ -1529,7 +1636,7 @@ systemctl status hello                # 5. confirm it is running`,
     id: 'cron-and-log-rotation',
     slug: 'cron-and-log-rotation',
     trackId: 'B8',
-    eyebrow: 'Time and disk hygiene',
+    eyebrow: '',
     title: 'Cron and Log Rotation',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-15-nightly-reconciliation',
@@ -1578,7 +1685,7 @@ systemctl status hello                # 5. confirm it is running`,
     id: 'packages-and-pinning',
     slug: 'packages-and-pinning',
     trackId: 'B9',
-    eyebrow: 'Installed software',
+    eyebrow: '',
     title: 'Packages and Pinning',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-17-install-and-pin-tools',
@@ -1628,7 +1735,7 @@ systemctl status hello                # 5. confirm it is running`,
     id: 'storage-df-du-and-archives',
     slug: 'storage-df-du-and-archives',
     trackId: 'B10',
-    eyebrow: 'Disk space',
+    eyebrow: '',
     title: 'Storage: df, du, mounts, and tar',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-18-disk-full-on-the-order-box',
@@ -1912,7 +2019,7 @@ df -h /var/log/app`,
     id: 'networking-basics',
     slug: 'networking-basics',
     trackId: 'B11',
-    eyebrow: 'Reachability',
+    eyebrow: '',
     title: 'Networking Basics for Operators',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-20-why-cant-order-reach-payment',
@@ -2181,7 +2288,7 @@ sudo ufw status verbose        # when Ubuntu UFW is managing rules`,
     id: 'ssh-keys-and-login',
     slug: 'ssh-keys-and-login',
     trackId: 'B12',
-    eyebrow: 'Remote access',
+    eyebrow: '',
     title: 'SSH Keys and Login',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-22-ssh-keys-for-the-deploy-bot',
@@ -2454,7 +2561,7 @@ sudo journalctl -u sshd -n 50 --no-pager  # many other distributions`,
     id: 'bash-scripting-basics',
     slug: 'bash-scripting-basics',
     trackId: 'B13',
-    eyebrow: 'Automate the repeat work',
+    eyebrow: '',
     title: 'Bash Scripting Basics',
     showBlogStamp: true,
     gatedByChallengeId: 'linux-23-script-the-health-check',

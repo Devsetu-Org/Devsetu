@@ -1,5 +1,8 @@
 /** Whiteboard — data systems theory boards. No cluster; order the mechanism. */
 
+/** Off while the catalog is hidden, including from admins. Flip back on to restore the admin-only entry. */
+export const WHITEBOARD_ENABLED = false;
+
 export const WHITEBOARD_PATH = '/track/whiteboard';
 
 export interface WhiteboardSection {
@@ -21,6 +24,12 @@ export const WHITEBOARD_SECTIONS: WhiteboardSection[] = [
     label: 'Replication',
     blurb: 'Leaders, followers, lag and failover — keeping copies in step when nodes die.',
     matchTags: ['replication'],
+  },
+  {
+    id: 'file-systems',
+    label: 'Distributed file systems',
+    blurb: 'One file across many machines — where a record goes, who orders the writes, and what a timeout means.',
+    matchTags: ['distributed-file-systems'],
   },
   {
     id: 'partitioning',

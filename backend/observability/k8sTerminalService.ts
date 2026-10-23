@@ -65,6 +65,46 @@ function parseQuery(req: IncomingMessage): URLSearchParams {
   }
 }
 
+/**
+ * kubectl's exec client logs these on stderr when the API stream dies (idle
+ * teardown, pod delete). They are not shell output and must not reach the learner.
+ */
+function isKubectlTransportFault(line: string): boolean {
+  return /v2\.go:\d+\]/.test(line)
+    || line.includes('Copying stdout failed')
+    || line.includes('Waiting for server to close stdin failed')
+    || line.includes('error reading from error stream');
+}
+
+/** True when `partial` is the start of a transport-fault line and not yet complete. */
+function mightBeTransportFault(partial: string): boolean {
+  if (!partial || partial.length > 500) return false;
+  if (isKubectlTransportFault(partial)) return true;
+  // client-go klog prefix, e.g. "E1023 14:56:31.392467   97433 v2.go:151]"
+  if (/^E\d{4} \d{2}:\d{2}:\d{2}/.test(partial)) return true;
+  if ('error: error reading from error stream:'.startsWith(partial)) return true;
+  if (partial.startsWith('error: error reading')) return true;
+  return /^E\d{0,4}( \d{0,2}(:\d{0,2}(:\d{0,2}(\.\d{0,9})?)?)?)?$/.test(partial);
+}
+
+function killPty(child: IPty): void {
+  const pid = child.pid;
+  // Kill the whole group so a kubectl child cannot keep writing after the leader dies.
+  if (pid) {
+    try {
+      process.kill(-pid, 'SIGKILL');
+      return;
+    } catch (_e) {
+      /* not a process-group leader */
+    }
+  }
+  try {
+    child.kill('SIGKILL');
+  } catch (_e) {
+    /* noop */
+  }
+}
+
 function send(ws: ObservabilityWebSocket, data: string | Buffer | Uint8Array): void {
   if (ws.readyState === ws.OPEN) {
     try {
@@ -439,25 +479,70 @@ function attachShell(
 
   let closed = false;
   let muted = false;
+  // Incomplete line that might be a kubectl transport fault, held back from the socket.
+  let faultPartial = '';
   const closeAll = (notice?: string) => {
     if (closed) return;
     closed = true;
     // Drop anything the shell writes while it dies (kubectl's connection-reset
     // logs) so the learner sees the locked screen instead of that stream.
     muted = true;
+    faultPartial = '';
     openTerminals.get(sessionId)?.delete(entry);
     if (notice) sendNotice(ws, notice);
-    try {
-      child.kill('SIGKILL');
-    } catch (_e) {
-      /* noop */
-    }
+    killPty(child);
     cleanup();
     if (ws.readyState === ws.OPEN) {
       // 4001 tells the page to show the inactivity lock instead of a dead shell.
       const idle = sessionStore.get(sessionId)?.endReason === 'idle_timeout';
       ws.close(idle ? 4001 : 1000, idle ? 'idle_timeout' : '');
     }
+  };
+  // The exec stream died. If this session is already idle (or past the idle
+  // window), end it and show the lock. Never forward the kubectl log lines.
+  const onTransportFault = () => {
+    muted = true;
+    const session = sessionStore.get(sessionId) as {
+      status?: string;
+      endReason?: string | null;
+      lastActivityAt?: number | null;
+      startTime?: number;
+    } | null;
+    const last = Number(session?.lastActivityAt) || Number(session?.startTime) || 0;
+    const idle = session?.endReason === 'idle_timeout'
+      || (session?.status === 'active' && last > 0 && Date.now() - last >= sessionIdle.IDLE_MS);
+    if (idle && session?.status === 'active') {
+      void sessionIdle.endSessionById(sessionId, 'idle_timeout');
+    }
+    if (idle || session?.status !== 'active') closeAll();
+  };
+  const forwardShell = (data: string) => {
+    if (muted || !data) return;
+    const combined = faultPartial + data;
+    faultPartial = '';
+    const endedWithNl = combined.endsWith('\n');
+    const parts = combined.split('\n');
+    if (endedWithNl) parts.pop();
+    const tail = endedWithNl ? '' : (parts.pop() ?? '');
+    const kept: string[] = [];
+    let fault = false;
+    for (const line of parts) {
+      if (isKubectlTransportFault(line)) fault = true;
+      else kept.push(line);
+    }
+    if (tail) {
+      if (isKubectlTransportFault(tail)) fault = true;
+      else if (mightBeTransportFault(tail)) faultPartial = tail;
+      else kept.push(tail);
+    }
+    if (kept.length) {
+      const flushedTail = Boolean(tail) && !faultPartial && !isKubectlTransportFault(tail);
+      const text = flushedTail
+        ? (kept.length > 1 ? `${kept.slice(0, -1).join('\n')}\n${kept[kept.length - 1]}` : kept[0])
+        : `${kept.join('\n')}\n`;
+      send(ws, Buffer.from(text));
+    }
+    if (fault) onTransportFault();
   };
   const entry: OpenTerminal = { clientId, close: closeAll };
   if (!openTerminals.has(sessionId)) openTerminals.set(sessionId, new Set());
@@ -506,12 +591,11 @@ function attachShell(
   const pending: Buffer[] = [];
   child.onData((data: string) => {
     if (muted) return;
-    const buf = Buffer.from(data, 'utf8');
     if (!introDone) {
-      pending.push(buf);
+      pending.push(Buffer.from(data, 'utf8'));
       return;
     }
-    send(ws, buf);
+    forwardShell(data);
   });
 
   child.onExit(({ exitCode, signal }: { exitCode: number; signal: number }) => {
@@ -530,7 +614,7 @@ function attachShell(
     else send(ws, Buffer.from(staticBanner(banner, cols)));
     introDone = true;
     if (muted) return;
-    for (const buf of pending) send(ws, buf);
+    if (pending.length) forwardShell(Buffer.concat(pending).toString('utf8'));
     pending.length = 0;
   })();
 }

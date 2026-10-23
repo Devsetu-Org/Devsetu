@@ -85,7 +85,7 @@ export default function ProjectsPage(): JSX.Element {
                 <p className="project-tile-subtitle">{project.subtitle}</p>
                 <p className="playground-tile-blurb">{project.blurb}</p>
                 <span className="playground-tile-cta">
-                  View chapters
+                  Start {project.name} here
                   <span aria-hidden>→</span>
                 </span>
               </Link>
@@ -101,6 +101,10 @@ export default function ProjectsPage(): JSX.Element {
                 </strong>
                 <p className="project-tile-subtitle">{project.subtitle}</p>
                 <p className="playground-tile-blurb">{project.blurb}</p>
+                <span className="playground-tile-cta">
+                  Start {project.name} here
+                  <span aria-hidden>→</span>
+                </span>
               </div>
             );
           }
@@ -113,7 +117,7 @@ export default function ProjectsPage(): JSX.Element {
               <p className="project-tile-subtitle">{project.subtitle}</p>
               <p className="playground-tile-blurb">{project.blurb}</p>
               <span className="playground-tile-cta">
-                View {project.name}
+                Start {project.name} here
                 <span aria-hidden>→</span>
               </span>
             </Link>

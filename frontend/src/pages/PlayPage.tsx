@@ -35,7 +35,7 @@ import {
   type PlayDomainId,
   type PlayPanel,
 } from '../constants/playCatalog';
-import { WHITEBOARD_PATH } from '../constants/whiteboard';
+import { WHITEBOARD_ENABLED, WHITEBOARD_PATH } from '../constants/whiteboard';
 import { SPARK_PRIMER_PATH } from '../constants/sparkPrimer';
 import { K8S_PRIMER_PATH } from '../constants/k8sPrimer';
 import type { K8sTrackItem } from '../constants/k8sReadings';
@@ -312,10 +312,10 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
       <div className="play-problems-layout">
         <aside
           className="play-problems-sidebar"
-          aria-label={isAdmin ? 'Paper of the Month, Whiteboard and leaderboard' : 'Paper of the Month and leaderboard'}
+          aria-label={WHITEBOARD_ENABLED && isAdmin ? 'Paper of the Month, Whiteboard and leaderboard' : 'Paper of the Month and leaderboard'}
         >
           <MonthlyPaperCard />
-          {isAdmin && (
+          {WHITEBOARD_ENABLED && isAdmin && (
             <Link to={WHITEBOARD_PATH} className="play-sidebar-card play-sidebar-papers play-sidebar-board">
               <strong>Whiteboard</strong>
               <p>Data systems theory: replication, consensus, transactions and more. No cluster.</p>
@@ -368,7 +368,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       <strong className="play-paper-section-title">{d.label}</strong>
                       <p className="play-paper-section-blurb">{d.blurb}</p>
                       <span className="play-paper-section-cta">
-                        Browse track
+                        Start here
                         <span aria-hidden>→</span>
                       </span>
                     </Link>
@@ -419,6 +419,10 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         <strong className="playground-tile-title">{p.label}</strong>
                         {p.subtitle && <p className="project-tile-subtitle">{p.subtitle}</p>}
                         <p className="playground-tile-blurb">{p.tileBlurb ?? p.blurb}</p>
+                        <span className="playground-tile-cta">
+                          {p.label === 'Introduction' ? 'Start here' : `Start ${p.label} here`}
+                          <span aria-hidden>→</span>
+                        </span>
                       </Link>
                     );
                   }
@@ -436,7 +440,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       <strong className="play-paper-section-title">{p.label}</strong>
                       <p className="play-paper-section-blurb">{p.blurb}</p>
                       <span className="play-paper-section-cta">
-                        {count > 0 ? 'Open labs' : 'Open readings'}
+                        {p.label === 'Introduction' ? 'Start here' : `Start ${p.label} here`}
                         <span aria-hidden>→</span>
                       </span>
                     </Link>
@@ -757,7 +761,6 @@ export default function PlayPage(): JSX.Element | null {
         <BoardWorkspace
           challenge={activeChallenge}
           session={activeSession}
-          onClose={onBackToLibrary}
         />
       );
     }
