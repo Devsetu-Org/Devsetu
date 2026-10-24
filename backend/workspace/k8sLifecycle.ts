@@ -11,6 +11,7 @@ const k8s = require('./k8sCluster');
 const capacity = require('./k8sCapacity');
 const linuxBox = require('./linuxBox');
 const { isClusterLabType, boxFlavor } = require('../challenges/labTypes');
+const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const terminalEventBus = require('../observability/terminalEventBus');
 
 interface StartK8sOpts {
@@ -169,6 +170,7 @@ function ensureProvisioned(ns: string, challengeId: string, forceSetup: boolean)
 /**
  * Reset always boots a clean box and runs setup.sh. Otherwise a saved filesystem
  * is restored onto a new pod, and a pod that is still running is reused as-is.
+ * The blog playground is ephemeral: every open is a new pod, and nothing is saved.
  */
 async function provisionBox(
   ns: string,
@@ -177,18 +179,19 @@ async function provisionBox(
   forceSetup: boolean,
 ): Promise<boolean> {
   const spec = platformSpecOf(challengeId);
+  const ephemeral = isLinuxBlogPlayground(challengeId);
   await requirePool(ns, challengeId, linuxBox.poolFor(flavor));
-  if (!forceSetup && !linuxBox.hasBoxWork(ns, challengeId) && await linuxBox.boxIsReady(ns)) {
+  if (!ephemeral && !forceSetup && !linuxBox.hasBoxWork(ns, challengeId) && await linuxBox.boxIsReady(ns)) {
     return true;
   }
-  if (forceSetup) linuxBox.discardBoxWork(ns, challengeId);
+  if (ephemeral || forceSetup) linuxBox.discardBoxWork(ns, challengeId);
   try {
     await linuxBox.recreateBox(ns, challengeId, flavor, spec.box);
   } catch (err) {
     console.error(`[${flavor}] ${ns}: could not start a box for ${challengeId}: ${(err as Error).message || err}`);
     throw labEnvUnavailable();
   }
-  if (!forceSetup && linuxBox.hasBoxWork(ns, challengeId)) {
+  if (!ephemeral && !forceSetup && linuxBox.hasBoxWork(ns, challengeId)) {
     try {
       await linuxBox.restoreBoxWork(ns, challengeId);
     } catch (err) {
@@ -296,7 +299,10 @@ function namespaceForChallenge(challengeId: string, userId: string | null, userN
   const flavor = boxFlavorOf(challengeId);
   if (!flavor) return namespaceFor(userId, userName);
   const owner = workspaceStore.sanitizeOwner(userId || 'anonymous');
-  return linuxBox.boxNamespace(userName || owner, flavor);
+  const user = userName || owner;
+  // Own namespace so opening a blog playground cannot snapshot or delete a lab box.
+  if (isLinuxBlogPlayground(challengeId)) return linuxBox.playgroundNamespace(user);
+  return linuxBox.boxNamespace(user, flavor);
 }
 
 async function startK8sSession({
@@ -433,8 +439,15 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
 
   const flavor = challengeId ? boxFlavorOf(challengeId) : null;
   if (ns && challengeId && flavor) {
-    // Save first. A failed copy leaves the pod up so the files are still there.
+    const ephemeral = isLinuxBlogPlayground(challengeId);
+    // Labs save first: a failed copy leaves the pod up so the files are still there.
+    // The blog playground keeps nothing — drop any old snapshot and delete the pod.
     void withNsLock(ns, async () => {
+      if (ephemeral) {
+        linuxBox.discardBoxWork(ns, challengeId);
+        await linuxBox.deleteBox(ns);
+        return;
+      }
       try {
         await linuxBox.saveBoxWork(ns, challengeId);
       } catch (err: unknown) {

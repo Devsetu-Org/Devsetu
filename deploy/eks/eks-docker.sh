@@ -3,22 +3,24 @@
 # an always-on managed node group (labs-docker) plus a Karpenter NodePool for overflow
 # (labs-docker-elastic), and the in-cluster Docker Hub mirror the boxes pull through.
 #
-#   base   create the labs-docker managed node group + launch template if missing, scale to 1
-#          (AWS admin creds: EKS + EC2 launch templates)
-#   up     apply labs-docker-elastic, the NRI plugin on docker nodes and the registry mirror
-#   sleep  park Docker capacity: elastic limit → 0 and its nodes removed, labs-docker → 0
-#          (the mirror keeps running on system-k8s with its cache)
-#   wake   labs-docker → 1, then `up`
-#   spike  up + start the phase-0 spike box (deploy/eks/docker/spike.yaml), then check
-#   check  re-run the capability checks against the running spike box
-#   down   delete the spike box, the NRI plugin, labs-docker-elastic and the mirror (and its
-#          cache); labs-docker → 0
+#   base     create labs-docker + launch template if missing, scale to 1, install NRI + seccomp
+#            and the registry mirror (AWS admin for the NG; kubectl for the plugins)
+#   up       apply labs-docker-elastic only (needs Karpenter from eks-karpenter.sh)
+#   sleep    park Docker capacity: elastic limit → 0 and its nodes removed, labs-docker → 0
+#            (plugins, including the mirror and its cache, stay)
+#   wake     labs-docker → 1, re-apply NRI + seccomp + mirror, then `up` (restores elastic)
+#   spike    base + start the phase-0 spike box (deploy/eks/docker/spike.yaml), then check
+#   check    re-run the capability checks against the running spike box
+#   seccomp  (re)install only the docker-box seccomp profile
+#   down     delete the spike box, NRI, seccomp, the mirror (and its cache), and
+#            labs-docker-elastic; labs-docker → 0
 #
-# Needs Karpenter installed (eks-karpenter.sh) and devsetu/docker-lab pushed
-# (./images/build-all.sh docker-lab).
+# Needs kubeconfig from eks-kubeconfig.sh. `up` also needs Karpenter and (for spike/labs)
+# devsetu/docker-lab (./images/build-all.sh docker-lab).
 #
-# Usage (repo root, kubeconfig from eks-kubeconfig.sh):
-#   ./deploy/eks/eks-docker.sh base && ./deploy/eks/eks-docker.sh spike
+# Usage (repo root):
+#   ./deploy/eks/eks-docker.sh base              # enough for Docker labs on one node
+#   ./deploy/eks/eks-docker.sh up                # optional elastic overflow
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -31,15 +33,33 @@ PODS=(box-docker)
 POOL=labs-docker-elastic
 MIRROR=registry-mirror.dl-mirror.svc.cluster.local:5000
 
+# NRI + seccomp on every pool=docker node, plus the registry mirror on system-k8s.
+# DaemonSets select devlabs.io/pool=docker, so Karpenter elastic nodes pick them up.
+plugins() {
+  echo "==> NRI plugin nri-cgroup-rw-docker (dl-system, every devlabs.io/pool=docker node)"
+  kubectl apply -f "$ROOT/docker/nri-cgroup-rw.yaml"
+  seccomp_profiles
+  echo "==> registry mirror (dl-mirror, on system-k8s)"
+  kubectl apply -f "$ROOT/docker/registry-mirror.yaml"
+  if ! kubectl -n dl-mirror get secret registry-mirror-hub >/dev/null 2>&1; then
+    echo "    note: no Docker Hub credentials (secret dl-mirror/registry-mirror-hub); pulls are"
+    echo "    anonymous and rate-limited per IP. See deploy/eks/docker/registry-mirror.yaml."
+  fi
+  kubectl -n dl-mirror rollout status deploy/registry-mirror --timeout=5m
+}
+
 base() {
   eks_need_aws
   # shellcheck source=nodegroups.sh
   source "$ROOT/nodegroups.sh"
   ensure_nodegroup labs-docker
   EKS_WAKE_NODEGROUPS=labs-docker "$ROOT/eks-wake.sh"
+  echo "==> waiting for a Ready labs-docker node"
+  kubectl wait --for=condition=Ready node -l devlabs.io/pool=docker --timeout=10m
   echo "==> labs-docker base node"
   kubectl get nodes -l eks.amazonaws.com/nodegroup=labs-docker \
     -L devlabs.io/pool,devlabs.io/tier,node.kubernetes.io/instance-type
+  plugins
 }
 
 up() {
@@ -56,15 +76,30 @@ up() {
   kubectl apply -f "$ROOT/karpenter/nodepool-docker.yaml"
   kubectl get ec2nodeclass "$POOL"
   kubectl get nodepool "$POOL"
-  echo "==> NRI plugin nri-cgroup-rw-docker (dl-system, every devlabs.io/pool=docker node)"
-  kubectl apply -f "$ROOT/docker/nri-cgroup-rw.yaml"
-  echo "==> registry mirror (dl-mirror, on system-k8s)"
-  kubectl apply -f "$ROOT/docker/registry-mirror.yaml"
-  if ! kubectl -n dl-mirror get secret registry-mirror-hub >/dev/null 2>&1; then
-    echo "    note: no Docker Hub credentials (secret dl-mirror/registry-mirror-hub); pulls are"
-    echo "    anonymous and rate-limited per IP. See deploy/eks/docker/registry-mirror.yaml."
+}
+
+# docker-box.json on every labs-docker node. Boxes fail to start until their node has the
+# profile, so wait until the installer has copied it.
+seccomp_profiles() {
+  echo "==> seccomp profile (dl-system/seccomp-profiles-docker → /var/lib/kubelet/seccomp/devlabs/)"
+  kubectl apply -f "$ROOT/docker/seccomp-profiles.yaml"
+  kubectl -n dl-system create configmap seccomp-profiles-docker \
+    --from-file="$ROOT/docker/seccomp/" --dry-run=client -o yaml | kubectl apply -f -
+  if ! kubectl get nodes -l devlabs.io/pool=docker -o name | grep -q .; then
+    return
   fi
-  kubectl -n dl-mirror rollout status deploy/registry-mirror --timeout=5m
+  kubectl -n dl-system rollout status ds/seccomp-profiles-docker --timeout=3m
+  local i pod
+  for i in $(seq 1 20); do
+    for pod in $(kubectl -n dl-system get pod -l app=seccomp-profiles-docker \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+      if kubectl -n dl-system exec "$pod" -- test -f /host/devlabs/docker-box.json 2>/dev/null; then
+        return
+      fi
+    done
+    sleep 1
+  done
+  echo "    warning: docker-box.json not yet on the node; a box may need a retry" >&2
 }
 
 park_elastic() {
@@ -84,6 +119,9 @@ sleep_docker() {
 wake_docker() {
   eks_need_aws
   EKS_WAKE_NODEGROUPS=labs-docker "$ROOT/eks-wake.sh"
+  echo "==> waiting for a Ready labs-docker node"
+  kubectl wait --for=condition=Ready node -l devlabs.io/pool=docker --timeout=10m
+  plugins
   up
 }
 
@@ -91,6 +129,10 @@ wake_docker() {
 CHECKS=(
   "user namespace (uid_map)|awk 'NR==1 && !(\$1==0 && \$2==0) {ok=1} END {exit !ok}' /proc/self/uid_map"
   "systemd is PID 1|[ \"\$(cat /proc/1/comm)\" = systemd ]"
+  "seccomp filter on PID 1|grep -Eq '^Seccomp:[[:space:]]+2' /proc/1/status"
+  "io_uring blocked by seccomp|perl -e 'syscall(425, 1, 0); exit(\$!==38 ? 0 : 1)'"
+  "new mount API blocked|perl -e 'syscall(430); exit(\$!==38 ? 0 : 1)'"
+  "nested user namespace blocked|! unshare -Ur true"
   "system running|timeout 60 systemctl is-system-running --wait | grep -qx running"
   "/var/lib/docker not on overlay|[ \"\$(stat -f -c %T /var/lib/docker)\" != overlayfs ]"
   "ip_forward on|[ \"\$(cat /proc/sys/net/ipv4/ip_forward)\" = 1 ]"
@@ -153,7 +195,7 @@ check() {
 }
 
 spike() {
-  up
+  base
   echo "==> spike box ($NS)"
   kubectl apply -f "$ROOT/docker/spike.yaml"
   echo "==> waiting for the box (image pull on first run)"
@@ -169,12 +211,19 @@ spike() {
 down() {
   echo "==> delete spike box"
   kubectl delete namespace "$NS" --ignore-not-found --wait=true
-  kubectl -n dl-system delete daemonset nri-cgroup-rw-docker --ignore-not-found
+  kubectl -n dl-system delete daemonset nri-cgroup-rw-docker seccomp-profiles-docker --ignore-not-found
+  kubectl -n dl-system delete configmap seccomp-profiles-docker --ignore-not-found
   echo "==> delete registry mirror (and its cache volume)"
   kubectl delete namespace dl-mirror --ignore-not-found --wait=true
-  echo "==> delete NodePool $POOL (Karpenter terminates its nodes)"
-  kubectl delete nodepool "$POOL" --ignore-not-found --wait=true --timeout=10m
-  kubectl delete ec2nodeclass "$POOL" --ignore-not-found --wait=true --timeout=10m
+  # --ignore-not-found does not help when Karpenter was never installed: kubectl
+  # exits 1 with "the server doesn't have a resource type".
+  if kubectl get crd nodepools.karpenter.sh >/dev/null 2>&1; then
+    echo "==> delete NodePool $POOL (Karpenter terminates its nodes)"
+    kubectl delete nodepool "$POOL" --ignore-not-found --wait=true --timeout=10m
+    kubectl delete ec2nodeclass "$POOL" --ignore-not-found --wait=true --timeout=10m
+  else
+    echo "==> Karpenter is not installed; no NodePool to delete"
+  fi
   if eks_cluster_exists 2>/dev/null; then
     EKS_NODEGROUPS=labs-docker "$ROOT/eks-sleep.sh"
   fi
@@ -187,6 +236,7 @@ case "${1:-}" in
   wake) wake_docker ;;
   spike) spike ;;
   check) check ;;
+  seccomp) seccomp_profiles ;;
   down) down ;;
-  *) echo "usage: $0 base|up|sleep|wake|spike|check|down" >&2; exit 2 ;;
+  *) echo "usage: $0 base|up|seccomp|sleep|wake|spike|check|down" >&2; exit 2 ;;
 esac

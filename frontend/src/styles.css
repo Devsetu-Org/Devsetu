@@ -1120,6 +1120,10 @@ a:hover { text-decoration: underline; }
   overflow: auto;
 }
 
+.app-body:has(.spark-primer-page--playground) {
+  overflow: hidden;
+}
+
 .app-page-fill {
   flex: 1;
   min-height: 0;
@@ -6587,6 +6591,45 @@ button.play-primer-link {
     #000000;
 }
 
+.spark-primer-page--playground {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.spark-primer-page.spark-primer-page--playground {
+  min-height: 0;
+}
+
+.linux-blog-split-handle {
+  flex: 0 0 10px;
+  margin: 0 2px;
+  border-radius: 999px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+
+.linux-blog-split-handle::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 4px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.linux-blog-split-handle:hover::before,
+.linux-blog-split-handle:focus-visible::before {
+  background: var(--brand-bright);
+}
+
 .spark-primer-notebook {
   position: relative;
   max-width: 1100px;
@@ -6599,6 +6642,143 @@ button.play-primer-link {
   background: #000000;
   color: var(--primer-ink);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.spark-primer-page--playground .spark-primer-notebook--split {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: none;
+  min-width: 280px;
+  margin: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 28px 28px 40px;
+}
+
+.linux-blog-playground-launch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.linux-blog-playground-launch p {
+  margin: 0;
+  font-family: var(--primer-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--primer-muted);
+}
+
+.linux-blog-playground-launch-title {
+  margin-bottom: 2px !important;
+  font-size: 14px !important;
+  font-weight: 700;
+  color: #fff !important;
+}
+
+.linux-blog-playground-launch button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.linux-blog-playground {
+  flex: 1 1 auto;
+  min-width: 280px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: #000;
+  color: var(--primer-ink);
+}
+
+.linux-blog-playground-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.linux-blog-playground-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--primer-sans);
+}
+
+.linux-blog-playground-title strong {
+  font-size: 13px;
+}
+
+.linux-blog-playground-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.linux-blog-playground-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fbbf24;
+  flex: 0 0 auto;
+}
+
+.linux-blog-playground-dot.is-ready {
+  background: #34d399;
+}
+
+.linux-blog-playground-term {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.linux-blog-playground-term-host {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.linux-blog-playground-term-host .terminal-host {
+  position: absolute;
+  inset: 0;
+}
+
+.linux-blog-playground-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px;
+  color: var(--text-muted);
+}
+
+.linux-blog-playground-message p {
+  margin: 0;
+  max-width: 42ch;
+  line-height: 1.5;
+}
+
+.linux-blog-playground-hint {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
 .spark-primer-blog-stamp {
@@ -18685,19 +18865,6 @@ button.spark-results-tab {
   }
 }
 
-.landing-waitlist {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(24px, 4vw, 48px);
-  align-items: center;
-  margin-top: 40px;
-  padding: 32px clamp(20px, 3vw, 36px);
-  border: 1px solid rgba(52, 211, 153, 0.22);
-  border-radius: 18px;
-  background: rgba(52, 211, 153, 0.04);
-  scroll-margin-top: 24px;
-}
-
 .waitlist-form {
   display: flex;
   flex-direction: column;
@@ -18787,14 +18954,6 @@ button.spark-results-tab {
 .waitlist-done strong {
   color: var(--brand-bright);
   font-size: 16px;
-}
-
-@media (max-width: 900px) {
-  .landing-waitlist {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    padding: 24px 18px;
-  }
 }
 
 .pricing-plans {

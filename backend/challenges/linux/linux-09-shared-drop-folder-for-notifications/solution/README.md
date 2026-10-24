@@ -29,13 +29,14 @@ ls -ld /srv/notifications/outbox        # a trailing + means an ACL is set
 ## Prove it
 
 ```bash
-sudo -u order-bot   sh -c 'echo hi > /srv/notifications/outbox/o1'
-ls -l /srv/notifications/outbox/o1                                     # group notify
-sudo -u payment-bot cat /srv/notifications/outbox/o1                   # works
-sudo -u payment-bot rm  /srv/notifications/outbox/o1                   # Operation not permitted (sticky)
-sudo -u auditor     cat /srv/notifications/outbox/o1                   # works (ACL)
-sudo -u auditor     touch /srv/notifications/outbox/a1                 # Permission denied
-sudo rm /srv/notifications/outbox/o1
+sudo -u payment-bot sh -c 'echo paid > /srv/notifications/outbox/receipt'
+ls -l /srv/notifications/outbox/receipt                                # group notify
+sudo -u order-bot cat /srv/notifications/outbox/receipt                # order-bot can read the receipt
+sudo -u order-bot rm  /srv/notifications/outbox/receipt                # Operation not permitted (sticky)
+sudo -u order-bot sh -c 'echo placed > /srv/notifications/outbox/confirm'
+sudo -u auditor cat /srv/notifications/outbox/receipt                  # works (ACL)
+sudo -u auditor touch /srv/notifications/outbox/a1                     # Permission denied
+sudo rm /srv/notifications/outbox/receipt /srv/notifications/outbox/confirm
 ```
 
 Then **Submit**.

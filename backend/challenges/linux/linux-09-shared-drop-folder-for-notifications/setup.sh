@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Users for the notification pipeline and a drop folder that nobody can share yet.
+# payment-bot drops the receipt. order-bot reads it, then drops the confirmation.
+# The folder starts locked to root, so neither bot can use it yet.
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib/lab.sh"
 
 box_script <<'EOF'

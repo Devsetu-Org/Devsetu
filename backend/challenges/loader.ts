@@ -3,6 +3,7 @@
 import type { ChallengeRow, ChallengePublic, ChallengeFull } from '../types/domain';
 
 const pool = require('../db/pool');
+const { LINUX_BLOG_PLAYGROUND_ID, isLinuxBlogPlayground } = require('./linuxPlayground');
 const { publicBoardSpec, parseBoardSpec } = require('../workspace/boardGrade');
 const { isClusterLabType } = require('./labTypes');
 
@@ -66,7 +67,37 @@ async function loadChallengesFromDB(): Promise<Map<string, ChallengeFull>> {
   return cache;
 }
 
+/**
+ * Blog playground is not a catalog row. Sessions and the terminal still look the
+ * challenge up by id, so it has to answer here without joining listChallenges.
+ */
+const LINUX_BLOG_PLAYGROUND: ChallengeFull = {
+  id: LINUX_BLOG_PLAYGROUND_ID,
+  number: null,
+  title: 'Linux playground',
+  description: 'A Linux machine beside a blog, for trying commands and scripts.',
+  difficulty: 'L0',
+  tags: ['linux', 'playground'],
+  category: 'linux',
+  finalized: true,
+  sandboxType: 'linux',
+  visibleTo: 'users',
+  visibilityNotes: '',
+  tokens: 0,
+  verifiedDir: null,
+  problemStatement: null,
+  validationSpec: null,
+  sparkPlatform: null,
+  k8sPlatform: {
+    practice: true,
+    box: { hostname: 'playground', unprivileged: true },
+    setup: { script: 'setup.sh' },
+  },
+  boardSpec: null,
+};
+
 function getChallenge(id: string): ChallengeFull | null {
+  if (isLinuxBlogPlayground(id)) return LINUX_BLOG_PLAYGROUND;
   return cache.get(id) || null;
 }
 

@@ -135,7 +135,7 @@ const ACTIONS = {
     description: [
       'Full Karpenter install for DevSetu. Deploys the upstream CloudFormation stack (node role, controller policies, interruption queue), Pod Identity for the controller ServiceAccount, an EC2_LINUX access entry so Karpenter-launched nodes can join, and discovery tags on subnets + the cluster security group.',
       'Helm-installs the Karpenter controller into kube-system on system-k8s (replicas=1, CriticalAddonsOnly toleration). Then applies the labs-elastic EC2NodeClass + NodePool used as overflow for Kubernetes labs on top of the labs-k8s managed base.',
-      'Balloon warm-pool Deployments are intentionally not applied right now (and leftovers are removed). Prerequisite: Ready system-k8s (Helm --wait). For Linux overflow you still run Linux elastic (up) separately — that NodePool is different (labs-linux-elastic).',
+      'Balloon warm-pool Deployments are intentionally not applied right now (and leftovers are removed). Prerequisite: Ready system-k8s (Helm --wait). Linux and Docker overflow are separate NodePools (labs-linux-elastic, labs-docker-elastic) — run those elastic (up) actions yourself.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-karpenter.sh')],
   },
@@ -216,6 +216,73 @@ const ACTIONS = {
       'Confirm by typing down. Prefer Linux sleep when you only want to park capacity and keep plugins installed.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-linux.sh'), 'down'],
+    confirm: 'down',
+  },
+  'docker-base': {
+    label: 'Docker base',
+    section: 'docker',
+    summary: 'labs-docker Desired=1 + NRI + seccomp.',
+    description: [
+      'Creates the labs-docker managed node group and launch template if missing, scales it to Desired=1, waits for a Ready node labeled pool=docker, then installs the NRI cgroup-rw plugin, the docker-box seccomp profile, and the registry mirror.',
+      'NRI is required so systemd and dockerd can run inside user-namespaced Docker boxes. Seccomp profiles are required before boxes will start (CreateContainerError until the DaemonSet copies the profile onto the node). The mirror runs on system-k8s; boxes pull Docker Hub images only through it. NRI and seccomp select pool=docker, so future elastic nodes pick them up automatically.',
+      'This is enough to operate Docker labs on a single always-on node. Optional overflow is Docker elastic (up). Needs AWS admin for the NG, kubectl/kubeconfig, and a Ready system node for the mirror. Karpenter is needed only if you also plan to run up.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'base'],
+  },
+  'docker-up': {
+    label: 'Docker elastic (up)',
+    section: 'docker',
+    summary: 'Apply labs-docker-elastic NodePool only.',
+    description: [
+      'Applies only the Karpenter EC2NodeClass + NodePool labs-docker-elastic. When Docker boxes are Pending because the managed base is full, Karpenter buys matching Graviton nodes (same pool label/taint as the base) and removes them once empty.',
+      'Does not scale the managed NG and does not reinstall NRI/seccomp or the mirror — run Docker base first for that. Elastic nodes inherit those DaemonSets via devlabs.io/pool=docker.',
+      'Prerequisite: Karpenter controller already installed (Install Karpenter or controller-only).',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'up'],
+  },
+  'docker-wake': {
+    label: 'Docker wake',
+    section: 'docker',
+    summary: 'Wake labs-docker, plugins, and elastic.',
+    description: [
+      'Convenience path after Docker sleep: scales labs-docker back to 1, waits for Ready, re-applies NRI + seccomp + the registry mirror, then runs the elastic NodePool apply (same as up).',
+      'Use when Docker capacity was parked and you want both the always-on base and overflow restored in one action. If you only want the single managed node, prefer Docker base and skip up / wake’s elastic half.',
+      'Needs AWS admin + kubectl; elastic restore needs Karpenter present. The mirror needs a Ready system node.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'wake'],
+  },
+  'docker-sleep': {
+    label: 'Docker sleep',
+    section: 'docker',
+    summary: 'Park elastic and labs-docker → 0.',
+    description: [
+      'Parks Docker capacity without touching system-k8s or the EKS control plane. First patches labs-docker-elastic cpu limit to 0 and deletes its NodeClaims (Karpenter terminates those EC2 instances), then scales the labs-docker managed group to Desired=0.',
+      'NRI/seccomp DaemonSets and the registry mirror remain in the cluster. The Docker node plugins have nowhere to run until Docker wakes again. Open Docker labs will sit Pending.',
+      'Bring capacity back with Docker wake (base + elastic) or Docker base alone if you do not need overflow.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'sleep'],
+  },
+  'docker-spike': {
+    label: 'Docker spike check',
+    section: 'docker',
+    summary: 'base + spike box + capability checks.',
+    description: [
+      'End-to-end capability probe for the Docker pool. Runs Docker base (NG + NRI + seccomp + mirror), applies deploy/eks/docker/spike.yaml, waits for the spike pod Ready, then executes a battery of checks inside the box (user namespace, systemd, dockerd, seccomp, and more).',
+      'Use after infra changes (launch template, NRI image, seccomp profile) to verify boxes still boot correctly before learners hit the pool.',
+      'Requires the multi-arch devsetu/docker-lab image to be published (./images/build-all.sh docker-lab). First run may spend several minutes pulling the image.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'spike'],
+  },
+  'docker-down': {
+    label: 'Docker down',
+    section: 'docker',
+    summary: 'Tear down spike, plugins, elastic; sleep NG.',
+    description: [
+      'Full Docker teardown for spike / infra experiments: deletes the spike namespace, removes NRI and seccomp DaemonSets (and the seccomp ConfigMap) plus the registry mirror and its cache volume, deletes the labs-docker-elastic NodePool/EC2NodeClass, then sleeps labs-docker to Desired=0.',
+      'After this, Docker labs will not work until you run Docker base again (and up if you want elastic). Stronger than sleep alone because plugins are removed from the cluster.',
+      'Confirm by typing down. Prefer Docker sleep when you only want to park capacity and keep plugins installed.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'down'],
     confirm: 'down',
   },
 };

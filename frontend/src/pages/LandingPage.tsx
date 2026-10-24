@@ -5,10 +5,9 @@ import {
   TracksAnim,
   WhiteboardAnim,
 } from '../components/LandingFeatureAnims';
-import { Link, useLocation } from 'react-router-dom';
-import { LAUNCH_OFFER, PRICING_PATH } from '../constants/pricing';
+import { Link } from 'react-router-dom';
+import { PRICING_PATH } from '../constants/pricing';
 import { useInView } from '../hooks/useInView';
-import WaitlistForm from '../components/WaitlistForm';
 
 interface LandingPageProps {
   onSignIn: () => void;
@@ -234,16 +233,6 @@ function LandingContent(): JSX.Element {
   const offer3 = useInView<HTMLElement>();
   const pricingReveal = useInView<HTMLElement>();
 
-  const { hash } = useLocation();
-  useEffect(() => {
-    if (hash !== '#waitlist') return undefined;
-    // Smooth scrolling gets cancelled during a client-side route change, so jump instead.
-    const t = window.setTimeout(() => {
-      document.getElementById('waitlist')?.scrollIntoView({ block: 'center' });
-    }, 150);
-    return () => window.clearTimeout(t);
-  }, [hash]);
-
   return (
     <>
       <section className="landing-hero">
@@ -379,18 +368,6 @@ function LandingContent(): JSX.Element {
             View pricing <span aria-hidden>→</span>
           </Link>
         </aside>
-      </section>
-
-      <section id="waitlist" className="landing-waitlist" aria-label="Join the waitlist">
-        <div className="landing-waitlist-copy">
-          <p className="landing-kicker">Launching first week of November</p>
-          <h2 className="landing-section-title">Join the waitlist</h2>
-          <p className="landing-section-lead">
-            Get {LAUNCH_OFFER.percentOff}% off your first month at launch, and early access before
-            everyone else.
-          </p>
-        </div>
-        <WaitlistForm />
       </section>
     </>
   );

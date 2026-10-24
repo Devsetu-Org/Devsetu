@@ -183,9 +183,13 @@ down() {
   kubectl delete namespace "$NS" --ignore-not-found --wait=true
   kubectl -n dl-system delete daemonset nri-cgroup-rw seccomp-profiles --ignore-not-found
   kubectl -n dl-system delete configmap seccomp-profiles --ignore-not-found
-  echo "==> delete NodePool $POOL (Karpenter terminates its nodes)"
-  kubectl delete nodepool "$POOL" --ignore-not-found --wait=true --timeout=10m
-  kubectl delete ec2nodeclass "$POOL" --ignore-not-found --wait=true --timeout=10m
+  if kubectl get crd nodepools.karpenter.sh >/dev/null 2>&1; then
+    echo "==> delete NodePool $POOL (Karpenter terminates its nodes)"
+    kubectl delete nodepool "$POOL" --ignore-not-found --wait=true --timeout=10m
+    kubectl delete ec2nodeclass "$POOL" --ignore-not-found --wait=true --timeout=10m
+  else
+    echo "==> Karpenter is not installed; no NodePool to delete"
+  fi
   if eks_cluster_exists 2>/dev/null; then
     EKS_NODEGROUPS=labs-linux "$ROOT/eks-sleep.sh"
   fi

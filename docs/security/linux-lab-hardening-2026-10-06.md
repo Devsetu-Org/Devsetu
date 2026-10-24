@@ -68,7 +68,7 @@ How it reaches nodes: `deploy/eks/linux/seccomp-profiles.yaml` is a DaemonSet on
 - `deploy/eks/eks-linux.sh`: `up` installs it; new `seccomp` subcommand reinstalls only the profiles; `down` removes them; `check` adds four checks (seccomp active on PID 1, io_uring blocked, nested user namespace blocked, no failed units).
 - `backend/workspace/linuxBox.ts`: Linux boxes use `seccompProfile: {type: Localhost, localhostProfile: devlabs/linux-box.json}`. **Escape hatch:** `LINUX_LAB_SECCOMP=unconfined` in the backend env restores `Unconfined` (documented in `backend/.env.example`).
 - `deploy/eks/linux/spike.yaml`: the spike box uses the same profile.
-- **Docker boxes keep `Unconfined`** for now: dockerd and runc inside the box need syscalls the Linux profile blocks (keyrings, possibly the new mount API). They need their own profile, tested on a running `labs-docker` node.
+- **Docker boxes run `devlabs/docker-box.json`** (`deploy/eks/docker/seccomp/docker-box.json`), installed by `seccomp-profiles-docker` on `devlabs.io/pool=docker` nodes (`eks-docker.sh base` / `seccomp`). It is the Linux deny-list with two calls left open, because runc fails the container start instead of falling back: keyrings (`keyctl`, `add_key`, `request_key`) and `bpf` (cgroup v2 device controller). io_uring, the new mount API, `clone3`, nested user namespaces, and the rest stay blocked. Escape hatch: `DOCKER_LAB_SECCOMP=unconfined`.
 
 **Live test (2026-10-06, `labs-linux` base node, AL2023 kernel, systemd 255 in `devsetu/linux-lab:v0.5`)**, spike box with the profile:
 

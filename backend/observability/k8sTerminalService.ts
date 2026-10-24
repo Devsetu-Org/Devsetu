@@ -24,6 +24,7 @@ const pty = require('node-pty');
 const sessionStore = require('../db/sessionStore');
 const loader = require('../challenges/loader');
 const { boxFlavor } = require('../challenges/labTypes');
+const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const k8sCluster = require('../workspace/k8sCluster');
 const labShell = require('../workspace/labShell');
 const linuxBox = require('../workspace/linuxBox');
@@ -225,7 +226,16 @@ function handleConnection(ws: ObservabilityWebSocket, req: IncomingMessage): voi
   const challengeId = String(session.challengeId || '');
   const cols = parseInt(q.get('cols') || '120', 10) || 120;
   const rows = parseInt(q.get('rows') || '32', 10) || 32;
-  const target: ShellTarget = { sessionId, ns, challengeId, cols, rows };
+  const target: ShellTarget = {
+    sessionId,
+    ns,
+    challengeId,
+    cols,
+    rows,
+    exitNotice: isLinuxBlogPlayground(challengeId)
+      ? 'The playground stays. Here is a fresh shell.'
+      : undefined,
+  };
   const flavor: BoxFlavor | null = boxFlavor(loader.getChallenge(challengeId)?.sandboxType);
 
   void (async () => {
@@ -233,11 +243,23 @@ function handleConnection(ws: ObservabilityWebSocket, req: IncomingMessage): voi
       ? await startBoxShell(ws, target, flavor)
       : await startKubectlShell(ws, target, session);
     if (!started) return;
+    if (isLinuxBlogPlayground(challengeId)) {
+      started.banner =
+        `\x1b[1;36m⚡ This box is yours\x1b[0m \x1b[1m— a real Linux machine beside the blog.\x1b[0m\r\n`
+        + `\x1b[38;5;245mTry the commands from the reading in this terminal.\x1b[0m\r\n`;
+    }
     attachShell(ws, sessionId, clientId, started, cols);
   })();
 }
 
-type ShellTarget = { sessionId: string; ns: string; challengeId: string; cols: number; rows: number };
+type ShellTarget = {
+  sessionId: string;
+  ns: string;
+  challengeId: string;
+  cols: number;
+  rows: number;
+  exitNotice?: string;
+};
 
 type StartedShell = {
   child: IPty;
@@ -348,12 +370,12 @@ const introShownSessions = new Set<string>();
 /** Box labs: login shell as `learner` inside the lab's box pod. */
 async function startBoxShell(
   ws: ObservabilityWebSocket,
-  { sessionId, ns, challengeId, cols, rows }: ShellTarget,
+  { sessionId, ns, challengeId, cols, rows, exitNotice }: ShellTarget,
   flavor: BoxFlavor,
 ): Promise<StartedShell | null> {
   let child: IPty;
   try {
-    const cmd = await k8sCluster.controllerKubectlCommand(linuxBox.shellExecArgs(ns));
+    const cmd = await k8sCluster.controllerKubectlCommand(linuxBox.shellExecArgs(ns, exitNotice));
     child = pty.spawn('kubectl', cmd.args, {
       name: 'xterm-256color',
       cols,
