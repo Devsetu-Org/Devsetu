@@ -972,7 +972,9 @@ export default function App(): React.JSX.Element {
     let cancelled = false;
     const beat = async (): Promise<void> => {
       const result = await sendLabHeartbeat(leaseSessionId);
-      if (cancelled) return;
+      // Opening another lab replaces the session before this response lands.
+      // Applying it would mark the new lab as open in another tab.
+      if (cancelled || activeSessionIdRef.current !== leaseSessionId) return;
       if (result === 'idle') {
         if (!lockLabForInactivity()) setLabLeaseLost('ended');
         return;

@@ -456,6 +456,8 @@ export default function K8sLabWorkspace({
   useEffect(() => {
     setSubmissions([]);
     setSelectedSubmissionId(null);
+    // The placeholder id exists only while the machine is booting; it has no submission list.
+    if (!session.id || session.id.startsWith('pending-k8s-')) return;
     refreshSubmissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id]);

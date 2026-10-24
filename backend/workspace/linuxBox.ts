@@ -10,8 +10,10 @@
  * The pod is user-namespaced (hostUsers: false), so root and the added capabilities
  * only apply inside it; the nri-cgroup-rw plugin on box nodes makes its cgroupfs
  * writable so systemd (and dockerd's per-container cgroups) work (deploy/eks/linux/,
- * deploy/eks/docker/). Linux boxes run the devlabs/linux-box.json seccomp profile, which
- * the seccomp-profiles DaemonSet installs on every labs-linux node. Learners get no
+ * deploy/eks/docker/). Linux boxes run devlabs/linux-box.json and Docker boxes run
+ * devlabs/docker-box.json (the same denials, except keyrings and bpf, which runc needs).
+ * The seccomp-profiles DaemonSets install them on labs-linux and labs-docker nodes.
+ * Learners get no
  * Kubernetes API access here: the backend creates the pod and the terminal execs into it
  * with controller credentials.
  *
@@ -67,6 +69,11 @@ const LINUX_SECCOMP = process.env.LINUX_LAB_SECCOMP === 'unconfined'
   ? 'type: Unconfined'
   : 'type: Localhost\n          localhostProfile: devlabs/linux-box.json';
 
+/** Same escape hatch for Docker boxes. See deploy/eks/docker/seccomp/docker-box.json. */
+const DOCKER_SECCOMP = process.env.DOCKER_LAB_SECCOMP === 'unconfined'
+  ? 'type: Unconfined'
+  : 'type: Localhost\n          localhostProfile: devlabs/docker-box.json';
+
 const FLAVORS: Record<BoxFlavor, Flavor> = {
   /**
    * Sized for ~40 boxes per t4g.medium (deploy/eks/karpenter/nodepool-linux.yaml). Lab 18
@@ -102,14 +109,18 @@ const FLAVORS: Record<BoxFlavor, Flavor> = {
     },
     tmpSize: '1Gi',
     docker: true,
-    // dockerd and runc need syscalls the Linux profile blocks; needs its own profile.
-    seccomp: 'type: Unconfined',
+    seccomp: DOCKER_SECCOMP,
   },
 };
 
 /** lx-<user> / dk-<user>, same slug as the learner's Kubernetes namespace. */
 function boxNamespace(userName: string, flavor: BoxFlavor): string {
   return String(k8s.learnerNamespace(userName)).replace(/^ns-/, FLAVORS[flavor].nsPrefix);
+}
+
+/** Blog playground box. Separate from lx-<user> so it never shares a lab's pod. */
+function playgroundNamespace(userName: string): string {
+  return String(k8s.learnerNamespace(userName)).replace(/^ns-/, 'lp-');
 }
 
 /**
@@ -359,7 +370,9 @@ function hasBoxWork(ns: string, challengeId: string): boolean {
 }
 
 function discardBoxWork(ns: string, challengeId: string): void {
-  fs.rmSync(workArchivePath(ns, challengeId), { force: true });
+  const dest = workArchivePath(ns, challengeId);
+  fs.rmSync(dest, { force: true });
+  fs.rmSync(`${dest}.partial`, { force: true });
 }
 
 async function boxIsReady(ns: string): Promise<boolean> {
@@ -491,18 +504,88 @@ function scriptEnv(): Record<string, string> {
  */
 const EXIT_NOTICE = 'This machine stays — Submit to solve the lab. Here is a fresh shell.';
 
-function shellExecArgs(ns: string): string[] {
+function shellExecArgs(ns: string, exitNotice?: string): string[] {
+  const notice = String(exitNotice || EXIT_NOTICE).replace(/'/g, '');
   const relaunch =
     `while :; do if runuser -l ${LEARNER_USER}; then `
-    + `printf '\\033[A\\033[2K\\r\\033[38;5;179m${EXIT_NOTICE}\\033[0m\\n'; `
+    + `printf '\\033[A\\033[2K\\r\\033[38;5;179m${notice}\\033[0m\\n'; `
     + `else sleep 1; fi; done`;
   return ['exec', '-it', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--', 'bash', '-c', relaunch];
+}
+
+/** Editor files for the blog playground. Only ~/playground/<simple name>. */
+const PLAYGROUND_FILE_RE = /^playground\/[A-Za-z0-9_-][A-Za-z0-9._-]{0,80}$/;
+const MAX_PLAYGROUND_FILE_BYTES = 256 * 1024;
+
+class PlaygroundFileError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function playgroundFilePath(raw: unknown): string {
+  if (typeof raw !== 'string' || !PLAYGROUND_FILE_RE.test(raw)) {
+    throw new PlaygroundFileError(400, 'Save files under playground/, with a simple file name.');
+  }
+  return raw;
+}
+
+/** kubectl exec as the learner. $1 is the validated relative path, never interpolated. */
+function learnerFileArgs(ns: string, relPath: string, script: string): string[] {
+  return [
+    'exec', '-i', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--',
+    'runuser', '-u', LEARNER_USER, '--',
+    'bash', '-c', script, 'bash', relPath,
+  ];
+}
+
+async function readLearnerFile(ns: string, rawPath: unknown): Promise<{ path: string; content: string }> {
+  const relPath = playgroundFilePath(rawPath);
+  const result = await k8s.runKubectl(
+    learnerFileArgs(ns, relPath, 'cat "$HOME/$1"'),
+    { timeoutMs: 20_000 },
+  );
+  if (result.code !== 0) {
+    if (/No such file/.test(String(result.stderr || ''))) {
+      throw new PlaygroundFileError(404, 'file not found');
+    }
+    throw new PlaygroundFileError(502, 'Could not read that file from the playground.');
+  }
+  return { path: relPath, content: String(result.stdout || '') };
+}
+
+async function writeLearnerFile(
+  ns: string,
+  rawPath: unknown,
+  content: unknown,
+): Promise<{ path: string }> {
+  const relPath = playgroundFilePath(rawPath);
+  if (typeof content !== 'string') throw new PlaygroundFileError(400, 'content must be text');
+  if (Buffer.byteLength(content, 'utf8') > MAX_PLAYGROUND_FILE_BYTES) {
+    throw new PlaygroundFileError(400, 'That file is too large to save (256 KB max).');
+  }
+  const result = await k8s.runKubectl(
+    learnerFileArgs(
+      ns,
+      relPath,
+      'install -d -m 755 "$HOME/playground" && cat > "$HOME/$1"',
+    ),
+    { input: content, timeoutMs: 20_000 },
+  );
+  if (result.code !== 0) {
+    throw new PlaygroundFileError(502, 'Could not save that file on the playground.');
+  }
+  return { path: relPath };
 }
 
 module.exports = {
   BOX_POD,
   LEARNER_USER,
   boxNamespace,
+  playgroundNamespace,
   recreateBox,
   deleteBox,
   hasBoxWork,
@@ -513,4 +596,7 @@ module.exports = {
   poolFor,
   scriptEnv,
   shellExecArgs,
+  PlaygroundFileError,
+  readLearnerFile,
+  writeLearnerFile,
 };

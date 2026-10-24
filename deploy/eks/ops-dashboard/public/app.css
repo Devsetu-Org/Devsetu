@@ -184,6 +184,10 @@ body.drawer-open .page {
   color: var(--warning);
 }
 
+.widget[data-section="docker"] .widget-kicker {
+  color: #c4b5fd;
+}
+
 .widget-title {
   margin: 0;
   font-family: var(--display);

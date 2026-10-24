@@ -1,5 +1,8 @@
-import React, { useMemo } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import LinuxBlogPlayground from '../components/LinuxBlogPlayground';
+import { useAppState } from '../context/AppStateContext';
+import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import {
   K8S_BLOG_STAMP_SRC,
   type K8sReadingCodeBlock,
@@ -8,7 +11,15 @@ import {
   type K8sReadingTable,
 } from '../constants/k8sReadings';
 import { READING_TRACKS, type ReadingTrackId } from '../constants/readingTracks';
+import { PRICING_PATH } from '../constants/pricing';
 import ReadOnlyCodePane from '../components/ReadOnlyCodePane';
+import type { ChallengePublic } from '../types/domain';
+
+/** True when the loaded catalog shows this user can open paid Linux labs. */
+function hasLinuxTrackAccess(challenges: ChallengePublic[]): boolean {
+  const linux = challenges.filter((c) => c.paidTrack === 'linux');
+  return linux.length > 0 && linux.every((c) => !c.locked);
+}
 
 function RichTextInline({ text }: { text: string }): JSX.Element {
   // Order matters: **`code`** / *`code`* before **bold** / *italic*, then `code`.
@@ -310,25 +321,97 @@ export function ReadingSection({
   );
 }
 
+const PLAYGROUND_PCT_KEY = 'devsetu.linuxBlog.playgroundPct.v2';
+/** Blog share when the playground first opens. Matches a wide reading column and a terminal beside it. */
+const DEFAULT_BLOG_PCT = 60;
+
+function readPlaygroundPct(): number {
+  try {
+    const n = Number(sessionStorage.getItem(PLAYGROUND_PCT_KEY));
+    if (Number.isFinite(n)) return Math.min(68, Math.max(32, n));
+  } catch {
+    /* private mode */
+  }
+  return DEFAULT_BLOG_PCT;
+}
+
 export default function K8sReadingPage({
   trackId = 'kubernetes',
 }: {
   trackId?: ReadingTrackId;
 }): JSX.Element {
   const { readingSlug } = useParams<{ readingSlug: string }>();
+  const navigate = useNavigate();
+  const { authMode, challenges, challengesError, onRequestLogin } = useAppState();
+  const isNarrow = useIsNarrowUi();
   const track = READING_TRACKS[trackId];
   const reading = useMemo(() => track.getReading(readingSlug), [track, readingSlug]);
+  const playgroundAvailable = trackId === 'linux' && !isNarrow;
+  const linuxLabsKnown = challenges.some((c) => c.paidTrack === 'linux');
+  const playgroundSubscribed = hasLinuxTrackAccess(challenges);
+  const needsSubscription = authMode === 'interviewer' && linuxLabsKnown && !playgroundSubscribed;
+  const checkingAccess = authMode === 'interviewer' && !linuxLabsKnown && !challengesError;
+  const [playgroundOpen, setPlaygroundOpen] = useState(false);
+  const [blogPct, setBlogPct] = useState(readPlaygroundPct);
+  const splitRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!playgroundAvailable || (linuxLabsKnown && !playgroundSubscribed)) setPlaygroundOpen(false);
+  }, [playgroundAvailable, linuxLabsKnown, playgroundSubscribed]);
+
+  const openPlayground = (): void => {
+    if (authMode !== 'interviewer') {
+      onRequestLogin(window.location.pathname, {
+        title: 'Sign in to open the playground',
+        body: 'The playground is a real Linux machine beside this blog. It opens for a Linux or DevOps Engineer subscription. Sign in, then open it again.',
+      });
+      return;
+    }
+    if (linuxLabsKnown && !playgroundSubscribed) {
+      navigate(PRICING_PATH);
+      return;
+    }
+    setPlaygroundOpen(true);
+  };
+
+  const onSplitPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    event.preventDefault();
+    const shell = splitRef.current;
+    if (!shell) return;
+    const move = (ev: PointerEvent): void => {
+      const rect = shell.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const next = Math.min(68, Math.max(32, ((ev.clientX - rect.left) / rect.width) * 100));
+      setBlogPct(next);
+      try {
+        sessionStorage.setItem(PLAYGROUND_PCT_KEY, String(Math.round(next)));
+      } catch {
+        /* private mode */
+      }
+    };
+    const up = (): void => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   if (!reading || !readingSlug) {
     return <Navigate to={track.labsPath} replace />;
   }
 
   const tocSections = reading.sections.filter((s) => s.title);
+  const split = playgroundAvailable && playgroundOpen;
 
   return (
-    <div className="app-page spark-primer-page">
+    <div
+      ref={splitRef}
+      className={`app-page spark-primer-page${split ? ' spark-primer-page--playground' : ''}`}
+    >
     <article
-      className={`spark-primer-notebook${reading.showBlogStamp ? ' spark-primer-notebook--stamped' : ''}`}
+      className={`spark-primer-notebook${reading.showBlogStamp ? ' spark-primer-notebook--stamped' : ''}${split ? ' spark-primer-notebook--split' : ''}`}
+      style={split ? { flexBasis: `${blogPct}%` } : undefined}
     >
       {reading.showBlogStamp ? (
         <img
@@ -357,6 +440,23 @@ export default function K8sReadingPage({
         <p className="spark-primer-lede">
           <RichText text={reading.lede} />
         </p>
+        {playgroundAvailable && !split ? (
+          <div className="linux-blog-playground-launch">
+            <div>
+              <p className="linux-blog-playground-launch-title">
+                {needsSubscription ? 'Subscribe to try it while you read' : 'Try it while you read'}
+              </p>
+              <p>
+                {needsSubscription
+                  ? 'A Linux or DevOps Engineer subscription opens a terminal beside this blog.'
+                  : 'Open a terminal beside this blog and try the commands as you read.'}
+              </p>
+            </div>
+            <button type="button" onClick={openPlayground} disabled={checkingAccess}>
+              {needsSubscription ? 'Subscribe' : 'Open playground'}
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <nav className="spark-primer-toc" aria-label="On this page">
@@ -434,6 +534,24 @@ export default function K8sReadingPage({
         </section>
       ) : null}
     </article>
+    {split ? (
+      <div
+        className="linux-blog-split-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize blog and playground"
+        onPointerDown={onSplitPointerDown}
+      />
+    ) : null}
+    {split ? (
+      <LinuxBlogPlayground
+        onClose={() => setPlaygroundOpen(false)}
+        onSubscribe={() => {
+          setPlaygroundOpen(false);
+          navigate(PRICING_PATH);
+        }}
+      />
+    ) : null}
     </div>
   );
 }

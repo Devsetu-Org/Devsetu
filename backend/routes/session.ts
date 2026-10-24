@@ -14,7 +14,9 @@ const k8sLifecycle = require('../workspace/k8sLifecycle');
 const k8sCapacity = require('../workspace/k8sCapacity');
 const k8sGrade = require('../workspace/k8sGrade');
 const k8sLabFiles = require('../workspace/k8sLabFiles');
+const linuxBox = require('../workspace/linuxBox');
 const { isBoxLabType } = require('../challenges/labTypes');
+const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const { publicBoardSpec } = require('../workspace/boardGrade');
 const workspaceStore = require('../workspace/workspaceStore');
 const sessionStore = require('../db/sessionStore');
@@ -350,6 +352,8 @@ function sendStartError(e: unknown, res: ExpressResponse, next: ExpressNextFunct
 }
 
 async function assertChallengeAccess(req: ExpressRequest, challengeId: string | null | undefined): Promise<void> {
+  // Spark playground stays open to any signed-in user. The blog playground does not:
+  // it falls through and must pass the same paid-track check as a Linux lab.
   if (!challengeId || challengeId === 'spark-playground') return;
   const listed = loader.getChallenge(challengeId);
   if (!listed) return;
@@ -635,6 +639,54 @@ router.delete('/:id/k8s/file', requireSessionAccess, labFilesRoute(
   },
   { touch: true },
 ));
+
+function getPlaygroundSession(id: string, res: ExpressResponse): GameSession | null {
+  const session = getK8sSession(id, res);
+  if (!session) return null;
+  if (!isLinuxBlogPlayground(session.challengeId)) {
+    res.status(409).json({ error: 'not a linux playground session' });
+    return null;
+  }
+  return session;
+}
+
+function sendPlaygroundFileError(e: unknown, res: ExpressResponse, next: ExpressNextFunction): void {
+  if (e instanceof linuxBox.PlaygroundFileError) {
+    res.status((e as { status: number }).status).json({ error: (e as Error).message });
+    return;
+  }
+  next(e);
+}
+
+router.get('/:id/linux-playground/file', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const session = getPlaygroundSession(req.params.id, res);
+    if (!session) return;
+    const file = await linuxBox.readLearnerFile(
+      String(session.k8sNamespace || session.workspacePrefix),
+      req.query.path,
+    );
+    res.json(file);
+  } catch (e) {
+    sendPlaygroundFileError(e, res, next);
+  }
+});
+
+router.put('/:id/linux-playground/file', requireSessionAccess, express.json({ limit: '512kb' }), async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const session = getPlaygroundSession(req.params.id, res);
+    if (!session) return;
+    const body = (req.body as Record<string, unknown>) || {};
+    const file = await linuxBox.writeLearnerFile(
+      String(session.k8sNamespace || session.workspacePrefix),
+      body.path,
+      body.content,
+    );
+    res.json({ file });
+  } catch (e) {
+    sendPlaygroundFileError(e, res, next);
+  }
+});
 
 router.get('/:id/board', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
   try {

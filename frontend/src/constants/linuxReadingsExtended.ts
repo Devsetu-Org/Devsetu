@@ -306,392 +306,465 @@ awk -F, 'NR>1 && $4=="successful" {sum += $5} END {print sum}' snacks.csv`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-07-onboard-the-payments-team',
     lede:
-      'A Linux machine is shared. People and programs each run as a **user**, and every file records **who owns it** and **who else may read, change, or enter it**. This post walks through accounts and groups, how Linux picks the permission bits that apply, how to change them, and the two cases that show up once a team shares a folder.',
+      'Monday on a shared box. **Ravi** needs a login and a way to restart one service, the app’s signing key is readable by every account, **Leela** must read a team folder without joining the team, and **Meera**’s old login still works.',
     sections: [
       {
-        id: 'identity',
-        title: 'Users and groups: who you are',
+        id: 'who-is-on-the-box',
+        title: 'Who is on the box',
         body: [
-          'Every person, and many programs, runs as a **user**. A web service usually has its own user, so it is not running as you. A **group** is a named list of users. You grant access to the group once, and everyone in it gets that access.',
-          'One login can belong to several groups. Exactly one of them is the **primary group**. The others are **extra groups**. Every file still has only one owner and one group.',
+          'Asha is already here. The app runs as **app**, a user of its own, so it is not running as Asha and not as you. A **group** is a named list of users. Grant access to the group once, and everyone in it gets that access. **developers** is the list for this team.',
+          'Asha’s **primary group** is **asha**. **developers** is an **extra group**. **app**’s primary group is **developers**. A login can be in many groups. A file still has one owner and one group.',
         ],
         subsections: [
           {
             id: 'whoami-id',
-            title: 'whoami and id: check who you are',
+            title: 'whoami and id',
             body: [
-              '**`whoami`** prints the name of the user running the command. **`id`** prints the numbers Linux actually checks: your user id (**uid**), your primary group id (**gid**), and every group you belong to. Names are labels for people. Permission checks use the numbers.',
-              '**`gid=`** is the primary group. **`groups=`** lists every group, and that list includes the primary group. **`id ravi`** prints the same facts for someone else.',
+              '**`whoami`** prints the user running the command. **`id`** prints the numbers Linux checks: the user id (**uid**), the primary group id (**gid**), and every group. Names are labels. Permission checks use the numbers.',
+              '**`gid=`** is the primary group. **`groups=`** lists every group, and the primary group is in that list too. **`id asha`** looks up Asha. **`id app`** looks up the service account.',
             ],
             code: {
               language: 'shell',
               code: `whoami
-id
+id asha
 # uid=1001(asha) gid=1001(asha) groups=1001(asha),4(adm),1002(developers)
-id ravi`,
+id app
+# uid=999(app) gid=1002(developers) groups=1002(developers)`,
             },
           },
           {
             id: 'passwd-group-files',
-            title: '/etc/passwd and /etc/group: where accounts live',
+            title: 'Where those lines are written',
             body: [
-              'Accounts live in two text files. Anyone can read them. Only root can change them. Look a line up with **`getent`**, which also works when accounts come from a company directory and not only from these files.',
-              '**`/etc/passwd`** has one line per user, seven fields separated by colons. Take Asha’s line apart:',
-              '**`asha`** is the login name. **`x`** means the password is not stored here. The hash is in **`/etc/shadow`**, which only root can read. **`1001`** is the uid. The next **`1001`** is the gid of her **primary group**. Then come a comment (often the full name), the home folder **`/home/asha`**, and the login shell **`/bin/bash`**. The shell is the program that starts when she logs in. **`/usr/sbin/nologin`** is a shell that refuses to start a session, which is why service accounts use it.',
-              '**`/etc/group`** has one line per group, four fields: **name**, **`x`**, **gid**, and a comma-separated list of **extra members**. That list does not repeat the people whose primary group this is. Asha’s primary group is **`asha`** because her passwd line says gid 1001. She is also in **`developers`** because her name is written on that group’s line. Both show up in **`id`**.',
+              'Accounts live in two text files. Anyone can read them. Only root can change them. **`getent`** prints one line, and it still works when the account comes from a company directory instead of these files.',
+              '**`x`** means the password hash is in **`/etc/shadow`**, which only root can read. **app**’s shell is **`/usr/sbin/nologin`**, so a login session refuses to start. That is a service account. Run a command as app with **`sudo -u app`**. There is no login to sign in to.',
+              'The **developers** line lists extra members. **app** is not written there, and app is still in the group: **developers** is app’s primary group, the gid on app’s passwd line.',
             ],
             code: {
               language: 'shell',
               code: `getent passwd asha
 # asha:x:1001:1001:Asha Rao:/home/asha:/bin/bash
-getent passwd www-data
-# www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
-getent group asha
-# asha:x:1001:
+getent passwd app
+# app:x:999:1002:app:/opt/app:/usr/sbin/nologin
 getent group developers
-# developers:x:1002:asha,ravi`,
-            },
-          },
-          {
-            id: 'builtin-groups',
-            title: 'Groups that are already on the box',
-            body: [
-              'You do not create every group. A new Ubuntu machine already has a long list in **`/etc/group`**. Two of them matter as soon as you hand out access.',
-              '**`adm`** can read many system logs under **`/var/log`**, such as **`syslog`** and **`auth.log`**. A normal login cannot open those files. Membership in **`adm`** does not give a root shell. Add the person who has to read logs. Leave everyone else out.',
-              '**`sudo`** is different. On Ubuntu, members of **`sudo`** may run any command as root. That is full admin access. A person who should only restart one service does not belong in this group. Give that team its own group, and write a rule that names the commands they may run.',
-            ],
-            code: {
-              language: 'shell',
-              code: `getent group adm
-# adm:x:4:syslog
-getent group sudo
-# sudo:x:27:learner`,
-            },
-          },
-          {
-            id: 'root-sudo',
-            title: 'root and sudo: running one command as admin',
-            body: [
-              '**root** (uid **0**) skips permission checks. It can read, change, and delete anything. Creating users and editing system files needs root.',
-              'You almost never log in as root. **`sudo`** runs one command as root, then stops. It looks up a rule to decide whether you are allowed. Those rules live in **`/etc/sudoers`** and in small files under **`/etc/sudoers.d/`**. One file per team keeps the rules easy to read.',
-              'A rule names a user, or a whole group when the name starts with **`%`**. It can allow every command, or only the commands you write out. Write each command as a full path, because sudo matches the path, not the short name. **`NOPASSWD:`** means sudo does not ask for a password for those commands. Anything not listed is refused. This line lets the **`developers`** group restart one service and check that it is running, and nothing else: **`%developers ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`**. **`ALL`** means any host. **`(root)`** means run as root. The two commands are separated by a comma.',
-              'Edit the file with **`visudo -f`**, then check it with **`visudo -cf`**. visudo rejects a broken line instead of saving it. The file must be owned by **`root:root`** and mode **`440`**. If the owner or the mode is looser, sudo ignores the file.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo -l
-sudo visudo -f /etc/sudoers.d/developers
-sudo chmod 440 /etc/sudoers.d/developers
-sudo visudo -cf /etc/sudoers.d/developers`,
-            },
-          },
-          {
-            id: 'useradd',
-            title: 'useradd: create a user',
-            body: [
-              '**`useradd`** adds one line to **`/etc/passwd`** and picks the next free uid. On its own that is a bare account: many systems create no home folder, and the new user has no password, so they cannot log in.',
-              '**`-m`** creates **`/home/<name>`** and gives that folder to the new user. **`-s /bin/bash`** sets the login shell. **`-c`** sets the comment, usually the person’s name. **`-G`** adds extra groups at the same time. It does not change the primary group. Set a password with **`passwd`** before the person logs in.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo useradd -m -s /bin/bash -c 'Ravi Kumar' -G developers ravi
-sudo passwd ravi
-# home is /home/ravi, owned by ravi, shell is bash, extra group developers`,
-            },
-          },
-          {
-            id: 'groupadd',
-            title: 'groupadd: create a group',
-            body: [
-              '**`groupadd`** adds an empty group to **`/etc/group`**. Create one group for a team or a role, then grant access to the group instead of to each person. The group stays empty until you add members with **`useradd -G`** or **`usermod -aG`**.',
-              '**`-g`** picks the gid yourself, which matters when two machines must agree on the number. **`groupdel`** removes a group that nobody uses.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo groupadd developers
-getent group developers
-# developers:x:1002:
-sudo groupadd -g 1500 backups
-sudo groupdel backups`,
-            },
-          },
-          {
-            id: 'usermod',
-            title: 'usermod: change an existing user',
-            body: [
-              '**`usermod`** edits an account that already exists. Adding a group is **`-aG`**. **`-a`** means append. **`-G`** alone **replaces** the whole list of extra groups, so the user falls out of every group you forgot to type, including **`sudo`**.',
-              'A new group shows up on the **next** login. **`id`** in the current session can still show the old list. Open a new session before you trust it. **`gpasswd -d`** removes one person from one group and leaves their other groups alone.',
-              'To retire an account and keep their files, do two things. **`-L`** locks the password, so a password login fails. **`-s /usr/sbin/nologin`** sets a shell that will not start a session. The home folder stays. **`passwd -S`** prints the state: the second field is **`L`** when the password is locked. **`userdel -r`** is the other choice. It deletes the account and the home folder.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo usermod -aG developers,adm ravi
-sudo gpasswd -d ravi adm
-sudo usermod -L -s /usr/sbin/nologin ravi
-sudo passwd -S ravi
-# ravi L ...
-id ravi`,
-            },
-          },
-        ],
-        figure: {
-          image: groupsOnOneUserImg,
-          imageAlt:
-            'Hand-drawn sketch: a user has a primary group from /etc/passwd and one extra group named team. The groups adm and sudo already exist on the box.',
-          caption:
-            'The primary group comes from the user record. Extra groups are added. adm and sudo are already on the box.',
-          flush: true,
-        },
-        tableAfter: {
-          headers: ['Command', 'What it does'],
-          rows: [
-            ['`whoami` / `id`', 'Show your name / uid, primary group, and extra groups'],
-            ['`getent passwd` / `getent group`', 'Look up one user or one group'],
-            ['`sudo -l`', 'Show which commands you may run as root'],
-            ['`useradd -m -s /bin/bash -G group user`', 'Create a user with a home, bash, and extra groups'],
-            ['`passwd user`', 'Set a password so the user can log in'],
-            ['`groupadd group`', 'Create an empty group'],
-            ['`usermod -aG group user`', 'Add extra groups without dropping the ones they have'],
-            ['`usermod -L -s /usr/sbin/nologin user`', 'Lock the password and stop new sessions. Keep the home'],
-          ],
-        },
-        callout: {
-          kind: 'warn',
-          title: '-G replaces the extra groups',
-          body: [
-            '**`usermod -G developers ravi`** sets Ravi’s extra groups to that list and nothing else. If he was in **`sudo`**, he is not anymore. Use **`-aG`** when you mean “also add this group.”',
-          ],
-        },
-      },
-      {
-        id: 'permission-bits',
-        title: 'Permissions: reading ls -l',
-        body: [
-          'Every file carries nine permission letters, in three sets of three: the **owner**, the **group**, and **others** (everyone else). **`ls -l`** prints them at the start of the line. Linux does not combine the three sets. It picks one.',
-        ],
-        subsections: [
-          {
-            id: 'read-ls-l',
-            title: 'Run ls -l',
-            body: [
-              '**`ls -l`** prints one line per file: type, permissions, owner, group, size, and date. Add **`-d`** when you want the folder itself. Without **`-d`**, **`ls -l`** lists what is inside the folder.',
-            ],
-            code: {
-              language: 'shell',
-              code: `ls -l notes.txt
-# -rw-r----- 1 asha developers 1204 Oct  4 09:15 notes.txt
-ls -ld /srv/team`,
-            },
-          },
-          {
-            id: 'ls-l-parts',
-            title: 'What each part of the line means',
-            body: [
-              'Read left to right. The first character is the **type**: **`-`** a file, **`d`** a directory, **`l`** a link. The next nine characters are the permissions, three for the owner, three for the group, three for others. Inside each trio the order is always **read**, **write**, **execute**. A letter means allowed. A dash means not.',
-              'The names that follow tell you who those trios belong to. Here Asha is the owner and **`developers`** is the group. Asha’s trio is **`rw-`**. The group’s trio is **`r--`**. Everyone else’s trio is **`---`**.',
-            ],
-            code: {
-              language: 'text',
-              code: `-            type: - file, d directory, l link
-rw-          owner (asha): read and write
-r--          group (developers): read
----          others: nothing
-1            links (ignore for now)
-asha         owner
-developers   group
-1204         size in bytes
-Oct  4 09:15 last modified
-notes.txt    name`,
-            },
-          },
-          {
-            id: 'which-bits',
-            title: 'Which three letters Linux uses',
-            body: [
-              'Linux asks three questions, in order, and stops at the first yes.',
-              'Are you the **owner**? Then only the owner trio counts. The group trio does not add rights, and it does not take them away. If Asha’s trio is **`r--`** and the group trio is **`rwx`**, Asha can still only read, even though she is in the group.',
-              'If you are not the owner, are you in the file’s **group**? Then only the group trio counts. Ravi is in **`developers`** and does not own the file, so he gets **`r--`**.',
-              'Otherwise you are **others**, and only the last trio counts. A guest gets **`---`** and cannot open the file.',
-            ],
-          },
-          {
-            id: 'rwx-meaning',
-            title: 'r, w, x on files and on directories',
-            body: [
-              'On a **file**, the letters mean what they say. **`r`** reads the contents. **`w`** changes them. **`x`** runs the file as a program or a script.',
-              'On a **directory** they mean something else, because a directory is a list of names. **`r`** lets you **list** the names. **`x`** lets you **enter** it with **`cd`** and open what is inside. **`w`** lets you **create, rename, or delete** names in it. Write on a directory is not “edit the files.” It is “change the list of names.”',
-              'A directory with **`r`** and no **`x`** can show you names you cannot open. That is why a directory you can use almost always has **`x`** next to **`r`**.',
-            ],
-          },
-          {
-            id: 'octal',
-            title: 'Permissions as numbers',
-            body: [
-              'Each letter has a value: **`r` = 4**, **`w` = 2**, **`x` = 1**. A dash is 0. Add the letters that are present in one trio and you get a digit from 0 to 7. Three trios make a three-digit number.',
-              '**`rwxr-x---`**: owner **`rwx`** = 4+2+1 = **7**, group **`r-x`** = 4+0+1 = **5**, others **`---`** = **0**. The number is **750**. The other direction is the same split. **640** is 6 = 4+2 = **`rw-`**, 4 = **`r--`**, 0 = **`---`**, so **`rw-r-----`**.',
-              'A few numbers cover most files. **644** is a normal file, everyone can read, only the owner can change it. **600** is private, owner only, which is what a key should be. **755** is a program or a public folder. **750** is a folder the group can enter and the rest cannot. **770** is a folder for the owner and the group only. **`stat -c %a file`** prints the number.',
-            ],
-            code: {
-              language: 'text',
-              code: `letters       owner     group     others    number
-rwxr-xr-x     4+2+1=7   4+0+1=5   4+0+1=5   755
-rw-r--r--     4+2+0=6   4+0+0=4   4+0+0=4   644
-rwxr-x---     4+2+1=7   4+0+1=5   0+0+0=0   750
-rw-------     4+2+0=6   0         0         600`,
-            },
-          },
-        ],
-        figure: {
-          image: whichBitsApplyImg,
-          imageAlt:
-            'Hand-drawn sketch: the owner gets rw-, someone in the group gets r--, and everyone else gets ---. Linux uses only one of those sets.',
-          caption: 'Linux picks one set. Owner first, then group, then everyone else.',
-          flush: true,
-        },
-        tableAfter: {
-          headers: ['Letter', 'Value', 'On a file', 'On a directory'],
-          rows: [
-            ['`r`', '4', 'Read the contents', 'List the names inside'],
-            ['`w`', '2', 'Change the contents', 'Create, rename, or delete names inside'],
-            ['`x`', '1', 'Run it as a program', 'Enter it and open what is inside'],
-          ],
-        },
-      },
-      {
-        id: 'changing-permissions',
-        title: 'Changing access: chmod, chown, chgrp',
-        body: [
-          'Three commands change who can do what. The owner can change the mode of their own file. Giving a file to another user needs root.',
-        ],
-        subsections: [
-          {
-            id: 'chmod-symbolic',
-            title: 'chmod with letters',
-            body: [
-              '**`chmod`** changes the nine letters. The letter form reads as a sentence: **who**, then **what to do**, then **which letters**. Who is **`u`** for the owner (user), **`g`** for the group, **`o`** for others, or **`a`** for all three. **`+`** adds, **`-`** removes, **`=`** sets the trio to exactly those letters.',
-            ],
-            code: {
-              language: 'shell',
-              code: `chmod u+x deploy.sh
-# owner may run it; group and others stay as they were
-chmod g+w notes.txt
-chmod o-rwx notes.txt
-chmod u=rw,g=r,o= notes.txt
-# owner rw, group r, others nothing: the same as 640`,
-            },
-          },
-          {
-            id: 'chmod-octal',
-            title: 'chmod with numbers',
-            body: [
-              'The number form sets all nine letters at once. Use it when you already know the end state. **`chmod 640 notes.txt`** is owner read-write, group read, others nothing. **`chmod 600`** on a key means even the group cannot read it.',
-              '**`-R`** walks a folder and everything inside it. Files and folders usually need different letters, because a folder needs **`x`** to be entered and a file often should not be executable. Apply **`-R`** only when you mean every item in the tree.',
-            ],
-            code: {
-              language: 'shell',
-              code: `chmod 640 notes.txt
-chmod 600 ~/.ssh/id_ed25519
-chmod 755 deploy.sh
-chmod 750 /srv/app`,
-            },
-          },
-          {
-            id: 'chown-chgrp',
-            title: 'chown and chgrp: change owner and group',
-            body: [
-              '**`chown user file`** gives the file a new owner. **`chown user:group file`** sets both in one step. **`chgrp group file`** changes only the group. Changing the owner needs **`sudo`**. Changing the group does not, if you own the file and you are a member of the new group.',
-              'The group you set here is the group whose trio **`ls -l`** will use. It is not “every group the owner belongs to.” A file has one group.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo chown ravi report.txt
-sudo chown ravi:developers report.txt
-chgrp developers notes.txt
-sudo chown -R app:developers /var/log/app`,
+# developers:x:1002:asha`,
             },
           },
         ],
         table: {
-          headers: ['Command', 'Changes', 'Example'],
+          headers: ['Field', 'Asha’s line', 'What it is'],
           rows: [
-            ['`chmod` with letters', 'Add or remove specific letters', '`chmod g+w file`'],
-            ['`chmod` with numbers', 'Set all nine letters', '`chmod 640 file`'],
-            ['`chown`', 'Owner, or owner and group', '`chown ravi:developers file`'],
-            ['`chgrp`', 'Group only', '`chgrp developers file`'],
+            ['login', '`asha`', 'The name typed at a prompt'],
+            ['password', '`x`', 'The hash is in `/etc/shadow`, readable by root'],
+            ['uid', '`1001`', 'The user number Linux checks'],
+            ['gid', '`1001`', 'Her primary group'],
+            ['comment', '`Asha Rao`', 'Usually the person’s name'],
+            ['home', '`/home/asha`', 'Where a login starts'],
+            ['shell', '`/bin/bash`', 'Program started at login. `app` has `/usr/sbin/nologin`'],
+          ],
+        },
+        figure: {
+          image: groupsOnOneUserImg,
+          imageAlt:
+            'Hand-drawn sketch: one login has a primary group from /etc/passwd and an extra group named team. adm and sudo are already on the box.',
+          caption:
+            'The primary group comes from the user record. Extra groups are added. adm and sudo are already on the box.',
+          flush: true,
+        },
+        after: [
+          '**`adm`** and **`sudo`** are already on the box. **`adm`** can read system logs under **`/var/log`**, such as **`syslog`** and **`auth.log`**. The **`sudo`** group can run any command as root. Ravi will need **`adm`**. He does not get **`sudo`**.',
+        ],
+        tableAfter: {
+          headers: ['Field', '`developers:x:1002:asha`', 'What it is'],
+          rows: [
+            ['name', '`developers`', 'The group'],
+            ['password', '`x`', 'Unused on a normal group'],
+            ['gid', '`1002`', 'The same number as app’s gid in `/etc/passwd`'],
+            ['members', '`asha`', 'Extra members only. app is in the group because its passwd gid is 1002'],
           ],
         },
       },
       {
-        id: 'shared-folders',
-        title: 'Shared team folders: setgid and the sticky bit',
+        id: 'give-a-login',
+        title: 'Give Ravi a login, and close Meera’s',
         body: [
-          'A team folder is a directory the group can work in, and nobody else can. Give the directory to the group and set **770**: owner and group get **`rwx`**, others get nothing.',
-          'That is not quite enough. A new file takes the **primary group of whoever created it**, not the group of the folder. Asha’s new file is group **`asha`**. Ravi is not in group **`asha`**, so the group trio on that file does not apply to him, and the file is closed to the rest of the team.',
-          '**setgid** on the directory fixes the group. **`chmod g+s`**, or a leading **`2`** in the number, makes every new file inside inherit the **directory’s** group. In **`ls -l`** the group’s **`x`** shows as **`s`**. **`2770`** is setgid plus **770**, and it lists as **`drwxrws---`**.',
-          'Write permission on a directory has a second surprise. Anyone who can write the directory can delete or rename any name in it, including a file they do not own. The **sticky bit** stops that. With the sticky bit on, you may delete or rename only the names you own. Root still can. **`/tmp`** works this way: everyone can create files there, and you cannot remove someone else’s.',
-          'The sticky bit is a leading **`1`**. On a directory where others have no execute, **`ls -l`** shows it as a capital **`T`** at the end. **`3770`** is sticky plus setgid plus **770**: **`drwxrws--T`**. Members can create and read. A new file stays in the team group. A member cannot delete a teammate’s file.',
+          'Ravi needs a home directory, the bash shell, and the **developers** group. Meera left last week. Her files stay. Her login has to stop.',
         ],
-        code: {
-          language: 'shell',
-          code: `sudo mkdir /srv/team
-sudo chgrp developers /srv/team
-sudo chmod 2770 /srv/team
-ls -ld /srv/team
-# drwxrws--- root developers /srv/team
-
-sudo chmod 3770 /srv/team
-ls -ld /srv/team
-# drwxrws--T root developers /srv/team`,
+        subsections: [
+          {
+            id: 'useradd',
+            title: 'Create the group and the user',
+            body: [
+              '**`groupadd`** adds an empty group. On this box **developers** is already there, with Asha in it, so Ravi only needs a user. **`useradd`** adds one line to **`/etc/passwd`**. On its own that is often a bare account: no home directory, and no password, so the person cannot log in.',
+              '**`-m`** creates **`/home/ravi`** and gives it to him. **`-s /bin/bash`** sets the shell. **`-c`** sets the comment. **`-G`** adds extra groups and leaves his primary group as **ravi**, a group created with the account. **`passwd`** sets a password so he can log in.',
+              '**`groupadd -g`** picks the gid yourself, which matters when two machines must agree on the number. **`groupdel`** removes a group nobody is in.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo groupadd developers
+sudo useradd -m -s /bin/bash -c 'Ravi Kumar' -G developers ravi
+sudo passwd ravi
+id ravi
+# uid=1003(ravi) gid=1003(ravi) groups=1003(ravi),1002(developers)`,
+            },
+          },
+          {
+            id: 'retire',
+            title: 'Close Meera’s login',
+            body: [
+              'Two changes, and **`/home/meera`** stays. **`-L`** locks the password, so a password login fails. **`-s /usr/sbin/nologin`** sets a shell that will not start a session. **`passwd -S`** prints the state. The second field is **`L`** when the password is locked.',
+              '**`userdel -r meera`** is the other choice. It deletes the account and the home directory.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo usermod -L -s /usr/sbin/nologin meera
+sudo passwd -S meera
+# meera L ...`,
+            },
+          },
+          {
+            id: 'usermod-ag',
+            title: 'Add a group later',
+            body: [
+              'Ravi reads logs, so he also joins **`adm`**. Adding a group is **`-aG`**. **`-a`** means append.',
+              '**`id ravi`** reads the account files, so **`adm`** shows up immediately. A shell Ravi already has open keeps the groups from when it started, and access checks use those. **`sudo -u ravi id`** starts a new command as Ravi and picks up the groups he has now. When the shell that is stale is your own, **`sg developers -c \'id\'`** runs one command with a group you belong to.',
+              '**`gpasswd -d ravi adm`** removes him from **`adm`** and leaves his other groups alone.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo usermod -aG adm ravi
+id ravi
+# groups include developers and adm
+sudo -u ravi id`,
+            },
+          },
+        ],
+        callout: {
+          kind: 'warn',
+          title: '-G replaces the extra groups',
+          body: [
+            '**`usermod -G developers ravi`** sets his extra groups to that list and nothing else. If he was in **`sudo`** or **`adm`**, he is out of them. **`-aG`** is the form that adds a group.',
+          ],
         },
       },
       {
-        id: 'acls',
-        title: 'ACLs: one extra person',
+        id: 'restart-one-service',
+        title: 'Restart one service',
         body: [
-          'Owner, group, and others cover a team. They do not cover “this one person, and not the rest of their colleagues.” An **ACL** (access control list) is an extra rule on a file or directory for one user or one group.',
-          '**`setfacl -m u:ravi:r-x`** adds a rule: user Ravi may read and enter, and nobody else’s access changes. **`getfacl`** prints the owner trio, the group trio, the others trio, and every extra rule. **`setfacl -x u:ravi`** removes Ravi’s rule. **`ls -l`** puts a **`+`** at the end of the letters when an ACL is present. The nine letters cannot show the extra rule, so the **`+`** is the hint to run **`getfacl`**.',
-          'A rule on a directory applies to that directory. It does **not** copy onto files created later. A **default** ACL does. **`setfacl -d -m`** stores a rule that new files and new folders inside the directory inherit. Set both when the extra person must read what arrives tomorrow as well as what is there today. A new file keeps only the letters the creator asked for, so a normal file stays non-executable even when the default rule includes **`x`**.',
+          'When **app** dies, Ravi has to start it again and see whether it is running. Those are the only commands he may run as root. The **`sudo`** group would let him run every command. He stays out of it. One file under **`/etc/sudoers.d/`** names the two commands for the whole **developers** group.',
+        ],
+        subsections: [
+          {
+            id: 'sudo-group',
+            title: 'The sudo group is every command',
+            body: [
+              'On Ubuntu, members of **`sudo`** may run any command as root. **`sudo -l`** prints the rules that apply to you. A person who may restart one service does not belong in this group.',
+            ],
+            code: {
+              language: 'shell',
+              code: `getent group sudo
+# sudo:x:27:learner
+sudo -l`,
+            },
+          },
+          {
+            id: 'sudoers-line',
+            title: 'Two commands, for the whole group',
+            body: [
+              'Rules live in **`/etc/sudoers`** and in small files under **`/etc/sudoers.d/`**. One file per team stays readable. A name that starts with **`%`** is a group. Write each command as a full path, because sudo matches the path. A command that is not on the line is refused.',
+              'Open the file with **`visudo -f`**. visudo will not save a broken line. Then the file has to be owned by **`root:root`**, mode **`440`**, and **`visudo -cf`** has to accept it.',
+            ],
+            code: {
+              language: 'text',
+              filename: '/etc/sudoers.d/developers',
+              code: `%developers ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`,
+            },
+          },
+        ],
+        table: {
+          headers: ['Piece of the line', 'Meaning'],
+          rows: [
+            ['`%developers`', 'The group, not a user named developers'],
+            ['`ALL`', 'Any machine this file is copied to'],
+            ['`(root)`', 'Run the command as root'],
+            ['`NOPASSWD:`', 'Do not ask for a password'],
+            ['the two paths', 'Only these commands. Each one is a full path, separated by a comma'],
+          ],
+        },
+        code: {
+          language: 'shell',
+          code: `sudo visudo -f /etc/sudoers.d/developers
+sudo chown root:root /etc/sudoers.d/developers
+sudo chmod 440 /etc/sudoers.d/developers
+sudo visudo -cf /etc/sudoers.d/developers`,
+        },
+        callout: {
+          kind: 'warn',
+          title: 'sudo ignores a loose file',
+          body: [
+            '**`root:root`** has to own the file, in mode **`440`**. Leave it at **`644`** and sudo skips the file: the rule never applies. **`visudo -cf`** checks the grammar. It does not check the owner or the mode.',
+          ],
+        },
+      },
+      {
+        id: 'read-ls',
+        title: 'Read one ls -l line',
+        body: [
+          '**`secret.env`** is the file to practice on. **`ls -l`** prints its owner, its group, and nine letters. Linux picks one trio and stops: the owner, else someone in the file’s group, else everyone else.',
+        ],
+        subsections: [
+          {
+            id: 'ls-line',
+            title: 'One line of ls -l',
+            body: [
+              '**`ls -l`** prints one line per file: type, permissions, owner, group, size, and date. **`ls -ld`** prints the directory itself. Without **`-d`**, **`ls -l`** on a directory lists what is inside.',
+              'The first character is the type: **`-`** a file, **`d`** a directory, **`l`** a link. The next nine characters are three trios, owner then group then others. Inside a trio the order is always read, write, execute. A letter is allowed. A dash is not. Here **app** is the owner and **developers** is the group. app’s trio is **`rw-`**. The group’s trio is **`r--`**. Everyone else’s trio is **`---`**.',
+            ],
+            code: {
+              language: 'shell',
+              code: `ls -l /etc/app/secret.env
+# -rw-r----- 1 app developers 180 Oct  4 09:15 /etc/app/secret.env`,
+            },
+          },
+          {
+            id: 'which-trio',
+            title: 'Which three letters count',
+            body: [
+              'Linux asks three questions, in order, and stops at the first yes.',
+              'Are you the **owner**? Then only the owner trio counts. The group trio does not add rights. If the owner trio is **`r--`** and the group trio is **`rwx`**, the owner can still only read.',
+              'If you are not the owner, are you in the file’s **group**? Then only the group trio counts. Ravi is in **developers** and does not own **`secret.env`**, so he gets **`r--`**.',
+              'Otherwise you are **others**, and only the last trio counts.',
+              'On a directory the letters mean something else, because a directory is a list of names. **`r`** without **`x`** lists names you cannot open. **`x`** without **`r`** opens a file whose name you already know, and **`ls`** fails. A directory people can use has **`x`** next to **`r`**.',
+            ],
+          },
+        ],
+        table: {
+          headers: ['Letter', 'Value', 'On a file', 'On a directory'],
+          rows: [
+            ['`r`', '4', 'Read the contents', 'List the names inside'],
+            ['`w`', '2', 'Change the contents', 'Create, rename, or delete names'],
+            ['`x`', '1', 'Run it as a program', 'Enter it and open a file inside'],
+          ],
+        },
+        figure: {
+          image: whichBitsApplyImg,
+          imageAlt:
+            'Hand-drawn sketch: the owner gets rw-, someone in the group gets r--, and everyone else gets ---. Linux uses only one of those sets.',
+          caption: 'Linux picks one set. Owner first, then the group, then everyone else.',
+          flush: true,
+        },
+        after: [
+          'Each letter is a number: **`r`** is 4, **`w`** is 2, **`x`** is 1. Add one trio to get a digit from 0 to 7. **`rw-r-----`** is 6, 4, 0, so the mode is **`640`**. **`stat -c \'%a\' file`** prints that number.',
+        ],
+        tableAfter: {
+          headers: ['Number', 'Letters', 'Use it for'],
+          rows: [
+            ['`644`', '`rw-r--r--`', 'A normal file. Anyone can read it'],
+            ['`640`', '`rw-r-----`', 'The group can read. Others cannot'],
+            ['`600`', '`rw-------`', 'A key. The owner only'],
+            ['`755`', '`rwxr-xr-x`', 'A program, or a directory anyone can enter'],
+            ['`750`', '`rwxr-x---`', 'A directory the group can enter'],
+            ['`770`', '`rwxrwx---`', 'A directory for the owner and the group'],
+          ],
+        },
+      },
+      {
+        id: 'who-owns-the-files',
+        title: 'Who should own the files',
+        body: [
+          'The app’s files were left open: every account could read the signing key, and change it. Two owners, on purpose.',
+          '**root** owns the settings directory, the config, and the rotation program. An admin is who changes those. **app** must not rewrite them.',
+          '**app** owns the secret, the signing key, and the logs, because the service has to write them. Mode **`600`** on the key leaves even **developers** out. **app** can still read it, because **app** is the owner.',
+          '**app**’s primary group is **developers**, so the group letters apply to **app** on the files root owns. **app** can read the config. **app** cannot change it.',
+        ],
+        table: {
+          headers: ['Path', 'Owner:group', 'Mode', 'What that is for'],
+          rows: [
+            ['`/etc/app`', '`root:developers`', '`750`', 'The group can list and enter'],
+            ['`/etc/app/app.conf`', '`root:developers`', '`640`', 'The group can read. root can change it'],
+            ['`/etc/app/secret.env`', '`app:developers`', '`640`', 'app can change it. The group can read'],
+            ['`/etc/app/signing.key`', '`app:developers`', '`600`', 'Only app'],
+            ['`/opt/app/bin/rotate.sh`', '`root:developers`', '`750`', 'The group can run it. root can change it'],
+            ['`/var/log/app`', '`app:developers`', '`750`', 'app writes logs. The group can list'],
+            ['`/var/log/app/app.log`', '`app:developers`', '`640`', 'The group can read the log'],
+          ],
+        },
+        codes: [
+          {
+            language: 'shell',
+            code: `sudo chown root:developers /etc/app /etc/app/app.conf /opt/app/bin/rotate.sh
+sudo chown app:developers /etc/app/secret.env /etc/app/signing.key /var/log/app /var/log/app/app.log
+sudo chmod 750 /etc/app /opt/app/bin/rotate.sh /var/log/app
+sudo chmod 640 /etc/app/app.conf /etc/app/secret.env /var/log/app/app.log
+sudo chmod 600 /etc/app/signing.key`,
+          },
+        ],
+        after: [
+          'The owner of a file can change its mode. Giving the file to another user takes root. **`chown user:group file`** sets both. **`chgrp developers file`** changes the group only, which you can do without root when you own the file and you are in the new group.',
+          '**`chmod 640`** sets all nine letters. **`chmod g+w file`** adds one letter and leaves the rest. **`u`** is the owner, **`g`** the group, **`o`** others, **`a`** all three. **`+`** adds, **`-`** removes, **`=`** sets that trio to exactly those letters.',
+          'Then check as the accounts that have to live with it. **`sudo -u`** runs one command as that user, with the groups they have now.',
         ],
         code: {
           language: 'shell',
-          code: `setfacl -m u:ravi:r-x /srv/team
-setfacl -d -m u:ravi:r-x /srv/team
-getfacl /srv/team
+          code: `sudo -u app cat /etc/app/app.conf
+sudo -u app cat /etc/app/signing.key
+sudo -u ravi cat /etc/app/secret.env
+sudo -u ravi cat /etc/app/signing.key
+# Permission denied
+sudo -u nobody ls /etc/app
+# Permission denied`,
+        },
+        callout: {
+          kind: 'warn',
+          title: 'chmod -R uses one mode for everything',
+          body: [
+            '**`chmod -R`** walks into the directory and sets the same letters on every file and every folder. A folder needs **`x`** so people can enter. A key should not be executable. Set the mode on each path.',
+          ],
+        },
+      },
+      {
+        id: 'shared-folder',
+        title: 'A folder the team shares',
+        body: [
+          '**`/srv/team`** is where Asha and Ravi drop files for each other. Mode **`770`** lets the group work there and keeps everyone else out. The group of a new file, and who may delete a name, are still wrong.',
+        ],
+        subsections: [
+          {
+            id: 'setgid',
+            title: 'New files take the creator’s group',
+            body: [
+              'Asha creates **`draft.txt`**. The directory’s group is **developers**. The file’s group is **asha**, her primary group. Ravi is not in group **asha**, so he is “others” on that file. **`umask 007`** turns off every bit for others, so he cannot read it.',
+              '**setgid** on the directory fixes the group. **`chmod 2770`** is setgid plus **`770`**. A new file inherits the directory’s group. In **`ls -l`** the group’s **`x`** shows as **`s`**.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo mkdir -p /srv/team
+sudo chgrp developers /srv/team
+sudo chmod 770 /srv/team
+sudo -u asha sh -c 'umask 007; touch /srv/team/draft.txt'
+ls -l /srv/team/draft.txt
+# -rw-rw---- 1 asha asha ... draft.txt
+sudo -u ravi cat /srv/team/draft.txt
+# Permission denied
+
+sudo chmod 2770 /srv/team
+sudo -u asha sh -c 'umask 007; touch /srv/team/notes.txt'
 ls -ld /srv/team
-# drwxrws---+   the + means an ACL is present
-setfacl -x u:ravi /srv/team`,
+# drwxrws--- root developers /srv/team
+ls -l /srv/team/notes.txt
+# -rw-rw---- 1 asha developers ... notes.txt
+sudo -u ravi cat /srv/team/notes.txt`,
+            },
+          },
+          {
+            id: 'sticky',
+            title: 'Write on a directory can delete anyone’s file',
+            body: [
+              'Ravi does not own **`draft.txt`**. He can still delete it. Write permission on a directory is permission to create, rename, or delete names, including a name someone else owns.',
+              'The **sticky bit** stops that. You may delete or rename only a name you own. Root still can. **`chmod 3770`** is the sticky bit plus setgid plus **`770`**. Others have no execute on this directory, so **`ls`** shows a capital **`T`**.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo -u ravi rm /srv/team/draft.txt
+
+sudo chmod 3770 /srv/team
+ls -ld /srv/team
+# drwxrws--T root developers /srv/team
+sudo -u ravi rm /srv/team/notes.txt
+# Operation not permitted`,
+            },
+          },
+        ],
+        after: [
+          'The leading digit is **`4`** for setuid, **`2`** for setgid, and **`1`** for the sticky bit. **`3770`** is **`2+1`**, then **`770`**. **`rws`** on a program is setuid: the program runs as the file’s owner. **`/usr/bin/sudo`** looks like this, which is why it can act as root. Setgid on a directory does a different job. It chooses the group of new files.',
+        ],
+        tableAfter: {
+          headers: ['What ls shows', 'Meaning'],
+          rows: [
+            ['`s` where the group `x` was', 'setgid, and the group can enter. New files take the directory’s group'],
+            ['`S`', 'setgid, and the group cannot enter'],
+            ['`t` at the end', 'Sticky, and others can enter. `/tmp` is `drwxrwxrwt`'],
+            ['`T` at the end', 'Sticky, and others cannot enter. `3770` is `drwxrws--T`'],
+            ['`rws` on a program', 'setuid. The program runs as its owner. `sudo` is like this'],
+          ],
+        },
+        callout: {
+          kind: 'idea',
+          title: 'umask chooses the letters on a new file',
+          body: [
+            'A new file asks for **`666`**. A new directory asks for **`777`**. **umask** turns bits off. The examples used **`umask 007`**, so others got nothing and Ravi could not read **`draft.txt`**. A login on Ubuntu more often has umask **`002`**, which leaves a file at **`664`** (`rw-rw-r--`) and a directory at **`775`**.',
+            'setgid chose the group. umask chose the letters. The directory’s **`2770`** is not copied onto the file. When the mode has to be exact, as with the signing key, **`chmod`** it after it exists. A default ACL, next, replaces this umask calculation.',
+          ],
+        },
+      },
+      {
+        id: 'one-extra-person',
+        title: 'Leela, who is not on the team',
+        body: [
+          'Leela reads what the team drops in **`/srv/team`**, including a file that arrives tomorrow. She must not create or delete one, and she stays out of **developers**. Owner, group, and others have no slot for that one person. An **ACL** is the extra rule.',
+          '**`setfacl -m u:leela:r-x`** lets Leela read and enter this directory. Nobody else’s access changes. **`setfacl -d -m`** stores a **default** rule that new files and new directories inherit. Set both, or tomorrow’s file is closed to her.',
+          '**`ls -l`** puts a **`+`** after the letters when an ACL is present. Those nine letters have no place for Leela. **`getfacl`** prints her entry. A program creating a file asks for read and write, not execute, so her **`x`** stays on new directories and does not land on a normal new file. With a default ACL set, umask is out of that calculation.',
+          '**`setfacl -x u:leela`** removes her rule on this path. **`setfacl -k`** removes the default ACL, so later files stop inheriting it. **`setfacl -b`** removes every ACL.',
+        ],
+        code: {
+          language: 'shell',
+          code: `sudo setfacl -m u:leela:r-x /srv/team
+sudo setfacl -d -m u:leela:r-x /srv/team
+getfacl /srv/team
+# user:leela:r-x
+# mask::rwx
+# default:user:leela:r-x
+ls -ld /srv/team
+# drwxrws---+ root developers /srv/team
+sudo -u asha sh -c 'echo hello > /srv/team/today.txt'
+sudo -u leela cat /srv/team/today.txt
+# hello
+sudo -u leela touch /srv/team/nope.txt
+# Permission denied`,
+        },
+        callout: {
+          kind: 'warn',
+          title: 'chmod rewrites the ACL mask',
+          body: [
+            '**`getfacl`** prints a **`mask`** line. Leela gets a permission only when her entry and the mask both allow it. **`chmod`** on a file that has an ACL writes the group digit into that mask. **`chmod 640`** sets the mask to **`r--`**. Her entry can still say **`rw-`**, and the effective right is read. **`getfacl`** marks the line **`#effective:r--`**. Run **`getfacl`** again after **`chmod`**.',
+          ],
         },
       },
       {
         id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
           headers: ['Goal', 'Command'],
           rows: [
-            ['Who am I, and which groups', '`id`'],
-            ['Look up an account', '`getent passwd user`, `getent group group`'],
-            ['See what sudo will allow', '`sudo -l`'],
+            ['Who you are, with the groups this shell is using', '`id`'],
+            ['Look up an account', '`getent passwd user` and `getent group group`'],
+            ['Groups recorded for someone, from the files', '`id user`'],
+            ['Run one command as someone else', '`sudo -u user command`'],
+            ['Run one command with a group you just joined', "`sg group -c 'command'`"],
+            ['Create a user with a home, bash, and an extra group', '`sudo useradd -m -s /bin/bash -G group user`'],
+            ['Add a group and keep the others', '`sudo usermod -aG group user`'],
+            ['Close a login and keep the home', '`sudo usermod -L -s /usr/sbin/nologin user`'],
+            ['See whether the password is locked', '`passwd -S user`'],
             ['Allow one group two commands', '`%group ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`'],
             ['Check a sudoers file', '`sudo visudo -cf /etc/sudoers.d/name`'],
-            ['Create a user with a home and bash', '`sudo useradd -m -s /bin/bash -G group user`'],
-            ['Add a group, keep the others', '`sudo usermod -aG group user`'],
-            ['Retire an account, keep the home', '`sudo usermod -L -s /usr/sbin/nologin user`'],
             ['See the mode as a number', "`stat -c '%a' file`"],
-            ['Owner read-write, group read', '`chmod 640 file`'],
+            ['Group can read, others cannot', '`chmod 640 file`'],
+            ['A private key', '`chmod 600 file`'],
             ['Set owner and group', '`sudo chown user:group file`'],
-            ['Team folder, inherit the group', '`sudo chmod 2770 dir`'],
+            ['Team folder, new files stay in the group', '`sudo chmod 2770 dir`'],
             ['Also stop members deleting each other’s files', '`sudo chmod 3770 dir`'],
             ['One extra person, including future files', '`setfacl -m u:name:r-x dir` and `setfacl -d -m u:name:r-x dir`'],
+            ['See or clear an ACL', '`getfacl path` and `setfacl -b path`'],
           ],
         },
       },
     ],
     takeaways: [
-      'A user has one **primary group** from **`/etc/passwd`** and any number of **extra groups** from **`/etc/group`**. **`adm`** reads logs. The **`sudo`** group can run anything as root. A narrower job belongs in its own group and a **sudoers** file.',
-      '**`usermod -aG`** adds a group. **`-G`** alone replaces the list. **`-L`** plus a **`nologin`** shell retires an account and leaves the home in place.',
-      'Linux uses **one** permission trio: owner, else group, else others. On a directory, **`x`** means enter and **`w`** means create or delete names.',
-      '**`2770`** keeps a team folder in the team group. **`3770`** also stops members deleting each other’s files. An **ACL**, with a **default** ACL, is how one extra person gets in without joining the group.',
+      'Grant access to a group. **`adm`** reads logs. The **`sudo`** group is every command as root, so a team that may restart one service gets a sudoers file instead.',
+      '**`usermod -aG`** adds a group. **`-G`** alone drops the groups you left off the command. **`-L`** and a **`nologin`** shell close a login and leave the home in place.',
+      'Linux applies one trio: owner, else the file’s group, else others. Root owns the config and the program. The service account owns the secret, the key, and the logs. **`600`** keeps the key to its owner.',
+      '**`2770`** puts a new file in the team group. **`3770`** also stops a teammate deleting someone else’s file. A default ACL lets one outsider read files that are not there yet.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [

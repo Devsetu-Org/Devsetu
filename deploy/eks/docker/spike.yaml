@@ -9,6 +9,8 @@
 #     so dockerd can set net.ipv4.ip_forward. Every net.* sysctl is per network namespace
 #     and owned by the pod's user namespace, so this changes only the box itself.
 #   - Namespace NetworkPolicy also allows the registry mirror.
+#   - seccomp is devlabs/docker-box.json (seccomp-profiles.yaml), not linux-box.json:
+#     keyrings and bpf stay allowed so runc can start containers.
 #
 # Driven by ./deploy/eks/eks-docker.sh spike (applies, waits, runs the capability checks).
 apiVersion: v1
@@ -85,7 +87,8 @@ spec:
         capabilities:
           add: [SYS_ADMIN, NET_ADMIN, NET_RAW, SYS_PTRACE, SYS_RESOURCE, SYS_NICE, AUDIT_WRITE]
         seccompProfile:
-          type: Unconfined
+          type: Localhost
+          localhostProfile: devlabs/docker-box.json
       resources:
         requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 1Gi}
         limits: {cpu: 1000m, memory: 512Mi, ephemeral-storage: 12Gi}

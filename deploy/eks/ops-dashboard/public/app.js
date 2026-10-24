@@ -2,6 +2,7 @@ const SECTIONS = [
   { id: 'control-plane', title: 'Control plane & system-k8s' },
   { id: 'karpenter', title: 'Karpenter' },
   { id: 'linux', title: 'Linux pool' },
+  { id: 'docker', title: 'Docker pool' },
 ];
 
 /** @type {Array<{id:string,label:string,section:string,summary:string,description:string,command:string,scriptPath:string|null,confirm:string|null}>} */
@@ -47,6 +48,7 @@ const fileClose = document.getElementById('file-close');
 function sectionKicker(sectionId) {
   if (sectionId === 'karpenter') return 'Karpenter';
   if (sectionId === 'linux') return 'Linux';
+  if (sectionId === 'docker') return 'Docker';
   return 'System';
 }
 

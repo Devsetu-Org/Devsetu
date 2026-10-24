@@ -18,7 +18,7 @@ Defaults match the live `devlabs` cluster in **ap-south-2** (see `env.sh`).
 | `eks-labs-sleep.sh` | Park k8s-lab capacity: balloons → 0, `labs-elastic` nodes removed, `labs-k8s` → **0** | Still pays |
 | `eks-linux.sh` | Linux-module capacity: `base` (managed NG `labs-linux` + NRI + seccomp; enough for labs), `up` (optional Karpenter `labs-linux-elastic` overflow), `seccomp` / `sleep` / `wake` / `spike` / `check` / `down` | — |
 | `eks-nodegroup-update.sh` | Roll learner node groups onto the current launch template and latest AMI (evicts their pods) | — |
-| `eks-docker.sh` | Docker-module capacity, same subcommands as `eks-linux.sh`: managed node group `labs-docker` (t4g.medium), Karpenter `labs-docker-elastic`, `nri-cgroup-rw-docker`, and the Docker Hub pull-through mirror `dl-mirror/registry-mirror` (`docker/registry-mirror.yaml`) | — |
+| `eks-docker.sh` | Docker-module capacity, same subcommands as `eks-linux.sh`: managed node group `labs-docker` (t4g.medium), Karpenter `labs-docker-elastic`, `nri-cgroup-rw-docker`, `devlabs/docker-box.json` seccomp (`seccomp`), and the Docker Hub pull-through mirror `dl-mirror/registry-mirror` (`docker/registry-mirror.yaml`) | — |
 | `eks-spark.sh` | Spark Labs capacity: `base` (managed node group `labs-spark`, t4g.medium), `up` (Karpenter `labs-spark-elastic`), `sleep` / `wake` / `down` | — |
 | `eks-kubeconfig.sh` | Refresh `kube/k8s-lab.kubeconfig` | — |
 | `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig; wakes `system-k8s` and installs add-on placement + Kyverno + admission (`EKS_SKIP_PLATFORM=1` to skip). Run `eks-karpenter.sh` separately afterward. | Starts paying (system node once platform runs) |
@@ -270,7 +270,7 @@ restarts even when unchanged. `eks-recreate.sh` skips the EC2 step with
 
 ## Local ops dashboard
 
-Laptop UI for the actions above (system, Karpenter, Linux). Binds `127.0.0.1` only and runs these scripts with your AWS profile:
+Laptop UI for the actions above (system, Karpenter, Linux, Docker). Binds `127.0.0.1` only and runs these scripts with your AWS profile:
 
 ```bash
 aws sso login --profile devlabs-admin && export AWS_PROFILE=devlabs-admin
