@@ -14,93 +14,158 @@ export const DOCKER_READINGS: K8sReading[] = [
   {
     id: 'what-a-container-really-is',
     slug: 'what-a-container-really-is',
-    trackId: 'B1',
+    trackId: 'B0',
     eyebrow: '',
     title: 'What a Container Really Is',
     showBlogStamp: true,
     gatedByChallengeId: 'docker-00-first-container-on-the-order-box',
     lede:
-      'A container is not a small virtual machine. It is an ordinary Linux process that the kernel lies to about what it can see, fenced in by limits. Learn the three pieces (image, container, engine), the handful of commands that drive them, and the lifecycle every container goes through.',
+      'One way to ship an app is to install it directly on the machine. That is a real deployment model today — and it works until you need copies, upgrades, or clean rollbacks. This post is why teams reach for containers, what a **container** is in plain terms, what it is **not**, and the three pieces Docker is built from.',
     sections: [
       {
-        id: 'why-containers',
-        title: 'What problem are we solving?',
+        id: 'why-not-keep-installing',
+        title: 'Why not keep installing apps the old way?',
         body: [
-          'Imagine a small food-delivery startup. The order service runs on one server, set up by hand two years ago: Python 3.9 from the distro, a few packages installed with `pip` as root, a systemd unit, and a config file someone edited in vim. It works. Nobody dares touch it.',
-          'Now the team wants a second copy for testing, a newer Python for a new service, and a clean way to roll back a bad release. Every one of those means repeating the hand setup, perfectly, on another machine, and hoping nothing on the server conflicts.',
-          'Containers fix this by packaging the app **together with everything it needs** (runtime, libraries, files) into one artifact, the **image**, and running it in its own fenced-off space. The same image runs the same way on a laptop, a test box and production.',
+          'One way to run an application is to install the runtime on the machine, drop the code under **`/opt`**, point a service unit at it, and tune a config by hand. That is part of how systems are deployed today, including long-lived and **legacy** services.',
+          'On a **single** server that rarely changes, that model is fine. The pain shows up when the same app must exist in more than one place, or when two apps share one host.',
+          'A staging copy. A newer language runtime for another service beside the first. A rollback after a bad release. Each of those means repeating the install steps — or discovering that this machine’s packages, paths, and “small fixes” no longer match what anyone wrote down.',
+        ],
+        bullets: [
+          '**“Works on my machine”** — the laptop, the test box, and production each drift a little.',
+          '**Shared host fights** — two apps want different library versions; one upgrade breaks the other.',
+          '**Slow, risky copies** — cloning a working server means cloning its accidents too.',
+          '**Painful rollbacks** — there is no clean “previous version” artifact, only whatever is left on disk.',
+        ],
+        after: [
+          'Containers answer that pressure. Package the app **together with what it needs** into one artifact, run that artifact in its own space, and ship the **same** thing to every environment. The next section is what that artifact and that space actually are — without the kernel jargon yet.',
+        ],
+      },
+      {
+        id: 'what-is-a-container',
+        title: 'What a container is',
+        body: [
+          'A **container** is your app running in its **own small world** on a shared Linux machine. Inside that world it has its own files and its own network view. Outside, the machine is still the same **host** — nothing like a second computer was booted.',
+          'The world is built from an **image**: a ready-made bundle of the app and its dependencies, like a frozen template. Start the template and you get a container. Start it again and you get another container from the same image. Change the image, start fresh containers, and every environment sees the same contents.',
+          'You do not need the kernel details on day one. What matters is the deal: **one image, many identical runs**, isolated enough that apps on the same host stop stepping on each other.',
+        ],
+        callout: {
+          kind: 'idea',
+          title: 'The short version',
+          body: [
+            'Install-by-hand puts the app **onto** the machine. A container brings a **portable copy** of the app’s world **with** it, then runs that copy.',
+          ],
+        },
+      },
+      {
+        id: 'containers-in-the-wild',
+        title: 'Containers in the wild: examples',
+        body: [
+          'You already depend on this idea even if you have never typed **`docker`**.',
+        ],
+        table: {
+          headers: ['Example', 'What the container is doing', 'What you usually see'],
+          rows: [
+            [
+              '**A web API in the cloud**',
+              'Each replica is a container from the same image, behind a load balancer.',
+              'The website or app — not the container name.',
+            ],
+            [
+              '**CI that builds and tests your repo**',
+              'A fresh container per job, with the toolchain baked into the image.',
+              'A green or red check on the pull request.',
+            ],
+            [
+              '**Kubernetes / ECS / Cloud Run**',
+              'Schedulers that place and restart containers across machines.',
+              'A dashboard of services and versions.',
+            ],
+            [
+              '**Your laptop (maybe)**',
+              'Docker Desktop or Colima runs a small Linux VM so Linux containers can start.',
+              'A whale icon or a terminal — the containers still need a Linux kernel underneath.',
+            ],
+          ],
+        },
+        after: [
+          'On this track the machine is a Linux **order box** with Docker already installed. You reach it at a text prompt, the same way you reached Linux.',
+        ],
+      },
+      {
+        id: 'not-a-vm',
+        title: 'Not a virtual machine',
+        body: [
+          'A **virtual machine** emulates hardware and boots its **own kernel**. A container does neither. That difference is why containers start in milliseconds and why dozens fit on one host.',
+        ],
+        table: {
+          headers: ['Idea', 'Virtual machine', 'Container'],
+          rows: [
+            ['Kernel', 'Its own kernel inside the guest', 'The **host** kernel'],
+            ['What starts', 'A full guest OS, then your app', 'Your app as a process'],
+            ['Isolation', 'Strong hardware boundary', 'Separate view of files and network on one kernel'],
+            ['Startup', 'Seconds to minutes', 'Milliseconds'],
+            ['Density', 'Few VMs per host', 'Many containers per host'],
+            ['On a Mac or Windows laptop', 'The VM **is** the machine you SSH into', 'Docker runs a small Linux VM so containers have a Linux kernel'],
+          ],
+        },
+        after: [
+          'If someone says “we shipped a container,” they mean a process from an image — not a tiny cloud VM, even when a VM is quietly underneath on a developer laptop.',
         ],
       },
       {
         id: 'three-pieces',
         title: 'Three pieces: image, container, engine',
         body: [
-          'Everything in Docker comes back to three things:',
+          'Everything you type with Docker comes back to three layers. From the outside in: you talk to a **client**, the **engine** does the work, and what you create is a **container** from an **image**.',
         ],
-        bullets: [
-          '**Image**: a read-only bundle of files (a mini root filesystem) plus metadata such as the default command, environment and exposed ports. Think of it as a class, or a frozen template. Images have names and tags: `python:3.12-slim`, `devsetu/order-processor:v1.1`.',
-          '**Container**: a running (or stopped) instance of an image. Docker adds a thin writable layer on top of the image, starts the image’s command as a process, and keeps track of its state and logs. Many containers can run from one image.',
-          '**Engine (`dockerd`)**: the background service that pulls images, creates containers and wires up their networks. The `docker` command you type is only a client that sends requests to it over `/var/run/docker.sock`.',
-        ],
-        callout: {
-          kind: 'idea',
-          title: 'Client and server',
-          body: [
-            '`docker version` prints two sections, Client and Server. They are separate programs that can even live on different machines. Being in the `docker` group is what lets you talk to the socket without `sudo`, which also means it is as powerful as root on that machine.',
-          ],
-        },
-      },
-      {
-        id: 'not-a-vm',
-        title: 'Not a virtual machine',
-        body: [
-          'A virtual machine emulates hardware and boots its own kernel. A container does neither. It is a normal process on the host’s kernel, with two kernel features wrapped around it:',
-        ],
-        table: {
-          headers: ['Feature', 'What it does', 'What you notice'],
-          rows: [
-            ['**Namespaces**', 'Give the process its own view of PIDs, network, mounts, hostname and users', 'Inside, the app is PID 1, has its own `eth0`, and sees only the image’s files'],
-            ['**cgroups**', 'Limit and account CPU, memory and process counts', '`docker run --memory 64m`: go over it and the kernel kills the process (OOM)'],
-            ['**Layered filesystem** (overlay2)', 'Stacks the image’s read-only layers with a writable layer on top', 'Starting a container takes milliseconds; changes vanish when you remove it'],
-          ],
-        },
-        after: [
-          'That is why containers start in well under a second and why dozens fit on one machine: there is no second operating system to boot. It is also why a container needs a Linux kernel underneath. On a Mac, Docker Desktop quietly runs a small Linux VM for you.',
-        ],
-      },
-      {
-        id: 'core-commands',
-        title: 'The commands you will use every day',
-        body: [
-          'A dozen commands cover almost everything. They all follow the shape `docker <object> <verb>` (with short aliases for the common ones):',
-        ],
-        codes: [
+        subsections: [
           {
-            language: 'bash',
-            code: [
-              'docker run -d --name web -p 8080:80 nginx:alpine   # create + start, in the background',
-              'docker ps            # running containers      (docker ps -a: include stopped)',
-              'docker logs web      # what it printed         (-f to follow)',
-              'docker exec -it web sh   # a shell inside the running container',
-              'docker stop web      # SIGTERM, then SIGKILL after 10 s',
-              'docker start web     # start it again, same container, same writable layer',
-              'docker rm web        # remove it               (rm -f: stop + remove)',
-              '',
-              'docker images        # images on this machine',
-              'docker pull alpine:3.20',
-              'docker inspect web   # everything Docker knows, as JSON',
-            ].join('\n'),
+            id: 'image',
+            title: 'Image: the frozen template',
+            body: [
+              'An **image** is a read-only mini filesystem plus metadata: the default command, environment, and ports the publisher documented. Names look like **`alpine:3.20`** or **`devsetu/order-processor:v1.1`**. Think of a class in code: you do not run the class; you construct instances from it.',
+            ],
+          },
+          {
+            id: 'container-piece',
+            title: 'Container: a running (or stopped) instance',
+            body: [
+              'A **container** is one instance of an image. Docker adds a thin **writable layer** on top of the read-only image, starts the command as a process, and tracks state and logs. Many containers can share one image. When the main process exits, the container **stops** — it does not idle in the background.',
+            ],
+          },
+          {
+            id: 'engine',
+            title: 'Engine: the program that does the work',
+            body: [
+              '**`dockerd`** is the background **engine**. It pulls images, creates containers, and wires networks. The **`docker`** command you type is only a **client**. It sends requests over a socket, usually **`/var/run/docker.sock`**.',
+            ],
           },
         ],
         after: [
-          'The flags on `docker run` are where most of the decisions live: `-d` (detached), `--name`, `-p HOST:CONTAINER` (publish a port), `-e KEY=value` (environment), `-v` (mount storage), `--rm` (delete on exit). Anything after the image name replaces the image’s default command.',
+          '**`docker version`** prints two sections — **Client** and **Server** — because they are separate programs. Being in the **`docker`** group lets you use the socket without **`sudo`**. That access is as powerful as root on the machine.',
         ],
+        code: {
+          language: 'bash',
+          code: `docker version
+docker version -f '{{.Server.Version}}'
+docker info
+# storage driver, container/image counts, where data lives`,
+        },
+        tableAfter: {
+          headers: ['Piece', 'Role', 'Analogy'],
+          rows: [
+            ['Image', 'Read-only template', 'A class, or a baked AMI you instantiate'],
+            ['Container', 'Instance with a writable layer', 'A running (or stopped) object'],
+            ['Engine (`dockerd`)', 'Creates and manages containers', 'The service behind the CLI'],
+            ['`docker` CLI', 'Client over the socket', 'How you talk to the engine'],
+          ],
+        },
       },
       {
         id: 'lifecycle',
-        title: 'The lifecycle of a container',
+        title: 'The lifecycle every container walks',
         body: [
-          'A container lives exactly as long as its **main process**. When that process exits, the container stops; it does not "idle". This trips up almost everyone once: `docker run alpine:3.20` appears to do nothing, because the default command (`/bin/sh`) has no input and exits immediately.',
+          'A container lives exactly as long as its **main process**. **`docker run`** is **create** plus **start**. When the process exits — or you **`docker stop`** it — the container is **exited**. It still has a name, a writable layer, and logs until you **`docker rm`** it.',
         ],
         flows: [
           {
@@ -108,33 +173,87 @@ export const DOCKER_READINGS: K8sReading[] = [
             steps: ['created', 'running', 'exited', 'removed'],
           },
         ],
-        after: [
-          '`docker run` = `create` + `start`. A stopped container keeps its logs, its writable layer and its name until you `docker rm` it, which is why names "stay taken". Data you care about must not live only in a container’s writable layer; volumes, later in the track, are for that.',
+        subsections: [
+          {
+            id: 'stay-up',
+            title: 'Stay running: a named background process',
+            body: [
+              '**`-d`** detaches so the prompt returns while the process keeps running. **`--name`** chooses a stable name instead of a random one. Anything after the image replaces the image’s default command. **`alpine:3.20`**’s default is a shell with no input — it exits at once — so a long-lived scratchpad needs a command that does not exit.',
+            ],
+            code: {
+              language: 'bash',
+              code: `docker run -d --name scratchpad alpine:3.20 sleep infinity
+docker ps
+# STATUS: Up ...`,
+            },
+          },
+          {
+            id: 'one-shot',
+            title: 'Run once: print and exit',
+            body: [
+              'A one-shot container does its job and stops with an exit code. **`docker ps`** lists only running containers. **`docker ps -a`** includes **Exited**. The stopped container is still on the machine until you remove it.',
+            ],
+            code: {
+              language: 'bash',
+              code: `docker run --name hello-once alpine:3.20 echo "order box ready"
+docker ps                 # not listed: not running
+docker ps -a              # STATUS: Exited (0) ...`,
+            },
+          },
+          {
+            id: 'logs-outlive',
+            title: 'Logs outlive the process',
+            body: [
+              '**`docker logs`** works on stopped containers. When something finished or crashed, read the evidence before you clean up. **`docker rm`** deletes the container and those logs with it. **`docker rm -f`** stops and removes in one step. A name stays taken until **`rm`** — even a container that was only **created** and never started.',
+            ],
+            code: {
+              language: 'bash',
+              code: `docker ps -a --filter name=old-batch
+docker logs old-batch
+# ... BATCH-ID: B-…. ...
+docker rm old-batch`,
+            },
+          },
         ],
         callout: {
-          kind: 'tip',
-          title: 'Read before you remove',
+          kind: 'warn',
+          title: 'No main process, no running container',
           body: [
-            '`docker logs` works on stopped containers. When something crashed, read its logs and `docker inspect` its exit code before cleaning up.',
+            '**`docker run alpine:3.20`** with no command looks like “nothing happened” because the default shell exits immediately. The container did start — then it exited. Check **`docker ps -a`**.',
           ],
         },
       },
       {
-        id: 'where-images-come-from',
-        title: 'Where images come from',
+        id: 'names-and-tags',
+        title: 'Image names and tags',
         body: [
-          'Images live in **registries**. Docker Hub is the default: `nginx:alpine` really means `docker.io/library/nginx:alpine`, and `devsetu/order-processor:v1.1` means the `devsetu` account on Docker Hub. Companies run private registries, and often a **mirror** that caches Docker Hub inside their network, which is exactly what your lab machine uses.',
-          'The part after the colon is the **tag**, a movable label chosen by whoever published the image. `latest` is just the default tag name, not a promise of the newest version. Pin real versions (`python:3.12-slim`, `v1.1`) so the same command gives the same result next month.',
+          'Images live in **registries**. Docker Hub is the default: **`alpine:3.20`** means **`docker.io/library/alpine:3.20`**. **`devsetu/order-processor:v1.1`** is the **`devsetu`** account on Hub. Companies run private registries, and lab machines often pull through a **mirror** that caches Hub inside the network.',
+          'The part after the colon is the **tag** — a movable label chosen by whoever published the image. **`latest`** is only the default tag name, not a promise of “newest.” Pin real tags (**`3.20`**, **`v1.1`**) so the same command means the same bits next month.',
         ],
+        code: {
+          language: 'bash',
+          code: `docker images
+docker pull alpine:3.20`,
+        },
+        tableAfter: {
+          headers: ['Name shape', 'Meaning'],
+          rows: [
+            ['`alpine:3.20`', 'Official library image on Docker Hub, tag `3.20`'],
+            ['`devsetu/order-processor:v1.1`', 'Account `devsetu`, repository `order-processor`, tag `v1.1`'],
+            ['`latest`', 'Default tag name only — not “always newest”'],
+          ],
+        },
       },
     ],
     takeaways: [
-      'An image is a read-only template; a container is a running instance of it with a thin writable layer.',
-      'A container is a normal Linux process wrapped in namespaces (what it sees) and cgroups (what it may use), not a VM.',
-      'The `docker` CLI is a client; `dockerd` does the work.',
-      'A container lives as long as its main process; stopped containers keep logs and names until `docker rm`.',
-      'Pin image tags; `latest` is only a default label.',
+      'Hand installs drift across machines. Containers package the app **with what it needs** so every environment runs the same thing.',
+      'A **container** is the app in its own small world on a shared host — not a small VM.',
+      'An **image** is the frozen template; a **container** is one running (or stopped) instance of it.',
+      'The **`docker`** CLI is a **client**; **`dockerd`** is the **engine**. Socket access is root-equivalent on that host.',
+      'A container lives as long as its **main process**. Stopped containers keep **logs** and **names** until **`docker rm`**. Pin image **tags**.',
     ],
+    relatedLabsIntro:
+      'The first lab walks this map on the order box: client and engine, a container that stays up, one that exits, and logs from a stopped container. The next lab runs order-processor itself from an image.',
     relatedLabs: [
       {
         challengeId: 'docker-00-first-container-on-the-order-box',
@@ -149,7 +268,7 @@ export const DOCKER_READINGS: K8sReading[] = [
   {
     id: 'images-and-dockerfiles',
     slug: 'images-and-dockerfiles',
-    trackId: 'B2',
+    trackId: 'B1',
     eyebrow: '',
     title: 'Images and Dockerfiles',
     showBlogStamp: true,

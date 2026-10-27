@@ -782,333 +782,285 @@ sudo -u leela touch /srv/team/nope.txt
     showBlogStamp: true,
     gatedByChallengeId: 'linux-10-hunt-the-runaway-process',
     lede:
-      'Every program you start — your shell, a web server, even a quick **`ls`** — runs as a **process** with its own number, the **PID**. This post covers how to **see** what is running, how to **stop** or pause a process with **signals** (for example, a script stuck in a loop that eats the whole CPU), and how to make heavy jobs **share** the CPU politely.',
+      'Checkout on the **order box** is crawling. The CPU graph is stuck at 100%. Something is burning the machine. This post is how you **find** that process, **stop** it without taking down the wrong worker, and make a heavy report **share** the CPU.',
     sections: [
       {
         id: 'what-is-a-process',
-        title: 'Processes: programs that are running',
+        title: 'A program that is running',
         body: [
-          'A **program** is a file on disk, like **`/usr/bin/sleep`**. A **process** is one running copy of it, with its own memory, its own owner, and its own **PID** (process id). Start the same program twice and you get two processes with two PIDs.',
+          'A **program** is a file on disk, for example **`/opt/order-processor/bin/order-reindex`**. A **process** is one running copy of it, with its own memory, its own owner, and its own number, the **PID**. Start the same program twice and you get two processes with two PIDs.',
+          'Every process was started by another process, its **parent**. The parent’s PID is the **PPID**. Follow the parents far enough and you reach PID **1** — **systemd** on most servers — which the kernel starts at boot.',
         ],
         subsections: [
           {
             id: 'pid-ppid',
-            title: 'PID and parent PID',
+            title: 'Your shell’s PID, and a background PID',
             body: [
-              'Every process is started by another process, its **parent**. When you type a command, your **shell** is the parent, and the new process records the shell’s PID as its **PPID** (parent PID). Follow the parents far enough and you reach PID **1** — **systemd** on most servers — which the kernel starts at boot.',
-              'You can ask the shell for some of these numbers directly. In the shell, a word that starts with **`$`** is replaced by a value before the command runs. **`$$`** is replaced by the PID of the shell itself — so **`echo $$`** prints your shell’s PID.',
-              'Normally the shell waits for a command to finish before showing the prompt again. Put **`&`** at the end of a command and the shell starts it **in the background** instead: it prints the new PID and gives you the prompt back straight away. **`$!`** is then replaced by the PID of that last background command.',
+              'In the shell, a word that starts with **`$`** is replaced before the command runs. **`$$`** is this shell’s PID. Put **`&`** at the end of a command and the shell starts it in the **background**: it prints the new PID and gives you the prompt back. **`$!`** is that last background PID. Background jobs that must survive logout are the next post.',
             ],
             code: {
               language: 'shell',
-              code: `echo $$      # PID of this shell, e.g. 1901
-sleep 300 &  # run sleep in the background; prints e.g. [1] 1950
-echo $!      # PID of that background sleep: 1950`,
+              code: `echo $$
+# 1901
+sleep 300 &
+# [1] 1950
+echo $!
+# 1950`,
             },
           },
         ],
+        callout: {
+          kind: 'idea',
+          title: 'Three jobs on the order box',
+          body: [
+            'Tonight three programs are running as the **`orders`** account. **`order-reindex`** is rebuilding a search index and will not stop. **`report-builder`** is the nightly report: it may keep running, but it must stay out of the way. **`notification-retry`** must not be touched. The CPU graph is pinned. One of those three is the reason.',
+          ],
+        },
       },
       {
-        id: 'inspect',
-        title: 'See what is running: ps, top, pgrep',
+        id: 'find-the-hog',
+        title: 'Find what is burning the CPU',
         body: [
-          'To follow along, start a harmless CPU hog: **`yes > /dev/null &`**. The **`yes`** command prints “y” forever as fast as it can; sending the output to **`/dev/null`** throws it away, so all it does is keep one CPU core at 100%. You will find it and stop it in the next sections.',
+          'You do not guess. You ask the machine which process is using the CPU, who owns it, and what command started it.',
         ],
         subsections: [
           {
             id: 'ps',
-            title: 'ps: a snapshot of processes',
+            title: 'ps: a snapshot right now',
             body: [
-              '**`ps`** prints the processes running **at this moment** and exits. On its own it only shows processes started from your current terminal, which is rarely what you want — so **`ps`** is almost always run with **options** (arguments) that choose **which** processes to show and **which columns** to print.',
-              'The most common is **`ps aux`**: **`a`** = processes of all users, **`u`** = user-friendly columns (owner, CPU, memory), **`x`** = include processes with no terminal, like services. **`ps -ef`** is an older style that shows every process with its parent PID. Note that **`aux`** has no dash — **`ps`** accepts both styles.',
-              'A few more options come up all the time: **`-p`** picks processes by PID, **`-C`** by exact program name, **`-u`** by user, **`-o`** chooses exactly which columns to print, **`--sort`** orders the output, and **`--forest`** (or **`f`**) draws the parent–child tree.',
+              '**`ps`** prints the processes running at this moment and exits. On its own it only shows processes from your current terminal. That is rarely enough.',
+              '**`ps aux`** is the common form: **`a`** is every user, **`u`** adds owner and CPU columns, **`x`** includes processes with no terminal, such as services. There is no dash on **`aux`**. **`ps -ef`** is an older style that shows every process with its parent PID.',
+              '**`--sort=-%cpu`** (or **`--sort=-pcpu`**) puts the heaviest process first. The leading **`-`** means descending. **`head`** keeps the top lines.',
             ],
             code: {
               language: 'shell',
-              code: `ps                                    # processes in this terminal only
-ps aux                                # every process: a=all users, u=details, x=no terminal too
-ps -ef                                # every process, with parent PID (PPID)
-ps -p 1842                            # one process by PID
-ps -C nginx                           # by exact program name
-ps -u asha                            # processes owned by asha
-ps -o pid,ppid,stat,%cpu,cmd -p 1842  # pick the columns yourself
-ps aux --sort=-%cpu | head -5         # top 5 by CPU (- means descending)
-ps aux --sort=-%mem | head -5         # top 5 by memory
-ps auxf                               # tree view: children under parents`,
+              code: `ps aux --sort=-%cpu | head -5
+ps -eo pid,user,ni,pcpu,cmd --sort=-pcpu | head -5
+# PID USER  NI %CPU CMD
+# 1842 orders 0 99.7 /opt/order-processor/bin/order-reindex
+# 1901 orders 0  0.1 /opt/order-processor/bin/report-builder
+# 1910 orders 0  0.0 /opt/notification-service/bin/notification-retry`,
             },
           },
           {
-            id: 'ps-aux-output',
-            title: 'Reading ps aux output',
+            id: 'read-ps',
+            title: 'What those columns mean',
             body: [
-              'Here are two lines of **`ps aux`** with the CPU hog running. The **`yes`** process uses **99.7%** of a core and is in state **R** (running); the **`bash`** shell next to it is sleeping (**S**) and uses nothing.',
+              'Four columns do most of the work. **PID** is the number you act on. **%CPU** (or **pcpu**) is the share of one core. **USER** is who owns it. **CMD** (or **COMMAND**) is how it was started. **NI** is niceness, which comes later.',
+              '**STAT** is the state. A process is not always busy. Most of the time it is sleeping and uses no CPU. **`order-reindex`** is **R** (running). A waiting shell is **S**.',
             ],
-            code: {
-              language: 'shell',
-              code: `$ ps aux --sort=-%cpu | head -3
-USER   PID %CPU %MEM    VSZ   RSS TTY   STAT START  TIME COMMAND
-asha  1842 99.7  0.0   8168   900 pts/0 R    10:02  3:41 yes
-asha  1901  0.0  0.1  10052  3412 pts/0 S    10:05  0:00 bash`,
-            },
-          },
-          {
-            id: 'ps-columns',
-            title: 'What the columns mean',
-            body: [
-              'Most of the time you only need four columns: **PID** to act on the process, **%CPU** and **%MEM** to spot a hog, and **COMMAND** to see what it is. The others help when you dig deeper.',
-            ],
-            code: {
-              language: 'text',
-              code: `USER     who started it
-PID      process id
-%CPU     share of one CPU core in use (99.7 = a full core)
-%MEM     share of RAM in use
-RSS      memory actually in RAM, in KB
-TTY      terminal it is attached to (? = none, e.g. a service)
-STAT     state: R, S, D, T, Z (see below)
-TIME     total CPU time used so far
-COMMAND  the command line that started it`,
-            },
-          },
-          {
-            id: 'states',
-            title: 'The STAT column: process states',
-            body: [
-              'The **STAT** column in the **`ps aux`** output above shows each process’s **state** as a letter (**`top`**, covered next, shows the same letter in its **S** column). A process is not always busy: most of the time it is **sleeping** — waiting for a key press, a network reply, or a timer — and uses no CPU at all. In the example, **`yes`** is **R** (running) and **`bash`** is **S** (sleeping).',
-            ],
-            code: {
-              language: 'text',
-              code: `STAT  meaning
-R     running, or ready to run on a CPU
-S     sleeping: waiting for something (input, a timer, the network)
-D     waiting on disk; cannot be interrupted until the disk answers
-T     stopped (paused), e.g. after Ctrl-Z
-Z     zombie: finished, but its parent has not collected the exit status yet`,
-            },
-          },
-          {
-            id: 'top',
-            title: 'top: a live view',
-            body: [
-              '**`top`** shows the same information as **`ps`**, but refreshes every few seconds, sorted by CPU use — so a hog floats to the top on its own. The header shows overall load, memory, and how busy the CPUs are.',
-              'Inside **`top`** a few keys do most of the work: **P** sorts by CPU, **M** by memory, **1** shows each CPU core separately, **k** asks for a PID and kills it, and **q** quits. **`htop`** is a friendlier version with colours and mouse support, if it is installed.',
-            ],
-            code: {
-              language: 'shell',
-              code: `top          # live view, sorted by CPU
-top -u asha  # only asha’s processes
-top -p 1842  # watch a single PID
-htop         # nicer version, if installed`,
-            },
-          },
-          {
-            id: 'pgrep',
-            title: 'pgrep and pidof: find a PID by name',
-            body: [
-              'Scanning **`ps aux`** by eye is slow. **`pgrep`** prints the PIDs of processes whose name matches a pattern. Add **`-a`** to see the full command line too, **`-f`** to match against the whole command line instead of just the name, and **`-u`** to limit it to one user. **`pidof`** does the same for an exact program name.',
-            ],
-            code: {
-              language: 'shell',
-              code: `pgrep yes                   # 1842
-pgrep -a yes                # 1842 yes
-pgrep -af 'python3 app.py'  # match the full command line
-pgrep -u asha bash          # asha’s bash shells
-pidof sshd                  # PIDs of an exact program name`,
-            },
-          },
-          {
-            id: 'proc',
-            title: '/proc: everything about one process',
-            body: [
-              'The kernel publishes details for every process as files under **`/proc/PID/`**. Nothing there is on disk — it is generated when you read it. **`status`** has the name, state, owner, and memory; **`cmdline`** has the exact command, with its words separated by invisible **null characters** (**`\\0`**) instead of spaces — that is why the example feeds it to **`tr \'\\0\' \' \'`**, which **tr**anslates every null into a space so it reads normally; **`cwd`** points to the folder it is running in.',
-            ],
-            code: {
-              language: 'shell',
-              code: `cat /proc/1842/status | head      # name, state, PPID, owner, memory
-tr '\\0' ' ' < /proc/1842/cmdline  # full command line: tr replaces each \\0 (null) separator with a space
-ls -l /proc/1842/cwd              # folder it is running in`,
-            },
           },
         ],
         table: {
-          headers: ['Tool', 'Shows', 'Use it when…'],
+          headers: ['STAT', 'Meaning'],
           rows: [
-            ['`ps aux`', 'Snapshot of every process', 'You want a list right now, or to pipe into `grep` / `sort`'],
-            ['`top` / `htop`', 'Live view, sorted by CPU', 'Something is slow and you want to watch it'],
-            ['`pgrep -a name`', 'PIDs matching a name', 'You know the name and need the PID'],
+            ['`R`', 'Running, or ready to run on a CPU'],
+            ['`S`', 'Sleeping: waiting for input, a timer, or the network'],
+            ['`D`', 'Waiting on disk; cannot be interrupted until the disk answers'],
+            ['`T`', 'Stopped (paused), for example after Ctrl-Z'],
+            ['`Z`', 'Zombie: finished, but its parent has not collected the exit status'],
+          ],
+        },
+        after: [
+          '**`top`** shows the same facts and refreshes every few seconds, sorted by CPU, so a hog floats up on its own. Press **P** to sort by CPU, **M** by memory, **k** to kill by PID, and **q** to quit. **`htop`** is a friendlier version if it is installed.',
+        ],
+        code: {
+          language: 'shell',
+          code: `top
+# P sort by CPU, M by memory, k kill, q quit
+top -u orders
+htop`,
+        },
+        tableAfter: {
+          headers: ['Tool', 'Shows', 'Use it when'],
+          rows: [
+            ['`ps aux` / `ps -eo …`', 'A snapshot of every process', 'You want a list right now, or to pipe into `head`'],
+            ['`top` / `htop`', 'A live view, sorted by CPU', 'Something is slow and you want to watch it'],
+            ['`pgrep -af name`', 'PIDs matching a name or path', 'You know the name and need the PID'],
             ['`/proc/PID/`', 'Kernel details for one process', 'You need the exact command, folder, or memory'],
           ],
         },
       },
       {
-        id: 'signals',
-        title: 'Signals: telling a process to stop',
+        id: 'pgrep-proc',
+        title: 'Get the PID without scanning by eye',
         body: [
-          'You do not stop a process directly. You send it a **signal** — a small numbered message delivered by the kernel. Most signals can be **caught** by the program, which lets it clean up first (save work, close files, remove temp files). A couple cannot be caught at all.',
+          'Scanning **`ps aux`** by eye is slow when many lines look similar. **`pgrep`** prints the PIDs whose name matches. **`-a`** shows the full command line. **`-f`** matches against the whole command line, not only the short name — that is how you pick **`order-reindex`** out of a path under **`/opt`**. **`-u`** limits the search to one user.',
+          'Write the PID down when you will use it more than once. A file under **`~/answers/`** is enough for a lab. **`pidof`** does the same job for an exact program name.',
+        ],
+        code: {
+          language: 'shell',
+          code: `pgrep -af order-reindex
+# 1842 /opt/order-processor/bin/order-reindex
+mkdir -p ~/answers
+pgrep -f order-reindex > ~/answers/runaway-pid
+cat ~/answers/runaway-pid
+# 1842
+pgrep -u orders -af report-builder
+pidof sshd`,
+        },
+        after: [
+          'The kernel also publishes one process as files under **`/proc/PID/`**. Nothing there is on disk. **`status`** has the name, state, owner, and memory. **`cmdline`** has the exact command, with words separated by null characters instead of spaces — feed it to **`tr`** so it reads normally. **`cwd`** points at the folder it is running in.',
+        ],
+        codes: [
+          {
+            language: 'shell',
+            code: `cat /proc/1842/status | head
+tr '\\0' ' ' < /proc/1842/cmdline
+ls -l /proc/1842/cwd`,
+          },
+        ],
+        callout: {
+          kind: 'warn',
+          title: 'Match the path, not a short name',
+          body: [
+            '**`pgrep reindex`** can match more than you meant. **`pgrep -f order-reindex`** matches the command line. Run **`pgrep -af`** first and read the lines before you act.',
+          ],
+        },
+      },
+      {
+        id: 'stop-it',
+        title: 'Stop the runaway',
+        body: [
+          'You do not stop a process directly. You send it a **signal** — a small numbered message the kernel delivers. Most signals can be **caught**, which lets the program clean up first. A couple cannot be caught at all.',
+          'Despite the name, **`kill`** only sends a signal. With no options it sends **SIGTERM** (15): please exit. **`kill -9`** and **`kill -KILL`** are the same: **SIGKILL**, which the kernel enforces and the program cannot ignore. You can signal your own processes. Signalling another user’s process needs **`sudo`**.',
         ],
         subsections: [
           {
-            id: 'kill',
-            title: 'kill: send a signal to a PID',
+            id: 'term-then-kill',
+            title: 'Ask first, force second',
             body: [
-              'Despite the name, **`kill`** just **sends a signal**. Without options it sends **SIGTERM** — “please exit.” You choose another signal with its number or name: **`kill -9`** and **`kill -KILL`** are the same thing. **`kill -l`** lists every signal.',
-              'You can signal your own processes; signalling other users’ processes needs **`sudo`**.',
+              'Always try **SIGTERM** first. A well-behaved program catches it, finishes or saves what it is doing, and exits. Give it a few seconds, then check whether it is still there.',
+              '**`order-reindex`** ignores SIGTERM on purpose in this story. **`ps -p`** still prints a line after **`kill`**. Then use **SIGKILL**. The kernel removes the process on the spot. It gets no chance to clean up, so half-written files and leftover locks are common side effects. Use **`-9`** only when SIGTERM was ignored.',
             ],
             code: {
               language: 'shell',
-              code: `kill 1842        # send SIGTERM (15): please exit
-kill -TERM 1842  # same, by name
-kill -9 1842     # send SIGKILL: stop immediately
-kill -l          # list all signals`,
+              code: `PID=$(cat ~/answers/runaway-pid)
+sudo kill "$PID"
+ps -p "$PID"
+# still there: it ignored SIGTERM
+sudo kill -9 "$PID"
+ps -p "$PID"
+# gone`,
             },
           },
           {
             id: 'common-signals',
             title: 'The signals you will actually use',
             body: [
-              'There are dozens of signals, but six cover almost everything. You already send some of them from the keyboard: **Ctrl-C** sends SIGINT to the program in front of you, and **Ctrl-Z** pauses it.',
+              'There are dozens of signals. Six cover almost everything. You already send some from the keyboard: **Ctrl-C** sends **SIGINT** to the program in front of you, and **Ctrl-Z** pauses it.',
             ],
-            code: {
-              language: 'text',
-              code: `number  name     sent by             meaning
-2       SIGINT   Ctrl-C              interrupt: stop what you are doing
-15      SIGTERM  kill (default)      please exit: clean up and quit
-9       SIGKILL  kill -9             die now: cannot be caught or ignored
-1       SIGHUP   terminal closed     hang up; many services reload config on it
-19      SIGSTOP  kill -STOP          pause (Ctrl-Z sends the similar SIGTSTP)
-18      SIGCONT  kill -CONT, fg, bg  resume a paused process`,
-            },
-          },
-          {
-            id: 'term-then-kill',
-            title: 'Ask first, force second',
-            body: [
-              'Always try **SIGTERM** first. A well-behaved program catches it, finishes or saves what it is doing, and exits cleanly. Give it a few seconds, then check whether it is still there.',
-              'Use **SIGKILL** (**`-9`**) only if the process ignores SIGTERM. The kernel removes it on the spot, so it gets no chance to clean up — half-written files and leftover lock files are common side effects.',
-            ],
-            code: {
-              language: 'shell',
-              code: `pgrep -a yes            # 1842 yes
-kill 1842               # ask politely
-sleep 3                 # give it a moment
-pgrep yes || echo gone  # prints the PID if still running, else "gone"
-kill -9 1842            # only if it is still running`,
-            },
-          },
-          {
-            id: 'pkill',
-            title: 'pkill and killall: signal by name',
-            body: [
-              '**`pkill`** sends a signal to every process whose name matches — **`pgrep`** and **`kill`** in one step. **`killall`** does the same for an exact program name. They are convenient, but they hit **every** match, so run the matching **`pgrep`** first to see what you are about to stop.',
-            ],
-            code: {
-              language: 'shell',
-              code: `pgrep -a yes           # check what matches first
-pkill yes              # SIGTERM to every 'yes' process
-pkill -u asha python3  # only asha’s python3 processes
-killall -9 yes         # SIGKILL by exact name`,
-            },
-          },
-          {
-            id: 'pause-resume',
-            title: 'Pause and resume',
-            body: [
-              'Sometimes you do not want to stop a job, just pause it while something more urgent runs. **SIGSTOP** freezes a process in place (state **T**) and **SIGCONT** lets it carry on exactly where it left off.',
-            ],
-            code: {
-              language: 'shell',
-              code: `kill -STOP 1842             # pause: state becomes T
-ps -o pid,stat,cmd -p 1842  # check the state
-kill -CONT 1842             # resume`,
-            },
           },
         ],
         table: {
-          headers: ['Goal', 'Command'],
+          headers: ['Number', 'Name', 'Sent by', 'Meaning'],
           rows: [
-            ['Ask a process to exit', '`kill PID` (SIGTERM)'],
-            ['Force it to stop', '`kill -9 PID` (SIGKILL)'],
-            ['Stop by name', '`pkill name`, `killall name`'],
-            ['Pause / resume', '`kill -STOP PID`, `kill -CONT PID`'],
-            ['Stop the program in front of you', '**Ctrl-C**'],
+            ['`2`', '`SIGINT`', 'Ctrl-C', 'Interrupt: stop what you are doing'],
+            ['`15`', '`SIGTERM`', '`kill` (default)', 'Please exit: clean up and quit'],
+            ['`9`', '`SIGKILL`', '`kill -9`', 'Die now: cannot be caught or ignored'],
+            ['`1`', '`SIGHUP`', 'Terminal closed', 'Hang up; many services reload config on it'],
+            ['`19`', '`SIGSTOP`', '`kill -STOP`', 'Pause (Ctrl-Z sends the similar SIGTSTP)'],
+            ['`18`', '`SIGCONT`', '`kill -CONT`, `fg`, `bg`', 'Resume a paused process'],
+          ],
+        },
+        after: [
+          '**`pkill`** sends a signal to every process whose name matches — **`pgrep`** and **`kill`** in one step. **`killall`** does the same for an exact program name. They hit every match, so run **`pgrep -af`** first.',
+          'Sometimes you only want to pause a job. **SIGSTOP** freezes it (state **T**). **SIGCONT** lets it continue where it left off.',
+        ],
+        codes: [
+          {
+            language: 'shell',
+            code: `pgrep -af order-reindex
+sudo pkill -f order-reindex
+# or, only if it ignored SIGTERM:
+sudo pkill -9 -f order-reindex
+
+kill -STOP 1901
+ps -o pid,stat,cmd -p 1901
+kill -CONT 1901`,
+          },
+        ],
+        callout: {
+          kind: 'warn',
+          title: 'Leave the workers that must stay',
+          body: [
+            'On this box **`notification-retry`** must keep running, and **`report-builder`** must stay up too. Kill the PID you recorded for the hog. Do not **`pkill -f order`** and hope — that pattern can match more than one program.',
           ],
         },
       },
       {
         id: 'nice',
-        title: 'Priority: nice and renice',
+        title: 'Make the report share the CPU',
         body: [
-          'When several processes want the CPU at once, the kernel shares it out. A process’s **niceness** tells the kernel how much to favour it: it goes from **-20** (greedy, gets the most CPU) to **19** (nicest, gets what is left). Everything starts at **0**.',
-          'Make long batch jobs — backups, big compressions, reports — **nicer**, so interactive work like your shell and web requests stays responsive. Any user can make their own processes nicer; only root can make a process **less** nice (a lower number).',
+          'When several processes want the CPU, the kernel shares it. A process’s **niceness** tells the kernel how much to favour it. The range is **-20** (greedy) to **19** (nicest, gets what is left). Everything starts at **0**.',
+          '**`report-builder`** is allowed to keep running. It must stay out of the way of checkout. Raise its niceness to **15** without restarting it. Any user can make their own processes nicer. Only root can make a process **less** nice (a lower number), and only root can change another user’s process.',
         ],
         subsections: [
-          {
-            id: 'nice-cmd',
-            title: 'nice: start a command with a priority',
-            body: [
-              '**`nice -n N command`** starts the command with niceness **N**. Without **`-n`** it uses **10**, a sensible choice for background work.',
-            ],
-            code: {
-              language: 'shell',
-              code: `nice -n 10 tar czf backup.tgz /srv/data  # low priority backup
-nice ./report.sh                         # niceness 10 by default
-sudo nice -n -5 ./urgent.sh              # higher priority (root only)`,
-            },
-          },
           {
             id: 'renice',
             title: 'renice: change a running process',
             body: [
-              '**`renice`** changes the niceness of a process that is already running — handy when a job you started normally turns out to be heavier than expected. Use **`-p`** for a PID or **`-u`** for all of a user’s processes.',
+              '**`renice -n N -p PID`** sets niceness **N** on a process that is already running. **`-u`** changes every process owned by that user.',
             ],
             code: {
               language: 'shell',
-              code: `renice -n 15 -p 1842       # make PID 1842 nicer
-sudo renice -n 0 -p 1842   # back to normal (root only)
-sudo renice -n 10 -u ravi  # all of ravi’s processes`,
+              code: `pgrep -af report-builder
+sudo renice -n 15 -p "$(pgrep -f report-builder)"
+ps -o pid,ni,cmd -p "$(pgrep -f report-builder)"
+# PID  NI CMD
+# 1901 15 /opt/order-processor/bin/report-builder`,
             },
           },
           {
-            id: 'see-ni',
-            title: 'Seeing the niceness',
+            id: 'nice-start',
+            title: 'nice: start with a priority',
             body: [
-              'The **NI** column shows niceness in both **`top`** and **`ps`**. Next to it, **PR** in **`top`** is the kernel’s own priority number, which moves with NI.',
+              '**`nice -n N command`** starts a new command at niceness **N**. Without **`-n`** it uses **10**, a sensible default for background work. Use this when you know the job will be heavy before you start it.',
             ],
             code: {
               language: 'shell',
-              code: `ps -o pid,ni,cmd -p 1842              # PID, niceness, command
-ps -eo pid,ni,comm --sort=-ni | head  # nicest processes first`,
+              code: `nice -n 15 /opt/order-processor/bin/report-builder &
+nice ./report.sh
+sudo nice -n -5 ./urgent.sh`,
             },
           },
         ],
+        after: [
+          'The **NI** column in **`ps`** and **`top`** is niceness. Next to it in **`top`**, **PR** is the kernel’s own priority number, which moves with NI.',
+        ],
+        code: {
+          language: 'shell',
+          code: `ps -o pid,ni,cmd -p 1901
+ps -eo pid,ni,comm --sort=-ni | head`,
+        },
       },
       {
         id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
           headers: ['Goal', 'Command'],
           rows: [
-            ['My shell’s PID / last background PID', '`echo $$`, `echo $!`'],
-            ['All processes', '`ps aux`, `ps -ef`'],
-            ['Heaviest by CPU / memory', '`ps aux --sort=-%cpu | head`, `--sort=-%mem`'],
+            ['This shell’s PID / last background PID', '`echo $$`, `echo $!`'],
+            ['Heaviest by CPU', '`ps aux --sort=-%cpu | head`, `ps -eo pid,user,ni,pcpu,cmd --sort=-pcpu | head`'],
             ['Live view', '`top` (P, M, k, q), `htop`'],
-            ['Find a PID by name', '`pgrep -a name`, `pidof name`'],
-            ['Details for one process', '`cat /proc/PID/status`'],
-            ['Ask to exit / force', '`kill PID`, `kill -9 PID`'],
-            ['Stop by name', '`pkill name`, `killall name`'],
+            ['Find a PID by name or path', '`pgrep -af name`'],
+            ['Details for one process', '`cat /proc/PID/status`, `tr \'\\0\' \' \' < /proc/PID/cmdline`'],
+            ['Ask to exit', '`sudo kill PID` (SIGTERM)'],
+            ['Force stop', '`sudo kill -9 PID` (SIGKILL)'],
+            ['Stop by name, after checking', '`pgrep -af name`, then `sudo pkill -f name`'],
             ['Pause / resume', '`kill -STOP PID`, `kill -CONT PID`'],
-            ['Start with low priority', '`nice -n 10 command`'],
-            ['Change priority', '`renice -n 15 -p PID`'],
+            ['Start with low priority', '`nice -n 15 command`'],
+            ['Change a running process’s priority', '`sudo renice -n 15 -p PID`'],
           ],
         },
       },
     ],
     takeaways: [
-      'A **process** is a running program with a **PID** and a parent (**PPID**); most of the time it is **sleeping**, not using CPU.',
-      'See processes with **`ps aux`** (snapshot), **`top`** (live), and **`pgrep -a`** (by name); **`/proc/PID/`** has the details.',
-      '**`kill`** sends **signals**: SIGTERM (default) first, **`-9`** only if it is ignored. **`pkill`** works by name — check with **`pgrep`** first.',
-      '**`nice`** and **`renice`** make heavy jobs share the CPU; higher niceness means lower priority.',
+      'A **process** is a running program with a **PID**. Find the hog with **`ps`** sorted by CPU, or with **`top`**, before you act.',
+      '**`pgrep -af`** matches the full command line. Record the PID. Leave the workers that must stay running alone.',
+      '**`kill`** sends **SIGTERM** first. Use **`-9`** only when that was ignored. Another user’s process needs **`sudo`**.',
+      '**`renice`** changes a running job’s priority. Higher niceness means lower priority. **`nice`** starts a new job that way.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -1124,98 +1076,80 @@ ps -eo pid,ni,comm --sort=-ni | head  # nicest processes first`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-11-keep-the-batch-running-after-logout',
     lede:
-      'Some commands take minutes or hours — a big backup, a large download, a report over a year of data. This post covers how to run them **in the background** so you can keep using the terminal, how to **manage** them with job control, and how to keep them running even after you **close the terminal or log out**.',
+      'Every night someone runs **`batch-export`** on the **order box** to push the day’s orders to the warehouse. It takes about an hour. Twice this week the export died halfway when a laptop slept and the terminal closed. This post is how you run that job in the **background**, keep using the shell, and keep the export alive after you **log out**.',
     sections: [
       {
         id: 'foreground-background',
-        title: 'Foreground and background',
+        title: 'Foreground holds the prompt',
         body: [
-          'When you run a command, the shell normally **waits** for it to finish before showing the prompt again. That command runs in the **foreground**: it owns the terminal, and you cannot type anything else until it is done. For a one-second **`ls`** that is fine; for a backup that takes an hour, it is not.',
-          'The examples use **`./backup.sh`**, a script that copies a large folder and takes a long time. Any slow command works the same way — **`sleep 600`** is an easy one to practise with.',
+          'When you type a command, the shell normally **waits** for it to finish before showing the prompt again. That command is in the **foreground**: it owns the terminal, and you cannot type anything else until it is done. For **`ls`** that is fine. For an hour-long export, it is not.',
+          'The program on this box is **`/opt/order-processor/bin/batch-export`**. It prints a line for every batch it sends. Any long command works the same way. **`sleep 600`** is a harmless stand-in while you practise.',
         ],
         subsections: [
           {
             id: 'ampersand',
-            title: '&: start a command in the background',
+            title: '&: start in the background',
             body: [
-              'Put **`&`** at the end of a command and the shell starts it **in the background**: it prints a **job number** in brackets and the process **PID**, then gives you the prompt back immediately. The command keeps running while you do other things.',
-              'One catch: a background command still prints its output to your terminal, mixed into whatever you are typing. That is why background commands are almost always combined with **output redirection** (next).',
+              'Put **`&`** at the end of a line and the shell starts the command in the **background**. It prints a **job number** in brackets and the process **PID**, then gives you the prompt back. The command keeps running while you do other work.',
+              'One catch: a background command still prints to your terminal, mixed into whatever you are typing. Send the output to a file instead.',
             ],
             code: {
               language: 'shell',
-              code: `sleep 600 &    # prints e.g. [1] 2290: job 1, PID 2290
-./backup.sh &  # runs, but its output still lands on screen`,
+              code: `/opt/order-processor/bin/batch-export &
+# [1] 2301
+sleep 600 &
+# [2] 2302`,
             },
           },
           {
             id: 'redirect',
-            title: 'Send the output to a file',
+            title: 'Send stdout and stderr to a log',
             body: [
-              'Programs have two output streams: **stdout** for normal output and **stderr** for errors. **`> file`** sends stdout into a file instead of the screen. **`2>&1`** means “send stderr (stream **2**) to the same place as stdout (stream **1**)”, so errors end up in the same file. The order matters: put **`2>&1`** **after** **`> file`**.',
-              'Now the job runs quietly, and you can check on it whenever you like with **`tail -f`**.',
+              'Programs have two output streams: **stdout** for normal lines and **stderr** for errors. **`> file`** sends stdout into a file. **`2>&1`** means “send stderr (stream **2**) to the same place as stdout (stream **1**)”. Put **`2>&1`** **after** **`> file`**. The order matters.',
+              '**`>>`** appends instead of replacing the file. Watch progress with **`tail -f`**. **Ctrl-C** stops **`tail`**, not the batch.',
             ],
             code: {
               language: 'shell',
-              code: `./backup.sh > backup.log 2>&1 &   # output and errors go to backup.log
-tail -f backup.log                # watch progress; Ctrl-C stops watching, not the job
-./backup.sh >> backup.log 2>&1 &  # >> appends instead of overwriting`,
+              code: `/opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+tail -f ~/batch-export.log
+# Ctrl-C stops watching. The export keeps running.`,
             },
           },
         ],
+        callout: {
+          kind: 'idea',
+          title: 'Background is not enough',
+          body: [
+            'A job started with **`&`** still belongs to this shell. Close the terminal, or drop the SSH session, and that job dies. The next sections fix that.',
+          ],
+        },
       },
       {
         id: 'job-control',
-        title: 'Job control: jobs, fg, bg, Ctrl-Z',
+        title: 'Job control: practise on the export',
         body: [
-          'Every command you start from a shell is a **job** of that shell, numbered **1**, **2**, **3**… The shell lets you list them, pause them, and move them between foreground and background. In job commands you refer to a job as **`%1`**, **`%2`**, and so on — different from a PID.',
+          'Every command you start from a shell is a **job** of that shell, numbered **1**, **2**, **3**…. Refer to a job as **`%1`**, **`%2`**, and so on — that is not a PID. Before you rely on **`nohup`**, practise moving **`batch-export`** between foreground and background.',
         ],
         subsections: [
           {
-            id: 'jobs',
-            title: 'jobs: list what this shell is running',
+            id: 'ctrl-z-jobs-bg-fg',
+            title: 'Ctrl-Z, jobs, bg, fg, Ctrl-C',
             body: [
-              '**`jobs`** shows the jobs started from **this** shell, with their number, state (**Running** or **Stopped**), and command. The **`+`** marks the current job — the one **`fg`** and **`bg`** act on if you do not give a number — and **`-`** the one before it. Add **`-l`** to see PIDs too.',
+              'Start the export in the foreground. Press **Ctrl-Z** to pause it. The shell prints **Stopped** and gives you the prompt. **`jobs`** lists the jobs of **this** shell. The **`+`** marks the current job — the one **`fg`** and **`bg`** act on if you omit a number. **`jobs -l`** also shows PIDs.',
+              '**`bg`** resumes the paused job in the background. **`fg`** brings it back to the foreground so it owns the terminal again. In the foreground, **Ctrl-C** sends **SIGINT** and stops it.',
             ],
             code: {
               language: 'shell',
-              code: `$ ./backup.sh > backup.log 2>&1 &
-[1] 2301
-$ sleep 600 &
-[2] 2302
-$ jobs
-[1]-  Running    ./backup.sh > backup.log 2>&1 &
-[2]+  Running    sleep 600 &`,
-            },
-          },
-          {
-            id: 'ctrl-z-bg',
-            title: 'Ctrl-Z and bg: forgot the &?',
-            body: [
-              'Started a long command in the foreground by mistake? Press **Ctrl-Z**. The shell **pauses** the job (state **Stopped**) and gives you the prompt back. Then type **`bg`** and the paused job **continues in the background**, exactly as if you had added **`&`** in the first place.',
-            ],
-            code: {
-              language: 'shell',
-              code: `$ ./backup.sh > backup.log 2>&1
-^Z
-[1]+  Stopped    ./backup.sh > backup.log 2>&1
-$ bg
-[1]+ ./backup.sh > backup.log 2>&1 &
-$ jobs
-[1]+  Running    ./backup.sh > backup.log 2>&1 &`,
-            },
-          },
-          {
-            id: 'fg',
-            title: 'fg: bring a job back to the foreground',
-            body: [
-              '**`fg`** moves a background or stopped job into the foreground, so it owns the terminal again — useful when a job asks a question, or when you want to stop it with **Ctrl-C**. Without a number it picks the current (**`+`**) job.',
-            ],
-            code: {
-              language: 'shell',
-              code: `fg       # bring the current job (+) to the foreground
-fg %2    # bring job 2
-bg %1    # resume job 1 in the background
-kill %1  # send SIGTERM to job 1 (no PID needed)`,
+              code: `/opt/order-processor/bin/batch-export
+# Ctrl-Z
+# [1]+  Stopped                 /opt/order-processor/bin/batch-export
+jobs
+# [1]+  Stopped                 /opt/order-processor/bin/batch-export
+bg
+# [1]+ /opt/order-processor/bin/batch-export &
+jobs -l
+fg
+# Ctrl-C stops it`,
             },
           },
         ],
@@ -1223,150 +1157,185 @@ kill %1  # send SIGTERM to job 1 (no PID needed)`,
           headers: ['Action', 'How'],
           rows: [
             ['Start in the background', '`command &`'],
-            ['List jobs', '`jobs`, `jobs -l` (with PIDs)'],
+            ['List jobs', '`jobs`, `jobs -l`'],
             ['Pause the foreground job', '**Ctrl-Z**'],
-            ['Resume it in the background', '`bg` or `bg %N`'],
-            ['Bring a job to the foreground', '`fg` or `fg %N`'],
-            ['Stop a job', '`kill %N`, or **Ctrl-C** when it is in the foreground'],
+            ['Resume in the background', '`bg` or `bg %N`'],
+            ['Bring to the foreground', '`fg` or `fg %N`'],
+            ['Stop a foreground job', '**Ctrl-C**'],
+            ['Signal a job by number', '`kill %N`'],
+          ],
+        },
+        callout: {
+          kind: 'warn',
+          title: 'jobs only knows this shell',
+          body: [
+            '**`jobs`** is empty in a new login. After you log out and back in, find the export with **`pgrep -af batch-export`**, the same way you find any other process.',
           ],
         },
       },
       {
         id: 'hangup',
-        title: 'Why jobs die when you close the terminal',
+        title: 'Why the export died halfway',
         body: [
-          'Background jobs still belong to the shell that started them. When that shell’s terminal goes away — you close the terminal window, or log out — the system sends the shell a **SIGHUP** (“hang up”) signal, and the shell passes it on to its jobs. The default reaction to SIGHUP is to **exit**, so your hour-long backup stops halfway.',
-          'This matters most on servers. You usually reach a remote Linux server with **SSH** (“secure shell”) — a program that opens a terminal on the server over the network. Close your laptop or lose Wi-Fi and the SSH connection drops, which counts as closing the terminal: every job you started in that session receives SIGHUP. (SSH itself gets its own post later in the track.)',
-          'There are two ways out: make the job **ignore** SIGHUP (**`nohup`**, **`disown`**), or run it inside a terminal session that **does not close** when you disconnect (**`tmux`**, **`screen`**).',
+          'Background jobs still belong to the shell that started them. When that terminal goes away — you close the window, the laptop sleeps, or an SSH link drops — the system sends **SIGHUP** (“hang up”). The shell passes it on. The default reaction is to **exit**, so the warehouse gets half the orders.',
+          'You reach a remote server with **SSH**. Close the laptop and that session ends the same way a local terminal does. SSH gets its own post later. For tonight, the export has to ignore SIGHUP.',
         ],
+        code: {
+          language: 'shell',
+          code: `# What closing the terminal does to an unprotected job:
+/opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+PID=$!
+kill -HUP "$PID"
+pgrep -af batch-export
+# empty: the export exited on SIGHUP`,
+        },
       },
       {
         id: 'nohup-disown',
-        title: 'Surviving logout: nohup and disown',
+        title: 'Survive logout: nohup and disown',
         body: [
-          'Both commands make a job immune to SIGHUP. Use **`nohup`** when you are **starting** the command, and **`disown`** when it is **already running**.',
+          'Make the job ignore SIGHUP. Use **`nohup`** when you are **starting** the command. Use **`disown`** when it is **already running** without **`nohup`**.',
         ],
         subsections: [
           {
             id: 'nohup',
-            title: 'nohup: start a command that ignores hang-ups',
+            title: 'nohup: the recipe for tonight',
             body: [
-              '**`nohup command`** starts the command with SIGHUP ignored, so closing the terminal no longer stops it. Add **`&`** as well, or the command still runs in the foreground and holds your prompt.',
-              'If you do not redirect the output, **`nohup`** writes it to a file called **`nohup.out`** in the current folder. It is clearer to name your own log file.',
+              '**`nohup command`** starts the command with SIGHUP ignored. Add **`&`** or it still holds the prompt in the foreground.',
+              'Without a redirection, **`nohup`** writes to **`nohup.out`** in the current folder. Name your own log. The line the lab expects is one piece at a time: **`nohup`** ignores hang-ups, **`> ~/batch-export.log 2>&1`** catches both streams, **`&`** returns the prompt.',
             ],
             code: {
               language: 'shell',
-              code: `nohup ./backup.sh > backup.log 2>&1 &  # survives logout, output in backup.log
-nohup ./backup.sh &                    # output goes to ./nohup.out
-exit                                   # log out; the backup keeps going`,
+              code: `cd ~
+nohup /opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+jobs -l
+# [1]+ 2301 Running  nohup /opt/order-processor/bin/batch-export > ... &
+tail -f ~/batch-export.log
+# batch-export: exported batch 12/1800
+# Ctrl-C stops tail only`,
+            },
+          },
+          {
+            id: 'prove-it',
+            title: 'Prove it survives hang-up',
+            body: [
+              'You do not have to log out to check. **`kill -HUP`** is what a closing terminal sends. After **`nohup`**, the process should still be there. Run it as **`learner`**, not as root: the export is your job for the night.',
+            ],
+            code: {
+              language: 'shell',
+              code: `pgrep -af batch-export
+# 2301 /opt/order-processor/bin/batch-export
+kill -HUP "$(pgrep -f batch-export)"
+pgrep -af batch-export
+# 2301 ... still running`,
             },
           },
           {
             id: 'disown',
-            title: 'disown: protect a job that is already running',
+            title: 'disown: already started without nohup',
             body: [
-              'Already started the job without **`nohup`**? **`disown`** removes it from the shell’s job list, so the shell will not pass SIGHUP to it when you log out. Use **`disown %N`** for a specific job, or **`disown -h`** to keep it in **`jobs`** but still protect it.',
+              'Started the export with only **`&`**? **`disown`** removes it from the shell’s job list, so the shell will not pass SIGHUP to it when you leave. **`disown %N`** picks a job. **`disown -h`** keeps it in **`jobs`** but still protects it.',
             ],
             code: {
               language: 'shell',
-              code: `./backup.sh > backup.log 2>&1 &  # started normally: [1] 2301
-disown %1                        # job 1 will survive logout
-jobs                             # no longer listed`,
-            },
-          },
-          {
-            id: 'check-later',
-            title: 'Checking on it later',
-            body: [
-              'After you log back in, the job is no longer in **`jobs`** — that list belongs to the **old** shell. Find it like any other process with **`pgrep`** or **`ps`**, and follow its log file.',
-            ],
-            code: {
-              language: 'shell',
-              code: `pgrep -af backup.sh  # 2301 /bin/bash ./backup.sh: still running
-tail -f backup.log   # see how far it got
-kill 2301            # stop it if needed`,
+              code: `/opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+# [1] 2301
+disown %1
+jobs
+# empty
+pgrep -af batch-export
+# 2301 ... still there`,
             },
           },
         ],
+        callout: {
+          kind: 'tip',
+          title: 'After you log back in',
+          body: [
+            '**`jobs`** will not list the export. Use **`pgrep -af batch-export`** and **`tail -f ~/batch-export.log`**. Stop it with **`kill`** on that PID when the warehouse has the full file.',
+          ],
+        },
       },
       {
         id: 'tmux',
-        title: 'Sessions that stay open: tmux and screen',
+        title: 'When you need the session back',
         body: [
-          '**`nohup`** keeps one command alive, but you cannot come back and interact with it. **`tmux`** (and the older **`screen`**) solve the problem differently: they run a **terminal session on the server** that keeps going when you disconnect. You can **detach** from it, log out, log back in hours later, and **attach** again — everything inside is exactly as you left it, still running.',
+          '**`nohup`** keeps one command alive. You cannot come back and type into it. **`tmux`** (and the older **`screen`**) run a **terminal session on the server** that keeps going when you disconnect. Detach, log out, log in later, and attach again. Everything inside is as you left it.',
+          'Use **`tmux`** when you need an interactive shell that survives a dropped link. Use **`nohup`** when the job is one command and a log file is enough. A job that must also start again after a **reboot** belongs in a **systemd** service — that is the next post and the next lab.',
         ],
         subsections: [
           {
             id: 'tmux-basics',
             title: 'tmux: start, detach, attach',
             body: [
-              'Start a named session with **`tmux new -s name`** and run your commands in it as usual. To leave it running, press **Ctrl-b**, let go, then press **d** (detach). Later, **`tmux ls`** lists sessions and **`tmux attach -t name`** reconnects.',
+              '**`tmux new -s name`** starts a named session. Run commands inside it as usual — no **`&`** or **`nohup`** required for survival. Press **Ctrl-b**, release, then **d** to detach. **`tmux ls`** lists sessions. **`tmux attach -t name`** reconnects.',
             ],
             code: {
               language: 'shell',
-              code: `tmux new -s backup           # start a session called backup
-./backup.sh                  # run normally inside it; no & or nohup needed
-                             # (press Ctrl-b, then d, to detach)
-tmux ls                      # list sessions: backup: 1 windows ...
-tmux attach -t backup        # reconnect to it
-tmux kill-session -t backup  # end the session when done`,
+              code: `tmux new -s export
+/opt/order-processor/bin/batch-export
+# Ctrl-b, then d
+tmux ls
+tmux attach -t export
+tmux kill-session -t export`,
             },
           },
           {
             id: 'tmux-keys',
             title: 'Keys inside tmux',
             body: [
-              'Every tmux shortcut starts with the **prefix** **Ctrl-b**: press it, release, then press the next key. These are the ones you will use first:',
+              'Every shortcut starts with the prefix **Ctrl-b**: press it, release, then the next key.',
             ],
             code: {
               language: 'text',
               code: `key (after Ctrl-b)  what it does
-d                   detach: leave everything running, go back to the normal shell
-c                   create a new window inside the session
+d                   detach: leave everything running
+c                   create a new window
 n / p               next / previous window
-%  /  "             split the window side by side / top and bottom
-[                   scroll mode (arrows, PgUp); q to leave`,
+%  /  "             split side by side / top and bottom
+[                   scroll mode; q to leave`,
             },
           },
           {
             id: 'screen',
             title: 'screen: the older alternative',
             body: [
-              '**`screen`** works the same way and is still installed on many servers. Its prefix is **Ctrl-a** instead of Ctrl-b.',
+              '**`screen`** works the same way and is still on many servers. Its prefix is **Ctrl-a** instead of Ctrl-b.',
             ],
             code: {
               language: 'shell',
-              code: `screen -S backup  # start a named session
-                  # (press Ctrl-a, then d, to detach)
-screen -ls        # list sessions
-screen -r backup  # reattach`,
+              code: `screen -S export
+# Ctrl-a, then d
+screen -ls
+screen -r export`,
             },
           },
         ],
         table: {
-          headers: ['Tool', 'Survives logout?', 'Can you interact later?', 'Best for'],
+          headers: ['Tool', 'Survives logout?', 'Interact later?', 'Best for'],
           rows: [
-            ['`command &`', 'No', 'Only from the same shell', 'Short jobs while you keep working'],
-            ['`nohup … &`', 'Yes', 'No — read its log', 'One long command you start and forget'],
-            ['`disown`', 'Yes', 'No — read its log', 'Rescuing a job you already started'],
-            ['`tmux` / `screen`', 'Yes', 'Yes — reattach any time', 'Long or interactive work on a server'],
+            ['`command &`', 'No', 'Only from the same shell', 'Short work while you keep typing'],
+            ['`nohup … &`', 'Yes', 'No — read its log', 'One long command, like tonight’s export'],
+            ['`disown`', 'Yes', 'No — read its log', 'A job you already started without nohup'],
+            ['`tmux` / `screen`', 'Yes', 'Yes — reattach', 'Long interactive work on a server'],
+            ['systemd service', 'Yes, and after reboot', 'Via `systemctl` / logs', 'Something that must always be up'],
           ],
         },
       },
       {
         id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
           headers: ['Goal', 'Command'],
           rows: [
-            ['Run in the background', '`command > log 2>&1 &`'],
-            ['Watch its output', '`tail -f log`'],
-            ['List / foreground / background', '`jobs`, `fg %N`, `bg %N`'],
-            ['Pause the foreground job', '**Ctrl-Z**'],
+            ['Run in the background with a log', '`command > log 2>&1 &`'],
+            ['Watch the log', '`tail -f log` (Ctrl-C stops only tail)'],
+            ['List / pause / resume / foreground', '`jobs -l`, **Ctrl-Z**, `bg`, `fg`'],
             ['Survive logout (new command)', '`nohup command > log 2>&1 &`'],
-            ['Survive logout (running job)', '`disown %N`'],
-            ['Find it after logging back in', '`pgrep -af name`'],
+            ['Survive logout (already running)', '`disown %N`'],
+            ['Prove hang-up is ignored', '`kill -HUP PID`, then `pgrep -af name`'],
+            ['Find it after a new login', '`pgrep -af name`'],
             ['tmux session', '`tmux new -s name`, **Ctrl-b d**, `tmux attach -t name`'],
             ['screen session', '`screen -S name`, **Ctrl-a d**, `screen -r name`'],
           ],
@@ -1374,10 +1343,10 @@ screen -r backup  # reattach`,
       },
     ],
     takeaways: [
-      '**`&`** runs a command in the background; redirect its output with **`> log 2>&1`** and follow it with **`tail -f`**.',
-      '**`jobs`**, **Ctrl-Z**, **`bg`**, and **`fg`** move jobs between foreground and background in one shell.',
-      'Closing the terminal or dropping an SSH connection sends **SIGHUP**, which stops your jobs — **`nohup`** (new) or **`disown`** (running) prevent that.',
-      '**`tmux`** / **`screen`** keep a whole session alive on the server, so you can detach and reattach later.',
+      '**`&`** frees the prompt. Redirect with **`> log 2>&1`** and watch with **`tail -f`**. That alone does not survive logout.',
+      '**Ctrl-Z**, **`jobs`**, **`bg`**, and **`fg`** move a job between foreground and background in one shell.',
+      'Closing the terminal sends **SIGHUP**. **`nohup … > log 2>&1 &`** ignores it. **`disown`** rescues a job you already started. Prove it with **`kill -HUP`**.',
+      '**`tmux`** keeps a whole session you can reattach to. A job that must survive a **reboot** belongs in **systemd**.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -1396,128 +1365,139 @@ screen -r backup  # reattach`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-12-run-order-processor-as-a-service',
     lede:
-      'Some programs should run **all the time** — a web app, a database, an SSH server — start by themselves when the machine boots, and come back if they crash. On most Linux servers that is the job of **systemd**. This post covers how to **control** services with **`systemctl`**, **write** your own unit file, and **read** service logs with **`journalctl`**.',
+      '**order-processor** only ran when someone started it in a terminal. The box rebooted overnight, nobody restarted it, and orders queued for hours. **systemd** is how a Linux server keeps a program up: start it at boot, run it as the right user, and bring it back when it crashes.',
     sections: [
       {
         id: 'what-is-a-service',
-        title: 'Services: programs that run all the time',
+        title: 'Why nohup is not enough',
         body: [
-          'A **service** (also called a **daemon**) is a program that runs in the background with no terminal attached, waiting to do work — answering web requests, accepting SSH logins, running scheduled jobs. Nobody starts it by hand each morning; the system does.',
-          'You could start a program with **`nohup … &`**, but that only covers half the job: it will not start again after a **reboot**, and nobody restarts it if it **crashes**. **systemd** handles both. It is the very first process the kernel starts (PID **1**), and it starts, stops, watches, and restarts everything else.',
-          'The examples use a small web app, **`/opt/hello/app.py`**, that we want running on port 8080 at all times.',
+          'A **service** (a **daemon**) runs in the background with no terminal, waiting for work: web requests, payments, notifications. Nobody starts it by hand each morning.',
+          '**`nohup … &`** keeps a job alive after logout. It will not start again after a **reboot**, and nobody restarts it if it **crashes**. **systemd** does both. It is the first process the kernel starts (PID **1**). It starts, stops, watches, and restarts everything else.',
+          'The program on this box is **`/opt/order-processor/bin/order-processor`**. It refuses to run as root. It reads its port from **`ORDER_PROCESSOR_PORT`** in **`/etc/order-processor/order-processor.env`**. A system user **`orders`** already exists.',
         ],
         subsections: [
           {
             id: 'units',
             title: 'Units: what systemd manages',
             body: [
-              'systemd calls each thing it manages a **unit**, described by a small text file. The file name ends with the unit’s **type**: **`.service`** for a program to run, **`.timer`** for a schedule, **`.target`** for a group of units that make up a stage of boot (for example **`multi-user.target`**, “the normal running system”).',
-              'This post is about **`.service`** units. When a command expects a unit name you can usually leave off **`.service`** — **`hello`** and **`hello.service`** mean the same thing.',
+              'systemd calls each thing it manages a **unit**, described by a short text file. The name ends with the type: **`.service`** for a program, **`.timer`** for a schedule, **`.target`** for a stage of boot (for example **`multi-user.target`**, the normal running system).',
+              'This post is about **`.service`** units. You can usually leave off **`.service`** in commands: **`order-processor`** and **`order-processor.service`** mean the same thing.',
             ],
             code: {
               language: 'shell',
-              code: `systemctl list-units --type=service                  # services systemd has loaded
-systemctl list-units --type=service --state=running  # only the running ones
-systemctl list-unit-files --type=service             # every service file, and whether it starts at boot`,
+              code: `systemctl list-units --type=service
+systemctl list-units --type=service --state=running
+systemctl list-unit-files --type=service`,
+            },
+          },
+          {
+            id: 'try-by-hand',
+            title: 'Try it by hand first',
+            body: [
+              'Run the binary once before you write a unit. The error tells you what the unit must supply.',
+            ],
+            code: {
+              language: 'shell',
+              code: `/opt/order-processor/bin/order-processor
+# ORDER_PROCESSOR_PORT is not set
+sudo /opt/order-processor/bin/order-processor
+# refusing to run as root
+cat /etc/order-processor/order-processor.env
+id orders`,
             },
           },
         ],
       },
       {
         id: 'systemctl',
-        title: 'systemctl: control a service',
+        title: 'systemctl: talk to systemd',
         body: [
-          '**`systemctl`** is the command you use to talk to systemd. Looking at a service is allowed for everyone; starting, stopping, or changing one needs **`sudo`**.',
+          '**`systemctl`** is the command. Looking at a service is allowed for everyone. Starting, stopping, or changing one needs **`sudo`**.',
         ],
         subsections: [
           {
             id: 'status',
             title: 'status: is it running?',
             body: [
-              '**`systemctl status`** is always the first command to run. It shows whether the service is running, since when, its PID, how much memory it uses, and the last few lines of its log — usually enough to see what is wrong. Press **`q`** to get back to the prompt.',
+              '**`systemctl status`** is always first. It shows whether the service is running, its PID, memory, and the last log lines. Press **`q`** to leave the viewer.',
             ],
             code: {
               language: 'shell',
-              code: `$ systemctl status hello
-● hello.service - Hello web app
-     Loaded: loaded (/etc/systemd/system/hello.service; enabled; preset: enabled)
-     Active: active (running) since Mon 2026-10-05 09:12:04 UTC; 2h 3min ago
-   Main PID: 812 (python3)
-      Tasks: 1 (limit: 4613)
+              code: `$ systemctl status order-processor
+● order-processor.service - Order Processor
+     Loaded: loaded (/etc/systemd/system/order-processor.service; enabled; ...)
+     Active: active (running) since Mon 2026-10-05 09:12:04 UTC; 2h ago
+   Main PID: 812 (order-processor)
      Memory: 18.2M
-        CPU: 1.204s
-     CGroup: /system.slice/hello.service
-             └─812 /usr/bin/python3 /opt/hello/app.py
-
-Oct 05 09:12:04 web-1 systemd[1]: Started hello.service - Hello web app.
-Oct 05 09:12:05 web-1 python3[812]: Listening on port 8080`,
+     CGroup: /system.slice/order-processor.service
+             └─812 /opt/order-processor/bin/order-processor`,
             },
           },
           {
             id: 'status-parts',
             title: 'Reading the status output',
             body: [
-              'The two lines that matter most are **Loaded** (does systemd know about the unit, and will it start at boot?) and **Active** (is it running right now?). A service can be **enabled** but **inactive** — it will start at the next boot, but is stopped now — or the other way round.',
+              'Two lines matter most. **Loaded** says whether systemd knows the unit and whether it starts at boot. **Active** says what is happening now. A service can be **enabled** but **inactive** — it will start at the next boot, but is stopped now — or the other way round.',
             ],
             code: {
               language: 'text',
               code: `●            green = running, white = stopped, red = failed
-Loaded       where the unit file is; "enabled" = starts at boot
-Active       the current state, and for how long
-Main PID     the PID of the program systemd started
-Memory, CPU  resources it is using right now
+Loaded       unit file path; "enabled" = starts at boot
+Active       current state, and for how long
+Main PID     the PID systemd started
+Memory, CPU  resources right now
 CGroup       every process that belongs to this service
-last lines   the most recent log lines from the journal`,
+last lines   recent journal lines`,
             },
           },
           {
             id: 'start-stop',
             title: 'start, stop, restart, reload',
             body: [
-              'These change what is happening **right now**, and do not affect what happens at the next boot. **`restart`** stops and starts the program — the usual step after you change its configuration. **`reload`** asks the program to re-read its config **without** stopping; only some services support it (web servers such as **nginx** do).',
+              'These change what is happening **right now**. They do not change boot. **`restart`** stops and starts — the usual step after a config change. **`reload`** asks the program to re-read config without stopping; only some services support it.',
             ],
             code: {
               language: 'shell',
-              code: `sudo systemctl start hello    # start it now
-sudo systemctl stop hello     # stop it now
-sudo systemctl restart hello  # stop + start, e.g. after a config change
-sudo systemctl reload nginx   # re-read config without stopping (if supported)`,
+              code: `sudo systemctl start order-processor
+sudo systemctl stop order-processor
+sudo systemctl restart order-processor
+sudo systemctl reload nginx`,
             },
           },
           {
             id: 'enable-disable',
-            title: 'enable and disable: start at boot',
+            title: 'enable: start at boot',
             body: [
-              '**`enable`** tells systemd to start the service **automatically at every boot**; **`disable`** stops that. Neither one starts or stops the service now — add **`--now`** to do both in one go. This is the most common surprise: a service that works until the first reboot was usually started but never **enabled**.',
+              '**`enable`** makes the service start at every boot. **`disable`** stops that. Neither starts or stops it now. Add **`--now`** to do both in one go. The common surprise: a service that works until the first reboot was started but never **enabled**.',
             ],
             code: {
               language: 'shell',
-              code: `sudo systemctl enable hello         # start at every boot (not now)
-sudo systemctl enable --now hello   # start at boot AND start now
-sudo systemctl disable --now hello  # stop now and do not start at boot
-systemctl is-enabled hello          # enabled / disabled
-systemctl is-active hello           # active / inactive / failed`,
+              code: `sudo systemctl enable order-processor
+sudo systemctl enable --now order-processor
+sudo systemctl disable --now order-processor
+systemctl is-enabled order-processor
+systemctl is-active order-processor`,
             },
           },
           {
             id: 'failed',
             title: 'Finding failed services',
             body: [
-              'When something on a server is broken, list the services that have **failed** first. After you fix the cause, **`reset-failed`** clears the red “failed” mark.',
+              'When something on a server is broken, list the units that **failed** first. After you fix the cause, **`reset-failed`** clears the red mark.',
             ],
             code: {
               language: 'shell',
-              code: `systemctl --failed                 # every unit in the failed state
-systemctl is-failed hello          # failed / active / inactive
-sudo systemctl reset-failed hello  # clear the failed state after fixing it`,
+              code: `systemctl --failed
+systemctl is-failed order-processor
+sudo systemctl reset-failed order-processor`,
             },
           },
         ],
         table: {
           headers: ['Command', 'Affects', 'What it does'],
           rows: [
-            ['`status`', '—', 'Show state, PID, memory, recent logs'],
-            ['`start` / `stop` / `restart`', 'Now', 'Run, stop, or restart the service'],
+            ['`status`', '—', 'State, PID, memory, recent logs'],
+            ['`start` / `stop` / `restart`', 'Now', 'Run, stop, or restart'],
             ['`reload`', 'Now', 'Re-read config without stopping (if supported)'],
             ['`enable` / `disable`', 'Boot', 'Start / do not start at boot'],
             ['`enable --now`', 'Both', 'Start now and at every boot'],
@@ -1527,153 +1507,235 @@ sudo systemctl reset-failed hello  # clear the failed state after fixing it`,
       },
       {
         id: 'unit-file',
-        title: 'Writing a unit file',
+        title: 'Write a unit for order-processor',
         body: [
-          'To turn your own program into a service, you write a **unit file**: a short text file in sections, each with **`Key=value`** lines. Your own units go in **`/etc/systemd/system/`**. Units installed by packages live in **`/lib/systemd/system/`** — read them for examples, but do not edit them there.',
-          'Here is a complete unit for the hello app, saved as **`/etc/systemd/system/hello.service`**:',
-        ],
-        codes: [
-          {
-            language: 'ini',
-            filename: 'hello.service',
-            code: `[Unit]
-Description=Hello web app
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=hello
-WorkingDirectory=/opt/hello
-ExecStart=/usr/bin/python3 /opt/hello/app.py
-Environment=PORT=8080
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target`,
-          },
-        ],
-      },
-      {
-        id: 'unit-sections',
-        title: 'What each section means',
-        body: [
-          'The three sections answer three questions: **what** is this and when should it start (**[Unit]**), **how** do you run it (**[Service]**), and **at which point of boot** should it be switched on (**[Install]**).',
+          'Your own units live in **`/etc/systemd/system/`**. Units from packages live in **`/lib/systemd/system/`**. Read those for examples. Do not edit them there — a package upgrade overwrites them.',
+          'A unit file has three sections. **[Unit]** is what this is and when it may start. **[Service]** is how to run it. **[Install]** is where **`enable`** hooks it into boot.',
         ],
         subsections: [
           {
-            id: 'unit-section',
-            title: '[Unit]: description and ordering',
+            id: 'the-unit-file',
+            title: 'The unit file',
             body: [
-              '**`Description=`** is the friendly name shown in **`status`**. **`After=`** controls **order**: start this unit only after the listed ones have started. **`Wants=`** pulls the other unit in as well, but carries on if it fails; **`Requires=`** is stricter — if the required unit fails or stops, this one stops too.',
-              '**`After=`** on its own does not start anything; it only orders units that are starting anyway. That is why the example uses **`Wants=network-online.target`** together with **`After=network-online.target`**: “make sure the network comes up, and start me after it.”',
+              'Save this as **`/etc/systemd/system/order-processor.service`**.',
+            ],
+            code: {
+              language: 'ini',
+              filename: '/etc/systemd/system/order-processor.service',
+              code: `[Unit]
+Description=Order Processor
+After=network.target
+
+[Service]
+User=orders
+Group=orders
+EnvironmentFile=/etc/order-processor/order-processor.env
+ExecStart=/opt/order-processor/bin/order-processor
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target`,
+            },
+          },
+          {
+            id: 'unit-section',
+            title: '[Unit]: description and order',
+            body: [
+              '**`Description=`** is the name in **`status`**. **`After=`** is order only: start this unit after the listed ones have started. It does not start those units by itself.',
             ],
           },
           {
             id: 'service-section',
-            title: '[Service]: how to run the program',
+            title: '[Service]: how to run it',
             body: [
-              '**`ExecStart=`** is the command to run. It must use a **full path** (**`/usr/bin/python3`**, not just **`python3`**) — systemd does not search your PATH like a shell does, and shell tricks like **`&&`**, **`>`** or **`~`** do not work here.',
-              '**`User=`** runs the program as that user instead of root — always do this for your own apps. **`WorkingDirectory=`** is the folder it starts in, and **`Environment=`** sets variables it can read.',
-              '**`Restart=on-failure`** tells systemd to start the program again if it crashes (exits with an error); **`Restart=always`** restarts it whenever it exits. **`RestartSec=`** waits that many seconds before trying again, so a broken app does not restart hundreds of times a minute.',
+              '**`ExecStart=`** is the command. Use a **full path**. systemd does not search your PATH, and shell tricks like **`&&`**, **`>`**, or **`~`** do not work here.',
+              '**`User=`** runs the program as that account, not as root. **`EnvironmentFile=`** loads settings from a file so ops can change the port without editing the unit. **`Environment=PORT=8080`** sets one variable inline when a file is not needed.',
+              '**`Restart=on-failure`** starts the program again after a crash or a non-zero exit. It does not restart after a clean **`systemctl stop`**. **`Restart=always`** restarts whenever it exits. **`RestartSec=`** waits that many seconds so a broken app does not thrash.',
             ],
           },
           {
             id: 'install-section',
-            title: '[Install]: where it hooks into boot',
+            title: '[Install]: hook into boot',
             body: [
-              '**`WantedBy=multi-user.target`** means “start this when the system reaches normal running mode” — the right choice for almost every server app. This section is only used by **`enable`** and **`disable`**: **`enable`** creates a link that adds the service to that target, which is how it starts at boot.',
+              '**`WantedBy=multi-user.target`** means start this in normal running mode — the right choice for almost every server app. **`enable`** creates a link that adds the service to that target. That is how it starts at boot.',
             ],
           },
           {
-            id: 'use-unit',
-            title: 'Putting it to work',
+            id: 'load-and-prove',
+            title: 'Load it, then prove a crash comes back',
             body: [
-              'systemd reads unit files into memory, so after you create or change one, run **`daemon-reload`** to make it read them again — forgetting this is the classic reason an edit “does nothing.” Then enable and start the service, and check it.',
-              '**`systemctl cat`** prints a unit exactly as systemd sees it, and **`systemctl edit`** creates a small **override** file, so you can change one setting without touching the original.',
+              'systemd reads unit files into memory. After you create or change one, run **`daemon-reload`**. Forgetting that is why an edit “does nothing.” Then **`enable --now`**, and check.',
+              'The grader will kill the process. systemd must bring it back without you. Read the main PID, send **SIGKILL**, wait, and read **`status`** again.',
             ],
             code: {
               language: 'shell',
-              code: `sudo nano /etc/systemd/system/hello.service  # create the unit (any editor works)
-sudo systemctl daemon-reload                 # make systemd re-read unit files
-sudo systemctl enable --now hello            # start now and at every boot
-systemctl status hello                       # check it is active (running)
-systemctl cat hello                          # show the unit as systemd sees it
-sudo systemctl edit hello                    # add an override without editing the file`,
+              code: `sudo nano /etc/systemd/system/order-processor.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now order-processor
+systemctl status order-processor
+curl http://127.0.0.1:8080/health
+# {"status":"ok",...}
+
+sudo kill -9 "$(systemctl show -p MainPID --value order-processor)"
+sleep 3
+systemctl status order-processor
+# active again, new PID`,
             },
           },
         ],
       },
       {
-        id: 'journalctl',
-        title: 'journalctl: read service logs',
+        id: 'drop-ins',
+        title: 'Change a vendor unit without editing it',
         body: [
-          'Anything a service prints — normal output and errors — is collected by systemd into the **journal**, together with systemd’s own messages about starting and stopping it. **`journalctl`** reads the journal. You may need **`sudo`**, or membership in the **`adm`** / **`systemd-journal`** group, to see other services’ logs.',
+          '**payment-handler** and **order-processor** both came from a package under **`/lib/systemd/system/`**. After a reboot, order-processor came up before payment-handler, could not load its payment routes, and exited. Nothing restarted it.',
+          'Edit the vendor file and the next package upgrade silently reverts your fix. Put your changes in a **drop-in** under **`/etc/systemd/system/order-processor.service.d/`**. It overrides only the keys you list.',
+        ],
+        subsections: [
+          {
+            id: 'requires-after',
+            title: 'Requires and After',
+            body: [
+              '**`Requires=`** pulls the other unit in: starting order-processor also starts payment-handler, and stopping payment-handler stops order-processor. **`Wants=`** is softer — it still starts the other unit, but carries on if that unit fails.',
+              '**`After=`** is order only. **`Requires=`** without **`After=`** starts both at the same time. You usually want both lines.',
+            ],
+          },
+          {
+            id: 'systemctl-edit',
+            title: 'systemctl edit writes the drop-in',
+            body: [
+              '**`systemctl edit order-processor`** opens an editor, saves to **`…/order-processor.service.d/override.conf`**, and reloads systemd for you. **`systemctl cat`** prints the vendor unit plus every drop-in, in order.',
+            ],
+            code: {
+              language: 'ini',
+              filename: 'override.conf',
+              code: `[Unit]
+Requires=payment-handler.service
+After=payment-handler.service
+
+[Service]
+Restart=on-failure
+RestartSec=2`,
+            },
+          },
+        ],
+        codes: [
+          {
+            language: 'shell',
+            code: `systemctl status order-processor
+journalctl -u order-processor -n 20
+systemctl cat order-processor
+
+sudo systemctl edit order-processor
+# paste the override, save
+
+systemctl cat order-processor
+sudo systemctl stop order-processor payment-handler
+sudo systemctl start order-processor
+systemctl status payment-handler order-processor
+curl http://127.0.0.1:8080/health`,
+          },
+        ],
+        after: [
+          'Without **`systemctl edit`**, create the directory and file yourself, then **`daemon-reload`**.',
+        ],
+        code: {
+          language: 'shell',
+          code: `sudo mkdir -p /etc/systemd/system/order-processor.service.d
+sudo nano /etc/systemd/system/order-processor.service.d/override.conf
+sudo systemctl daemon-reload`,
+        },
+        callout: {
+          kind: 'warn',
+          title: 'Do not copy the whole unit into /etc',
+          body: [
+            'A full copy of the vendor file under **`/etc/systemd/system/`** replaces the package unit and is easy to get wrong on upgrade. A drop-in under **`.service.d/`** is the change that survives.',
+          ],
+        },
+      },
+      {
+        id: 'journalctl',
+        title: 'journalctl: read the story',
+        body: [
+          'Anything a service prints — normal lines and errors — lands in the **journal**, together with systemd’s own start and stop messages. **`journalctl`** reads it. You may need **`sudo`**, or membership in **`adm`** / **`systemd-journal`**, to see other services’ logs.',
         ],
         subsections: [
           {
             id: 'journal-unit',
             title: 'Logs for one service',
             body: [
-              '**`-u`** limits the output to one unit — almost always what you want. **`-n`** shows only the last N lines, and **`--no-pager`** prints straight to the terminal instead of opening a **`less`**-style viewer.',
+              '**`-u`** limits the output to one unit. **`-n`** keeps the last N lines. **`--no-pager`** prints straight to the terminal instead of opening a viewer.',
             ],
             code: {
               language: 'shell',
-              code: `$ journalctl -u hello -n 5
-Oct 05 11:40:12 web-1 python3[812]: GET / 200
-Oct 05 11:40:15 web-1 python3[812]: GET /health 200
-Oct 05 11:41:02 web-1 python3[812]: Traceback (most recent call last):
-Oct 05 11:41:02 web-1 python3[812]: KeyError: 'PORT'
-Oct 05 11:41:02 web-1 systemd[1]: hello.service: Main process exited, code=exited, status=1/FAILURE`,
+              code: `journalctl -u order-processor -n 20 --no-pager
+journalctl -u notification-service -n 30 --no-pager`,
             },
           },
           {
             id: 'journal-options',
             title: 'Useful options',
             body: [
-              '**`-f`** follows new lines live, like **`tail -f`**. **`-e`** jumps to the end. **`--since`** and **`--until`** limit the time range and understand plain words like **`"1 hour ago"`** or **`today`**. **`-b`** shows only the current boot (**`-b -1`** the one before), and **`-p err`** only errors and worse.',
+              '**`-f`** follows new lines live, like **`tail -f`**. **`-e`** jumps to the end. **`--since`** and **`--until`** limit the time range and understand words like **`"1 hour ago"`** or **`today`**. **`-b`** is this boot (**`-b -1`** the one before). **`-p err`** is errors and worse.',
             ],
             code: {
               language: 'shell',
-              code: `journalctl -u hello                       # all logs for hello (opens a viewer)
-journalctl -u hello -n 50 --no-pager      # last 50 lines, printed directly
-journalctl -u hello -f                    # follow live; Ctrl-C to stop
-journalctl -u hello --since "1 hour ago"  # only the last hour
-journalctl -u hello --since today -p err  # today’s errors only
-journalctl -b -p err                      # all errors since this boot`,
+              code: `journalctl -u order-processor -f
+journalctl -u order-processor --since "1 hour ago"
+journalctl -u order-processor --since today -p err
+journalctl -b -p err`,
             },
           },
         ],
       },
       {
         id: 'debugging',
-        title: 'When a service will not start',
+        title: 'When a service will not stay up',
         body: [
-          'Work through the same three steps every time: **`status`** to see the state and the last log lines, **`journalctl -u`** to read the full error, then fix the cause, **`daemon-reload`** if you edited the unit, and **`restart`**. The most common causes:',
+          '**notification-service** is in a restart loop. The person who set it up is away. Work the same loop every time: **`status`** → **`journalctl -u`** → fix one cause → **`daemon-reload`** if you edited the unit → **`restart`** → read the journal again. Each fix reveals the next error. Do not “fix” it by running as root or deleting the unit.',
         ],
         bullets: [
-          '**Wrong path in `ExecStart=`** — the log says “No such file or directory.” Use the full path to the program and to the script.',
-          '**Permission denied** — the **`User=`** cannot read the app folder or run the script. Check with **`ls -l`** and fix ownership or permissions.',
-          '**Port already in use** — another process holds the port. Find it with **`sudo ss -ltnp`**.',
-          '**Edited the unit but nothing changed** — you forgot **`sudo systemctl daemon-reload`**.',
-          '**Works until reboot** — it was started but never **enabled**.',
-          '**Keeps restarting** — **`Restart=`** is bringing back a program that crashes immediately; the real error is earlier in **`journalctl -u`**.',
+          '**Wrong path in `ExecStart=`** — status **`203/EXEC`**, journal says “Failed to locate executable.” Point at the real binary.',
+          '**Binary not executable** — same **`203/EXEC`**, or “Permission denied.” **`chmod 755`** on the program.',
+          '**Typo in an environment file** — the program starts, then exits: “SMTP_HOST is not set.” Fix the file. Env changes need a **restart**, not **`daemon-reload`**.',
+          '**Port already in use** — journal says “address in use.” **`sudo ss -tlnp`** shows who holds the port; stop that process.',
+          '**Edited the unit but nothing changed** — you forgot **`daemon-reload`**.',
+          '**Works until reboot** — started but never **enabled**.',
+          '**Keeps restarting** — **`Restart=`** is bringing back a program that crashes immediately. The real error is earlier in the journal.',
         ],
         codes: [
           {
             language: 'shell',
-            code: `systemctl status hello                # 1. state + last log lines
-journalctl -u hello -n 50 --no-pager  # 2. the full error
-sudo systemctl daemon-reload          # 3. after editing the unit
-sudo systemctl restart hello          # 4. try again
-systemctl status hello                # 5. confirm it is running`,
+            code: `systemctl status notification-service
+journalctl -u notification-service -n 30 --no-pager
+
+# After fixing the unit file:
+sudo systemctl daemon-reload
+sudo systemctl restart notification-service
+
+# After fixing only an env file:
+sudo systemctl restart notification-service
+
+# Port conflict:
+sudo ss -tlnp | grep 8085
+sudo pkill -f /usr/local/bin/debug-listener
+sudo systemctl restart notification-service
+curl http://127.0.0.1:8085/health`,
           },
         ],
+        callout: {
+          kind: 'tip',
+          title: 'daemon-reload vs restart',
+          body: [
+            'Changed a **unit file** or a **drop-in**? **`daemon-reload`**, then **`restart`**. Changed only an **EnvironmentFile** or the app’s own config? **`restart`** is enough.',
+          ],
+        },
       },
       {
         id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
           headers: ['Goal', 'Command'],
           rows: [
@@ -1681,26 +1743,27 @@ systemctl status hello                # 5. confirm it is running`,
             ['Start / stop / restart', '`sudo systemctl start|stop|restart name`'],
             ['Start at boot (and now)', '`sudo systemctl enable --now name`'],
             ['Do not start at boot', '`sudo systemctl disable name`'],
-            ['List services / failed ones', '`systemctl list-units --type=service`, `systemctl --failed`'],
-            ['After editing a unit', '`sudo systemctl daemon-reload`'],
-            ['Show / override a unit', '`systemctl cat name`, `sudo systemctl edit name`'],
+            ['List failed units', '`systemctl --failed`'],
+            ['After editing a unit or drop-in', '`sudo systemctl daemon-reload`'],
+            ['Show vendor unit + drop-ins', '`systemctl cat name`'],
+            ['Add a drop-in', '`sudo systemctl edit name`'],
+            ['Main PID', '`systemctl show -p MainPID --value name`'],
             ['Service logs', '`journalctl -u name -n 50 --no-pager`'],
             ['Follow logs live', '`journalctl -u name -f`'],
-            ['Logs in a time range', '`journalctl -u name --since "1 hour ago"`'],
-            ['Errors this boot', '`journalctl -b -p err`'],
+            ['Who holds a port', '`sudo ss -tlnp`'],
           ],
         },
       },
     ],
     takeaways: [
-      'A **service** runs in the background all the time; **systemd** (PID 1) starts it at boot and restarts it if it crashes.',
-      '**`systemctl status`** first; **`start` / `stop` / `restart`** change now, **`enable` / `disable`** change boot — **`enable --now`** does both.',
-      'Unit files in **`/etc/systemd/system/`** have **[Unit]** (order), **[Service]** (**`ExecStart=`** with full paths, **`User=`**, **`Restart=`**), and **[Install]** (**`WantedBy=multi-user.target`**). Run **`daemon-reload`** after every edit.',
-      '**`journalctl -u name`** shows a service’s logs; **`-f`**, **`-n`**, **`--since`**, and **`-p err`** narrow them down.',
+      '**systemd** owns long-running programs: start at boot, run as a dedicated user, restart on crash. **`nohup`** is not that.',
+      '**`systemctl status`** first. **`start` / `stop` / `restart`** change now. **`enable` / `disable`** change boot. **`enable --now`** does both.',
+      'Put your units in **`/etc/systemd/system/`**. Change a package unit with a **drop-in** (**`systemctl edit`**), not by editing **`/lib`**. Use **`Requires=`** and **`After=`** together when one service needs another first.',
+      'Debug with **`status`** and **`journalctl -u`**. Fix one cause at a time. **`daemon-reload`** after unit edits; **`restart`** alone after env-file edits.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
-      { challengeId: 'linux-12-run-order-processor-as-a-service', label: 'Run order-processor as a Service' },
+      { challengeId: 'linux-12-run-order-processor-as-a-service', label: 'Run Order Processor as a Service' },
       { challengeId: 'linux-13-restart-on-crash-start-in-order', label: 'Restart on Crash, Start in Order' },
       { challengeId: 'linux-14-debug-a-failing-unit', label: 'Debug a Failing Unit' },
     ],
@@ -1714,39 +1777,262 @@ systemctl status hello                # 5. confirm it is running`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-15-nightly-reconciliation',
     lede:
-      '**cron** runs commands on a schedule; **logrotate** keeps log folders from eating the disk. A **neighborhood backup co-op** runs **`rsync`** nightly and rotates **`/var/log/backup/`** — this post explains the mechanics in plain language.',
+      'Three jobs on the **order box** only run when someone remembers them. **`notification.log`** on the notification box has never been rotated and is eating the disk. This post is how you **schedule** work with cron and systemd timers, and how **logrotate** keeps a growing log from filling the machine.',
     sections: [
       {
-        id: 'coop-story',
-        title: 'Midnight sync, logs never deleted',
+        id: 'two-schedulers',
+        title: 'Two ways to run something on a schedule',
         body: [
-          'The co-op’s Linux mirror runs **`/usr/local/bin/nightly-sync`** at 2 a.m. Nobody noticed **`backup.log`** growing for a year until **`df`** complained. You add a **crontab** line and a **logrotate** rule.',
+          'Tonight the team needs three repeating jobs:',
         ],
+        bullets: [
+          '**Order reconciliation** at **02:30** as **`recon`**. If the box was down at 02:30, it must catch up when the box comes back.',
+          '**Notification digest** every **15 minutes** as **`notify`**.',
+          'Your **disk report** every morning at **07:00** as you.',
+        ],
+        after: [
+          'Linux gives you two schedulers. **cron** is one line per job, simple and everywhere. A **systemd timer** is more verbose, but you get journal logs, **`Persistent=`** catch-up after downtime, and **`systemctl list-timers`**. Reconciliation belongs on a timer. The digest and the disk report belong on cron.',
+        ],
+        tableAfter: {
+          headers: ['Tool', 'Best for', 'Where the schedule lives'],
+          rows: [
+            ['User crontab', 'Jobs for your own login', '`crontab -e`'],
+            ['`/etc/cron.d/`', 'System jobs that name a user', 'One file per job, owned by root'],
+            ['systemd timer', 'Catch-up after downtime, journal logs', '`.timer` + oneshot `.service`'],
+          ],
+        },
       },
       {
         id: 'cron',
-        title: 'crontab lines',
+        title: 'cron: five fields, then the command',
         body: [
-          '**`crontab -e`** edits your user schedule. Five fields: minute, hour, day-of-month, month, day-of-week, then command. **`@daily`** shortcuts exist on some systems.',
+          'A crontab line is five time fields, then the command. The fields are **minute**, **hour**, **day of month**, **month**, **day of week**. **`*`** means every value. **`*/15`** means every 15 units.',
         ],
-        code: {
-          language: 'shell',
-          code: `# m h dom mon dow command
-0 2 * * * /usr/local/bin/nightly-sync >> /var/log/backup/sync.log 2>&1`,
+        subsections: [
+          {
+            id: 'user-crontab',
+            title: 'Your own crontab',
+            body: [
+              '**`crontab -e`** edits the schedule for your login. There is **no user column** — the command already runs as you. **`crontab -l`** prints the file. Redirect output, or cron mails it to you (and many servers have no mail).',
+            ],
+            code: {
+              language: 'shell',
+              code: `crontab -e
+# minute hour dom mon dow  command
+0 7 * * * /opt/order-processor/bin/disk-report
+crontab -l`,
+            },
+          },
+          {
+            id: 'cron-d',
+            title: '/etc/cron.d: system jobs with a user',
+            body: [
+              'Files under **`/etc/cron.d/`** are for the whole machine. They have an extra **user** column between the schedule and the command. Own them as **root**, mode **`644`** — group or world writable files are ignored.',
+            ],
+            code: {
+              language: 'shell',
+              code: `echo '*/15 * * * * notify /opt/notification-service/bin/digest' | sudo tee /etc/cron.d/notification-digest
+sudo chmod 644 /etc/cron.d/notification-digest
+# m h dom mon dow  user    command`,
+            },
+          },
+        ],
+        table: {
+          headers: ['Field', 'Range', 'Examples'],
+          rows: [
+            ['minute', '0–59', '`0`, `*/15`'],
+            ['hour', '0–23', '`2`, `7`'],
+            ['day of month', '1–31', '`*` = every day'],
+            ['month', '1–12', '`*` = every month'],
+            ['day of week', '0–7 (0 and 7 = Sunday)', '`*` = every day'],
+          ],
+        },
+        callout: {
+          kind: 'warn',
+          title: 'cron.d is not crontab -e',
+          body: [
+            'A personal crontab has five time fields. A file in **`/etc/cron.d/`** has six fields before the command: the sixth is the **user**. Leave that column out and the line is wrong.',
+          ],
+        },
+      },
+      {
+        id: 'systemd-timers',
+        title: 'systemd timer: catch up after downtime',
+        body: [
+          'Reconciliation must run at **02:30**, and if the box was off at that minute, it must run when the box comes back. That is **`Persistent=true`** on a timer. Pair a **oneshot** service (run once and exit) with a timer that starts it.',
+        ],
+        subsections: [
+          {
+            id: 'oneshot-service',
+            title: 'The oneshot service',
+            body: [
+              '**`Type=oneshot`** means systemd treats the job as finished when **`ExecStart=`** exits. There is usually no **`[Install]`** on this service — you enable the **timer**, not the service.',
+            ],
+            code: {
+              language: 'ini',
+              filename: '/etc/systemd/system/order-reconcile.service',
+              code: `[Unit]
+Description=Reconcile yesterday's orders
+
+[Service]
+Type=oneshot
+User=recon
+ExecStart=/opt/order-reconciliation/bin/reconcile`,
+            },
+          },
+          {
+            id: 'timer-unit',
+            title: 'The timer',
+            body: [
+              '**`OnCalendar=`** is the schedule. **`*-*-* 02:30:00`** means every day at 02:30. **`Persistent=true`** runs a missed start after the machine was down. **`WantedBy=timers.target`** is what **`enable`** hooks into.',
+            ],
+            code: {
+              language: 'ini',
+              filename: '/etc/systemd/system/order-reconcile.timer',
+              code: `[Unit]
+Description=Nightly order reconciliation
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target`,
+            },
+          },
+          {
+            id: 'enable-timer',
+            title: 'Enable the timer, test the service',
+            body: [
+              '**`daemon-reload`**, then **`enable --now`** on the **timer**. Check the next run with **`list-timers`**. Check the calendar string with **`systemd-analyze calendar`**. Start the **service** once by hand to prove the command works; its logs are in the journal.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo systemctl daemon-reload
+sudo systemctl enable --now order-reconcile.timer
+systemctl list-timers order-reconcile.timer
+systemd-analyze calendar '*-*-* 02:30:00'
+sudo systemctl start order-reconcile.service
+journalctl -u order-reconcile.service -n 5`,
+            },
+          },
+        ],
+        callout: {
+          kind: 'tip',
+          title: 'Enable the timer, not the service',
+          body: [
+            '**`systemctl enable order-reconcile.service`** does nothing useful here — the service has no **`[Install]`**. Enable **`order-reconcile.timer`**.',
+          ],
         },
       },
       {
         id: 'logrotate',
-        title: 'logrotate',
+        title: 'logrotate: stop the log from eating the disk',
         body: [
-          'Rules in **`/etc/logrotate.d/`** define **rotate**, **weekly/daily**, **compress**, **copytruncate** or **create**, and **postrotate** hooks. **`logrotate -d`** dry-run shows what would happen.',
+          '**`/var/log/notification-service/notification.log`** grows every few seconds and has never been rotated. On the last box, the disk filled and order confirmations stopped.',
+          '**logrotate** runs daily (from a timer or cron). It renames or copies the active log, compresses old copies, and deletes the oldest. Rules live in **`/etc/logrotate.d/`**. Read the files already there before you write your own.',
         ],
+        subsections: [
+          {
+            id: 'open-log',
+            title: 'Does the service reopen its log?',
+            body: [
+              'That question decides the rule. **notification-service** opens the log once at startup and keeps that file descriptor forever. **`lsof`** shows it. If you only rename **`notification.log`** to **`notification.log.1`**, the service keeps writing into the renamed file. New lines never hit the path you expect.',
+            ],
+            code: {
+              language: 'shell',
+              code: `ls -lh /var/log/notification-service/
+sudo lsof /var/log/notification-service/notification.log
+# notification-service still holds the file open
+ls /etc/logrotate.d/`,
+            },
+          },
+          {
+            id: 'copytruncate',
+            title: 'copytruncate when the app will not reopen',
+            body: [
+              '**`copytruncate`** copies the content out, then truncates the original in place. The open file descriptor still points at the same inode. The service keeps writing to **`notification.log`** without a restart.',
+              'If the service could reopen on a signal, **`create`** plus a **`postrotate`** that runs **`systemctl reload …`** would be cleaner. With **`copytruncate`**, a few lines can be lost between the copy and the truncate.',
+            ],
+            code: {
+              language: 'text',
+              filename: '/etc/logrotate.d/notification-service',
+              code: `/var/log/notification-service/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}`,
+            },
+          },
+        ],
+        table: {
+          headers: ['Directive', 'Why'],
+          rows: [
+            ['`daily` / `rotate 7`', 'One file per day, keep a week'],
+            ['`compress` / `delaycompress`', 'Gzip old logs; leave the newest `.1` plain for easy reading'],
+            ['`missingok` / `notifempty`', 'Do not error on a missing file; skip empty ones'],
+            ['`copytruncate`', 'App keeps the file open — truncate in place'],
+            ['`create` + `postrotate`', 'App can reopen after a reload or signal'],
+          ],
+        },
+        after: [
+          'Dry-run first. Force a rotation only when the dry run is clean. Confirm **`notification.log.1`** (or **`.1.gz`**) exists, and that new lines still land in **`notification.log`**.',
+        ],
+        code: {
+          language: 'shell',
+          code: `sudo tee /etc/logrotate.d/notification-service >/dev/null <<'EOF'
+/var/log/notification-service/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+sudo logrotate -d /etc/logrotate.d/notification-service
+sudo logrotate -f /etc/logrotate.d/notification-service
+ls -lh /var/log/notification-service/
+tail -f /var/log/notification-service/notification.log`,
+        },
+        callout: {
+          kind: 'warn',
+          title: 'Own the rule as root',
+          body: [
+            'The file under **`/etc/logrotate.d/`** should be owned by **root**. A dry run with **`logrotate -d`** reports errors before you force a rotation with **`-f`**.',
+          ],
+        },
+      },
+      {
+        id: 'quick-reference',
+        title: 'Quick reference',
+        body: ['The decisions are above. This is the command for each one.'],
+        tableAfter: {
+          headers: ['Goal', 'Command'],
+          rows: [
+            ['Edit / list your crontab', '`crontab -e`, `crontab -l`'],
+            ['System cron with a user', 'File in `/etc/cron.d/` (six fields: schedule, user, command), mode `644`'],
+            ['Check a calendar expression', "`systemd-analyze calendar '*-*-* 02:30:00'`"],
+            ['Enable a timer', '`sudo systemctl daemon-reload`, then `sudo systemctl enable --now name.timer`'],
+            ['See next runs', '`systemctl list-timers`'],
+            ['Run the oneshot now', '`sudo systemctl start name.service`'],
+            ['Timer / service logs', '`journalctl -u name.service -n 20`'],
+            ['Who holds a log open', '`sudo lsof /path/to.log`'],
+            ['Dry-run / force logrotate', '`sudo logrotate -d /etc/logrotate.d/name`, `sudo logrotate -f …`'],
+          ],
+        },
       },
     ],
     takeaways: [
-      '**cron** schedules repeating jobs; always redirect output somewhere useful.',
-      '**logrotate** archives or deletes old logs — configure before disk fills.',
-      'Test schedules and rotation with dry runs and small **`--since`** windows.',
+      '**cron** is one line per job. Personal crontabs have five time fields. Files in **`/etc/cron.d/`** add a **user** column and must not be group or world writable.',
+      'A **systemd timer** plus a **oneshot** service gives journal logs and **`Persistent=`** catch-up. Enable the **timer**, not the service.',
+      '**logrotate** rules live in **`/etc/logrotate.d/`**. If the app keeps the log open, use **`copytruncate`**. If it can reopen, prefer **`create`** and a **`postrotate`** reload.',
+      'Dry-run schedules and rotation before you trust them: **`systemd-analyze calendar`**, **`logrotate -d`**, then a forced run.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -1813,98 +2099,83 @@ systemctl status hello                # 5. confirm it is running`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-18-disk-full-on-the-order-box',
     lede:
-      'A Linux server can report “no space left” even when you do not know which folder grew. This post shows how to read filesystem capacity with **`df`**, trace usage with **`du`**, understand where disks are **mounted**, and create safe backup bundles with **`tar`** before removing anything.',
+      '**order-processor** is crash-looping on the **order box**. It cannot write its log. The separate volume at **`/var/log/order-processor`** is full, someone already deleted files, and **`du`** still shows less used space than **`df`**. This post is how you **find** what filled the disk, **free** space without losing the evidence you need, and later **archive** a bad release with **`tar`** before you roll back.',
     sections: [
       {
-        id: 'storage-map',
-        title: 'From a disk to a folder',
+        id: 'what-is-full',
+        title: 'Confirm which filesystem is full',
         body: [
-          'Linux presents files as one tree beginning at **`/`**, but that tree can contain several storage devices. The system **mounts** each filesystem at a directory called a **mount point**. The root filesystem is mounted at `/`; another disk might be mounted at `/data` or `/backup`.',
-          'That distinction explains the two main space commands. **`df`** asks a filesystem, “How much capacity is free?” **`du`** walks files under a path and asks, “How much space do these files use?” You normally start with `df`, then use `du` inside the filesystem that is full.',
-        ],
-        table: {
-          headers: ['Word', 'Meaning', 'Example'],
-          rows: [
-            ['Device', 'The disk, partition, or logical volume that stores blocks', '`/dev/nvme0n1p1`'],
-            ['Filesystem', 'The format that organizes files on that device', 'ext4, XFS'],
-            ['Mount point', 'The directory where that filesystem appears in the Linux tree', '`/`, `/data`, `/backup`'],
-            ['Capacity', 'Space available to the whole mounted filesystem', 'Shown by `df`'],
-            ['Usage', 'Space occupied by files below a path', 'Measured by `du`'],
-          ],
-        },
-        callout: {
-          kind: 'idea',
-          title: 'One tree can hide several disks',
-          body: [
-            'If `/backup` is a separate mount, moving a file from `/srv` to `/backup` moves the data to another filesystem. If it is only an ordinary directory on `/`, the same move does **not** free space on `/`.',
-          ],
-        },
-      },
-      {
-        id: 'df-du',
-        title: 'Start broad: df shows filesystem capacity',
-        body: [
-          '**`df`** means “disk free.” It reports each mounted filesystem, its total size, used and available space, and where it is mounted. **`-h`** uses readable units such as GiB instead of raw 1 KiB blocks.',
-          'Look first at **Use%** and **Mounted on**. If the line mounted on `/` is at 100%, investigate folders on `/`. If `/data` is full, investigate `/data`; cleaning an unrelated filesystem will not help.',
+          'Linux shows one tree starting at **`/`**, but several disks can sit under it. Each disk is a **filesystem** attached at a **mount point**. **`df`** asks a filesystem how much capacity is left. **`du`** walks files under a path and totals what it can see.',
+          'Start with **`df -h`**. Read **Use%** and **Mounted on**. If only **`/var/log/order-processor`** is at 100%, cleaning **`/`** will not help. **`df -h path`** shows the filesystem that owns that path.',
         ],
         code: {
           language: 'shell',
-          code: `$ df -h
-Filesystem      Size  Used Avail Use% Mounted on
-/dev/nvme0n1p1   40G   38G  1.8G  96% /
-/dev/nvme1n1     200G   61G  140G  31% /backup
+          code: `df -h
+# Filesystem      Size  Used Avail Use% Mounted on
+# /dev/nvme0n1p1   40G   12G   26G  32% /
+# /dev/nvme0n1p3   64M   64M     0 100% /var/log/order-processor
 
-df -h /var              # show the filesystem that contains /var
-df -T /                 # include its filesystem type
-df -i /                 # inode usage: number of files, not bytes`,
+df -h /var/log/order-processor
+systemctl status order-processor
+# crash loop: cannot write the log`,
         },
         subsections: [
           {
-            id: 'inodes',
-            title: 'Space can run out in two ways',
+            id: 'bytes-or-inodes',
+            title: 'Bytes or inodes',
             body: [
-              'A filesystem can exhaust **bytes** because a few files are huge, or exhaust **inodes** because it contains millions of tiny files. Every file and directory needs an inode. In the second case `df -h` may show free bytes while programs still receive “No space left on device.”',
-              'Run **`df -i`** and check **IUse%**. If it is near 100%, find directories with enormous file counts instead of looking only for large files.',
-            ],
-          },
-        ],
-      },
-      {
-        id: 'du',
-        title: 'Narrow down: du shows directory usage',
-        body: [
-          '**`du`** means “disk usage.” It walks through a path and adds up the blocks used by files below it. **`-s`** gives one summary instead of every nested path, and **`-h`** uses readable units.',
-          'Work from broad to narrow. Summarize the top-level directories, enter the largest one, and repeat. Use **`sudo`** when permission errors would otherwise hide system directories.',
-        ],
-        code: {
-          language: 'shell',
-          code: `sudo du -xhd1 / 2>/dev/null | sort -h
-sudo du -xhd1 /var 2>/dev/null | sort -h
-sudo du -xhd1 /var/log 2>/dev/null | sort -h
-du -sh /srv/orders                    # one total
-du -ah /var/log | sort -h | tail -20  # largest entries near the end`,
-        },
-        subsections: [
-          {
-            id: 'du-options',
-            title: 'Why -x and max depth matter',
-            body: [
-              '**`-x`** keeps `du` on one filesystem. Without it, scanning `/` may descend into separately mounted backup disks, network shares, or virtual filesystems and make the numbers confusing.',
-              '**`-d1`** (the same idea as **`--max-depth=1`**) prints only one level below the path. That gives a useful shortlist instead of thousands of lines. BSD/macOS `du` uses slightly different options, but this track targets GNU tools on Linux.',
-            ],
-          },
-          {
-            id: 'find-large-files',
-            title: 'Find individual large files',
-            body: [
-              'Once you know which directory is large, **`find`** can list individual files over a threshold. The `-printf` form below prints size in bytes and path; numeric sorting puts the largest at the end.',
+              'A filesystem can run out of **bytes** (a few huge files) or **inodes** (millions of tiny files). Every file and directory needs an inode. **`df -h`** can show free bytes while programs still get “No space left on device.” Check **`df -i`** too.',
             ],
             code: {
               language: 'shell',
-              code: `sudo find /var -xdev -type f -size +500M -printf '%s %p\\n' |
-  sort -n
-
-sudo find /var/log -xdev -type f -mtime +30 -ls  # old files; inspect only`,
+              code: `df -i /var/log/order-processor
+# IUse% near 100% means too many files, not one huge one`,
+            },
+          },
+        ],
+        callout: {
+          kind: 'idea',
+          title: 'Tonight on the order box',
+          body: [
+            'The log volume is tiny on purpose. Keep the live **`order-processor.log`** and the newest rotated copy (**`.1`**) for the timeline. Older rotations can go. The heap dump must leave this volume. Something is still holding a **deleted** file open — that is why **`df`** and **`du`** disagree.',
+          ],
+        },
+      },
+      {
+        id: 'find-usage',
+        title: 'Find what is using the space',
+        body: [
+          'Once you know the filesystem, walk it from broad to narrow with **`du`**. **`-h`** is readable units. **`-s`** is one total. **`-d1`** (or **`--max-depth=1`**) lists one level. **`-x`** stays on this filesystem so a separate **`/backup`** mount does not confuse the numbers.',
+        ],
+        subsections: [
+          {
+            id: 'du-walk',
+            title: 'du from the top down',
+            body: [
+              'Summarize the mount, sort by size, then open the largest directory. Use **`sudo`** when permission errors would hide system files. **`ls -lhS`** sorts the current folder by size when you already know where to look.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo du -xhd1 /var/log/order-processor 2>/dev/null | sort -h
+sudo du -ah /var/log/order-processor | sort -h | tail
+ls -lhS /var/log/order-processor
+# order-processor-heap.hprof
+# order-processor.log.5 … .1
+# order-processor.log`,
+            },
+          },
+          {
+            id: 'free-obvious',
+            title: 'Free the obvious space first',
+            body: [
+              'Delete the older rotated logs (**`.2`** through **`.5`**). Keep **`.1`** and the live log. Move the heap dump off the full volume — **`/var/tmp/`** is on a different filesystem here — so investigators still have it.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo rm /var/log/order-processor/order-processor.log.{2,3,4,5}
+sudo mv /var/log/order-processor/order-processor-heap.hprof /var/tmp/
+df -h /var/log/order-processor
+# better, but still higher than du says`,
             },
           },
         ],
@@ -1912,7 +2183,7 @@ sudo find /var/log -xdev -type f -mtime +30 -ls  # old files; inspect only`,
           kind: 'warn',
           title: 'Measure before you delete',
           body: [
-            'Do not start with `rm -rf` because a filesystem is full. Identify the filesystem, identify the large path, confirm what owns it, and make a backup when the data may be needed.',
+            'Do not start with **`rm -rf`** because a filesystem is full. Identify the mount, identify the large path, keep the evidence you need, then remove what you can prove is safe.',
           ],
         },
       },
@@ -1920,167 +2191,169 @@ sudo find /var/log -xdev -type f -mtime +30 -ls  # old files; inspect only`,
         id: 'df-du-disagree',
         title: 'When df and du disagree',
         body: [
-          'Sometimes `df` says the filesystem is full but `du` cannot account for the space. A common cause is a process that still has a deleted file open. The directory entry is gone, so `du` cannot see it, but the filesystem cannot reclaim the blocks until the process closes the file.',
-          '**`lsof +L1`** lists open files whose link count is below 1. Restarting or safely signalling the owning service closes the file and releases the space. Do not truncate an unknown `/proc/PID/fd/...` entry without understanding the service.',
+          '**`df`** reports what the filesystem still holds. **`du`** adds up names it can still see. Delete a file a process still has open and the name disappears from **`du`**, but the blocks stay until that process closes the handle.',
+          '**`lsof +L1`** lists open files whose link count is below 1 — usually marked **`(deleted)`**. Record the process name. Restart that service so it closes the old file. Do not stop the wrong worker for good.',
         ],
         code: {
           language: 'shell',
-          code: `sudo lsof +L1                 # look for large entries marked (deleted)
-sudo systemctl restart app   # if app owns the deleted log and restart is safe
-df -h /                      # confirm that the blocks were released`,
+          code: `sudo lsof +L1 /var/log/order-processor
+# order-expo  1234 … /var/log/order-processor/export-spool.tmp (deleted)
+mkdir -p ~/answers
+echo order-exporter > ~/answers/held-by
+sudo systemctl restart order-exporter
+df -h /var/log/order-processor
+# space comes back`,
         },
-      },
-      {
-        id: 'mounts',
-        title: 'See and manage mounts',
-        body: [
-          '**`lsblk`** shows block devices as a tree. **`findmnt`** shows which filesystems are mounted and where. These are clearer than reading the full output of `mount` when you are building a storage map.',
-        ],
-        code: {
-          language: 'shell',
-          code: `lsblk -f                 # devices, filesystem types, labels, UUIDs, mount points
-findmnt                   # mounted filesystems as a tree
-findmnt /backup           # what device supplies this path?
-findmnt -T /var/log/app   # filesystem containing this exact path`,
-        },
-        subsections: [
-          {
-            id: 'temporary-mount',
-            title: 'Mount a filesystem temporarily',
-            body: [
-              'Create an empty directory, then mount the device there. The existing contents of that directory are hidden while the mount is active, so use a dedicated mount point. **`umount`** removes the attachment; it does not erase the disk.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo mkdir -p /backup
-sudo mount /dev/nvme1n1 /backup
-findmnt /backup
-sudo umount /backup`,
-            },
-          },
-          {
-            id: 'fstab',
-            title: 'Make a mount survive reboot',
-            body: [
-              'Temporary mounts disappear at reboot. Persistent mounts are declared in **`/etc/fstab`**, preferably by stable **UUID** rather than a device name that could change. A bad entry can delay or break boot, so back up the file and test it before rebooting.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo blkid /dev/nvme1n1       # copy the filesystem UUID
-sudo cp /etc/fstab /etc/fstab.bak
-sudoedit /etc/fstab
-sudo mount -a                   # test every not-yet-mounted fstab entry
-findmnt --verify                # check fstab syntax and references`,
-            },
-          },
-        ],
-      },
-      {
-        id: 'tar',
-        title: 'Create a safe archive with tar',
-        body: [
-          '**`tar`** combines a directory tree into one archive while preserving paths and metadata. It does not free space by itself: after you create and verify an archive, the original files still exist until you deliberately remove or move them.',
-          'The common operation letters are **`c`** create, **`t`** list, **`x`** extract, **`f`** archive filename, and **`z`** gzip compression. **`v`** is optional verbose output; leaving it out is quieter for large archives.',
-        ],
-        table: {
-          headers: ['Goal', 'Command shape'],
-          rows: [
-            ['Create an uncompressed archive', '`tar -cf archive.tar directory/`'],
-            ['Create a gzip-compressed archive', '`tar -czf archive.tgz directory/`'],
-            ['List without extracting', '`tar -tzf archive.tgz`'],
-            ['Extract into a chosen directory', '`tar -xzf archive.tgz -C destination/`'],
-            ['Exclude matching paths', "`tar -czf archive.tgz --exclude='*.tmp' directory/`"],
-          ],
-        },
-        subsections: [
-          {
-            id: 'tar-c-example',
-            title: 'Control the paths stored in the archive',
-            body: [
-              '**`-C directory`** tells `tar` to change into that directory before collecting files. This avoids embedding a long absolute-looking source path and makes restores predictable.',
-            ],
-            code: {
-              language: 'shell',
-              code: `sudo tar -czf /backup/orders-2026-10-06.tgz \
-  -C /srv orders
-
-tar -tzf /backup/orders-2026-10-06.tgz | head
-mkdir -p /tmp/restore-check
-tar -xzf /backup/orders-2026-10-06.tgz -C /tmp/restore-check`,
-            },
-          },
-          {
-            id: 'verify-archive',
-            title: 'Verify before cleanup',
-            body: [
-              'A command exiting with status 0 is a good start, but also list the archive and test-extract it when the data matters. Confirm that expected files, permissions, and directory structure are present. Only then decide whether old source data can be removed.',
-            ],
-          },
-        ],
-        callout: {
-          kind: 'warn',
-          title: 'Do not extract an unknown archive as root',
-          body: [
-            'Inspect it with `tar -tf` first and extract into an empty temporary directory. Archives can contain unexpected paths, links, ownership, or files that overwrite existing data.',
-          ],
-        },
-      },
-      {
-        id: 'disk-full-runbook',
-        title: 'A safe disk-full runbook',
-        body: [
-          'Use the same order every time. The goal is to restore service without deleting evidence or moving data onto the same full filesystem by mistake.',
-        ],
-        flows: [
-          {
-            title: 'From alert to recovered space',
-            steps: [
-              'Confirm the error and affected path',
-              'Run df -h and df -i',
-              'Map the path with findmnt',
-              'Use du from broad to narrow',
-              'Check deleted-open files',
-              'Archive or clean the confirmed owner',
-              'Recheck space and service health',
-            ],
-          },
+        after: [
+          'Without **`lsof`**, look under **`/proc/*/fd`** for links that end in **`(deleted)`**. Then bring **order-processor** back and check health.',
         ],
         codes: [
           {
             language: 'shell',
-            code: `df -h /var/log/app
-df -i /var/log/app
-findmnt -T /var/log/app
-sudo du -xhd1 /var | sort -h
-sudo lsof +L1
-df -h /var/log/app`,
+            code: `sudo systemctl restart order-processor
+systemctl status order-processor
+curl http://127.0.0.1:8080/health`,
           },
         ],
       },
       {
-        id: 'storage-quick-reference',
+        id: 'mounts',
+        title: 'Map the mounts',
+        body: [
+          '**`lsblk -f`** shows devices, filesystem types, and mount points. **`findmnt`** shows what is mounted where. **`findmnt -T path`** answers which filesystem owns a path — useful when **`/var/log/order-processor`** is its own tiny volume.',
+        ],
+        code: {
+          language: 'shell',
+          code: `lsblk -f
+findmnt /var/log/order-processor
+findmnt -T /var/log/order-processor/order-processor.log`,
+        },
+        subsections: [
+          {
+            id: 'fstab',
+            title: 'Mounts that survive reboot',
+            body: [
+              'A temporary **`mount`** disappears at reboot. Persistent mounts live in **`/etc/fstab`**, preferably by **UUID** from **`blkid`**. Back up **`fstab`**, edit carefully, then **`sudo mount -a`** and **`findmnt --verify`** before you reboot.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo blkid
+sudo cp /etc/fstab /etc/fstab.bak
+sudoedit /etc/fstab
+sudo mount -a
+findmnt --verify`,
+            },
+          },
+        ],
+        callout: {
+          kind: 'idea',
+          title: 'Moving across mounts frees space',
+          body: [
+            'Moving the heap dump to **`/var/tmp/`** freed the log volume because that path is another filesystem. Moving a file inside the same mount only renames it — **`df`** does not change.',
+          ],
+        },
+      },
+      {
+        id: 'tar-and-links',
+        title: 'Archive a release, then roll back',
+        body: [
+          'A bad **order-processor** release is a different night, same toolkit. Releases live under **`/opt/order-processor/releases/`**. **`/opt/order-processor/current`** is a **symlink** to the live version. Fix the outage first: point **`current`** at the last good release. Then archive the bad folder with **`tar`**, restore an older backup if you need it, and wire config with links.',
+        ],
+        subsections: [
+          {
+            id: 'rollback-symlink',
+            title: 'Roll back with a symlink',
+            body: [
+              '**`ln -sfn`** replaces a symlink in one step. **`-s`** makes a symlink, **`-f`** replaces, **`-n`** treats an existing symlink as a file instead of descending into the directory it points at.',
+            ],
+            code: {
+              language: 'shell',
+              code: `ls -l /opt/order-processor /opt/order-processor/releases
+readlink /opt/order-processor/current
+# releases/v1.2
+sudo ln -sfn releases/v1.1 /opt/order-processor/current
+/opt/order-processor/current/bin/order-processor
+# v1.1 again`,
+            },
+          },
+          {
+            id: 'tar-archive',
+            title: 'tar: create, list, extract',
+            body: [
+              '**`tar`** packs a directory tree into one file. Letters to remember: **`c`** create, **`t`** list, **`x`** extract, **`z`** gzip, **`f`** the archive name. **`-C dir`** changes into that directory first so paths inside the archive start at **`v1.2/`**, not a long absolute path.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo tar -C /opt/order-processor/releases -czf /var/backups/order-processor-v1.2.tar.gz v1.2
+tar -tzf /var/backups/order-processor-v1.2.tar.gz | head
+# v1.2/
+# v1.2/VERSION
+sudo rm -rf /opt/order-processor/releases/v1.2
+
+sudo tar -C /opt/order-processor/releases -xzf /var/backups/order-processor-v1.0.tar.gz
+ls -l /opt/order-processor/releases/v1.0/bin`,
+            },
+          },
+          {
+            id: 'hard-vs-soft',
+            title: 'Symlink for config, hard link for a backup',
+            body: [
+              'A **symlink** stores a path. Point **`/etc/order-processor/app.conf`** at **`…/current/app.conf`** so future rollbacks pick up the matching config. A **hard link** is a second name for the same inode. **`ln`** without **`-s`** makes one. **`ls -li`** shows matching inode numbers. Hard links cannot cross filesystems or point at directories.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo ln -sfn /opt/order-processor/current/app.conf /etc/order-processor/app.conf
+cat /etc/order-processor/app.conf
+
+sudo ln /opt/order-processor/releases/v1.1/app.conf /var/backups/app.conf.v1.1
+ls -li /opt/order-processor/releases/v1.1/app.conf /var/backups/app.conf.v1.1
+# same inode, link count 2`,
+            },
+          },
+        ],
+        callout: {
+          kind: 'warn',
+          title: 'List before you extract as root',
+          body: [
+            'Inspect an unknown archive with **`tar -tzf`** and extract into an empty temporary directory first. Archives can contain surprising paths, ownership, or overwrites.',
+          ],
+        },
+        table: {
+          headers: ['Goal', 'Command shape'],
+          rows: [
+            ['Create gzip archive', '`tar -C parent -czf archive.tgz dirname`'],
+            ['List without extracting', '`tar -tzf archive.tgz`'],
+            ['Extract into a folder', '`tar -C dest -xzf archive.tgz`'],
+            ['Replace a symlink', '`ln -sfn target linkname`'],
+            ['Hard-link backup', '`ln source backup-name`'],
+          ],
+        },
+      },
+      {
+        id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
-          headers: ['Question', 'Command'],
+          headers: ['Goal', 'Command'],
           rows: [
             ['Which filesystem is full?', '`df -h`, `df -h path`'],
-            ['Did it run out of inodes?', '`df -i path`'],
-            ['Which top-level directory is large?', '`du -xhd1 path | sort -h`'],
-            ['Which large files are present?', '`find path -xdev -type f -size +500M -ls`'],
-            ['Is a deleted file still open?', '`sudo lsof +L1`'],
-            ['Which device backs this path?', '`findmnt -T path`, `lsblk -f`'],
-            ['Create / list / extract an archive', '`tar -czf`, `tar -tzf`, `tar -xzf`'],
-            ['Validate persistent mounts', '`sudo mount -a`, `findmnt --verify`'],
+            ['Out of inodes?', '`df -i path`'],
+            ['Largest directories on one mount', '`sudo du -xhd1 path | sort -h`'],
+            ['Largest files in a folder', '`du -ah path | sort -h | tail`, `ls -lhS`'],
+            ['Deleted file still open?', '`sudo lsof +L1 path`'],
+            ['Which device owns this path?', '`findmnt -T path`, `lsblk -f`'],
+            ['Create / list / extract archive', '`tar -czf`, `tar -tzf`, `tar -xzf` (use `-C`)'],
+            ['Repoint live release', '`ln -sfn releases/vX.Y /opt/.../current`'],
+            ['Hard-link a file', '`ln file backup`'],
           ],
         },
       },
     ],
     takeaways: [
-      '**`df`** reports capacity for a mounted filesystem; **`du`** walks a path and totals file usage. Start with `df`, then narrow with `du -x`.',
-      'Check both **bytes** (`df -h`) and **inodes** (`df -i`), and use **`lsof +L1`** when deleted-open files make `df` and `du` disagree.',
-      '**Mounts** attach filesystems inside the one Linux tree. Use **`findmnt`** / **`lsblk`** to map them and test `/etc/fstab` with **`mount -a`** before rebooting.',
-      '**`tar`** bundles a tree; list and test-extract the archive before deleting source data.',
+      '**`df`** reports a filesystem. **`du`** totals files you can still see. Start with **`df`**, then narrow with **`du -x`**.',
+      'When **`df`** and **`du`** disagree, a process still holds a **deleted** file. Find it with **`lsof +L1`** and restart that process so the blocks return.',
+      'Keep the evidence you need (newest log, heap dump on another mount). Delete only what you can name.',
+      '**`tar -C`** builds clean archives. **`ln -sfn`** rolls a release back. A **hard link** keeps a second name for the same inode.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -2097,263 +2370,272 @@ df -h /var/log/app`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-20-why-cant-order-reach-payment',
     lede:
-      'When one service cannot reach another, “the network is down” is too broad to be useful. This post turns an endpoint such as **`http://payment:8080/health`** into small checks: resolve the name, choose a route, reach the host, confirm a process is listening, and verify that a firewall allows the connection.',
+      'Every checkout fails with *payment service unavailable*. **order-processor** calls **`http://payment.internal:9090`**. **payment-handler** was moved onto this same **order box**, and **`systemctl status`** says it is running. This post is how you debug that call from the **bottom up** — address, name, port, request — and how you open **only** the ports the network should reach.',
     sections: [
       {
-        id: 'endpoint-parts',
-        title: 'Start with the exact endpoint',
+        id: 'endpoint',
+        title: 'Write down the exact endpoint',
         body: [
-          'Suppose **order-processor** must call **`http://payment:8080/health`**. Write that exact value down before testing. It contains a **protocol** (`http`), **host name** (`payment`), **port** (`8080`), and **path** (`/health`). Each part can fail independently.',
-          'Run tests from the machine where the failure occurs. A successful request from your laptop proves only that your laptop can connect; it does not prove that `order-processor` has the same DNS, route, or firewall access.',
-        ],
-        table: {
-          headers: ['Part', 'Example', 'Question'],
-          rows: [
-            ['Protocol', '`http`', 'What conversation should the client speak?'],
-            ['Host', '`payment`', 'What IP address should the name resolve to?'],
-            ['Port', '`8080`', 'Which process should receive the connection?'],
-            ['Path', '`/health`', 'Which HTTP resource should answer?'],
-          ],
-        },
-        callout: {
-          kind: 'tip',
-          title: 'Test from the failing side',
-          body: [
-            'If app A cannot reach app B, open a shell on app A’s host and test B from there. Source address and network policy are part of the result.',
-          ],
-        },
-      },
-      {
-        id: 'network-model',
-        title: 'What happens during a connection',
-        body: [
-          'The client first turns the host name into an IP address, then checks its routing table to choose an interface and next hop. It sends packets toward that IP and port. On the destination, a process must be listening on the correct address, and every firewall along the path must allow the traffic.',
-        ],
-        flows: [
-          {
-            title: 'From URL to response',
-            steps: [
-              'Resolve host name',
-              'Choose route and source address',
-              'Reach destination host',
-              'Pass network firewalls',
-              'Connect to listening port',
-              'Speak the application protocol',
-            ],
-          },
-        ],
-        after: [
-          'Debug in roughly that order, but also inspect the destination listener early. There is no value changing firewall rules if the application is stopped or listening only on `127.0.0.1`.',
-        ],
-      },
-      {
-        id: 'local-network',
-        title: 'Check local addresses and routes',
-        body: [
-          '**`ip addr`** shows addresses assigned to each network interface. **`ip route`** shows where packets go. A normal server usually has a route for its local network and a **default route** for everything else.',
+          'The failing call is **`http://payment.internal:9090/health`** (or whatever **`check-payments`** uses). It has a **protocol**, a **host name**, a **port**, and a **path**. Each part can fail on its own.',
+          'Test from the machine that fails — this box — not from your laptop. A success elsewhere only proves your laptop’s DNS and path.',
         ],
         code: {
           language: 'shell',
-          code: `ip -br addr                    # compact interface and address list
-ip route                       # routing table
-ip route get 10.20.4.18        # route, interface, and source IP for one target
-ip link show                   # interface state: UP or DOWN`,
+          code: `/opt/order-processor/bin/check-payments
+# payment service unavailable
+cat /etc/order-processor/app.conf
+# … http://payment.internal:9090 …`,
         },
+        table: {
+          headers: ['Part', 'Tonight', 'Question'],
+          rows: [
+            ['Host', '`payment.internal`', 'What IP does this name resolve to?'],
+            ['Port', '`9090`', 'Is anything listening there?'],
+            ['Path', '`/health`', 'Does the app answer once TCP works?'],
+          ],
+        },
+        callout: {
+          kind: 'idea',
+          title: 'Bottom-up order',
+          body: [
+            'Who am I on the network? What does the name resolve to? Is a process listening on the right port? Does the HTTP request work? Fix the first wrong answer before you invent a new theory.',
+          ],
+        },
+      },
+      {
+        id: 'who-am-i',
+        title: 'Who am I on this network?',
+        body: [
+          '**`ip -4 addr`** shows this box’s addresses. **`ip route`** shows the default gateway. **`/etc/resolv.conf`** lists the DNS servers the system asks when a name is not in **`/etc/hosts`**.',
+        ],
+        code: {
+          language: 'shell',
+          code: `mkdir -p ~/answers
+ip -4 addr show dev eth0
+# inet 10.x.y.z/…
+ip route
+cat /etc/resolv.conf
+# nameserver …
+
+# Record without the /prefix:
+ip -4 -o addr show dev eth0 | awk '{print $4}' | cut -d/ -f1 > ~/answers/box-ip
+awk '/^nameserver/{print $2; exit}' /etc/resolv.conf > ~/answers/resolver`,
+        },
+        after: [
+          '**`127.0.0.1`** means this machine. A service that only listens on loopback is fine for local curls and invisible from another host.',
+        ],
+      },
+      {
+        id: 'name-resolution',
+        title: 'What does the name resolve to?',
+        body: [
+          '**`getent hosts`** uses the same resolver path most programs use: usually **`/etc/hosts` first**, then DNS (**`hosts: files dns`** in **`nsswitch.conf`**). That is what **order-processor** sees.',
+          '**`dig`** asks DNS only and skips **`/etc/hosts`**. Empty **`dig`** plus a wrong **`getent`** answer means the lie is in **`/etc/hosts`**.',
+        ],
         subsections: [
           {
-            id: 'route-output',
-            title: 'Read the route decision',
+            id: 'getent-vs-dig',
+            title: 'getent versus dig',
             body: [
-              'Output such as `10.20.4.18 via 10.20.1.1 dev eth0 src 10.20.1.25` means: send through gateway `10.20.1.1`, using interface `eth0`, with source address `10.20.1.25`. “Network is unreachable” usually means no matching route exists or the interface is down.',
-              'The loopback address **`127.0.0.1`** means “this machine.” A service reachable at `127.0.0.1:8080` may still be unreachable from another host.',
+              'Record what **`payment.internal`** resolves to **before** you change it. Tonight it still points at the old box.',
             ],
+            code: {
+              language: 'shell',
+              code: `getent hosts payment.internal
+# 10.99.0.7  payment.internal
+dig +short payment.internal
+# (empty — DNS has no answer)
+grep payment /etc/hosts
+echo 10.99.0.7 > ~/answers/payment-ip-before`,
+            },
+          },
+          {
+            id: 'fix-hosts',
+            title: 'Point the name at this box',
+            body: [
+              'Edit **`/etc/hosts`** so **`payment.internal`** is **`127.0.0.1`**. On some lab boxes **`sed -i`** fails because the file is bind-mounted — an editor that writes in place works. Confirm with **`getent`** again.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo nano /etc/hosts
+# 127.0.0.1  payment.internal
+getent hosts payment.internal
+# 127.0.0.1  payment.internal`,
+            },
           },
         ],
-      },
-      {
-        id: 'dns',
-        title: 'Resolve names: getent and dig',
-        body: [
-          '**DNS** maps names to IP addresses. On Linux, **`getent hosts`** uses the same system resolver configuration that most applications use, including `/etc/hosts` and DNS. That makes it the best first check for “does this machine resolve this name?”',
-          '**`dig`** shows detailed DNS answers and which DNS server replied. It is useful when you need to distinguish no record, the wrong record, or a resolver problem.',
-        ],
-        code: {
-          language: 'shell',
-          code: `getent hosts payment
-getent ahostsv4 payment
-dig payment
-dig +short payment
-cat /etc/resolv.conf          # configured DNS resolver/search domains`,
-        },
         callout: {
           kind: 'warn',
-          title: 'An IP address can hide a DNS problem',
+          title: 'A working IP can hide a DNS problem',
           body: [
-            'If `curl http://10.20.4.18:8080` works but `curl http://payment:8080` does not, routing and the listener are probably fine. Investigate name resolution rather than opening ports.',
+            'If **`curl http://127.0.0.1:9090/health`** works but **`curl http://payment.internal:9090/health`** does not, the listener is fine. Fix the name.',
           ],
-        },
-      },
-      {
-        id: 'reachability',
-        title: 'Reach the host: ping and tracepath',
-        body: [
-          '**`ping`** sends ICMP echo requests and measures replies. A reply proves basic IP reachability, but no reply does **not** prove the host is down: many firewalls block ICMP while allowing application traffic.',
-          '**`tracepath`** (or `traceroute`, when installed) shows the sequence of routers toward a destination. Missing hops are clues, not absolute proof, because routers may choose not to answer trace packets.',
-        ],
-        code: {
-          language: 'shell',
-          code: `ping -c 4 payment
-ping -c 4 10.20.4.18
-tracepath 10.20.4.18`,
         },
       },
       {
         id: 'listeners',
-        title: 'Check the destination: ss shows listening ports',
+        title: 'Is anything listening on that port?',
         body: [
-          'A port is not a program by itself. A process creates a socket and **listens** on an address and port. Run **`ss`** on the destination server to see whether that socket exists.',
+          'A port is not a program. A process **listens** on an address and port. **`ss -tlnp`** lists TCP listeners and the owning process. Check the destination — tonight, this box.',
         ],
-        code: {
-          language: 'shell',
-          code: `sudo ss -ltnp
-sudo ss -ltnp 'sport = :8080'
-ss -lnt                         # TCP listeners, without process names
-ss -tnp                         # established TCP connections`,
-        },
-        table: {
-          headers: ['Option', 'Meaning'],
-          rows: [
-            ['`-l`', 'Listening sockets only'],
-            ['`-t`', 'TCP sockets'],
-            ['`-u`', 'UDP sockets'],
-            ['`-n`', 'Numeric addresses and ports; do not resolve names'],
-            ['`-p`', 'Owning process (often needs `sudo`)'],
-          ],
-        },
         subsections: [
+          {
+            id: 'ss',
+            title: 'ss: see the real port',
+            body: [
+              'payment-handler may be up and still listening on the **wrong** port. Record that port, then fix the config and restart.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo ss -tlnp
+# … 127.0.0.1:9099 … users:(("payment-handler",…))
+echo 9099 > ~/answers/payment-port-before
+
+sudo sed -i 's/^PAYMENT_HANDLER_PORT=.*/PAYMENT_HANDLER_PORT=9090/' \\
+  /etc/payment-handler/payment-handler.env
+sudo systemctl restart payment-handler
+ss -tln | grep 9090`,
+            },
+          },
           {
             id: 'bind-address',
             title: 'The bind address matters',
             body: [
-              '`127.0.0.1:8080` accepts connections only from the same machine. `0.0.0.0:8080` accepts IPv4 connections arriving on any local interface. `10.20.4.18:8080` accepts connections sent to that particular address.',
-              'If the service is listening on the wrong address, fix its bind/listen configuration and restart it. A firewall cannot make a loopback-only listener reachable remotely.',
+              '**`127.0.0.1:9090`** accepts only local connections. **`0.0.0.0:9090`** accepts IPv4 on every interface. A firewall cannot make a loopback-only listener reachable from another host.',
             ],
           },
-        ],
-      },
-      {
-        id: 'test-port-protocol',
-        title: 'Test the port and the protocol',
-        body: [
-          '**`nc -vz`** tests whether a TCP connection can be established. **`curl`** goes further for HTTP: it connects, sends an HTTP request, and shows the response. Use the tool that speaks the service’s protocol whenever possible.',
-        ],
-        code: {
-          language: 'shell',
-          code: `nc -vz payment 8080
-curl -v --connect-timeout 5 http://payment:8080/health
-curl -vk --connect-timeout 5 https://payment:8443/health
-curl -sS -o /dev/null -w '%{http_code}\\n' http://payment:8080/health`,
-        },
-        subsections: [
-          {
-            id: 'read-errors',
-            title: 'Error messages narrow the problem',
-            body: [
-              '**Could not resolve host** points to DNS. **Network is unreachable** points to local addressing or routing. **Connection timed out** usually means packets or replies were dropped, often by routing or a firewall. **Connection refused** means the host replied but nothing accepted that port (or a firewall actively rejected it).',
-              'An HTTP status such as **404**, **401**, or **500** proves the network connection succeeded and an HTTP server answered. Move up to application configuration, authentication, or logs.',
-            ],
-          },
-          {
-            id: 'tls',
-            title: 'HTTPS adds TLS checks',
-            body: [
-              'With HTTPS, `curl -v` also reveals certificate and hostname failures. **`-k`** skips certificate verification and is useful only as a short diagnostic comparison; it is not a production fix. Correct the certificate, hostname, trust chain, or system clock instead.',
-            ],
-          },
-        ],
-      },
-      {
-        id: 'firewalls',
-        title: 'Firewalls: allow the smallest path',
-        body: [
-          'A host firewall (`nftables`, `iptables`, or `ufw`) can filter traffic on the server. Cloud security groups and network firewalls can filter it before packets reach the server. A valid rule needs the direction, protocol, destination port, and allowed source.',
-          'The safe requirement is specific: “allow TCP port 8080 on payment only from the order subnet,” not “turn off the firewall.” Confirm the listener first, inspect current rules, change one layer, then retest from the original client.',
-        ],
-        code: {
-          language: 'shell',
-          code: `sudo nft list ruleset          # nftables systems
-sudo iptables -L -n -v         # legacy iptables view
-sudo ufw status verbose        # when Ubuntu UFW is managing rules`,
-        },
-        callout: {
-          kind: 'warn',
-          title: 'Do not flush a remote server’s firewall',
-          body: [
-            'A broad reset can expose services or lock you out of SSH. Add the narrow required rule through the system’s established firewall tooling and preserve the current session while testing.',
-          ],
-        },
-      },
-      {
-        id: 'troubleshooting',
-        title: 'A layer-by-layer troubleshooting routine',
-        body: [
-          'Keep the client and destination checks separate. Record each result; do not jump from a timeout straight to changing firewall rules.',
         ],
         table: {
-          headers: ['Check', 'Run where?', 'Command'],
+          headers: ['ss flag', 'Meaning'],
           rows: [
-            ['Resolve the service name', 'Client', '`getent hosts payment`'],
-            ['Choose route and source IP', 'Client', '`ip route get IP`'],
-            ['Test the real HTTP endpoint', 'Client', '`curl -v --connect-timeout 5 URL`'],
-            ['Confirm service state', 'Destination', '`systemctl status service`'],
-            ['Confirm bind address and port', 'Destination', "`sudo ss -ltnp 'sport = :8080'`"],
-            ['Inspect host firewall', 'Destination', '`sudo nft list ruleset`'],
-            ['Read application errors', 'Destination', '`journalctl -u service -n 50`'],
+            ['`-l`', 'Listening sockets'],
+            ['`-t` / `-u`', 'TCP / UDP'],
+            ['`-n`', 'Numeric ports (no name lookup)'],
+            ['`-p`', 'Owning process (often needs sudo)'],
           ],
         },
-        flows: [
-          {
-            title: 'Interpret the first failing layer',
-            steps: [
-              'Name resolves',
-              'Route exists',
-              'Packets reach host',
-              'Firewall permits source',
-              'Process listens correctly',
-              'Protocol returns expected response',
-            ],
-          },
-        ],
       },
       {
-        id: 'network-quick-reference',
+        id: 'prove-request',
+        title: 'Prove the request works',
+        body: [
+          '**`curl -v`** speaks HTTP: connect, request, response. **`nc -vz host port`** only checks that TCP accepts. Prefer the tool that matches the real client. Error text narrows the layer: **could not resolve** is DNS; **connection refused** means the host answered but nothing took that port; **timed out** usually means a drop along the path; an HTTP status proves the network path worked.',
+        ],
+        code: {
+          language: 'shell',
+          code: `curl -v --connect-timeout 5 http://payment.internal:9090/health
+/opt/order-processor/bin/check-payments
+# exit 0`,
+        },
+      },
+      {
+        id: 'firewall',
+        title: 'Open only the right ports',
+        body: [
+          'A port scan of the order box lit up four listeners on every interface and **no** host firewall. **SSH (22)** and **order-processor (8080)** must stay reachable from the network. **metrics-exporter (9100)** and the **order-cache debug port (6379)** must stay up **locally** but must not answer strangers.',
+          '**nftables** is the kernel firewall. The safe pattern is **default deny** on input: allow loopback, allow replies to connections this box opened, allow the ports you mean to serve — and nothing else.',
+        ],
+        subsections: [
+          {
+            id: 'see-exposure',
+            title: 'See what is exposed',
+            body: [
+              'Confirm listeners before you write rules. An empty ruleset means everything that listens is reachable.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo ss -tlnp
+# 0.0.0.0:22, :8080, :9100, :6379
+sudo nft list ruleset
+# empty`,
+            },
+          },
+          {
+            id: 'nft-ruleset',
+            title: 'Write, check, load, persist',
+            body: [
+              'Allow **SSH before** you set a drop policy on a remote box, or the next session never connects. **`nft -c -f`** checks syntax without loading. **`nftables.service`** loads **`/etc/nftables.conf`** now and at boot.',
+            ],
+            code: {
+              language: 'ini',
+              filename: '/etc/nftables.conf',
+              code: `#!/usr/sbin/nft -f
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority filter; policy drop;
+
+    iif lo accept
+    ct state established,related accept
+    ct state invalid drop
+    meta l4proto { icmp, ipv6-icmp } accept
+
+    tcp dport { 22, 8080 } accept
+  }
+  chain forward {
+    type filter hook forward priority filter; policy drop;
+  }
+  chain output {
+    type filter hook output priority filter; policy accept;
+  }
+}`,
+            },
+          },
+          {
+            id: 'nft-apply',
+            title: 'Apply and test locally',
+            body: [
+              '**`iif lo accept`** keeps **`curl 127.0.0.1:9100`** working. **`ct state established,related accept`** lets DNS and HTTPS replies return under default deny. Outbound stays allowed on the output chain.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo nft -c -f /etc/nftables.conf
+sudo systemctl enable --now nftables
+sudo nft list ruleset
+
+curl -s http://127.0.0.1:9100/health
+curl -s http://127.0.0.1:6379/health
+curl -sI https://deb.debian.org | head -1`,
+            },
+          },
+        ],
+        callout: {
+          kind: 'warn',
+          title: 'Do not flush a remote firewall to “test”',
+          body: [
+            'A broad reset can lock you out of SSH or expose every debug port. Add the narrow rule, check syntax, then load.',
+          ],
+        },
+      },
+      {
+        id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
-          headers: ['Question', 'Command'],
+          headers: ['Goal', 'Command'],
           rows: [
-            ['What addresses do I have?', '`ip -br addr`'],
-            ['How will this target be reached?', '`ip route get IP`'],
-            ['What IP does this name resolve to?', '`getent hosts name`, `dig +short name`'],
-            ['Does the host answer ICMP?', '`ping -c 4 host`'],
-            ['What is listening locally?', '`sudo ss -ltnp`'],
-            ['Can TCP connect?', '`nc -vz host port`'],
-            ['Can the HTTP service answer?', '`curl -v URL`'],
-            ['What firewall rules are loaded?', '`nft list ruleset`, `iptables -L -n -v`'],
+            ['My address / route / DNS server', '`ip -4 addr`, `ip route`, `cat /etc/resolv.conf`'],
+            ['What programs resolve', '`getent hosts name`'],
+            ['What DNS alone says', '`dig +short name`'],
+            ['Who listens here', '`sudo ss -tlnp`'],
+            ['HTTP check', '`curl -v URL`'],
+            ['TCP only', '`nc -vz host port`'],
+            ['List / check nftables', '`sudo nft list ruleset`, `sudo nft -c -f /etc/nftables.conf`'],
+            ['Load firewall at boot', '`sudo systemctl enable --now nftables`'],
           ],
         },
       },
     ],
     takeaways: [
-      'Write down the exact **protocol, host, port, and path**, and test from the client that actually fails.',
-      'Work through **name resolution → route → reachability → firewall → listener → application response**; the first failing layer is your best clue.',
-      '**`ss -ltnp`** on the destination proves whether a process is listening and whether it is bound to loopback, one interface, or all interfaces.',
-      'A failed `ping` does not prove a host is down, while an HTTP status code proves the network path and TCP connection worked.',
-      'Keep firewall rules narrow by source, protocol, and port; never disable security controls just to make a test pass.',
+      'Debug **bottom-up**: address → name → listener → request. Test from the failing host.',
+      '**`getent hosts`** matches what apps use. **`dig`** skips **`/etc/hosts`**. Wrong **`getent`**, empty **`dig`** → fix hosts or DNS, not the firewall.',
+      '**`ss -tlnp`** shows the real bind address and port. A running service on the wrong port is still a failure.',
+      'Host firewalls should be **default deny** with loopback, established replies, and only the ports you mean to publish. Keep SSH allowed before you drop.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
-      { challengeId: 'linux-20-why-cant-order-reach-payment', label: 'Why Can\'t Order Reach Payment?' },
+      { challengeId: 'linux-20-why-cant-order-reach-payment', label: "Why Can't Order Reach Payment?" },
       { challengeId: 'linux-21-open-only-the-right-ports', label: 'Open Only the Right Ports' },
     ],
   },
@@ -2639,393 +2921,276 @@ sudo journalctl -u sshd -n 50 --no-pager  # many other distributions`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-23-script-the-health-check',
     lede:
-      'A shell script is a text file that runs commands in a repeatable order. This post builds one from the first **shebang** through variables, arguments, tests, loops, functions, exit codes, safer failure handling, and debugging—using a small service health check throughout.',
+      'Before every deploy someone runs three **`curl`** commands by hand and guesses from the output. Last week that guess shipped onto a dead **payment-handler**. Partners also drop order-batch CSVs into a spool folder every morning for someone to count by spreadsheet. This post is how you turn both chores into **scripts** whose **exit codes** and loops a pipeline can trust.',
     sections: [
       {
-        id: 'first-script',
-        title: 'Your first script',
+        id: 'why-a-script',
+        title: 'A file the computer can trust',
         body: [
-          'Typing commands at the prompt is ideal for exploration. Once the same steps must run every morning, on several servers, or from cron, place them in a file so the computer follows the same sequence every time.',
-          'The first line, **`#!/usr/bin/env bash`**, is the **shebang**. When you execute the file directly, it tells the kernel to find `bash` in the current environment and use it to interpret the file. Comments start with `#`; the shebang is the special first-line exception.',
+          'A script is a text file of commands Bash runs top to bottom. Put the steps in a file when the same check must run from a deploy pipeline, cron, or another engineer’s hands — and when the **exit code** must say pass or fail without eyeballing JSON.',
+          'The first line is the **shebang**: **`#!/bin/bash`** or **`#!/usr/bin/env bash`**. Make the file executable once with **`chmod +x`**, then run it with **`./name`** or put it on your **`PATH`**.',
         ],
         code: {
           language: 'shell',
-          filename: 'hello.sh',
-          code: `#!/usr/bin/env bash
-
-# Print a timestamped message.
-echo "$(date -Is) hello from $(hostname)"`,
+          code: `cat > /tmp/hello.sh <<'EOF'
+#!/bin/bash
+echo "$(date -Is) hello from $(hostname)"
+EOF
+chmod +x /tmp/hello.sh
+/tmp/hello.sh`,
         },
-        after: [
-          'Save the file, make it executable once, then run it with `./`. The `./` matters because the current directory is normally not searched for commands.',
-        ],
-        codes: [
-          {
-            language: 'shell',
-            code: `chmod +x hello.sh
-./hello.sh
-bash hello.sh       # also works; bash reads the file directly`,
-          },
-        ],
         callout: {
           kind: 'tip',
-          title: 'Use Unix line endings',
+          title: 'Unix line endings',
           body: [
-            'A script copied from Windows may fail with `/usr/bin/env: bash\\r: No such file or directory`. Convert CRLF line endings to LF with your editor or `dos2unix`.',
+            'A script copied from Windows can fail with **`bash\\r: No such file or directory`**. Save with LF endings, or run **`dos2unix`**.',
           ],
         },
       },
       {
-        id: 'variables',
-        title: 'Variables and quoting',
+        id: 'variables-args',
+        title: 'Variables, quoting, and arguments',
         body: [
-          'Assign a variable with **no spaces** around `=`. Read it with `$name` or `${name}`. The braces make the boundary clear when text follows the variable name.',
-          'Double quotes allow variable and command substitution while keeping the result one argument. Single quotes preserve text literally. Unquoted variables are split on spaces and may expand wildcard characters, so **quote variable expansions by default**.',
+          'Assign with **no spaces** around **`=`**. Read with **`"$name"`** or **`"${name}"`**. Double quotes keep the value one argument after spaces. Single quotes stay literal. Unquoted expansions split on spaces — quote by default.',
+          '**`$1`** is the first argument, **`$#`** is how many you got, **`"$@"`** is all of them as separate words. **`\${1:-default}`** uses a default when the argument is missing or empty.',
         ],
         code: {
           language: 'shell',
-          code: `service_name="order processor"
+          code: `name="order processor"
 port=8080
 url="http://127.0.0.1:\${port}/health"
-now="$(date -Is)"
+echo "$name → $url"
 
-echo "$service_name"
-echo "checking $url at $now"
-echo '$url stays literal inside single quotes'`,
+# Inside a script:
+# url="\${1:-http://127.0.0.1:8080/health}"`,
         },
-        table: {
-          headers: ['Form', 'What Bash does'],
-          rows: [
-            ['`"$name"`', 'Substitute the value and keep it as one argument'],
-            ["`'$name'`", 'Keep the dollar sign and text literally'],
-            ['`${name}_log`', 'Substitute `name`, then append `_log`'],
-            ['`$(command)`', 'Run a command and substitute its output'],
-            ['`$((count + 1))`', 'Evaluate integer arithmetic'],
-          ],
-        },
+        subsections: [
+          {
+            id: 'usage-errors',
+            title: 'Reject bad usage on stderr',
+            body: [
+              'Print **usage** and errors to **stderr** (**`>&2`**). Keep **stdout** for the result a pipeline might parse. Exit with a specific non-zero code so callers can tell “bad args” from “service down.”',
+            ],
+            code: {
+              language: 'shell',
+              code: `if [ $# -ne 1 ]; then
+  echo "usage: check-health <service>" >&2
+  exit 2
+fi`,
+            },
+          },
+        ],
         callout: {
           kind: 'warn',
           title: 'Make "$var" a reflex',
           body: [
-            'A path such as `Daily Reports/report 1.csv` becomes several arguments when `$path` is unquoted. Write `"$path"` unless you specifically intend word splitting or glob expansion.',
+            'A file named **`batch 0002 (retry).csv`** becomes several arguments when **`$f`** is unquoted. Write **`"$f"`** unless you deliberately want splitting or globs.',
           ],
         },
       },
       {
-        id: 'arguments',
-        title: 'Inputs: positional arguments',
+        id: 'exit-and-tests',
+        title: 'Exit codes and tests',
         body: [
-          'Arguments let one script work with different values. **`$0`** is the script name, **`$1`** and **`$2`** are the first two arguments, **`$#`** is the count, and **`"$@"`** represents all arguments while preserving each one separately.',
+          'Every command returns a small integer: **0** means success, anything else means failure. Cron, systemd, and CI read that number. Prefer **`if command; then`** over saving **`$?`** and checking it later.',
+          '**`[[ ... ]]`** tests files and strings in Bash. **`(( ... ))`** does integer math and comparisons.',
         ],
-        code: {
-          language: 'shell',
-          filename: 'check-url.sh',
-          code: `#!/usr/bin/env bash
-
-url="\${1:-http://127.0.0.1:8080/health}"
-timeout="\${2:-5}"
-
-echo "checking $url (timeout: \${timeout}s)"
-curl -fsS --max-time "$timeout" "$url"`,
+        table: {
+          headers: ['Test', 'True when'],
+          rows: [
+            ['`[[ -f "$path" ]]`', 'Regular file'],
+            ['`[[ -d "$path" ]]`', 'Directory'],
+            ['`[[ -z "$value" ]]` / `-n`', 'Empty / non-empty string'],
+            ['`[[ "$a" == "$b" ]]`', 'Strings equal'],
+            ['`(( n > 0 ))`', 'Integer comparison'],
+          ],
         },
-        after: [
-          '**`${1:-default}`** means “use `$1` when it is set and non-empty; otherwise use this default.” Run it as `./check-url.sh` or provide both values: `./check-url.sh https://example.com/health 10`.',
-        ],
-        subsections: [
-          {
-            id: 'required-argument',
-            title: 'Reject missing required input',
-            body: [
-              'Some values should not have a default. Check the argument count, print a useful **usage** line to stderr, and exit with a non-zero status.',
-            ],
-            code: {
-              language: 'shell',
-              code: `if (( $# < 1 )); then
-  echo "usage: $0 URL [TIMEOUT_SECONDS]" >&2
-  exit 2
-fi`,
-            },
-          },
-        ],
-      },
-      {
-        id: 'exit-status',
-        title: 'Exit status: how commands report success',
-        body: [
-          'Every command returns a small integer when it finishes: **0 means success** and a non-zero value means failure. The shell stores the most recent status in **`$?`**, but scripts are clearer when they test the command directly.',
-          'A script returns the status of its last command unless it uses **`exit N`**. Monitoring, cron, systemd, and CI use that final status to decide whether the script succeeded.',
-        ],
         code: {
           language: 'shell',
-          code: `if curl -fsS --max-time 5 "$url" >/dev/null; then
-  echo "healthy: $url"
+          code: `if curl -fsS --max-time 3 "$url" >/dev/null; then
+  echo "OK"
   exit 0
 else
-  echo "unhealthy: $url" >&2
+  echo "DOWN"
   exit 1
 fi`,
-        },
-        callout: {
-          kind: 'idea',
-          title: 'Test the command, not $?',
-          body: [
-            '`if command; then ...` is easier to read and harder to break than running `command`, doing something else, and later inspecting `$?`.',
-          ],
         },
       },
       {
-        id: 'tests-conditionals',
-        title: 'Tests and conditionals',
+        id: 'health-script',
+        title: 'Script the health check',
         body: [
-          '**`if`** runs commands based on an exit status. The **`[[ ... ]]`** form performs Bash tests without many of the quoting and pattern pitfalls of the older `[ ... ]` command. Use spaces inside the brackets.',
+          'Service ports live in **`/etc/order-platform/services`** (name and port). The deploy pipeline needs **`/usr/local/bin/check-health <name>`**: look up the port, **`curl`** **`http://127.0.0.1:<port>/health`**, print **`<name> OK`** or **`DOWN`**, and exit **0** / **1**. Wrong args → exit **2**. Unknown name → exit **3**. Do not hard-code ports — the grader adds services later.',
         ],
-        code: {
-          language: 'shell',
-          code: `if [[ -f "$config" ]]; then
-  echo "config exists"
-elif [[ -d "$config" ]]; then
-  echo "that path is a directory" >&2
-else
-  echo "config missing: $config" >&2
-  exit 1
-fi`,
-        },
-        table: {
-          headers: ['Test', 'True when…'],
-          rows: [
-            ['`[[ -f "$path" ]]`', 'Path is a regular file'],
-            ['`[[ -d "$path" ]]`', 'Path is a directory'],
-            ['`[[ -r "$path" ]]` / `-w` / `-x`', 'Path is readable / writable / executable'],
-            ['`[[ -z "$value" ]]` / `-n`', 'String is empty / non-empty'],
-            ['`[[ "$a" == "$b" ]]`', 'Strings are equal'],
-            ['`(( count > 10 ))`', 'Integer comparison is true'],
-          ],
-        },
         subsections: [
           {
-            id: 'and-or',
-            title: 'AND and OR command lists',
+            id: 'check-health-body',
+            title: 'The script',
             body: [
-              '**`&&`** runs the next command only after success; **`||`** runs it only after failure. They are convenient for short actions, but use a full `if` when you need logging, cleanup, or more than one command.',
+              '**`awk`** picks the port for an exact name. **`curl -f`** treats HTTP errors as failure. **`chmod 755`** so any user can run it.',
             ],
             code: {
               language: 'shell',
-              code: `mkdir -p "$output_dir" && echo "output directory ready"
-curl -fsS "$url" >/dev/null || { echo "health check failed" >&2; exit 1; }`,
-            },
-          },
-        ],
-      },
-      {
-        id: 'loops',
-        title: 'Repeat work with loops',
-        body: [
-          'A **`for`** loop repeats once for each supplied word or matched path. Quote variables inside the loop, but leave an intentional glob such as `/var/log/*.log` unquoted so the shell can expand it.',
-        ],
-        code: {
-          language: 'shell',
-          code: `for url in \
-  "http://order:8080/health" \
-  "http://payment:8081/health"
-do
-  echo "checking $url"
-  curl -fsS --max-time 5 "$url" >/dev/null
-done`,
-        },
-        subsections: [
-          {
-            id: 'glob-loop',
-            title: 'Loop over files',
-            body: [
-              'If a Bash glob matches nothing, it normally remains as literal text. **`[[ -e "$file" ]] || continue`** safely skips that no-match value.',
-            ],
-            code: {
-              language: 'shell',
-              code: `for file in /var/log/order/*.log; do
-  [[ -e "$file" ]] || continue
-  echo "$file: $(wc -l < "$file") lines"
-done`,
-            },
-          },
-          {
-            id: 'while-read',
-            title: 'Read a file line by line',
-            body: [
-              '**`IFS= read -r`** is the safe standard shape: an empty `IFS` preserves leading and trailing spaces, and `-r` keeps backslashes literal. The final condition also processes a last line that lacks a newline.',
-            ],
-            code: {
-              language: 'shell',
-              code: `while IFS= read -r url || [[ -n "$url" ]]; do
-  [[ -z "$url" || "$url" == \\#* ]] && continue
-  curl -fsS --max-time 5 "$url" >/dev/null
-done < endpoints.txt`,
-            },
-          },
-        ],
-      },
-      {
-        id: 'functions',
-        title: 'Functions: name a reusable step',
-        body: [
-          'A function groups commands under a name. Function arguments use the same `$1`, `$2`, and `"$@"` variables as script arguments, but they refer to the function call while the function is running. Declare variables with **`local`** so they do not accidentally overwrite script-wide values.',
-        ],
-        code: {
-          language: 'shell',
-          code: `check_url() {
-  local url="$1"
-  local timeout="\${2:-5}"
+              filename: '/usr/local/bin/check-health',
+              code: `#!/bin/bash
+# check-health <service> — exit 0 OK, 1 DOWN, 2 usage, 3 unknown.
+registry=/etc/order-platform/services
 
-  if curl -fsS --max-time "$timeout" "$url" >/dev/null; then
-    printf 'OK   %s\\n' "$url"
-  else
-    printf 'FAIL %s\\n' "$url" >&2
-    return 1
-  fi
-}
-
-check_url "http://127.0.0.1:8080/health" 3`,
-        },
-      },
-      {
-        id: 'strict-mode',
-        title: 'Safer failure handling',
-        body: [
-          '**`set -u`** treats an unset variable as an error. **`set -o pipefail`** makes a pipeline fail when any stage fails, not only the last one. **`set -e`** exits after many unhandled command failures, but has exceptions in tests, `&&` / `||` lists, and other shell grammar.',
-          'Together, **`set -Eeuo pipefail`** is a useful baseline for small operational scripts when you understand those rules. It is not a replacement for explicit `if` statements where failure is expected and needs a message or recovery.',
-        ],
-        code: {
-          language: 'shell',
-          code: `set -Eeuo pipefail
-
-trap 'echo "error on line $LINENO" >&2' ERR
-
-if ! curl -fsS --max-time 5 "$url" >/dev/null; then
-  echo "health check failed: $url" >&2
-  exit 1
-fi`,
-        },
-        callout: {
-          kind: 'warn',
-          title: 'Do not add set -e blindly',
-          body: [
-            'Commands that are allowed to fail should be placed in `if`, `! command`, or an explicit `||` handler. Test the script’s failure paths, not only its success path.',
-          ],
-        },
-      },
-      {
-        id: 'complete-script',
-        title: 'Put it together: a health-check script',
-        body: [
-          'This version accepts any number of endpoints, prints one result per endpoint, and returns failure if at least one check fails. It keeps checking after an individual failure so the operator gets the full picture.',
-        ],
-        code: {
-          language: 'shell',
-          filename: 'health-check.sh',
-          code: `#!/usr/bin/env bash
-set -u
-set -o pipefail
-
-if (( $# == 0 )); then
-  echo "usage: $0 URL [URL ...]" >&2
+if [ $# -ne 1 ]; then
+  echo "usage: check-health <service>" >&2
   exit 2
 fi
+name="$1"
 
-failures=0
+port="$(awk -v n="$name" '$1 == n {print $2}' "$registry")"
+if [ -z "$port" ]; then
+  echo "unknown service: $name" >&2
+  exit 3
+fi
 
-check_url() {
-  local url="$1"
-
-  if curl -fsS --max-time 5 "$url" >/dev/null; then
-    printf '%s OK   %s\\n' "$(date -Is)" "$url"
-  else
-    printf '%s FAIL %s\\n' "$(date -Is)" "$url" >&2
-    (( failures += 1 ))
-  fi
-}
-
-for url in "$@"; do
-  check_url "$url"
-done
-
-if (( failures > 0 )); then
-  echo "$failures check(s) failed" >&2
+if curl -fsS --max-time 3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; then
+  echo "$name OK"
+  exit 0
+else
+  echo "$name DOWN"
   exit 1
 fi`,
-        },
-        after: [
-          'Run it directly, redirect its output from cron, or call it from a systemd unit. The **exit status** is the machine-readable result; the timestamped lines are the human-readable evidence.',
+            },
+          },
+          {
+            id: 'try-health',
+            title: 'Try the exit codes',
+            body: [
+              'Install it, then exercise every path. **`bash -x`** traces expansions when a check misbehaves.',
+            ],
+            code: {
+              language: 'shell',
+              code: `sudo tee /usr/local/bin/check-health >/dev/null <<'EOF'
+# paste the script
+EOF
+sudo chmod 755 /usr/local/bin/check-health
+
+check-health; echo "exit=$?"
+check-health order-processor; echo "exit=$?"
+check-health notification-service; echo "exit=$?"
+check-health inventory-service; echo "exit=$?"
+bash -x /usr/local/bin/check-health order-processor`,
+            },
+          },
         ],
       },
       {
-        id: 'debug-test',
-        title: 'Check and debug a script',
+        id: 'loops-functions',
+        title: 'Loop over order batches',
         body: [
-          '**`bash -n`** parses a script without running it and catches syntax errors. **`bash -x`** prints expanded commands before executing them; use it carefully because expanded secrets can appear in terminal output or logs. **ShellCheck** adds static warnings for common quoting, test, and portability mistakes.',
+          'Partners drop CSVs into **`$ORDER_SPOOL/incoming/`**. Each file has a header plus one order per line. Some names contain spaces. Every morning: print **`<file> <count>`**, move the file to **`processed/`**, then print **`TOTAL <sum>`**.',
+          'A **`for`** loop walks a list. A **function** names one step so the loop stays readable. **`shopt -s nullglob`** makes an unmatched **`*.csv`** expand to nothing instead of a literal filename.',
         ],
-        code: {
-          language: 'shell',
-          code: `bash -n health-check.sh       # syntax check only
-shellcheck health-check.sh    # if ShellCheck is installed
-bash -x health-check.sh http://127.0.0.1:8080/health
+        subsections: [
+          {
+            id: 'process-batches',
+            title: 'process-batches',
+            body: [
+              '**`\${ORDER_SPOOL:-/var/spool/orders}`** uses the environment when set. **`wc -l`** counts lines; subtract one for the header. Quote **`"$f"`** every time.',
+            ],
+            code: {
+              language: 'shell',
+              filename: '~/bin/process-batches',
+              code: `#!/bin/bash
+# process-batches — count and archive CSVs from $ORDER_SPOOL/incoming.
+spool="\${ORDER_SPOOL:-/var/spool/orders}"
 
-PS4='+ \${BASH_SOURCE}:\${LINENO}: '
-bash -x health-check.sh       # trace with file and line number`,
-        },
-      },
-      {
-        id: 'interactive-vs-script',
-        title: 'Interactive shell versus script',
-        body: [
-          '**`~/.bashrc`** configures interactive Bash sessions: aliases, prompt (`PS1`), completion, and shell options for your own terminal. A non-interactive script does not normally read it and should not depend on aliases or a person’s custom `PATH`.',
-          'Set required variables in the script, pass them as arguments or environment variables, or load a deliberate configuration file. Use full paths when a restricted environment such as cron or systemd may have a smaller `PATH`.',
+count_orders() {
+  local lines
+  lines=$(wc -l < "$1")
+  echo $((lines - 1))
+}
+
+shopt -s nullglob
+total=0
+for f in "$spool"/incoming/*.csv; do
+  n=$(count_orders "$f")
+  echo "$(basename "$f") $n"
+  total=$((total + n))
+  mv "$f" "$spool/processed/"
+done
+echo "TOTAL $total"`,
+            },
+          },
+          {
+            id: 'bashrc-path',
+            title: 'PATH and ORDER_SPOOL in ~/.bashrc',
+            body: [
+              '**`~/.bashrc`** runs for interactive shells. Put **`~/bin`** on your **`PATH`** and export **`ORDER_SPOOL`** there. **`source ~/.bashrc`** applies it to the current shell. Scripts you ship for cron should still set their own defaults — they do not read your bashrc.',
+            ],
+            code: {
+              language: 'shell',
+              code: `mkdir -p ~/bin
+chmod +x ~/bin/process-batches
+
+cat >> ~/.bashrc <<'EOF'
+export PATH="$HOME/bin:$PATH"
+export ORDER_SPOOL=/var/spool/orders
+EOF
+source ~/.bashrc
+command -v process-batches
+# /home/learner/bin/process-batches
+process-batches
+# batch-0001.csv 17
+# batch 0002 (retry).csv 31
+# TOTAL 48`,
+            },
+          },
         ],
-        code: {
-          language: 'shell',
-          code: `# Interactive convenience in ~/.bashrc:
-alias ll='ls -alF'
-
-# Script input from the environment, with a default:
-APP_PORT="\${APP_PORT:-8080}"
-
-# Deliberately load a trusted config file:
-source /etc/order-processor/health-check.conf`,
-        },
         callout: {
-          kind: 'warn',
-          title: 'Source only trusted files',
+          kind: 'tip',
+          title: 'local inside functions',
           body: [
-            '`source file` executes that file as shell code in the current script. It is not a general parser for untrusted key/value input.',
+            'Declare scratch variables with **`local`** inside a function so they do not overwrite names in the rest of the script.',
           ],
         },
       },
       {
-        id: 'bash-quick-reference',
+        id: 'safer-debug',
+        title: 'Safer defaults and debugging',
+        body: [
+          '**`set -u`** errors on unset variables. **`set -o pipefail`** fails a pipeline if any stage fails. **`set -e`** exits on many failures but has exceptions inside **`if`**, **`&&`**, and **`||`** — test failure paths on purpose.',
+          '**`bash -n script`** checks syntax without running. **`bash -x`** prints each expanded command; avoid tracing secrets. **ShellCheck** catches quoting mistakes when it is installed.',
+        ],
+        code: {
+          language: 'shell',
+          code: `bash -n ~/bin/process-batches
+bash -x ~/bin/process-batches
+shellcheck /usr/local/bin/check-health   # if installed`,
+        },
+      },
+      {
+        id: 'quick-reference',
         title: 'Quick reference',
-        body: [],
+        body: ['The decisions are above. This is the command for each one.'],
         tableAfter: {
           headers: ['Goal', 'Syntax'],
           rows: [
-            ['Choose Bash', '`#!/usr/bin/env bash`'],
-            ['Make / run a script', '`chmod +x script.sh`, `./script.sh`'],
-            ['Expand safely', '`"$var"`, `"${var}_suffix"`, `"$(command)"`'],
-            ['Read arguments', '`$1`, `${1:-default}`, `"$@"`, `$#`'],
-            ['Test a command', '`if command; then ... else ... fi`'],
-            ['Test values / files', '`[[ ... ]]`, `(( ... ))`'],
-            ['Loop over values', '`for item in "$@"; do ...; done`'],
-            ['Read lines safely', '`while IFS= read -r line; do ...; done < file`'],
-            ['Define a function', '`name() { local value="$1"; ...; }`'],
-            ['Fail explicitly', '`echo "message" >&2; exit 1`'],
-            ['Check / trace', '`bash -n script`, `shellcheck script`, `bash -x script`'],
+            ['Shebang / run', '`#!/bin/bash`, `chmod +x`, `./script`'],
+            ['Safe expand', '`"$var"`, `"${var}_x"`, `"$(cmd)"`'],
+            ['Args', '`$1`, `$#`, `"$@"`, `\${1:-default}`'],
+            ['Stderr + exit', '`echo msg >&2; exit 2`'],
+            ['Branch on command', '`if cmd; then …; else …; fi`'],
+            ['Tests', '`[[ -f "$p" ]]`, `(( n > 0 ))`'],
+            ['Function', '`name() { local x="$1"; …; }`'],
+            ['Glob loop', '`shopt -s nullglob; for f in dir/*.csv; do …; done`'],
+            ['Default env', '`\${ORDER_SPOOL:-/var/spool/orders}`'],
+            ['Interactive PATH', '`export PATH="$HOME/bin:$PATH"` in `~/.bashrc`'],
+            ['Check / trace', '`bash -n`, `bash -x`, `shellcheck`'],
           ],
         },
       },
     ],
     takeaways: [
-      'A script is a repeatable command sequence: add a **shebang**, make it executable, and return meaningful **exit statuses** for callers.',
-      'Quote expansions as **`"$var"`** and pass collections as **`"$@"`**; use defaults or explicit usage errors for missing arguments.',
-      'Use **`if`**, **`[[ ... ]]`**, loops, and functions to express decisions and repetition while keeping expected failures explicit.',
-      '**`set -u`** and **`pipefail`** catch common mistakes; use **`set -e`** only with an understanding of its exceptions.',
-      'Validate with **`bash -n`** and **ShellCheck**, debug carefully with **`bash -x`**, and keep production scripts independent of interactive `.bashrc` customizations.',
+      'A script is a repeatable sequence with a **shebang**, **`chmod +x`**, and meaningful **exit codes** callers can automate on.',
+      'Quote **`"$var"`**. Send usage and errors to **stderr**. Read ports and paths from config or the environment instead of hard-coding.',
+      '**Functions** name steps; **loops** plus **`nullglob`** handle any number of files, including names with spaces.',
+      'Put personal **`PATH`** and exports in **`~/.bashrc`**. Keep production scripts self-contained. Debug with **`bash -n`** and **`bash -x`**.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [

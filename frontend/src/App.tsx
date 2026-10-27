@@ -66,7 +66,7 @@ import {
 } from './fixtures/sparkPlaygroundStarter';
 import { isSparkPlatformChallenge } from './components/SparkPlatformWorkspace';
 import { isBoardChallenge } from './components/BoardWorkspace';
-import { isKubernetesChallenge } from './components/K8sLabWorkspace';
+import { isBoxChallenge, isKubernetesChallenge } from './components/K8sLabWorkspace';
 import { SPARK_PLAYGROUND_CHALLENGE_ID } from './constants/playgroundDatasets';
 import { PRICING_PATH } from './constants/pricing';
 import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from './constants/playCatalog';import type {
@@ -82,6 +82,16 @@ import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from 
 } from './types/domain';
 
 const LAB_LOCKED_FALLBACK_MSG = 'Something is down on our side. Please contact the administrator.';
+
+/** Started Kubernetes labs (machine requested or shell up) need a leave warning. */
+function needsK8sLeaveConfirm(session: ActiveSession | null | undefined): boolean {
+  return Boolean(
+    session
+    && session.runtime === 'kubernetes'
+    && !session.notStarted
+    && !session.id.startsWith('pending-k8s-'),
+  );
+}
 
 /** Old /play/* links (bookmarks, published lab solutions) moved to /track, /majors and /minors. */
 function LegacyPlayRedirect(): JSX.Element {
@@ -161,6 +171,13 @@ export default function App(): React.JSX.Element {
   } | null>(null);
   const [labLeaseLost, setLabLeaseLost] = useState<'taken' | 'ended' | null>(null);
   const [labLeaseBusy, setLabLeaseBusy] = useState<boolean>(false);
+  /** Browser/trackpad back or header Back while a started k8s lab is open. */
+  const [leaveLabPrompt, setLeaveLabPrompt] = useState<{
+    session: ActiveSession;
+    dest: string;
+  } | null>(null);
+  const leaveLabPromptRef = useRef(leaveLabPrompt);
+  leaveLabPromptRef.current = leaveLabPrompt;
   const [heartbeatEpoch, setHeartbeatEpoch] = useState<number>(0);
   const [loginOpen, setLoginOpen] = useState<boolean>(false);
   const [loginReturnTo, setLoginReturnTo] = useState<string | null>(null);
@@ -257,6 +274,8 @@ export default function App(): React.JSX.Element {
     pendingStartRef.current = false;
     pendingStartPathRef.current = null;
     openingSessionRef.current = null;
+    setLeaveLabPrompt(null);
+    setLabLeaseLost(null);
     setPlayState('library');
     setActiveSession(null);
     setActiveChallenge(null);
@@ -282,6 +301,7 @@ export default function App(): React.JSX.Element {
     session: ActiveSession,
     dest: string,
   ): void => {
+    setLeaveLabPrompt(null);
     void endActiveSessionBestEffort(session);
     setEnding(false);
     setPlayState('library');
@@ -289,9 +309,60 @@ export default function App(): React.JSX.Element {
     setActiveChallenge(null);
     setEndResult(null);
     setLabLeaseLost(null);
-    navigate(dest);
+    navigate(dest, { replace: true });
     void refreshChallenges();
   }, [endActiveSessionBestEffort, navigate]);
+
+  /**
+   * Keep one same-URL history entry above a live k8s lab. Trackpad/browser Back then
+   * stays in the app (leave confirm / abandon) instead of jumping to Google OAuth
+   * left under the session from sign-in.
+   */
+  useEffect(() => {
+    if (playState !== 'active' || ending) return undefined;
+    if (!activeSession || activeSession.runtime !== 'kubernetes') return undefined;
+    if (leaveLabPrompt) return undefined;
+
+    const session = activeSession;
+    const challenge = activeChallenge;
+    const marker = { devlabsLabGuard: session.id };
+    const labUrl = () => (
+      session.id.startsWith('pending-k8s-') || session.notStarted
+        ? window.location.pathname + window.location.search
+        : `/track/${session.id}`
+    );
+    window.history.pushState(marker, '', labUrl());
+
+    const onPopState = (): void => {
+      const panelDest = catalogPathForChallenge(
+        challenge?.id,
+        challenge?.sandboxType,
+        challenge?.tags,
+      );
+      if (session.notStarted || session.id.startsWith('pending-k8s-')) {
+        abandonPendingStart();
+        navigate(panelDest !== '/track' ? panelDest : '/track', { replace: true });
+        return;
+      }
+      window.history.pushState(marker, '', `/track/${session.id}`);
+      navigate(`/track/${session.id}`, { replace: true });
+      setLeaveLabPrompt({ session, dest: panelDest !== '/track' ? panelDest : '/track' });
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [
+    playState,
+    ending,
+    leaveLabPrompt,
+    activeSession?.id,
+    activeSession?.notStarted,
+    activeSession?.runtime,
+    activeChallenge?.id,
+    activeChallenge?.sandboxType,
+    activeChallenge?.tags,
+    navigate,
+  ]);
 
   useEffect(() => {
     if (authMode !== 'resolving') {
@@ -586,11 +657,25 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     if (authMode === 'resolving') return;
 
-    // A locked lab also keeps the catalog URL, so leaving that URL drops it.
+    // A locked or not-started lab keeps the catalog URL, so leaving that URL drops it.
     const abandoned =
       (pendingStartRef.current || Boolean(activeSession?.lockedMessage) || Boolean(activeSession?.notStarted))
       && window.location.pathname !== pendingStartPathRef.current;
-    if (abandoned) abandonPendingStart();
+    if (abandoned) {
+      // Prefer the lab's panel (/track/.../linux), not the domain hub history may land on.
+      const fromChallenge = catalogPathForChallenge(
+        activeChallenge?.id,
+        activeChallenge?.sandboxType,
+        activeChallenge?.tags,
+      );
+      const panelDest =
+        fromChallenge !== '/track'
+          ? fromChallenge
+          : (pendingStartPathRef.current || '/track');
+      abandonPendingStart();
+      navigate(panelDest, { replace: true });
+      return;
+    }
     const currentPlayState: PlayState = abandoned ? 'library' : playState;
     const currentSession = abandoned ? null : activeSession;
 
@@ -622,11 +707,26 @@ export default function App(): React.JSX.Element {
       if (currentPlayState === 'active' || currentPlayState === 'ended') {
         const leaving = currentPlayState === 'active' ? currentSession : null;
         if (leaving?.runtime === 'kubernetes') {
-          const dest = location.pathname.replace(/\/$/, '') || '/track';
-          dismissK8sLabToCatalog(
-            leaving,
-            dest.startsWith('/track') ? dest : '/track',
+          const fromChallenge = catalogPathForChallenge(
+            activeChallenge?.id,
+            activeChallenge?.sandboxType,
+            activeChallenge?.tags,
           );
+          const landed = location.pathname.replace(/\/$/, '') || '/track';
+          // Panel for this lab, not a domain hub entry from the history stack.
+          const catalogDest =
+            fromChallenge !== '/track'
+              ? fromChallenge
+              : (landed.startsWith('/track') ? landed : '/track');
+          // Trackpad/browser back lands on a catalog URL. Ask before ending a started lab.
+          if (needsK8sLeaveConfirm(leaving)) {
+            if (!leaveLabPromptRef.current) {
+              navigate(`/track/${leaving.id}`, { replace: true });
+              setLeaveLabPrompt({ session: leaving, dest: catalogDest });
+            }
+            return;
+          }
+          dismissK8sLabToCatalog(leaving, catalogDest);
           return;
         }
         setPlayState('library');
@@ -685,6 +785,23 @@ export default function App(): React.JSX.Element {
             endReason?: string | null;
           } | null | undefined;
           const idleLocked = res?.status === 'ended' && sess?.endReason === 'idle_timeout';
+          // A finished lab in history is not something to reopen as active (except idle lock).
+          if (res?.status === 'ended' && !idleLocked) {
+            attempt.settle();
+            setPlayState('library');
+            setActiveSession(null);
+            setActiveChallenge(null);
+            setLabLeaseLost(null);
+            navigate(
+              catalogPathForChallenge(
+                res?.challenge?.id || (res?.session as { challengeId?: string } | null | undefined)?.challengeId,
+                (res?.challenge as ChallengePublic | null | undefined)?.sandboxType,
+                (res?.challenge as ChallengePublic | null | undefined)?.tags,
+              ),
+              { replace: true },
+            );
+            return;
+          }
           setActiveSession({
             id: res?.sessionId || sessionId,
             startTime: res?.startTime || Date.now(),
@@ -942,6 +1059,10 @@ export default function App(): React.JSX.Element {
     const leaving = playState === 'active' ? activeSession : null;
     if (leaving?.runtime === 'kubernetes') {
       if (ending) return;
+      if (needsK8sLeaveConfirm(leaving)) {
+        setLeaveLabPrompt({ session: leaving, dest });
+        return;
+      }
       dismissK8sLabToCatalog(leaving, dest);
       return;
     }
@@ -1079,7 +1200,10 @@ export default function App(): React.JSX.Element {
     setCurrentUser(user || getCurrentUser());
     setAuthMode('interviewer');
     setLoginOpen(false);
-    navigate(takePostLoginPath() || '/track', { replace: true });
+    // Google callback does a hard location.replace; OTP / other logins stay in-app.
+    if (!window.location.pathname.startsWith('/auth/google/callback')) {
+      navigate(takePostLoginPath() || '/track', { replace: true });
+    }
   };
 
   useEffect(() => {
@@ -1288,6 +1412,25 @@ export default function App(): React.JSX.Element {
         ) : (
           <p>This lab is now active in another tab or window. Only one tab can drive a lab at a time.</p>
         )}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={Boolean(leaveLabPrompt)}
+        title="Leave this lab?"
+        confirmLabel="Leave lab"
+        cancelLabel="Stay"
+        onCancel={() => setLeaveLabPrompt(null)}
+        onConfirm={() => {
+          const prompt = leaveLabPrompt;
+          setLeaveLabPrompt(null);
+          if (!prompt) return;
+          dismissK8sLabToCatalog(prompt.session, prompt.dest);
+        }}
+      >
+        <p>
+          {isBoxChallenge(activeChallenge)
+            ? 'Your machine will be stopped. All unsaved progress will be removed.'
+            : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
+        </p>
       </ConfirmDialog>
       {needsUsername ? (
         <UsernameGate onSaved={(user) => setCurrentUser(user)} onLogout={handleLogout} />

@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import BrandMark from './BrandMark';
-import { startGoogleSignIn, fetchGoogleAuthStatus } from '../services/authApi';
+import {
+  startGoogleSignIn,
+  fetchGoogleAuthStatus,
+  GOOGLE_OAUTH_WINDOW_NAME,
+} from '../services/authApi';
 import type { UserRecord } from '../types/domain';
 
 interface LoginModalProps {
@@ -28,6 +32,7 @@ function GoogleMark(): JSX.Element {
 export default function LoginModal({
   open,
   onClose,
+  onLoggedIn,
   initialError = null,
   returnTo = null,
   prompt = null,
@@ -58,11 +63,30 @@ export default function LoginModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, busy, onClose]);
 
-  const handleGoogle = (): void => {
-    if (!googleEnabled) return;
+  const handleGoogle = (event: React.MouseEvent<HTMLAnchorElement>): void => {
+    if (!googleEnabled || busy) {
+      event.preventDefault();
+      return;
+    }
     setError(null);
     setBusy(true);
-    startGoogleSignIn(returnTo);
+    // Let the browser open target=named tab (default action). That keeps Google
+    // out of this tab's history — critical for mobile swipe-back.
+    startGoogleSignIn(
+      returnTo,
+      {
+        onSuccess: (user) => {
+          setBusy(false);
+          onLoggedIn(user);
+          onClose();
+        },
+        onError: (message) => {
+          setBusy(false);
+          setError(message);
+        },
+      },
+      { openedByLink: true },
+    );
   };
 
   if (!open) return null;
@@ -104,15 +128,17 @@ export default function LoginModal({
 
           {error && <div className="alert login-alert">{error}</div>}
 
-          <button
-            type="button"
-            className="login-google"
-            disabled={busy || googleEnabled !== true}
+          <a
+            className={`login-google${busy || googleEnabled !== true ? ' login-google--disabled' : ''}`}
+            href="/api/auth/google"
+            target={GOOGLE_OAUTH_WINDOW_NAME}
+            rel="opener"
+            aria-disabled={busy || googleEnabled !== true}
             onClick={handleGoogle}
           >
             <GoogleMark />
-            <span>{busy ? 'Redirecting…' : 'Continue with Google'}</span>
-          </button>
+            <span>{busy ? 'Finish sign-in in the Google window…' : 'Continue with Google'}</span>
+          </a>
 
           <p className="login-oauth-note">
             By continuing you agree to use DevSetu for learning and practice.

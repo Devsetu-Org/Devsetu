@@ -454,7 +454,6 @@ export default function K8sLabWorkspace({
   const resizingDrawer = useRef(false);
   const [busy, setBusy] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [progress, setProgress] = useState<LabProgressStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveModal, setSaveModal] = useState<GradeModalPhase | null>(null);
@@ -834,7 +833,7 @@ export default function K8sLabWorkspace({
         <div className="col spark-brief-col">
           <div className="panel sandbox-brief-panel--solo spark-brief-panel--bare" style={{ flex: 1 }}>
             <div className="spark-brief-tabs" role="tablist" aria-label="Problem sections">
-              <BriefBackButton onClick={() => setLeaveConfirmOpen(true)} />
+              {!isNarrow && <BriefBackButton onClick={onBackToLibrary} />}
               <button
                 type="button"
                 role="tab"
@@ -1354,25 +1353,6 @@ export default function K8sLabWorkspace({
           setBriefTab('solution');
         }}
       />
-      <ConfirmDialog
-        open={leaveConfirmOpen}
-        title="Leave this lab?"
-        confirmLabel="Leave lab"
-        cancelLabel="Stay"
-        onCancel={() => setLeaveConfirmOpen(false)}
-        onConfirm={() => {
-          setLeaveConfirmOpen(false);
-          onBackToLibrary();
-        }}
-      >
-        <p>
-          {box
-            ? (progress?.enabled
-              ? 'Your machine will be stopped. Anything you have not saved will be removed. Progress you already saved for this lab is kept for the next open.'
-              : 'Your machine will be stopped. All unsaved progress will be removed.')
-            : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
-        </p>
-      </ConfirmDialog>
       <ConfirmDialog
         open={resetConfirmOpen}
         title="Reset this lab?"
