@@ -1,9 +1,10 @@
 'use strict';
 
 /**
- * End active sessions after a period of user inactivity (~20 min by default).
- * Activity = session API traffic, terminal stdin, or an explicit touch().
- * K8s sessions park (snapshot + wipe) via endK8sSession.
+ * Close a lab after a fixed time from when its machine is ready (45 minutes by default).
+ * Typing, heartbeats, and other activity do not add time. Kubernetes namespace labs
+ * park via endK8sSession. Linux and Docker sandboxes are ephemeral: the pod is
+ * deleted and nothing is saved.
  */
 
 import type { GameSession } from '../types/domain';
@@ -17,7 +18,7 @@ const terminalEventBus = require('../observability/terminalEventBus');
 
 const IDLE_MS = Math.max(
   60_000,
-  Number(process.env.SESSION_IDLE_TIMEOUT_MS || 20 * 60 * 1000),
+  Number(process.env.SESSION_IDLE_TIMEOUT_MS || 45 * 60 * 1000),
 );
 const SWEEP_MS = Math.max(
   15_000,
@@ -27,14 +28,7 @@ const SWEEP_MS = Math.max(
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 let ending = new Set<string>();
 
-function touch(sessionId: string | null | undefined): void {
-  if (!sessionId) return;
-  const session = sessionStore.get(sessionId) as (GameSession & { lastActivityAt?: number }) | null;
-  if (!session || session.status !== 'active') return;
-  session.lastActivityAt = Date.now();
-}
-
-function lastActivityOf(session: GameSession & { lastActivityAt?: number }): number {
+function openedAt(session: GameSession & { lastActivityAt?: number }): number {
   return Number(session.lastActivityAt) || Number(session.startTime) || 0;
 }
 
@@ -45,7 +39,7 @@ async function endSessionById(sessionId: string, reason: string): Promise<void> 
 
   ending.add(sessionId);
   try {
-    // Remember why before teardown. The heartbeat uses this to lock the terminal
+    // Remember why before teardown. The heartbeat uses this to close the terminal
     // instead of dumping the shell's disconnect logs.
     before.endReason = reason;
     let session: GameSession;
@@ -77,8 +71,9 @@ async function sweepOnce(): Promise<void> {
   const idle: string[] = [];
   for (const session of sessionStore.all() as Array<GameSession & { lastActivityAt?: number }>) {
     if (session.status !== 'active') continue;
-    const last = lastActivityOf(session);
-    if (last > 0 && now - last >= IDLE_MS) {
+    if (session.runtime === 'kubernetes' && k8sLifecycle.isStartInFlight(session.id)) continue;
+    const opened = openedAt(session);
+    if (opened > 0 && now - opened >= IDLE_MS) {
       idle.push(session.id);
     }
   }
@@ -106,7 +101,6 @@ function stopIdleWatcher(): void {
 
 module.exports = {
   IDLE_MS,
-  touch,
   startIdleWatcher,
   stopIdleWatcher,
   sweepOnce,

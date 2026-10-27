@@ -133,7 +133,6 @@ async function startBoardSession({
     }
     sessionStore.set(existing.id, existing);
     await sessionStore.persistRow(existing);
-    existing.lastActivityAt = Date.now();
     return { session: existing, created: false, spec };
   }
 

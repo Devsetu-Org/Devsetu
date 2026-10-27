@@ -170,6 +170,55 @@ export function IconSubmissions({ color = '#34d399' }: { color?: string }): JSX.
   );
 }
 
+/** Floppy — save lab progress. */
+export function IconSave({
+  color = 'currentColor',
+  size = 16,
+}: {
+  color?: string;
+  size?: number;
+}): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M3 2.5h7.1L13 5.4V13.5H3V2.5z" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M5.5 2.5V6h4.5" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5 13.5v-3.25h5V13.5" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Circular arrow — reset the lab. */
+export function IconReset({
+  color = 'currentColor',
+  size = 16,
+}: {
+  color?: string;
+  size?: number;
+}): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2.75 8a5.25 5.25 0 1 0 1.55-3.7" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M2.4 2.5v3.15h3.15" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Clock — time left in a lab. */
+export function IconClock({
+  color = 'currentColor',
+  size = 14,
+}: {
+  color?: string;
+  size?: number;
+}): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="6" stroke={color} strokeWidth="1.4" />
+      <path d="M8 4.75V8l2.25 1.5" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Padlock — lab outside the user's plan. */
 export function IconLock({
   color = 'currentColor',

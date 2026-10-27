@@ -146,7 +146,6 @@ async function startSparkSession({
     }
 
     await sessionStore.persistRow(existing);
-    existing.lastActivityAt = Date.now();
     return { session: existing, created: false };
   }
 

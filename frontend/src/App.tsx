@@ -43,7 +43,7 @@ import { AppStateProvider, useAppState } from './context/AppStateContext';
 import { getToken, getCurrentUser, logout, fetchMe, takePostLoginPath } from './services/authApi';
 import { fetchChallenges, fetchChallenge } from './services/challengeApi';
 import { startSession, startBoardSession, endSession, restoreSession } from './services/sessionApi';
-import { startSparkSession, startK8sSession, fetchK8sAvailability } from './services/workspaceApi';
+import { startSparkSession, startK8sSession, cancelInflightK8sStart, fetchK8sAvailability } from './services/workspaceApi';
 import {
   LAB_HEARTBEAT_MS,
   LAB_LEASE_RECLAIMED_EVENT,
@@ -81,7 +81,6 @@ import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from 
   AppState,
 } from './types/domain';
 
-const LAB_CLOSING_HOLD_MS = 3000;
 const LAB_LOCKED_FALLBACK_MSG = 'Something is down on our side. Please contact the administrator.';
 
 /** Old /play/* links (bookmarks, published lab solutions) moved to /track, /majors and /minors. */
@@ -136,6 +135,8 @@ export default function App(): React.JSX.Element {
   const openingSessionRef = useRef<string | null>(null);
   /** Bumped per lab start/restore; a superseded attempt must not touch UI state when it resolves. */
   const startAttemptRef = useRef(0);
+  const startAbortRef = useRef<AbortController | null>(null);
+  const openSeqRef = useRef(0);
   const pendingStartRef = useRef(false);
   const pendingStartPathRef = useRef<string | null>(null);
   const pendingStartChallengeRef = useRef<string | null>(null);
@@ -152,7 +153,6 @@ export default function App(): React.JSX.Element {
   const [activeChallenge, setActiveChallenge] = useState<ChallengePublic | ChallengeFull | null>(null);
   const [endResult, setEndResult] = useState<EndSessionResult | null>(null);
   const [ending, setEnding] = useState<boolean>(false);
-  const [closingLabTitle, setClosingLabTitle] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('problem');
   const [labConflict, setLabConflict] = useState<{
@@ -220,7 +220,19 @@ export default function App(): React.JSX.Element {
     );
   }, []);
 
-  const beginStartAttempt = (challengeId: string | null = null): { stale: () => boolean; settle: () => void } => {
+  const beginStartAttempt = (challengeId: string | null = null): {
+    stale: () => boolean;
+    settle: () => void;
+    signal: AbortSignal;
+    openSeq: number;
+  } => {
+    startAbortRef.current?.abort();
+    const abort = new AbortController();
+    startAbortRef.current = abort;
+    const openSeq = ++openSeqRef.current;
+    // Drop a boot the learner already left. The sequence keeps a newer open alive
+    // if this cancel arrives after that open has started.
+    void cancelInflightK8sStart(openSeq);
     const attempt = ++startAttemptRef.current;
     pendingStartRef.current = true;
     pendingStartPathRef.current = window.location.pathname;
@@ -228,6 +240,8 @@ export default function App(): React.JSX.Element {
     const stale = (): boolean => startAttemptRef.current !== attempt;
     return {
       stale,
+      signal: abort.signal,
+      openSeq,
       settle: () => {
         if (!stale()) pendingStartRef.current = false;
       },
@@ -236,6 +250,9 @@ export default function App(): React.JSX.Element {
 
   /** User navigated away while a lab was still opening — drop it and return to the catalog. */
   const abandonPendingStart = (): void => {
+    startAbortRef.current?.abort();
+    startAbortRef.current = null;
+    void cancelInflightK8sStart(++openSeqRef.current);
     startAttemptRef.current += 1;
     pendingStartRef.current = false;
     pendingStartPathRef.current = null;
@@ -260,21 +277,13 @@ export default function App(): React.JSX.Element {
     });
   };
 
-  /**
-   * Fire-and-forget end/park, keep the lab on screen under a "Closing lab…"
-   * overlay for a beat, then reveal the catalog.
-   */
-  const dismissK8sLabToCatalog = useCallback(async (
+  /** End the lab in the background and return to the catalog immediately. */
+  const dismissK8sLabToCatalog = useCallback((
     session: ActiveSession,
     dest: string,
-    title: string | null,
-  ): Promise<void> => {
-    setClosingLabTitle(title);
-    setEnding(true);
+  ): void => {
     void endActiveSessionBestEffort(session);
-    await new Promise<void>((resolve) => {
-      window.setTimeout(resolve, LAB_CLOSING_HOLD_MS);
-    });
+    setEnding(false);
     setPlayState('library');
     setActiveSession(null);
     setActiveChallenge(null);
@@ -282,8 +291,6 @@ export default function App(): React.JSX.Element {
     setLabLeaseLost(null);
     navigate(dest);
     void refreshChallenges();
-    setEnding(false);
-    setClosingLabTitle(null);
   }, [endActiveSessionBestEffort, navigate]);
 
   useEffect(() => {
@@ -294,7 +301,7 @@ export default function App(): React.JSX.Element {
 
   const handleSelectChallenge = async (
     challenge: ChallengePublic | ChallengeFull,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; start?: boolean } = {},
   ): Promise<void> => {
     if (authMode !== 'interviewer') {
       requestLogin();
@@ -305,6 +312,7 @@ export default function App(): React.JSX.Element {
       return;
     }
     const force = Boolean(opts.force);
+    const startNow = force || Boolean(opts.start);
     setStartError(null);
     setLabConflict(null);
     setLabLeaseLost(null);
@@ -449,13 +457,14 @@ export default function App(): React.JSX.Element {
         runtime: 'kubernetes',
         k8sNamespace: null,
         labReady: false,
+        bootSeq: attempt.openSeq,
       };
       // Pool down: keep the lab on screen with its brief readable and the terminal locked.
       const lockLab = (message: string | null): void => {
         setActiveSession({ ...pendingSession, lockedMessage: message || LAB_LOCKED_FALLBACK_MSG });
       };
       setActiveTab('problem');
-      setActiveSession(pendingSession);
+      setActiveSession(startNow ? pendingSession : { ...pendingSession, notStarted: true });
       setPlayState('active');
       openingSessionRef.current = pendingId;
 
@@ -472,7 +481,15 @@ export default function App(): React.JSX.Element {
           return;
         }
 
-        const res = await startK8sSession(full.id, { force });
+        if (!startNow) {
+          attempt.settle();
+          setActiveSession({ ...pendingSession, notStarted: true });
+          return;
+        }
+
+        await cancelInflightK8sStart(attempt.openSeq);
+        if (attempt.stale()) return;
+        const res = await startK8sSession(full.id, { force, signal: attempt.signal, openSeq: attempt.openSeq });
         if (attempt.stale()) {
           discardStartedSession(res.sessionId);
           return;
@@ -501,10 +518,11 @@ export default function App(): React.JSX.Element {
         openingSessionRef.current = res.sessionId;
         navigate(`/track/${res.sessionId}`);
       } catch (e) {
-        if (attempt.stale()) return;
+        const code = (e as { response?: { data?: { code?: string }; code?: string } })?.response?.data?.code
+          || (e as { code?: string }).code;
+        if (attempt.stale() || code === 'ERR_CANCELED' || code === 'START_SUPERSEDED') return;
         attempt.settle();
         const err = e as { response?: { data?: { error?: string } }; message?: string };
-        const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
         if (code === 'LAB_ENV_UNAVAILABLE') {
           lockLab(err?.response?.data?.error || null);
           return;
@@ -570,7 +588,7 @@ export default function App(): React.JSX.Element {
 
     // A locked lab also keeps the catalog URL, so leaving that URL drops it.
     const abandoned =
-      (pendingStartRef.current || Boolean(activeSession?.lockedMessage))
+      (pendingStartRef.current || Boolean(activeSession?.lockedMessage) || Boolean(activeSession?.notStarted))
       && window.location.pathname !== pendingStartPathRef.current;
     if (abandoned) abandonPendingStart();
     const currentPlayState: PlayState = abandoned ? 'library' : playState;
@@ -605,10 +623,9 @@ export default function App(): React.JSX.Element {
         const leaving = currentPlayState === 'active' ? currentSession : null;
         if (leaving?.runtime === 'kubernetes') {
           const dest = location.pathname.replace(/\/$/, '') || '/track';
-          void dismissK8sLabToCatalog(
+          dismissK8sLabToCatalog(
             leaving,
             dest.startsWith('/track') ? dest : '/track',
-            activeChallenge?.title || null,
           );
           return;
         }
@@ -845,7 +862,7 @@ export default function App(): React.JSX.Element {
           activeChallenge?.sandboxType,
           activeChallenge?.tags,
         );
-        await dismissK8sLabToCatalog(activeSession, dest, activeChallenge?.title || null);
+        dismissK8sLabToCatalog(activeSession, dest);
         return;
       }
       // compose: end on server, then summary card
@@ -925,7 +942,7 @@ export default function App(): React.JSX.Element {
     const leaving = playState === 'active' ? activeSession : null;
     if (leaving?.runtime === 'kubernetes') {
       if (ending) return;
-      void dismissK8sLabToCatalog(leaving, dest, activeChallenge?.title || null);
+      dismissK8sLabToCatalog(leaving, dest);
       return;
     }
     setPlayState('library');
@@ -938,8 +955,8 @@ export default function App(): React.JSX.Element {
   };
 
   /**
-   * Idle timeout on a cluster lab: keep the brief up and replace the shell with
-   * a resume screen. Returns false for other runtimes, which keep the ended dialog.
+   * The lab's fixed time ran out: keep the brief up and replace the shell with
+   * a screen to start again. Returns false for other runtimes, which keep the ended dialog.
    */
   const lockLabForInactivity = (): boolean => {
     let applied = false;
@@ -1084,7 +1101,6 @@ export default function App(): React.JSX.Element {
     activeTab,
     setActiveTab,
     ending,
-    closingLabTitle,
     onSelectChallenge: handleSelectChallenge,
     onOpenSparkPlayground: handleOpenSparkPlayground,
     onBackToLibrary: handleBackToLibrary,
@@ -1105,7 +1121,6 @@ export default function App(): React.JSX.Element {
     endResult,
     activeTab,
     ending,
-    closingLabTitle,
   ]);
 
   const needsUsername =

@@ -23,7 +23,7 @@ const sessionStore = require('../db/sessionStore');
 const loader = require('../challenges/loader');
 const { hydrateChallengeFromMinio, applyMoatPolicy } = require('../challenges/minioChallengeAssets');
 const { canViewChallenge } = require('../challenges/access');
-const { assertLabUnlocked } = require('../billing/labAccess');
+const { assertLabUnlocked, hasPaidPlan } = require('../billing/labAccess');
 const { listSolvedChallengeIds } = require('../challenges/userProgress');
 const terminalEventBus = require('../observability/terminalEventBus');
 const sessionIdle = require('../workspace/sessionIdle');
@@ -46,10 +46,6 @@ router.param('id', (req: ExpressRequest, res: ExpressResponse, next: ExpressNext
         code: 'LAB_OPEN_IN_OTHER_TAB',
       });
     }
-  }
-  // Tab heartbeats prove the tab is open, not that the learner is active.
-  if (id && !p.endsWith('/end') && !leaseRoute) {
-    sessionIdle.touch(id);
   }
   next();
 });
@@ -455,6 +451,19 @@ router.post('/board/start', requireSessionAccess, async (req: ExpressRequest, re
   }
 });
 
+// POST /api/session/k8s/start/cancel — drop a boot the browser has already left.
+router.post('/k8s/start/cancel', requireSessionAccess, express.json({ limit: '4kb' }), (req: ExpressRequest, res: ExpressResponse) => {
+  const user = req.user as { sub?: string; id?: string } | undefined;
+  const userId = user?.sub || user?.id || null;
+  const body = (req.body as Record<string, unknown>) || {};
+  const openSeq = Number(body.openSeq);
+  k8sLifecycle.cancelInflightStarts(
+    workspaceStore.sanitizeOwner(userId || 'anonymous'),
+    Number.isFinite(openSeq) ? openSeq : undefined,
+  );
+  res.status(204).end();
+});
+
 // POST /api/session/k8s/start  { challengeId }
 router.post('/k8s/start', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
   try {
@@ -470,11 +479,18 @@ router.post('/k8s/start', requireSessionAccess, async (req: ExpressRequest, res:
     await assertChallengeAccess(req, challengeId);
     const clientId = await claimLabSlot(req, challengeId, userId);
 
+    const abort = new AbortController();
+    let finished = false;
+    res.on('finish', () => { finished = true; });
+    res.on('close', () => { if (!finished) abort.abort(); });
+
     const { session, created, provisioned } = await k8sLifecycle.startK8sSession({
       challengeId,
       userId,
       candidateName: null,
       userName,
+      signal: abort.signal,
+      openSeq: Number(body.openSeq) || 0,
     });
     sessionExclusivity.heartbeat(session.id, clientId, true);
 
@@ -507,6 +523,15 @@ router.get('/k8s/capacity', requireSessionAccess, (req: ExpressRequest, res: Exp
   res.json({ waiting: k8sCapacity.waitingPods(ns), reservingSeconds: k8sCapacity.reservingSeconds(ns) });
 });
 
+// GET /api/session/k8s/boot-phase — which step a Linux or Docker machine is on while it opens.
+router.get('/k8s/boot-phase', requireSessionAccess, (req: ExpressRequest, res: ExpressResponse) => {
+  const user = req.user as { sub?: string; id?: string } | undefined;
+  const owner = workspaceStore.sanitizeOwner(user?.sub || user?.id || 'anonymous');
+  const openSeq = Number(req.query.openSeq);
+  const challengeId = String(req.query.challengeId || '') || null;
+  res.json(k8sLifecycle.bootPhaseOf(owner, Number.isFinite(openSeq) ? openSeq : 0, challengeId));
+});
+
 // GET /api/session/k8s/availability?challengeId= — whether the lab's node pool is up,
 // so the client can open a locked lab (description only) without starting a session.
 router.get('/k8s/availability', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
@@ -529,6 +554,52 @@ router.post('/:id/k8s/reset', requireSessionAccess, async (req: ExpressRequest, 
       k8sNamespace: session.k8sNamespace || session.workspacePrefix,
       reset: true,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+function emptyProgress(): { enabled: boolean; saved: boolean; bytes: number; usedBytes: number; limitBytes: number } {
+  return { enabled: false, saved: false, bytes: 0, usedBytes: 0, limitBytes: linuxBox.PROGRESS_LIMIT_BYTES };
+}
+
+function canSaveThisLab(session: GameSession): boolean {
+  const challenge = loader.getChallenge(String(session.challengeId || ''));
+  return isBoxLabType(challenge?.sandboxType) && !isLinuxBlogPlayground(String(session.challengeId || ''));
+}
+
+router.get('/:id/progress', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const session = getK8sSession(req.params.id, res);
+    if (!session) return;
+    if (!canSaveThisLab(session) || !session.userId || !(await hasPaidPlan(req.user))) {
+      res.json(emptyProgress());
+      return;
+    }
+    res.json({ enabled: true, ...linuxBox.progressStatus(session.userId, String(session.challengeId)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post('/:id/progress', requireSessionAccess, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const session = getK8sSession(req.params.id, res);
+    if (!session) return;
+    if (!canSaveThisLab(session)) {
+      res.status(409).json({ error: 'Save progress is for Linux and Docker labs.' });
+      return;
+    }
+    if (!(await hasPaidPlan(req.user))) {
+      res.status(402).json({ error: 'Save progress is part of a paid plan.', code: 'PROGRESS_PREMIUM' });
+      return;
+    }
+    const abort = new AbortController();
+    let finished = false;
+    res.on('finish', () => { finished = true; });
+    res.on('close', () => { if (!finished) abort.abort(); });
+    const status = await k8sLifecycle.saveLabProgress(session, abort.signal);
+    if (!finished) res.json({ enabled: true, ...status });
   } catch (e) {
     next(e);
   }
@@ -580,12 +651,11 @@ function sendLabFileError(e: unknown, res: ExpressResponse, next: ExpressNextFun
 // Editor files in the learner's lab home (the terminal's working directory).
 type LabFilesHandler = (ns: string, req: ExpressRequest) => unknown;
 
-function labFilesRoute(handler: LabFilesHandler, opts: { touch?: boolean } = {}) {
+function labFilesRoute(handler: LabFilesHandler) {
   return (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     try {
       const session = getKubectlLabSession(req.params.id, res);
       if (!session) return;
-      if (opts.touch) sessionIdle.touch(session.id);
       res.json(handler(String(session.k8sNamespace || session.workspacePrefix), req));
     } catch (e) {
       sendLabFileError(e, res, next);
@@ -607,7 +677,6 @@ router.get('/:id/k8s/folders', requireSessionAccess, labFilesRoute(
 
 router.post('/:id/k8s/folders', requireSessionAccess, express.json({ limit: '16kb' }), labFilesRoute(
   (ns, req) => ({ path: k8sLabFiles.createFolder(ns, bodyOf(req).path) }),
-  { touch: true },
 ));
 
 router.get('/:id/k8s/file', requireSessionAccess, labFilesRoute(
@@ -616,12 +685,10 @@ router.get('/:id/k8s/file', requireSessionAccess, labFilesRoute(
 
 router.put('/:id/k8s/file', requireSessionAccess, express.json({ limit: '512kb' }), labFilesRoute(
   (ns, req) => ({ file: k8sLabFiles.writeFile(ns, bodyOf(req).path, bodyOf(req).content) }),
-  { touch: true },
 ));
 
 router.post('/:id/k8s/files/rename', requireSessionAccess, express.json({ limit: '16kb' }), labFilesRoute(
   (ns, req) => k8sLabFiles.renameEntry(ns, bodyOf(req).from, bodyOf(req).to),
-  { touch: true },
 ));
 
 router.delete('/:id/k8s/folders', requireSessionAccess, labFilesRoute(
@@ -629,7 +696,6 @@ router.delete('/:id/k8s/folders', requireSessionAccess, labFilesRoute(
     k8sLabFiles.deleteFolder(ns, req.query.path);
     return { ok: true };
   },
-  { touch: true },
 ));
 
 router.delete('/:id/k8s/file', requireSessionAccess, labFilesRoute(
@@ -637,7 +703,6 @@ router.delete('/:id/k8s/file', requireSessionAccess, labFilesRoute(
     k8sLabFiles.deleteFile(ns, req.query.path);
     return { ok: true };
   },
-  { touch: true },
 ));
 
 function getPlaygroundSession(id: string, res: ExpressResponse): GameSession | null {
@@ -1081,7 +1146,7 @@ router.post('/:id/heartbeat', express.json({ limit: '4kb' }), (req: ExpressReque
   if (!session || session.status !== 'active') {
     const idle = session?.endReason === 'idle_timeout';
     return res.status(410).json({
-      error: idle ? 'session locked for inactivity' : 'session is not active',
+      error: idle ? 'This lab\'s time has run out' : 'session is not active',
       code: idle ? 'SESSION_IDLE' : 'SESSION_ENDED',
     });
   }
@@ -1093,7 +1158,9 @@ router.post('/:id/heartbeat', express.json({ limit: '4kb' }), (req: ExpressReque
       code: 'LAB_OPEN_IN_OTHER_TAB',
     });
   }
-  res.json({ ok: true, leaseTtlMs: sessionExclusivity.LEASE_TTL_MS });
+  const last = Number(session.lastActivityAt) || Number(session.startTime) || Date.now();
+  const idleRemainingMs = Math.max(0, last + sessionIdle.IDLE_MS - Date.now());
+  res.json({ ok: true, leaseTtlMs: sessionExclusivity.LEASE_TTL_MS, idleRemainingMs });
 });
 
 // POST /api/session/:id/lease/release  { clientId } — sent via sendBeacon on tab close/reload.

@@ -2,14 +2,19 @@ import React from 'react';
 import { useAppState } from '../context/AppStateContext';
 
 /** Leading "‹ Back" in a workspace's brief tab row; leaves the lab for its catalog. */
-export default function BriefBackButton(): JSX.Element {
+export default function BriefBackButton({
+  onClick,
+}: {
+  /** When set, runs instead of leaving immediately (e.g. a confirm dialog). */
+  onClick?: () => void;
+} = {}): JSX.Element {
   const { onBackToLibrary, ending } = useAppState();
   return (
     <>
       <button
         type="button"
         className="spark-brief-back"
-        onClick={onBackToLibrary}
+        onClick={onClick || onBackToLibrary}
         disabled={ending}
         title="Back to labs"
         aria-label="Back to labs"

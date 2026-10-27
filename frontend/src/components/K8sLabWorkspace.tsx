@@ -10,7 +10,7 @@ import ConfirmDialog from './ConfirmDialog';
 import BriefBackButton from './BriefBackButton';
 import WorkspaceMobileSwitcher, { type WorkspaceMobilePane } from './WorkspaceMobileSwitcher';
 import DesktopOnlyNotice from './DesktopOnlyNotice';
-import { IconPen, IconSubmit } from './ChromeIcons';
+import { IconClock, IconPen, IconReset, IconSave, IconSubmit } from './ChromeIcons';
 import { SubmitReaction, type GradeModalPhase } from './SubmitReaction';
 import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import { fetchChallenge, fetchChallengeSolution } from '../services/challengeApi';
@@ -21,16 +21,23 @@ import {
   LAB_LEASE_TAKEN_EVENT,
   LAB_SESSION_ENDED_EVENT,
   LAB_SESSION_IDLE_EVENT,
+  LAB_TIME_LEFT_EVENT,
   sendLabHeartbeat,
   withLabClientId,
+  type LabTimeLeftDetail,
 } from '../services/labTabLease';
 import {
   fetchK8sCapacity,
   fetchK8sSubmissions,
+  fetchLabBootPhase,
+  fetchLabProgress,
   gradeK8sSession,
   resetK8sSession,
+  saveLabProgress,
   type K8sCapacityState,
   type K8sSubmissionRecord,
+  type LabBootPhase,
+  type LabProgressStatus,
 } from '../services/workspaceApi';
 import type { ActiveSession, ChallengeFull, ChallengePublic } from '../types/domain';
 import type { ProblemStatementTab } from './ProblemStatement';
@@ -273,6 +280,115 @@ function capacityEta(waitedSeconds: number): string {
   return left > 5 ? `about ${left} s` : 'a few more seconds';
 }
 
+const LAB_TIMER_LOW_MS = 5 * 60 * 1000;
+
+function formatLabTimer(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+function formatProgressBytes(n: number): string {
+  if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(n >= 10 * 1024 * 1024 * 1024 ? 0 : 1)} GB`;
+  if (n >= 1024 * 1024) return `${Math.round(n / (1024 * 1024))} MB`;
+  if (n >= 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${n} B`;
+}
+
+/** Countdown until the lab locks. The server reports the deadline on each heartbeat. */
+function useLabTimeLeft(sessionId: string, enabled: boolean): number | null {
+  const [leftMs, setLeftMs] = useState<number | null>(null);
+  const deadlineRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    deadlineRef.current = null;
+    setLeftMs(null);
+    if (!enabled || !sessionId) return undefined;
+    const sync = (remainingMs: number): void => {
+      const deadline = Date.now() + remainingMs;
+      deadlineRef.current = deadline;
+      setLeftMs(Math.max(0, deadline - Date.now()));
+    };
+    const onTime = (event: Event): void => {
+      const detail = (event as CustomEvent<LabTimeLeftDetail>).detail;
+      if (!detail || detail.sessionId !== sessionId || !Number.isFinite(detail.idleRemainingMs)) return;
+      sync(detail.idleRemainingMs);
+    };
+    const tick = (): void => {
+      if (deadlineRef.current == null) return;
+      setLeftMs(Math.max(0, deadlineRef.current - Date.now()));
+    };
+    window.addEventListener(LAB_TIME_LEFT_EVENT, onTime);
+    const timer = window.setInterval(tick, 1000);
+    return () => {
+      window.removeEventListener(LAB_TIME_LEFT_EVENT, onTime);
+      window.clearInterval(timer);
+    };
+  }, [sessionId, enabled]);
+
+  return leftMs;
+}
+
+const BOOT_PHASES = [
+  'Creating your machine',
+  'Waiting for your machine to start',
+  'Preparing the lab',
+  'Applying your saved progress',
+];
+
+const SAVE_PHASE = BOOT_PHASES[3];
+const INSTALL_PHASE = 'Installing tools from your saved progress';
+
+type BootStepState = 'done' | 'current' | 'upcoming' | 'skipped';
+
+function BootMark({ state }: { state: BootStepState }): JSX.Element {
+  if (state === 'done') {
+    return (
+      <span className="k8s-lab-boot-mark is-done" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2.2 6.15 4.7 8.55 9.8 3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  }
+  return <span className={`k8s-lab-boot-mark is-${state}`} aria-hidden="true" />;
+}
+
+function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: string }): JSX.Element {
+  const reported = phase.current === INSTALL_PHASE ? SAVE_PHASE : (phase.current || BOOT_PHASES[0]);
+  const currentAt = Math.max(0, BOOT_PHASES.indexOf(reported));
+  return (
+    <div className="k8s-lab-boot">
+      <strong>Starting your {machineLabel} machine</strong>
+      <ol className="k8s-lab-boot-log">
+        {BOOT_PHASES.map((step, index) => {
+          const skipped = step === SAVE_PHASE && phase.restoresSave === false && reported !== SAVE_PHASE;
+          const state: BootStepState = skipped
+            ? 'skipped'
+            : index === currentAt
+              ? 'current'
+              : index < currentAt
+                ? 'done'
+                : 'upcoming';
+          return (
+            <li key={step} className={`is-${state}`} aria-current={state === 'current' ? 'step' : undefined}>
+              <BootMark state={state} />
+              <span>
+                {step}
+                {skipped ? <em className="k8s-lab-boot-skip">Skipped</em> : null}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 const RESULTS_DRAWER_DEFAULT = 280;
 const RESULTS_DRAWER_MIN = 140;
 const RESULTS_DRAWER_MAX = 560;
@@ -282,21 +398,24 @@ export default function K8sLabWorkspace({
   session,
   onClose: _onClose,
 }: K8sLabWorkspaceProps): JSX.Element {
-  const { currentUser, onSelectChallenge } = useAppState();
+  const { currentUser, onSelectChallenge, onBackToLibrary } = useAppState();
   const isAdmin = isAdminUser(currentUser) || isAdminUser(getCurrentUser());
   const showReviewTab = isReviewStaff(currentUser) || isReviewStaff(getCurrentUser());
   const labReady = session.labReady !== false;
   const lockedMessage = session.lockedMessage || null;
   const idleLocked = Boolean(session.idleLocked);
+  const notStarted = Boolean(session.notStarted);
   const terminalLocked = Boolean(lockedMessage) || idleLocked;
-  const notReadyTitle = idleLocked
-    ? 'Lab is locked because of inactivity'
-    : lockedMessage
-      ? 'Lab is unavailable right now'
-      : 'Lab is still preparing';
   const challengeId = challenge?.id || '';
   const box = isBoxChallenge(challenge);
   const machineLabel = boxMachineLabel(challenge);
+  const notReadyTitle = notStarted
+    ? (box ? 'Start the machine to use the terminal' : 'Start the lab to use the terminal')
+    : idleLocked
+    ? 'This lab\'s time has run out'
+    : lockedMessage
+      ? 'Lab is unavailable right now'
+      : 'Lab is still preparing';
   const shellRef = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
   const isNarrow = useIsNarrowUi();
@@ -335,6 +454,13 @@ export default function K8sLabWorkspace({
   const resizingDrawer = useRef(false);
   const [busy, setBusy] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [progress, setProgress] = useState<LabProgressStatus | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveModal, setSaveModal] = useState<GradeModalPhase | null>(null);
+  const [saveDetail, setSaveDetail] = useState<string | null>(null);
+  const saveModalOpen = useRef(false);
+  const [bootPhase, setBootPhase] = useState<LabBootPhase>({ steps: [], current: null, restoresSave: null });
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
   const [gradeModal, setGradeModal] = useState<GradeModalPhase | null>(null);
   const gradeModalOpen = useRef(false);
@@ -348,6 +474,65 @@ export default function K8sLabWorkspace({
     ...capacityWaits.map((w) => w.waitingSeconds),
   );
   const openingHeldForCapacity = capacity.reservingSeconds !== null || capacityWaits.length > 0;
+  const timeLeftMs = useLabTimeLeft(
+    session.id,
+    !idleLocked && !session.id.startsWith('pending-k8s-'),
+  );
+
+  useEffect(() => {
+    if (!box || labReady || terminalLocked || notStarted) return undefined;
+    let stop = false;
+    setBootPhase({ steps: [], current: null, restoresSave: null });
+    const tick = (): void => {
+      void fetchLabBootPhase(session.bootSeq || 0, challengeId)
+        .then((phase) => { if (!stop) setBootPhase(phase); })
+        .catch(() => { /* keep the last step we already showed */ });
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => {
+      stop = true;
+      window.clearInterval(id);
+    };
+  }, [box, labReady, terminalLocked, notStarted, session.id, session.bootSeq, challengeId]);
+
+  useEffect(() => {
+    if (!box || !labReady || session.id.startsWith('pending-k8s-')) return undefined;
+    let stop = false;
+    void fetchLabProgress(session.id)
+      .then((status) => { if (!stop) setProgress(status); })
+      .catch(() => { if (!stop) setProgress(null); });
+    return () => { stop = true; };
+  }, [box, labReady, session.id]);
+
+  const onSaveProgress = async (): Promise<void> => {
+    if (!progress?.enabled || saving) return;
+    setSaving(true);
+    saveModalOpen.current = true;
+    setSaveDetail(null);
+    setSaveModal('saving');
+    const started = Date.now();
+    const hold = async () => {
+      const wait = 900 - (Date.now() - started);
+      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
+    };
+    try {
+      const status = await saveLabProgress(session.id);
+      setProgress(status);
+      setSaveDetail(
+        `${formatProgressBytes(status.bytes)} saved for this lab. ${formatProgressBytes(status.usedBytes)} of ${formatProgressBytes(status.limitBytes)} used across your labs.`,
+      );
+      await hold();
+      if (saveModalOpen.current) setSaveModal('saved');
+    } catch (e) {
+      const err = e as { response?: { data?: { error?: string } }; message?: string };
+      setSaveDetail(err?.response?.data?.error || err.message || 'Could not save progress');
+      await hold();
+      if (saveModalOpen.current) setSaveModal('save-fail');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const wsUrl = useMemo(() => {
     if (!labReady || !session.id || session.id.startsWith('pending-k8s-')) return '';
@@ -591,6 +776,8 @@ export default function K8sLabWorkspace({
     try {
       await resetK8sSession(session.id);
       setTermEpoch((n) => n + 1);
+      const status = await fetchLabProgress(session.id).catch(() => null);
+      if (status) setProgress(status);
       await holdReset();
       if (gradeModalOpen.current) setGradeModal('reset');
     } catch (e) {
@@ -647,7 +834,7 @@ export default function K8sLabWorkspace({
         <div className="col spark-brief-col">
           <div className="panel sandbox-brief-panel--solo spark-brief-panel--bare" style={{ flex: 1 }}>
             <div className="spark-brief-tabs" role="tablist" aria-label="Problem sections">
-              <BriefBackButton />
+              <BriefBackButton onClick={() => setLeaveConfirmOpen(true)} />
               <button
                 type="button"
                 role="tab"
@@ -885,7 +1072,7 @@ export default function K8sLabWorkspace({
           <div className="spark-ide-actionbar">
             <div className="spark-ide-actionbar-left">
               <div className="k8s-lab-main-tabs" role="tablist" aria-label="Lab workspace">
-                {!box && !terminalLocked && (
+                {!box && !terminalLocked && !notStarted && (
                 <button
                   type="button"
                   role="tab"
@@ -904,8 +1091,10 @@ export default function K8sLabWorkspace({
                   className={`k8s-lab-main-tab${mainTab === 'terminal' ? ' active' : ''}`}
                   onClick={() => setMainTab('terminal')}
                   title={
-                    terminalLocked
-                      ? (idleLocked ? 'Terminal is locked because of inactivity' : 'Terminal is unavailable right now')
+                    notStarted
+                      ? (box ? 'Machine has not been started' : 'Lab has not been started')
+                      : terminalLocked
+                      ? (idleLocked ? 'This lab\'s time has run out' : 'Terminal is unavailable right now')
                       : labReady
                         ? (box ? 'Terminal' : `Terminal (${toggleHint} to toggle)`)
                         : 'Terminal is connecting in the background'
@@ -913,25 +1102,53 @@ export default function K8sLabWorkspace({
                 >
                   Terminal
                   <span
-                    className={`k8s-lab-term-status${labReady && !terminalLocked ? ' is-ready' : ''}${terminalLocked ? ' is-locked' : ''}`}
-                    aria-label={terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
+                    className={`k8s-lab-term-status${labReady && !terminalLocked && !notStarted ? ' is-ready' : ''}${terminalLocked ? ' is-locked' : ''}${notStarted ? ' is-idle' : ''}`}
+                    aria-label={notStarted ? 'not started' : terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
                   />
                 </button>
               </div>
             </div>
             <div className="spark-ide-actionbar-right">
+              {timeLeftMs != null && (
+                <span
+                  className={`k8s-lab-timer${timeLeftMs <= LAB_TIMER_LOW_MS ? ' is-low' : ''}`}
+                  role="timer"
+                  aria-label={`${formatLabTimer(timeLeftMs)} left in this lab`}
+                  title="Time left in this lab. The terminal closes when it runs out."
+                >
+                  <IconClock />
+                  {formatLabTimer(timeLeftMs)}
+                </span>
+              )}
+              {box && progress?.enabled && (
+                <button
+                  type="button"
+                  className="spark-ide-btn spark-ide-btn--run spark-ide-btn--icon"
+                  disabled={busy || saving || !labReady}
+                  aria-label="Save progress"
+                  onClick={() => void onSaveProgress()}
+                  title={
+                    !labReady
+                      ? notReadyTitle
+                      : `Save progress. Files, accounts, and apt packages for this lab. ${formatProgressBytes(progress.usedBytes)} of ${formatProgressBytes(progress.limitBytes)} used across all labs.`
+                  }
+                >
+                  <IconSave />
+                </button>
+              )}
               <button
                 type="button"
-                className="spark-ide-btn spark-ide-btn--run"
+                className="spark-ide-btn spark-ide-btn--run spark-ide-btn--icon"
                 disabled={busy || !labReady}
+                aria-label="Reset"
                 onClick={() => setResetConfirmOpen(true)}
                 title={
                   !labReady
                     ? notReadyTitle
-                    : box ? 'Start over on a fresh machine' : 'Reset workloads in your namespace'
+                    : box ? 'Reset. Start over on a fresh machine' : 'Reset workloads in your namespace'
                 }
               >
-                Reset
+                <IconReset />
               </button>
               {isPractice ? (
                 <span
@@ -971,49 +1188,61 @@ export default function K8sLabWorkspace({
               className={`k8s-lab-term-pane-layer${mainTab === 'terminal' ? ' is-active' : ''}`}
               aria-hidden={mainTab !== 'terminal'}
             >
-              {terminalLocked ? (
-                <div className="k8s-lab-locked" role="status" aria-live="polite">
+              {notStarted ? (
+                <div className="k8s-lab-locked k8s-lab-standby" role="status">
                   <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
-                    <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M10 8.5v7l6-3.5-6-3.5z" fill="currentColor" />
                   </svg>
-                  <strong>{idleLocked ? 'This lab is locked' : 'This lab is locked for now'}</strong>
+                  <strong>{box ? 'Your machine is not started' : 'This lab is not started'}</strong>
                   <p>
-                    {idleLocked
-                      ? (box
-                        ? 'It was locked because of inactivity, so the machine was stopped. Your files were kept.'
-                        : 'It was locked because of inactivity, so the lab was paused.')
-                      : lockedMessage}
-                  </p>
-                  <p className="k8s-lab-locked-hint">
-                    {idleLocked
-                      ? (box
-                        ? 'Resume starts the machine again with your files on it. You can still read the description and the rest of the brief on the left.'
-                        : 'Resume brings your lab back. You can still read the description and the rest of the brief on the left.')
-                      : 'You can still read the description and the rest of the brief on the left.'}
+                    {box
+                      ? 'The description is on the left. Start the machine when you want the terminal.'
+                      : 'The description is on the left. Start the lab when you want the terminal.'}
                   </p>
                   {challenge && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"
-                      onClick={() => void onSelectChallenge(challenge)}
+                      onClick={() => void onSelectChallenge(challenge, { start: true })}
                     >
-                      {idleLocked ? 'Click here to resume your session' : 'Try again'}
+                      {box ? 'Start machine' : 'Start lab'}
+                    </button>
+                  )}
+                </div>
+              ) : terminalLocked ? (
+                <div className="k8s-lab-locked" role="status" aria-live="polite">
+                  <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+                    <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                  <strong>{idleLocked ? 'This lab\'s time is up' : 'This lab is locked for now'}</strong>
+                  <p>
+                    {idleLocked
+                      ? (box
+                        ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
+                        : 'The time for this lab ran out, so the lab was closed.')
+                      : lockedMessage}
+                  </p>
+                  <p className="k8s-lab-locked-hint">
+                    You can still read the description and the rest of the brief on the left.
+                  </p>
+                  {challenge && (
+                    <button
+                      type="button"
+                      className="spark-ide-btn k8s-lab-locked-retry"
+                      onClick={() => void onSelectChallenge(challenge, { start: true })}
+                    >
+                      {idleLocked ? 'Start again' : 'Try again'}
                     </button>
                   )}
                 </div>
               ) : !labReady ? (
-                <div className="k8s-lab-terminal-warming" role="status" aria-live="polite">
-                  <span className="spinner" />
+                <div className={`k8s-lab-terminal-warming${box ? ' is-boot' : ''}`} role="status" aria-live="polite">
+                  {!box && <span className="spinner" />}
                   <div>
                     {box ? (
-                      <>
-                        <strong>Starting your {machineLabel} machine…</strong>
-                        <p>
-                          A fresh machine is booting for you. This usually takes a few seconds, and up to
-                          two minutes when a new server has to start first.
-                        </p>
-                      </>
+                      <BootLog phase={bootPhase} machineLabel={machineLabel} />
                     ) : openingHeldForCapacity ? (
                       <>
                         <strong>Adding cluster capacity for your lab…</strong>
@@ -1105,6 +1334,16 @@ export default function K8sLabWorkspace({
       </div>
       )}
       {gradeModal && <SubmitReaction phase={gradeModal} onClose={dismissGradeModal} />}
+      {saveModal && (
+        <SubmitReaction
+          phase={saveModal}
+          detail={saveDetail}
+          onClose={() => {
+            saveModalOpen.current = false;
+            setSaveModal(null);
+          }}
+        />
+      )}
       <SolutionGateModal
         open={solutionGateOpen}
         challengeId={challengeId}
@@ -1116,6 +1355,25 @@ export default function K8sLabWorkspace({
         }}
       />
       <ConfirmDialog
+        open={leaveConfirmOpen}
+        title="Leave this lab?"
+        confirmLabel="Leave lab"
+        cancelLabel="Stay"
+        onCancel={() => setLeaveConfirmOpen(false)}
+        onConfirm={() => {
+          setLeaveConfirmOpen(false);
+          onBackToLibrary();
+        }}
+      >
+        <p>
+          {box
+            ? (progress?.enabled
+              ? 'Your machine will be stopped. Anything you have not saved will be removed. Progress you already saved for this lab is kept for the next open.'
+              : 'Your machine will be stopped. All unsaved progress will be removed.')
+            : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
+        </p>
+      </ConfirmDialog>
+      <ConfirmDialog
         open={resetConfirmOpen}
         title="Reset this lab?"
         confirmLabel="Reset lab"
@@ -1126,7 +1384,9 @@ export default function K8sLabWorkspace({
         {box ? (
           <p>
             Your machine is replaced with a fresh one and the lab&apos;s starting state is set up again.
-            Everything you changed on it, including files in your home folder, is lost.
+            {progress?.saved
+              ? ' Everything you changed on it is lost, and saved progress for this lab is deleted.'
+              : ' Everything you changed on it is lost.'}
           </p>
         ) : (
           <>

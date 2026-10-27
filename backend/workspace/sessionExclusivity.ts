@@ -36,6 +36,12 @@ function ownerOf(userId: string | null | undefined): string {
 }
 
 function isLabSession(s: GameSession): boolean {
+  // A machine that is still booting has not been handed to the browser. Leaving
+  // it, or opening another lab, cancels it. It is not a lab open elsewhere.
+  if (s.runtime === 'kubernetes') {
+    const k8sLifecycle = require('./k8sLifecycle');
+    if (k8sLifecycle.isStartInFlight(s.id)) return false;
+  }
   return (
     s.status === 'active'
     && LAB_RUNTIMES.has(String(s.runtime || ''))
