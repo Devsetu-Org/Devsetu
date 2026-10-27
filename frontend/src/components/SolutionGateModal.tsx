@@ -51,13 +51,9 @@ function GateMessage({ status }: { status: SolutionStatus | null }): JSX.Element
   }
   if (status && !status.practice) {
     return (
-      <>
-        <p className="solution-gate-penalty">
-          Opening it now costs <strong>{status.penaltyPct}%</strong> of the tokens: you&apos;ll
-          earn <strong>{status.tokensAfterPenalty}</strong> instead of {status.tokens}.
-        </p>
-        <p>Re-read the spec and try one more idea first.</p>
-      </>
+      <p className="solution-gate-penalty">
+        <strong>{status.penaltyPct}%</strong> of the tokens will be taken.
+      </p>
     );
   }
   return <p>Re-read the spec and try one more idea before you peek.</p>;

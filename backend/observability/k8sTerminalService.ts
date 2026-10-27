@@ -497,8 +497,6 @@ function attachShell(
   { child, cleanup, banner }: StartedShell,
   cols: number,
 ): void {
-  sessionIdle.touch(sessionId);
-
   let closed = false;
   let muted = false;
   // Incomplete line that might be a kubectl transport fault, held back from the socket.
@@ -515,13 +513,13 @@ function attachShell(
     killPty(child);
     cleanup();
     if (ws.readyState === ws.OPEN) {
-      // 4001 tells the page to show the inactivity lock instead of a dead shell.
+      // 4001 tells the page the lab time ran out, instead of showing a dead shell.
       const idle = sessionStore.get(sessionId)?.endReason === 'idle_timeout';
       ws.close(idle ? 4001 : 1000, idle ? 'idle_timeout' : '');
     }
   };
-  // The exec stream died. If this session is already idle (or past the idle
-  // window), end it and show the lock. Never forward the kubectl log lines.
+  // The exec stream died. If this lab's time is already up, end it and close the
+  // terminal. Never forward the kubectl log lines.
   const onTransportFault = () => {
     muted = true;
     const session = sessionStore.get(sessionId) as {
@@ -581,7 +579,6 @@ function attachShell(
 
   ws.on('message', (msg: unknown) => {
     const buf = Buffer.isBuffer(msg) ? msg : Buffer.from(msg as ArrayBuffer);
-    sessionIdle.touch(sessionId);
     if (buf.length > 0 && buf[0] === 0x7b /* { */) {
       const asText = buf.toString('utf8');
       if (/^\{\s*"type"\s*:\s*"resize"/.test(asText)) {

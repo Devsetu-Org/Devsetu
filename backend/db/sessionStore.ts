@@ -139,8 +139,9 @@ async function restoreFromDB(): Promise<void> {
       ? Number(row.workspace_updated_at)
       : session.workspaceUpdatedAt || null;
     session.boardState = row.board_state || session.boardState || null;
-    // Give restored sessions a fresh idle window after process restart.
-    session.lastActivityAt = Date.now();
+    if (!Number(session.lastActivityAt)) {
+      session.lastActivityAt = Number(session.startTime) || Date.now();
+    }
 
     sessions.set(row.id, session);
   }

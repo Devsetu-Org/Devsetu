@@ -20,6 +20,102 @@ interface StartK8sOpts {
   candidateName?: string | null;
   /** Human-readable slug for ns-<user-name> (email local-part, display name, etc.). */
   userName?: string | null;
+  /** Aborted when the learner leaves, or when a newer open replaces this one. */
+  signal?: AbortSignal;
+  /** Monotonic id from the browser. Cancels only apply to opens older than this. */
+  openSeq?: number;
+}
+
+/**
+ * A start that has not been handed to the browser yet. It is not "a lab open
+ * elsewhere": leaving, or opening another lab, cancels it.
+ */
+const openGen = new Map<string, number>();
+const inflightStarts = new Map<string, {
+  controller: AbortController;
+  owner: string;
+  gen: number;
+  /** Browser open sequence. A cancel only stops opens older than its sequence. */
+  seq: number;
+}>();
+
+/** What the machine is doing while a Linux or Docker lab opens, for the terminal. */
+const bootPhases = new Map<string, {
+  steps: string[];
+  current: string | null;
+  restoresSave: boolean;
+  /** Browser open sequence this phase belongs to. Older opens must not be shown. */
+  openSeq: number;
+}>();
+
+function noteBootPhase(owner: string, current: string, fresh = false): void {
+  if (!owner) return;
+  const existing = bootPhases.get(owner);
+  const prev = (!fresh && existing)
+    ? existing
+    : {
+      steps: [] as string[],
+      current: null as string | null,
+      restoresSave: existing?.restoresSave || false,
+      openSeq: existing?.openSeq || 0,
+    };
+  if (fresh) {
+    prev.steps = [];
+    prev.current = null;
+  }
+  if (prev.current === current) {
+    bootPhases.set(owner, prev);
+    return;
+  }
+  if (prev.current) prev.steps.push(prev.current);
+  prev.current = current;
+  bootPhases.set(owner, prev);
+}
+
+function beginBootPhase(owner: string, challengeId: string, openSeq: number): void {
+  let restoresSave = false;
+  if (!isLinuxBlogPlayground(challengeId)) {
+    try {
+      restoresSave = Boolean(linuxBox.progressStatus(owner, challengeId).saved);
+    } catch {
+      restoresSave = false;
+    }
+  }
+  bootPhases.set(owner, { steps: [], current: null, restoresSave, openSeq });
+  noteBootPhase(owner, 'Creating your machine');
+}
+
+function bootPhaseOf(owner: string, openSeq: number, challengeId: string | null): {
+  steps: string[];
+  current: string | null;
+  restoresSave: boolean;
+} {
+  const phase = bootPhases.get(owner);
+  const matched = Boolean(phase && openSeq && phase.openSeq === openSeq);
+  let restoresSave = matched ? Boolean(phase?.restoresSave) : false;
+  if (!matched && challengeId && !isLinuxBlogPlayground(challengeId)) {
+    try {
+      restoresSave = Boolean(linuxBox.progressStatus(owner, challengeId).saved);
+    } catch {
+      restoresSave = false;
+    }
+  }
+  if (!matched || !phase) return { steps: [], current: null, restoresSave };
+  return { steps: phase.steps, current: phase.current, restoresSave: phase.restoresSave };
+}
+
+function isStartInFlight(sessionId: string): boolean {
+  return inflightStarts.has(sessionId);
+}
+
+function cancelInflightStarts(owner: string, beforeSeq?: number): void {
+  const want = workspaceStore.sanitizeOwner(owner);
+  for (const [id, entry] of inflightStarts) {
+    if (entry.owner !== want) continue;
+    if (beforeSeq != null && entry.seq >= beforeSeq) continue;
+    console.log(`[k8s] cancelled in-flight open ${id}`);
+    entry.controller.abort();
+  }
 }
 
 export type StartK8sResult = {
@@ -159,47 +255,62 @@ async function requirePool(ns: string, challengeId: string, pool?: string): Prom
   throw labCapacityDown();
 }
 
-function ensureProvisioned(ns: string, challengeId: string, forceSetup: boolean): Promise<boolean> {
+function ensureProvisioned(
+  ns: string,
+  challengeId: string,
+  forceSetup: boolean,
+  signal?: AbortSignal,
+  owner?: string | null,
+): Promise<boolean> {
   const flavor = boxFlavorOf(challengeId);
-  if (flavor) {
-    return withNsLock(ns, () => provisionBox(ns, challengeId, flavor, forceSetup));
-  }
-  return withNsLock(ns, () => provision(ns, challengeId, forceSetup));
+  const onPhase = flavor && owner
+    ? (message: string) => noteBootPhase(owner, message)
+    : undefined;
+  return withNsLock(ns, async () => {
+    try {
+      const run = (): Promise<boolean> => (
+        flavor
+          ? provisionBox(ns, challengeId, flavor, forceSetup, owner || null, onPhase)
+          : provision(ns, challengeId, forceSetup)
+      );
+      if (!signal) return await run();
+      if (signal.aborted) throw k8s.startSuperseded();
+      return await k8s.runWithStartAbort(signal, run);
+    } catch (err) {
+      // Still inside the namespace lock, so the next open cannot see a half-built machine.
+      if (!k8s.isStartSuperseded(err)) throw err;
+      if (flavor) await linuxBox.deleteBox(ns).catch(() => {});
+      else await k8s.wipeChallengeResources(ns, challengeId).catch(() => {});
+      throw err;
+    }
+  });
 }
 
 /**
- * Reset always boots a clean box and runs setup.sh. Otherwise a saved filesystem
- * is restored onto a new pod, and a pod that is still running is reused as-is.
- * The blog playground is ephemeral: every open is a new pod, and nothing is saved.
+ * Every open boots a clean box and runs setup.sh. A paid learner's manual save
+ * is applied after setup, because setup deletes lab paths and rebuilds the
+ * starter state. Reset passes forceSetup and does not put the save back.
  */
 async function provisionBox(
   ns: string,
   challengeId: string,
   flavor: BoxFlavor,
   forceSetup: boolean,
+  owner: string | null,
+  onPhase?: (message: string) => void,
 ): Promise<boolean> {
+  onPhase?.('Creating your machine');
   const spec = platformSpecOf(challengeId);
-  const ephemeral = isLinuxBlogPlayground(challengeId);
   await requirePool(ns, challengeId, linuxBox.poolFor(flavor));
-  if (!ephemeral && !forceSetup && !linuxBox.hasBoxWork(ns, challengeId) && await linuxBox.boxIsReady(ns)) {
-    return true;
-  }
-  if (ephemeral || forceSetup) linuxBox.discardBoxWork(ns, challengeId);
+  linuxBox.discardBoxWork(ns, challengeId);
   try {
-    await linuxBox.recreateBox(ns, challengeId, flavor, spec.box);
+    await linuxBox.recreateBox(ns, challengeId, flavor, spec.box, onPhase);
   } catch (err) {
+    if (k8s.isStartSuperseded(err)) throw err;
     console.error(`[${flavor}] ${ns}: could not start a box for ${challengeId}: ${(err as Error).message || err}`);
     throw labEnvUnavailable();
   }
-  if (!ephemeral && !forceSetup && linuxBox.hasBoxWork(ns, challengeId)) {
-    try {
-      await linuxBox.restoreBoxWork(ns, challengeId);
-    } catch (err) {
-      console.error(`[${flavor}] ${ns}: could not restore ${challengeId}: ${(err as Error).message || err}`);
-      throw labEnvUnavailable();
-    }
-    return true;
-  }
+  onPhase?.('Preparing the lab');
   const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
     timeoutMs: 180_000,
     env: linuxBox.scriptEnv(),
@@ -207,6 +318,18 @@ async function provisionBox(
   if (result.code !== 0) {
     const msg = (result.stderr || result.stdout || 'setup failed').trim();
     throw Object.assign(new Error(`Lab setup failed: ${msg}`), { status: 502 });
+  }
+  if (!forceSetup && owner && !isLinuxBlogPlayground(challengeId)) {
+    try {
+      await linuxBox.restoreProgress(ns, owner, challengeId, onPhase);
+    } catch (err) {
+      if (k8s.isStartSuperseded(err)) throw err;
+      const message = (err as Error).message || 'could not apply saved progress';
+      throw Object.assign(
+        new Error(message.startsWith('Your saved') ? message : `Your saved progress could not be applied. ${message}`),
+        { status: 502 },
+      );
+    }
   }
   return true;
 }
@@ -305,11 +428,70 @@ function namespaceForChallenge(challengeId: string, userId: string | null, userN
   return linuxBox.boxNamespace(user, flavor);
 }
 
+/**
+ * Boot the machine for this session. Registered as in-flight before the first
+ * await, so another open can cancel it instead of treating it as a lab the
+ * learner is already in.
+ */
+async function provisionAndCommit(
+  session: GameSession,
+  ns: string,
+  challengeId: string,
+  owner: string,
+  signal: AbortSignal | undefined,
+  openSeq: number,
+): Promise<boolean> {
+  const myGen = (openGen.get(session.id) || 0) + 1;
+  openGen.set(session.id, myGen);
+  session.status = 'active';
+  session.endTime = null;
+  session.endReason = null;
+
+  const controller = new AbortController();
+  const onExternalAbort = (): void => { controller.abort(); };
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener('abort', onExternalAbort, { once: true });
+  }
+  const previous = inflightStarts.get(session.id);
+  inflightStarts.set(session.id, { controller, owner, gen: myGen, seq: openSeq });
+  previous?.controller.abort();
+  cancelInflightStarts(owner, openSeq);
+
+  try {
+    await sessionStore.persistRow(session);
+    const provisioned = await ensureProvisioned(ns, challengeId, false, controller.signal, owner);
+    if (controller.signal.aborted || openGen.get(session.id) !== myGen) {
+      throw k8s.startSuperseded();
+    }
+    // The lab's time starts now, when the machine is ready. Later activity does not move it.
+    session.lastActivityAt = Date.now();
+    await sessionStore.persistRow(session);
+    return provisioned;
+  } catch (err) {
+    // A newer open owns this row now. Don't mark its session ended.
+    if (openGen.get(session.id) !== myGen) {
+      throw k8s.isStartSuperseded(err) ? err : k8s.startSuperseded();
+    }
+    session.status = 'ended';
+    session.endTime = Date.now();
+    if (k8s.isStartSuperseded(err)) session.endReason = 'replaced-by-new-lab';
+    await sessionStore.persistRow(session).catch(() => {});
+    throw err;
+  } finally {
+    const cur = inflightStarts.get(session.id);
+    if (cur && cur.gen === myGen) inflightStarts.delete(session.id);
+    if (signal) signal.removeEventListener('abort', onExternalAbort);
+  }
+}
+
 async function startK8sSession({
   challengeId,
   userId = null,
   candidateName = null,
   userName = null,
+  signal,
+  openSeq = 0,
 }: StartK8sOpts): Promise<StartK8sResult> {
   if (!challengeId) {
     throw Object.assign(new Error('challengeId is required'), { status: 400 });
@@ -324,53 +506,27 @@ async function startK8sSession({
   }
 
   const owner = workspaceStore.sanitizeOwner(userId || candidateName || 'anonymous');
+  if (boxFlavorOf(challengeId)) beginBootPhase(owner, challengeId, openSeq);
   const ns = namespaceForChallenge(challengeId, userId || candidateName, userName || candidateName);
 
   const existing = await findExistingK8sSession(challengeId, owner);
-  if (existing && existing.status === 'active') {
-    // Still live (another tab, a reload, or leaving without ending): its objects
-    // are in the namespace and not parked, so resume as-is. Waiting on the lock
-    // lets an open that is still provisioning finish first.
+  // A lab the browser already has. An open that is still booting is not this:
+  // that one is cancelled and replaced below.
+  if (existing && existing.status === 'active' && !isStartInFlight(existing.id)) {
     await withNsLock(ns, async () => undefined);
-    if (existing.status === 'active') {
-      existing.lastActivityAt = Date.now();
+    if (existing.status === 'active' && !isStartInFlight(existing.id)) {
       return { session: existing, created: false, provisioned: false };
     }
   }
-  if (existing) {
-    existing.status = 'active';
-    existing.endTime = null;
-    existing.endReason = null;
-    existing.runtime = 'kubernetes';
-    existing.userId = owner;
-    existing.k8sNamespace = ns;
-    existing.workspacePrefix = ns;
-    existing.candidateName = candidateName || existing.candidateName;
-    sessionStore.set(existing.id, existing);
 
-    let provisioned: boolean;
-    try {
-      provisioned = await ensureProvisioned(ns, challengeId, false);
-    } catch (err) {
-      // Not via endK8sSession: parking now would snapshot whatever blocked the open.
-      existing.status = 'ended';
-      existing.endTime = Date.now();
-      await sessionStore.persistRow(existing).catch(() => {});
-      throw err;
-    }
-    await sessionStore.persistRow(existing);
-    existing.lastActivityAt = Date.now();
-    return { session: existing, created: false, provisioned };
-  }
-
-  const sessionId = uuidv4();
-  const session = sessionStore.makeSession({
-    id: sessionId,
+  const created = !existing;
+  const session = existing || sessionStore.makeSession({
+    id: uuidv4(),
     challengeId,
     candidateName,
     status: 'active',
-  }) as GameSession & Record<string, unknown>;
-
+  });
+  session.candidateName = candidateName || session.candidateName;
   session.runtime = 'kubernetes';
   session.userId = owner;
   session.k8sNamespace = ns;
@@ -379,22 +535,10 @@ async function startK8sSession({
   session.portMap = null;
   session.services = [];
   session.terminalService = null;
+  sessionStore.set(session.id, session);
 
-  sessionStore.set(sessionId, session);
-  await sessionStore.persistRow(session);
-  session.lastActivityAt = Date.now();
-
-  try {
-    const provisioned = await ensureProvisioned(ns, challengeId, false);
-    return { session, created: true, provisioned };
-  } catch (err) {
-    session.status = 'ended';
-    session.endTime = Date.now();
-    await sessionStore.persistRow(session).catch(() => {});
-    sessionStore.remove(sessionId);
-    await pool.query(`DELETE FROM sessions WHERE id = $1`, [sessionId]).catch(() => {});
-    throw err;
-  }
+  const provisioned = await provisionAndCommit(session, ns, challengeId, owner, signal, openSeq);
+  return { session, created, provisioned };
 }
 
 async function resetK8sSession(sessionId: string): Promise<GameSession> {
@@ -406,6 +550,9 @@ async function resetK8sSession(sessionId: string): Promise<GameSession> {
   const challengeId = session.challengeId;
   if (!ns || !challengeId) {
     throw Object.assign(new Error('session missing namespace'), { status: 409 });
+  }
+  if (boxFlavorOf(challengeId) && session.userId && !isLinuxBlogPlayground(challengeId)) {
+    linuxBox.discardProgress(session.userId, challengeId);
   }
   await ensureProvisioned(ns, challengeId, true);
   session.status = 'active';
@@ -424,6 +571,9 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
   if (session.status === 'ended') {
     return session;
   }
+  // Stop a boot that hasn't reached the browser. The namespace lock then
+  // releases as soon as the current kubectl call dies, instead of after setup.
+  inflightStarts.get(sessionId)?.controller.abort();
   const ns = session.k8sNamespace || session.workspacePrefix;
   const challengeId = session.challengeId;
 
@@ -439,23 +589,10 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
 
   const flavor = challengeId ? boxFlavorOf(challengeId) : null;
   if (ns && challengeId && flavor) {
-    const ephemeral = isLinuxBlogPlayground(challengeId);
-    // Labs save first: a failed copy leaves the pod up so the files are still there.
-    // The blog playground keeps nothing — drop any old snapshot and delete the pod.
+    // Ephemeral sandbox: drop any archive left from the old save path, then delete
+    // the pod. A failed delete leaves the pod up; the next open replaces it.
     void withNsLock(ns, async () => {
-      if (ephemeral) {
-        linuxBox.discardBoxWork(ns, challengeId);
-        await linuxBox.deleteBox(ns);
-        return;
-      }
-      try {
-        await linuxBox.saveBoxWork(ns, challengeId);
-      } catch (err: unknown) {
-        console.warn(
-          `[${flavor}] kept ${ns} running; work was not saved: ${(err as Error).message || err}`,
-        );
-        return;
-      }
+      linuxBox.discardBoxWork(ns, challengeId);
       await linuxBox.deleteBox(ns);
     }).catch((err: unknown) => {
       console.warn(`[${flavor}] background box stop failed for ${ns}: ${(err as Error).message || err}`);
@@ -470,11 +607,34 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
   return session;
 }
 
+async function saveLabProgress(
+  session: GameSession & { k8sNamespace?: string },
+  signal?: AbortSignal,
+): Promise<ReturnType<typeof linuxBox.progressStatus>> {
+  const ns = session.k8sNamespace || session.workspacePrefix;
+  const challengeId = session.challengeId;
+  const owner = session.userId;
+  if (!ns || !challengeId || !owner) {
+    throw Object.assign(new Error('session is missing its machine'), { status: 409 });
+  }
+  return withNsLock(ns, async () => {
+    const current = sessionStore.get(session.id);
+    if (!current || current.status !== 'active') {
+      throw Object.assign(new Error('This lab is no longer open.'), { status: 409 });
+    }
+    return linuxBox.saveProgress(ns, owner, challengeId, signal);
+  });
+}
+
 module.exports = {
   namespaceFor,
   labAvailability,
   startK8sSession,
   resetK8sSession,
   endK8sSession,
+  saveLabProgress,
+  bootPhaseOf,
   findExistingK8sSession,
+  isStartInFlight,
+  cancelInflightStarts,
 };

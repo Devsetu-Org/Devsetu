@@ -31,37 +31,22 @@ export const LINUX_READINGS: K8sReading[] = [
     showBlogStamp: true,
     gatedByChallengeId: 'linux-00-first-shift-on-the-order-box',
     lede:
-      'Start here if you are asking **what Linux is** and where it shows up in real life. No prior experience needed: we define Linux in plain language, give concrete examples, then map what you will see on a server (prompt, folders, paths). Commands come in the next readings.',
+      'The **order box** is a Linux server with no desktop. You get a text prompt. This post is the map of that machine: what Linux is, what the prompt is telling you, and which folder holds config, people, apps, and logs.',
     sections: [
       {
         id: 'what-is-linux',
-        title: 'What is Linux?',
-        body: [],
-        subsections: [
-          {
-            id: 'linux-as-an-os',
-            title: 'Linux as an operating system',
-            body: [
-              '**Linux is an operating system (OS)** — the software that sits between you and the hardware. It runs applications, stores files on disk, uses the network, and drives the screen and keyboard. **Windows** and **macOS** are other operating systems you may already use every day; **Linux** is another major family, widely used where reliability and flexibility matter.',
-              'In everyday conversation, **“Linux”** usually means a complete system you can use — applications, folders, users, and settings — the same kind of thing you mean when you say you use **Windows** or **Mac**. People talk that way all the time: “I’m on a Windows machine,” “mine’s a Mac,” or “I run Linux on my laptop.” Same idea: **which system** you are using, not the kernel’s name in isolation.',
-            ],
-          },
-          {
-            id: 'kernel-distro-open-source',
-            title: 'Kernel, distro, and open source',
-            body: [
-              'Under the hood, the piece that does the heavy lifting is the **kernel** — it schedules applications on the CPU, uses memory, reads and writes the disk, and handles the network. **Linux** is the name of that kernel.',
-              'You rarely install “only the kernel.” What you download or get on a cloud machine is a **distribution** (**distro**): the kernel **plus** the rest of the stack — command-line tools, installers, default packages, and docs. **Ubuntu**, **Debian**, **Fedora**, and **Alpine** are distros; they share the same core ideas and differ in what ships by default and how you install software.',
-              'Linux is **free and open source**: anyone can read, modify, and redistribute the kernel and much of the software around it. Companies build products on top of it — Android, cloud platforms, appliances — instead of writing an OS from scratch.',
-            ],
-          },
+        title: 'What Linux is',
+        body: [
+          '**Linux** is an operating system: the program between you and the hardware. It runs other programs, stores files, and uses the network. It is also software, a codebase you can read. **Linus Torvalds** started it in 1991, and the kernel is written mostly in **C**. The source is on [GitHub](https://github.com/torvalds/linux). **Windows** and **macOS** are the other operating systems you may already use. On the machines in this track, the operating system is Linux.',
+          'The piece that schedules programs, uses memory, and talks to the disk is the **kernel**. Linux is the name of that kernel. What you actually get on a machine is a **distribution** (**distro**): the kernel plus the commands, the installer, and the default settings. **Ubuntu**, **Debian**, **Fedora**, and **Alpine** are distros. The labs here are Ubuntu. They share this map and differ in which programs ship by default.',
+          'The kernel and most of the tools around it are free and open source. Anyone can read them, change them, and pass them on. Android, cloud images, and appliances are built on that, instead of a company writing an operating system from scratch.',
         ],
         callout: {
           kind: 'idea',
-          title: 'You have heard “server” many times. What is it?',
+          title: 'A server is a computer that serves others',
           body: [
-            'A **server** is just a computer whose job is to **serve others** — websites, apps, databases — over the network, all day, every day. It usually sits in a data center with **no screen or keyboard**; people connect to it remotely and work through a **text prompt**.',
-            'Most servers run **Linux**, and that is the Linux this track teaches.',
+            'A **server** answers other computers all day: websites, apps, databases. It usually sits in a data center with no screen and no keyboard. People connect over the network and work at a text prompt.',
+            'Most servers run Linux. That is the Linux this track teaches.',
           ],
         },
       },
@@ -69,7 +54,7 @@ export const LINUX_READINGS: K8sReading[] = [
         id: 'linux-in-the-wild',
         title: 'Linux in the wild: examples',
         body: [
-          'You may already depend on Linux without seeing a “Linux desktop.” Concrete places it shows up:',
+          'You may already depend on Linux without a Linux desktop on your own screen.',
         ],
         table: {
           headers: ['Example', 'What Linux is doing', 'What you usually see'],
@@ -102,15 +87,14 @@ export const LINUX_READINGS: K8sReading[] = [
           ],
         },
         after: [
-          '**Takeaway:** “Linux” is not one product like “Windows 11.” It is a kernel and an ecosystem. You may use Linux **inside** a phone or website without ever seeing a Linux desktop. On this track you will mostly work on a **Linux server** you reach over the network.',
+          'On this track the machine is a Linux server you reach over the network. The prompt is the screen.',
         ],
       },
       {
         id: 'parallels',
         title: 'Parallels: if you know Windows or Mac',
         body: [
-          'Linux is not from another planet — many ideas match what you already use; labels and defaults differ.',
-          'This table compares **desktop habits** on Windows or Mac to a **Linux server** (the kind you reach over the network for ops work). **Linux on a laptop with a desktop** — Ubuntu, Fedora, and other distros with icons and a browser — feels closer to the Windows/Mac column. **This reading** emphasizes the **Linux server** column because that is what production ops and the hands-on labs on this track use.',
+          'The ideas match a laptop you already know. The labels on a server are different. A Linux laptop with a desktop sits closer to the Windows and Mac columns. This table is the server, because that is the machine the labs give you.',
         ],
         table: {
           headers: ['Idea', 'Windows (roughly)', 'macOS (roughly)', 'Linux server'],
@@ -124,38 +108,37 @@ export const LINUX_READINGS: K8sReading[] = [
           ],
         },
         after: [
-          'Many Linux **servers** (and other Linux machines you use remotely) **do not show a desktop**. There is no Start menu or file browser on the screen — you work through a **shell**, a text interface. Day-to-day ops happens there.',
-          'When you **connect** to such a machine, you typically get a **text prompt** and one **folder tree** you navigate with commands (covered in the next sections). In a lab, DevSetu opens that connection for you in the browser.',
+          'A server has no Start menu and no file browser on the screen. You work by typing at the prompt.',
         ],
       },
       {
         id: 'terminal-shell-kernel',
-        title: 'Inside a Linux machine: kernel, shell, terminal',
+        title: 'What the prompt is telling you',
         body: [
-          'Three layers sit between you and the hardware on any Linux machine. Picture them from the **outside in**: you type into the **terminal**, the **shell** works out what you meant, and the **kernel** does the actual work.',
+          'Three layers sit between you and the hardware. From the outside in: you type into the **terminal**, the **shell** reads the line, and the **kernel** does the work.',
         ],
         subsections: [
           {
             id: 'terminal',
-            title: 'Terminal: the window you type into',
+            title: 'Terminal: the window',
             body: [
-              'The **terminal** is the text window: it shows characters and sends your keystrokes along. It does **not** understand commands itself — type `ls` and the terminal just passes the letters `l`, `s` and Enter to the program running inside it, then draws whatever text comes back.',
-              'The name comes from old **hardware terminals**: a screen and keyboard wired to a big shared computer in another room. Today it is an app — **Terminal** or **iTerm** on a Mac, **Windows Terminal** on Windows, the panel on the right in a DevSetu lab. When you connect to a server, the terminal is on **your** laptop, but the commands run on the **server**.',
+              'The **terminal** is the text window. It shows characters and sends your keystrokes on. Type `ls` and it passes those letters to the program inside it, then draws whatever text comes back.',
+              'The name comes from old hardware terminals: a screen and keyboard wired to a shared computer in another room. Today the window is an app on your laptop, or the panel beside this blog. The commands run on the server.',
             ],
           },
           {
             id: 'shell',
-            title: 'Shell: the program that understands your commands',
+            title: 'Shell: the program that reads the line',
             body: [
-              'The **shell** is the program running inside the terminal. It prints the **prompt**, waits for a line, and when you press Enter it reads the line, splits it into words, expands shortcuts like `~` (your home folder) and `*` (matching file names), finds the program you named (for example `/usr/bin/ls`), and asks the kernel to start it. When that program finishes, the shell prints the prompt again.',
-              'It also gives you comforts on top: **command history** (Up arrow), **Tab completion** for commands and paths, **variables**, and **scripts** — a file of commands the shell runs top to bottom. The most common shell on Linux servers is **bash**; others include **zsh** (the macOS default) and the minimal **sh**. They all work the same basic way.',
+              'The **shell** runs inside the terminal. It prints the **prompt**, waits for a line, and when you press Enter it splits that line into words, finds the program you named, and asks the kernel to start it. When the program finishes, the prompt comes back.',
+              'The usual shell on these servers is **bash**. macOS often uses **zsh**. Both read a line the same way.',
             ],
           },
           {
             id: 'kernel',
-            title: 'Kernel: the part that touches the hardware',
+            title: 'Kernel: the part that does the work',
             body: [
-              'The **kernel** is the core of Linux. It starts and stops programs, gives them memory and CPU time, reads and writes files on disk, and talks to the network. No program — not even the shell — touches the hardware directly; they all ask the kernel.',
+              'The **kernel** starts and stops programs, gives them memory and CPU time, reads and writes files, and talks to the network. Programs ask the kernel. They do not touch the hardware themselves.',
             ],
           },
         ],
@@ -163,28 +146,38 @@ export const LINUX_READINGS: K8sReading[] = [
           image: terminalShellKernelImg,
           imageAlt:
             'Hand-drawn sketch: a person types into a terminal; inside it the shell reads the line and the kernel runs programs and reads files',
-          caption: 'You type in the terminal; the shell interprets; the kernel does the work.',
+          caption: 'You type in the terminal. The shell reads the line. The kernel does the work.',
           flush: true,
         },
         after: [
-          'After you connect, you typically see a **prompt** — a line of text and a blinking cursor, for example `student@linux-lab:~$`. It is the shell telling you who you are, which machine you are on, and which folder you are in. The `$` means a normal user; `#` would mean the superuser account (**root**), so treat that with extra care.',
+          'After you connect, the shell prints a prompt. **`learner@order-box:~$`** is three facts: who you are, which machine this is, and which folder you are in. **`$`** means a normal user. **`#`** means **root**, the account that can change the whole machine.',
+          'Three commands print the same facts. **`whoami`** is the user. **`hostname`** is the machine. **`pwd`** is the folder, with **`~`** written out in full.',
         ],
+        code: {
+          language: 'shell',
+          code: `whoami
+# learner
+hostname
+# order-box
+pwd
+# /home/learner`,
+        },
         tableAfter: {
           headers: ['Prompt part', 'Meaning'],
           rows: [
-            ['`student`', 'The user you are logged in as'],
-            ['`@linux-lab`', 'The machine (hostname)'],
-            ['`~`', 'The current folder; `~` is shorthand for your home directory, e.g. `/home/student`'],
-            ['`$`', 'Normal user ( `#` = root )'],
+            ['`learner`', 'The user you are logged in as'],
+            ['`@order-box`', 'The machine (hostname)'],
+            ['`~`', 'The current folder. `~` is your home, here `/home/learner`'],
+            ['`$`', 'A normal user. `#` would mean root'],
           ],
         },
       },
       {
         id: 'filesystem-map',
-        title: 'One filesystem: a single tree from /',
+        title: 'One tree from /',
         body: [
-          'On **Windows**, **`C:`** and **`D:`** are **drive letters** — different disks or partitions get different letters, and paths look like `C:\\Users\\You\\file.txt`. Linux does **not** use drive letters. Everything hangs from one root folder, written `/`. Extra disks are attached **inside** that tree (called **mounting**, covered later), so you still see one hierarchy of folders.',
-          'Each top-level folder has a conventional job. Learn these once and you can guess where things live on almost any Linux machine.',
+          'Every file hangs from one folder, written **`/`**. A second disk is attached inside that tree. That is called **mounting**. You still see one hierarchy.',
+          'Each folder under `/` has a job. The same jobs show up on almost every Linux machine. Disks, running programs, and settings are reached through this tree, so the same listing tools work on all of them.',
         ],
         figure: {
           image: filesystemTreeImg,
@@ -204,7 +197,7 @@ export const LINUX_READINGS: K8sReading[] = [
             [
               '`/home`',
               'Each **user’s** own files and settings',
-              '`/home/student/notes.txt`, `~/.ssh`',
+              '`/home/learner/notes.txt`, `~/.ssh`',
             ],
             [
               '`/var/log`',
@@ -214,7 +207,7 @@ export const LINUX_READINGS: K8sReading[] = [
             [
               '`/opt`',
               'Optional **third-party** applications',
-              'Vendor bundles under `/opt/myapp/`',
+              'An app and its files, under `/opt`',
             ],
             [
               '`/tmp`',
@@ -222,81 +215,66 @@ export const LINUX_READINGS: K8sReading[] = [
               'Short-lived exports, installer scratch',
             ],
             [
-              '`/usr/bin`',
-              'User-facing **commands** the shell runs',
-              '`ls`, `grep`, `python3`',
+              '`/usr`',
+              'Programs, including the **commands** the shell runs',
+              '`/usr/bin/ls`, `/usr/bin/grep`',
+            ],
+            [
+              '`/dev`',
+              '**Devices**, shown as files',
+              'The disk, the terminal',
             ],
             [
               '`/proc`',
-              'Live view of **processes** and kernel stats',
-              '`/proc/uptime`, one folder per running process',
+              'A live view of **running programs** and the kernel',
+              '`/proc/uptime`, one folder per program',
             ],
           ],
         },
         callout: {
-          kind: 'scope',
-          title: 'Everything is a file',
+          kind: 'tip',
+          title: 'A name that starts with a dot is hidden',
           body: [
-            'Linux exposes a lot of the system as files: devices under `/dev`, process information under `/proc`, and so on. That single idea is why the same few tools can inspect so many different things — you will use them in later readings and labs.',
+            'A name like **`~/.ssh`** is a normal file in this tree. **`ls`** skips names that start with a dot. **`ls -a`** includes them. When you expect a file and **`ls`** does not show it, ask for the hidden names.',
           ],
         },
       },
       {
         id: 'paths',
-        title: 'Paths: absolute and relative',
+        title: 'Two ways to the same file',
         body: [
-          'A **path** is directions to a file or folder. **Absolute** paths start at `/` and spell the full route, e.g. `/var/log/app.log`. They mean the same thing no matter which folder you are standing in — like `C:\\Users\\Alice\\file.txt` on Windows always pointing to the same place.',
-          '**Relative** paths start from your **current folder**. From `/var/lib`, the same log might be written `../log/app.log` (`..` means one folder up). That depends on where you are, like a path relative to whichever folder File Explorer is showing.',
+          'A **path** is the directions to a file. An **absolute** path starts at **`/`** and names every folder on the way. **`/var/log/docks.log`** is the same file no matter which folder you are standing in.',
+          'A **relative** path starts where you are. From **`/var/lib`**, that same file is **`../log/docks.log`**. **`..`** means one folder up. Move to another folder and the relative path changes. The absolute path does not.',
         ],
         figure: {
           image: absoluteVsRelativeImg,
           imageAlt:
-            'Hand-drawn comparison: absolute path /var/log/app.log from the root, relative path ../log/app.log from /var/lib',
+            'Hand-drawn comparison: absolute path /var/log/docks.log from the root, and relative path ../log/docks.log from /var/lib',
           caption: 'Absolute starts at the root. Relative starts where you stand.',
           flush: true,
         },
-        table: {
+        tableAfter: {
           headers: ['Symbol', 'Meaning'],
           rows: [
-            ['`/`', 'Root of the whole tree'],
+            ['`/`', 'The root of the whole tree, and the start of an absolute path'],
             ['`~`', 'Your home directory'],
             ['`.`', 'The folder you are in now'],
             ['`..`', 'One folder up'],
           ],
         },
       },
-      {
-        id: 'saved-for-later',
-        title: 'What we save for later',
-        body: [
-          'This reading stops at the map. Deliberately left for the next readings:',
-        ],
-        bullets: [
-          'How commands are structured (program, options, arguments) and keyboard habits like Tab completion.',
-          'Listing folders, reading files, and built-in help (`man`, `--help`).',
-          'Copying, moving, finding files, and searching text in logs.',
-          'Users, permissions, processes, systemd, and the rest of the track.',
-        ],
-        callout: {
-          kind: 'tip',
-          title: 'Help lives on the machine',
-          body: [
-            'Linux ships documentation with the system. You do not need to memorize every command — you need to know the map and where to look. **B1** and later posts show how.',
-          ],
-        },
-      },
     ],
     takeaways: [
-      '**Linux** is an **operating system** (kernel + tools); **distros** like Ubuntu package it for servers and desktops. You may already use it via **Android**, **websites**, or **cloud VMs** without seeing a Linux desktop.',
-      'A **server** is a computer that runs services for others, often reached **remotely** through a text interface — not a desktop like your laptop.',
-      'The **terminal** shows text and sends keystrokes; the **shell** (usually **bash**) reads your line, expands it, and starts programs; the **kernel** runs them and touches the hardware.',
-      'Linux has **one tree from `/`** (no `C:`/`D:` drive letters). **`/etc`**, **`/home`**, **`/var/log`**, and **`/tmp`** are folders you will visit often.',
-      'Paths can be **absolute** (from `/`) or **relative** (from where you stand); `~`, `.`, and `..` are shortcuts.',
-      '**Commands** start in **B1** — this post is just the map.',
+      'A **server** answers other computers. On this track it runs **Linux**, and you reach it at a text prompt.',
+      'You type in the **terminal**. The **shell** reads the line. The **kernel** does the work. The prompt shows the user, the machine, and the folder.',
+      'One tree starts at **`/`**. Config is **`/etc`**, people are **`/home`**, apps are **`/opt`**, logs are **`/var/log`**. A name that starts with a dot is hidden from a plain listing.',
+      'An **absolute** path starts at **`/`** and works from any folder. A **relative** path starts where you stand.',
     ],
     relatedLabsIntro:
-      'This post is a primer with no lab of its own. Continue with **B1 — Files and folders** when you are ready for commands.',
-    relatedLabs: [],
+      'The first lab asks you to read this map on the order box. The next post is how you list, copy, and find files.',
+    relatedLabs: [
+      { challengeId: 'linux-00-first-shift-on-the-order-box', label: 'First Shift on the Order Box' },
+    ],
   },
   {
     id: 'files-and-folders',

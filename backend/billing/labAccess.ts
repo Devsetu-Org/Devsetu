@@ -42,6 +42,11 @@ async function isStaff(user: LabUser | null | undefined): Promise<boolean> {
   return dbUser?.role === 'reviewer';
 }
 
+/** A paid plan (or staff) is what unlocks Save progress. Free accounts do not. */
+async function hasPaidPlan(user: LabUser | null | undefined): Promise<boolean> {
+  return (await unlockedTracks(user)).size > 0;
+}
+
 /** Subtracks the user may open past the free labs (staff get all of them). */
 async function unlockedTracks(user: LabUser | null | undefined): Promise<Set<string>> {
   if (await isStaff(user)) return new Set(PAID_TRACKS);
@@ -77,4 +82,11 @@ async function assertLabUnlocked(
   throw err;
 }
 
-module.exports = { FREE_LAB_IDS, paidTrackOf, unlockedTracks, isLabLocked, assertLabUnlocked };
+module.exports = {
+  FREE_LAB_IDS,
+  paidTrackOf,
+  unlockedTracks,
+  hasPaidPlan,
+  isLabLocked,
+  assertLabUnlocked,
+};

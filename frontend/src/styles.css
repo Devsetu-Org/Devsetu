@@ -16734,6 +16734,13 @@ button.phase-tracker--clickable.phase-tracker--compact {
   filter: none;
 }
 
+.app .spark-ide-actionbar button.spark-ide-btn.spark-ide-btn--icon {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
 .spark-ide-btn--submit {
   background: linear-gradient(180deg, #2aad7e, #158a64);
   color: #04120c;
@@ -22865,6 +22872,127 @@ kbd {
   flex-shrink: 0;
 }
 
+.k8s-lab-terminal-warming.is-boot {
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+}
+
+.k8s-lab-boot {
+  width: min(380px, 100%);
+  max-width: 380px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.k8s-lab-boot > strong {
+  margin-bottom: 22px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.k8s-lab-boot-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k8s-lab-boot-log li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  column-gap: 14px;
+  align-items: center;
+  position: relative;
+  min-height: 18px;
+  padding-bottom: 18px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--brand-bright) 34%, transparent);
+}
+
+.k8s-lab-boot-log li:last-child {
+  padding-bottom: 0;
+}
+
+.k8s-lab-boot-log li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 18px;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--brand-bright) 22%, transparent);
+}
+
+.k8s-lab-boot-log li.is-done {
+  color: color-mix(in srgb, var(--brand-bright) 72%, white);
+}
+
+.k8s-lab-boot-log li.is-done:not(:last-child)::after {
+  background: color-mix(in srgb, var(--brand-bright) 70%, transparent);
+}
+
+.k8s-lab-boot-log li.is-current {
+  color: #ecfdf5;
+  font-weight: 500;
+}
+
+.k8s-lab-boot-log li.is-skipped {
+  color: color-mix(in srgb, var(--brand-bright) 28%, transparent);
+}
+
+.k8s-lab-boot-skip {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--brand-bright) 45%, transparent);
+}
+
+.k8s-lab-boot-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  background: #050505;
+}
+
+.k8s-lab-boot-mark.is-done {
+  color: var(--brand-bright);
+}
+
+.k8s-lab-boot-mark.is-upcoming {
+  border: 1.5px solid color-mix(in srgb, var(--brand-bright) 32%, transparent);
+}
+
+.k8s-lab-boot-mark.is-skipped::after {
+  content: "";
+  width: 8px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--brand-bright) 40%, transparent);
+}
+
+.k8s-lab-boot-mark.is-current {
+  border: 1.5px solid var(--brand-bright);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.k8s-lab-boot-mark.is-current::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-bright);
+}
+
 .k8s-lab-locked {
   display: flex;
   flex-direction: column;
@@ -22883,6 +23011,10 @@ kbd {
 .k8s-lab-locked-icon {
   color: #f87171;
   margin-bottom: 4px;
+}
+
+.k8s-lab-standby .k8s-lab-locked-icon {
+  color: var(--brand-bright);
 }
 
 .k8s-lab-locked strong {
@@ -22933,71 +23065,6 @@ kbd {
 .k8s-lab-capacity-notice code {
   font-size: 12px;
   color: #ffe9b8;
-}
-
-.lab-closing-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  pointer-events: none;
-}
-
-.lab-closing-overlay.is-over-lab {
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  pointer-events: auto;
-}
-
-.lab-closing-toast {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: var(--text, #eee);
-  font-size: 13px;
-  line-height: 1.2;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
-  max-width: min(92vw, 420px);
-  text-align: left;
-}
-
-.lab-closing-toast strong {
-  font-weight: 600;
-  color: #fff;
-}
-
-.lab-closing-toast .spinner {
-  width: 12px;
-  height: 12px;
-  border-width: 1.5px;
-  flex-shrink: 0;
-}
-
-.lab-closing-catalog {
-  position: relative;
-}
-
-.lab-closing-catalog::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  pointer-events: auto;
 }
 
 .k8s-lab-main-tabs {
@@ -23642,6 +23709,11 @@ kbd {
 
 .k8s-lab-term-status.is-locked {
   background: #f87171;
+  animation: none;
+}
+
+.k8s-lab-term-status.is-idle {
+  background: color-mix(in srgb, var(--brand-bright) 45%, transparent);
   animation: none;
 }
 
@@ -25491,6 +25563,23 @@ kbd {
   }
 }
 
+.k8s-lab-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.k8s-lab-timer.is-low {
+  color: var(--warning);
+}
+
 .k8s-lab-practice-chip {
   display: inline-flex;
   align-items: center;
@@ -26050,19 +26139,25 @@ kbd {
 
 .grade-modal--pass h2,
 .grade-modal--reset h2,
+.grade-modal--saved h2,
 .grade-modal--fail h2,
 .grade-modal--reset-fail h2,
+.grade-modal--save-fail h2,
 .grade-modal--pass .grade-modal-sub,
 .grade-modal--reset .grade-modal-sub,
+.grade-modal--saved .grade-modal-sub,
 .grade-modal--fail .grade-modal-sub,
-.grade-modal--reset-fail .grade-modal-sub {
+.grade-modal--reset-fail .grade-modal-sub,
+.grade-modal--save-fail .grade-modal-sub {
   animation: grade-copy-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .grade-modal--pass .grade-modal-sub,
 .grade-modal--reset .grade-modal-sub,
+.grade-modal--saved .grade-modal-sub,
 .grade-modal--fail .grade-modal-sub,
-.grade-modal--reset-fail .grade-modal-sub {
+.grade-modal--reset-fail .grade-modal-sub,
+.grade-modal--save-fail .grade-modal-sub {
   animation-delay: 0.08s;
 }
 
@@ -26113,12 +26208,16 @@ kbd {
   .grade-ring.is-done::after,
   .grade-modal--pass h2,
   .grade-modal--reset h2,
+  .grade-modal--saved h2,
   .grade-modal--fail h2,
   .grade-modal--reset-fail h2,
+  .grade-modal--save-fail h2,
   .grade-modal--pass .grade-modal-sub,
   .grade-modal--reset .grade-modal-sub,
+  .grade-modal--saved .grade-modal-sub,
   .grade-modal--fail .grade-modal-sub,
-  .grade-modal--reset-fail .grade-modal-sub {
+  .grade-modal--reset-fail .grade-modal-sub,
+  .grade-modal--save-fail .grade-modal-sub {
     animation: none;
   }
 

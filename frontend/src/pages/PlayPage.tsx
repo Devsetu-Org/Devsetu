@@ -656,7 +656,6 @@ export default function PlayPage(): JSX.Element | null {
     onBackToLibrary,
     onEnd,
     ending,
-    closingLabTitle,
   } = useAppState();
   const params = useParams<{ domainId?: string; panelId?: string }>();
   const restoringSession =
@@ -722,36 +721,16 @@ export default function PlayPage(): JSX.Element | null {
     );
   }
 
-  const closingOverlay = (overLab: boolean): JSX.Element | null => (ending ? (
-    <div
-      className={`lab-closing-overlay${overLab ? ' is-over-lab' : ''}`}
-      role="status"
-      aria-live="polite"
-    >
-      <div className="lab-closing-toast">
-        <span className="spinner" />
-        <span>
-          Closing lab
-          {closingLabTitle ? <> · <strong>{closingLabTitle}</strong></> : null}
-          …
-        </span>
-      </div>
-    </div>
-  ) : null);
-
   if (playState === 'library') {
     return (
-      <>
-        {closingOverlay(false)}
-        <div className={`play-library-shell${ending ? ' lab-closing-catalog' : ''}`}>
-          <LibraryView
-            challenges={challenges}
-            challengesError={challengesError}
-            startError={startError}
-            onSelectChallenge={onSelectChallenge}
-          />
-        </div>
-      </>
+      <div className="play-library-shell">
+        <LibraryView
+          challenges={challenges}
+          challengesError={challengesError}
+          startError={startError}
+          onSelectChallenge={onSelectChallenge}
+        />
+      </div>
     );
   }
 
@@ -766,14 +745,11 @@ export default function PlayPage(): JSX.Element | null {
     }
     if (isKubernetesChallenge(activeChallenge) || activeSession.runtime === 'kubernetes') {
       return (
-        <>
-          {closingOverlay(true)}
-          <K8sLabWorkspace
-            challenge={activeChallenge}
-            session={activeSession}
-            onClose={onEnd}
-          />
-        </>
+        <K8sLabWorkspace
+          challenge={activeChallenge}
+          session={activeSession}
+          onClose={onEnd}
+        />
       );
     }
     if (isSparkPlatformChallenge(activeChallenge) || activeSession.runtime === 'spark-platform') {

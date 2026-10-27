@@ -17,10 +17,10 @@
  * Kubernetes API access here: the backend creates the pod and the terminal execs into it
  * with controller credentials.
  *
- * Ending a lab stops the pod so the node is free, after copying the filesystem
- * (except proc, sys, dev, run, and tmp) to the snapshot store. The next open
- * restores that copy, so files survive an idle lock. Reset throws the copy
- * away and runs setup.sh on a new box.
+ * Sandboxes are ephemeral. Ending a lab deletes the pod and does not keep the
+ * filesystem. A paid learner can save progress by hand while the lab is open;
+ * the next open boots a new pod, runs setup.sh, then puts that save back.
+ * Any archive left from the old automatic save path is deleted.
  *
  * No-root labs (platformSpec.box.unprivileged, the free shell/file-navigation set) skip
  * systemd and the added capabilities: a plain `sleep infinity` PID 1, RuntimeDefault
@@ -29,12 +29,11 @@
  */
 
 import type { BoxFlavor, LinuxBoxSpec } from '../types/domain';
-import type { ChildProcess } from 'child_process';
 
+const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
 
 const k8s = require('./k8sCluster');
 
@@ -189,6 +188,18 @@ function labelValue(raw: string): string {
   return raw.replace(/[^A-Za-z0-9._-]/g, '-').slice(0, 63).replace(/[^A-Za-z0-9]+$/, '');
 }
 
+/**
+ * The pod clock starts when the kubelet accepts the pod, so it includes image pull and boot.
+ * The lab clock starts when the machine is handed over and runs out on its own.
+ * Five extra minutes keep that full lab time, because this pod clock includes image pull and boot.
+ * A start cancelled before the pod existed can still land afterwards; this stops that machine
+ * even when the learner never opens another lab. Loaded lazily: sessionIdle pulls in this module.
+ */
+function boxActiveDeadlineSeconds(): number {
+  const sessionIdle = require('./sessionIdle');
+  return Math.ceil(Number(sessionIdle.IDLE_MS) / 1000) + 5 * 60;
+}
+
 function boxPodYaml(ns: string, challengeId: string, flavor: BoxFlavor, spec: LinuxBoxSpec = {}): string {
   const f = FLAVORS[flavor];
   // No-root labs (free shell/file-navigation set): plain machine, no systemd, no added
@@ -258,6 +269,7 @@ spec:
   automountServiceAccountToken: false
   enableServiceLinks: false
   terminationGracePeriodSeconds: ${f.docker ? 20 : 10}
+  activeDeadlineSeconds: ${boxActiveDeadlineSeconds()}
   nodeSelector:
     devlabs.io/pool: ${f.pool}
   # Fill the always-on base first: boxes are do-not-disrupt, so a box placed on an elastic
@@ -320,7 +332,14 @@ async function describeNotReady(ns: string): Promise<string> {
 const DELETE_GRACE_S = '1';
 
 /** Delete any previous box and start a fresh one; resolves once systemd (and dockerd) are up. */
-async function recreateBox(ns: string, challengeId: string, flavor: BoxFlavor, spec?: LinuxBoxSpec): Promise<void> {
+async function recreateBox(
+  ns: string,
+  challengeId: string,
+  flavor: BoxFlavor,
+  spec?: LinuxBoxSpec,
+  onPhase?: (message: string) => void,
+): Promise<void> {
+  onPhase?.('Creating your machine');
   await ensureNamespace(ns, flavor);
   await k8s.kubectlOk(
     ['delete', 'pod', BOX_POD, '-n', ns, '--ignore-not-found', `--grace-period=${DELETE_GRACE_S}`,
@@ -331,6 +350,7 @@ async function recreateBox(ns: string, challengeId: string, flavor: BoxFlavor, s
     input: boxPodYaml(ns, challengeId, flavor, spec),
     timeoutMs: 30_000,
   });
+  onPhase?.('Waiting for your machine to start');
   const ready = await k8s.runKubectl(
     ['wait', '--for=condition=Ready', `pod/${BOX_POD}`, '-n', ns, `--timeout=${READY_TIMEOUT_S}s`],
     { timeoutMs: (READY_TIMEOUT_S + 15) * 1000 },
@@ -348,25 +368,15 @@ async function deleteBox(ns: string): Promise<void> {
   );
 }
 
-/** Same root as namespace snapshots, so a learner cannot write their own restore. */
+/** Old filesystem archives lived next to namespace snapshots. Delete them; nothing new is written. */
 const WORK_ROOT =
   String(process.env.K8S_LAB_SNAPSHOT_ROOT || '').trim()
   || path.join(os.homedir(), '.devlabs', 'k8s-snapshots');
-const WORK_SAVE_TIMEOUT_MS = 5 * 60 * 1000;
-const WORK_BYTES_MAX = 4 * 1024 * 1024 * 1024;
 
 function workArchivePath(ns: string, challengeId: string): string {
   const safeNs = ns.replace(/[^a-z0-9-]/g, '_');
   const safeId = (challengeId || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
   return path.join(WORK_ROOT, safeNs, `${safeId}.box.tar`);
-}
-
-function hasBoxWork(ns: string, challengeId: string): boolean {
-  try {
-    return fs.statSync(workArchivePath(ns, challengeId)).size > 512;
-  } catch {
-    return false;
-  }
 }
 
 function discardBoxWork(ns: string, challengeId: string): void {
@@ -375,111 +385,404 @@ function discardBoxWork(ns: string, challengeId: string): void {
   fs.rmSync(`${dest}.partial`, { force: true });
 }
 
-async function boxIsReady(ns: string): Promise<boolean> {
-  const r = await k8s.runKubectl(
-    ['get', 'pod', BOX_POD, '-n', ns, '-o', 'jsonpath={.status.containerStatuses[0].ready}'],
-    { timeoutMs: 15_000 },
-  );
-  return r.code === 0 && String(r.stdout || '').trim() === 'true';
+/**
+ * Manual save for a paid learner. One archive per lab, overwritten each time,
+ * counted against 500 MB for the whole account. The archive is an allowlist
+ * (home, etc, srv, opt, usr/local, var/spool, root) with ACLs, plus the apt
+ * packages they installed. It is not the whole machine.
+ */
+const PROGRESS_LIMIT_BYTES = 500 * 1024 * 1024;
+const PROGRESS_IO_MS = 10 * 60 * 1000;
+const PROGRESS_DIR = path.join(WORK_ROOT, 'progress');
+
+const SAVE_SCRIPT = `
+set -eu
+list=""
+for p in home etc srv opt usr/local var/spool root; do
+  if [ -e "/$p" ]; then list="$list $p"; fi
+done
+if [ -z "$list" ]; then echo "nothing on the machine to save" >&2; exit 2; fi
+exec tar -C / -cf - --acls --xattrs --warning=no-file-changed \
+  --exclude=etc/hostname --exclude=etc/hosts --exclude=etc/resolv.conf --exclude=etc/mtab \
+  $list
+`;
+
+const MISSING_PKGS_SCRIPT = `
+while IFS= read -r p; do
+  case "$p" in
+    ""|*[!a-z0-9.+-]*) continue ;;
+  esac
+  dpkg -s "$p" >/dev/null 2>&1 || printf '%s\\n' "$p"
+done
+`;
+
+const INSTALL_PKGS_SCRIPT = `
+missing=""
+while IFS= read -r p; do
+  case "$p" in
+    ""|*[!a-z0-9.+-]*) continue ;;
+  esac
+  missing="$missing $p"
+done
+if [ -n "$missing" ]; then
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confold $missing
+fi
+`;
+
+class ProgressError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = 'ProgressError';
+    this.status = status;
+    this.code = code;
+  }
 }
 
-function spawnKubectl(
-  args: string[],
-  env: NodeJS.ProcessEnv,
-  timeoutMs: number,
-): ChildProcess {
-  const child = spawn('kubectl', args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
-  const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
-  child.on('close', () => clearTimeout(timer));
-  return child;
+type ProgressStatus = {
+  saved: boolean;
+  bytes: number;
+  usedBytes: number;
+  limitBytes: number;
+};
+
+function progressOwner(owner: string): string {
+  const safe = String(owner || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  if (!safe || safe === 'anonymous') {
+    throw new ProgressError(400, 'PROGRESS_OWNER', 'Could not tell which account this save belongs to.');
+  }
+  return safe;
+}
+
+function progressChallenge(challengeId: string): string {
+  return String(challengeId || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+}
+
+function progressDir(owner: string): string {
+  return path.join(PROGRESS_DIR, progressOwner(owner));
+}
+
+function progressFiles(owner: string, challengeId: string): { tar: string; pkgs: string; partial: string } {
+  const id = progressChallenge(challengeId);
+  const dir = progressDir(owner);
+  return {
+    tar: path.join(dir, `${id}.tar`),
+    pkgs: path.join(dir, `${id}.pkgs`),
+    partial: path.join(dir, `${id}.tar.partial`),
+  };
+}
+
+function fileSize(file: string): number {
+  try {
+    return fs.statSync(file).size;
+  } catch {
+    return 0;
+  }
+}
+
+/** Bytes already saved for this account. Pass a challenge id to leave that lab out. */
+function usedProgressBytes(owner: string, exceptChallengeId?: string): number {
+  let dir: string;
+  try {
+    dir = progressDir(owner);
+  } catch {
+    return 0;
+  }
+  if (!fs.existsSync(dir)) return 0;
+  const except = exceptChallengeId ? progressChallenge(exceptChallengeId) : null;
+  let total = 0;
+  for (const name of fs.readdirSync(dir) as string[]) {
+    if (!name.endsWith('.tar') && !name.endsWith('.pkgs')) continue;
+    const id = name.replace(/\.(tar|pkgs)$/, '');
+    if (except && id === except) continue;
+    total += fileSize(path.join(dir, name));
+  }
+  return total;
+}
+
+function formatProgressBytes(n: number): string {
+  if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  if (n >= 1024 * 1024) return `${Math.round(n / (1024 * 1024))} MB`;
+  return `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+
+function quotaMessage(used: number): string {
+  return `Saved progress is limited to 500 MB across all your labs. ${formatProgressBytes(used)} is already in use, so this save does not fit.`;
+}
+
+function progressStatus(owner: string, challengeId: string): ProgressStatus {
+  const files = progressFiles(owner, challengeId);
+  const tarBytes = fileSize(files.tar);
+  const saved = tarBytes > 0;
+  return {
+    saved,
+    bytes: saved ? tarBytes + fileSize(files.pkgs) : 0,
+    usedBytes: usedProgressBytes(owner),
+    limitBytes: PROGRESS_LIMIT_BYTES,
+  };
+}
+
+function discardProgress(owner: string, challengeId: string): void {
+  if (!owner) return;
+  let files: { tar: string; pkgs: string; partial: string };
+  try {
+    files = progressFiles(owner, challengeId);
+  } catch {
+    return;
+  }
+  fs.rmSync(files.tar, { force: true });
+  fs.rmSync(files.pkgs, { force: true });
+  fs.rmSync(files.partial, { force: true });
+}
+
+function packageNames(text: string): string[] {
+  const out: string[] = [];
+  for (const line of String(text || '').split('\n')) {
+    const name = line.trim();
+    if (!/^[a-z0-9][a-z0-9.+-]*$/.test(name)) continue;
+    if (!out.includes(name)) out.push(name);
+    if (out.length >= 500) break;
+  }
+  return out;
+}
+
+type TarStreamOpts = {
+  args: string[];
+  stdinPath?: string;
+  stdoutPath?: string;
+  limitBytes?: number;
+  /** Bytes already saved in other labs, for the quota error. */
+  quotaUsed?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+};
+
+/** Stream a tar between a file and `kubectl exec` without holding it in memory. */
+function streamKubectl(opts: TarStreamOpts): Promise<{ code: number; bytes: number; stderr: string }> {
+  const startSignal: AbortSignal | undefined = k8s.currentStartSignal();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let bytes = 0;
+    let stderr = '';
+    let quotaHit = false;
+    let child: ReturnType<typeof spawn> | null = null;
+    let out: ReturnType<typeof fs.createWriteStream> | null = null;
+    const stopWatching = (): void => {
+      clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', onAbort);
+      startSignal?.removeEventListener('abort', onStartAbort);
+    };
+    const fail = (err: Error): void => {
+      if (settled) return;
+      settled = true;
+      stopWatching();
+      out?.destroy();
+      reject(err);
+    };
+    const timer = setTimeout(() => {
+      child?.kill('SIGKILL');
+      fail(new ProgressError(504, 'PROGRESS_TIMEOUT', 'Saving or restoring progress took too long.'));
+    }, opts.timeoutMs || PROGRESS_IO_MS);
+    const onAbort = (): void => {
+      child?.kill('SIGKILL');
+      fail(new ProgressError(499, 'PROGRESS_CANCELLED', 'Save cancelled.'));
+    };
+    const onStartAbort = (): void => {
+      child?.kill('SIGKILL');
+      fail(k8s.startSuperseded());
+    };
+    if (opts.signal?.aborted || startSignal?.aborted) {
+      (startSignal?.aborted ? onStartAbort : onAbort)();
+      return;
+    }
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    startSignal?.addEventListener('abort', onStartAbort, { once: true });
+
+    void k8s.controllerKubectlCommand(opts.args).then(
+      (cmd: { args: string[]; env: NodeJS.ProcessEnv }) => {
+        if (settled) return;
+        child = spawn('kubectl', cmd.args, { env: cmd.env, stdio: ['pipe', 'pipe', 'pipe'] });
+        out = opts.stdoutPath ? fs.createWriteStream(opts.stdoutPath) : null;
+        out?.on('error', (err: Error) => fail(err));
+        child.stderr?.on('data', (chunk: Buffer) => {
+          if (stderr.length < 4000) stderr += chunk.toString('utf8');
+        });
+        child.stdout?.on('data', (chunk: Buffer) => {
+          bytes += chunk.length;
+          if (opts.limitBytes != null && bytes > opts.limitBytes) {
+            quotaHit = true;
+            child?.kill('SIGKILL');
+            return;
+          }
+          if (out && !out.write(chunk)) child?.stdout?.pause();
+        });
+        if (out) out.on('drain', () => child?.stdout?.resume());
+        child.on('error', (err: Error) => fail(err));
+        child.on('close', (code: number | null) => {
+          const finish = (): void => {
+            if (settled) return;
+            settled = true;
+            stopWatching();
+            if (startSignal?.aborted) {
+              reject(k8s.startSuperseded());
+              return;
+            }
+            if (quotaHit) {
+              reject(new ProgressError(413, 'PROGRESS_QUOTA', quotaMessage(opts.quotaUsed || 0)));
+              return;
+            }
+            resolve({ code: code ?? 1, bytes, stderr: stderr.trim() });
+          };
+          if (out) out.end(finish);
+          else finish();
+        });
+        if (opts.stdinPath) {
+          fs.createReadStream(opts.stdinPath)
+            .on('error', (err: Error) => fail(err))
+            .pipe(child.stdin);
+        } else {
+          child.stdin.end();
+        }
+      },
+      (err: Error) => fail(err),
+    );
+  });
+}
+
+async function saveProgress(
+  ns: string,
+  owner: string,
+  challengeId: string,
+  signal?: AbortSignal,
+): Promise<ProgressStatus> {
+  const files = progressFiles(owner, challengeId);
+  fs.mkdirSync(path.dirname(files.partial), { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(path.dirname(files.partial), 0o700); } catch { /* directory already private */ }
+  fs.rmSync(files.partial, { force: true });
+  const usedOther = usedProgressBytes(owner, challengeId);
+  const room = PROGRESS_LIMIT_BYTES - usedOther - 65_536;
+  if (room <= 0) {
+    throw new ProgressError(413, 'PROGRESS_QUOTA', quotaMessage(usedOther));
+  }
+  let streamed: { code: number; bytes: number; stderr: string };
+  try {
+    streamed = await streamKubectl({
+      args: ['exec', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--', 'bash', '--noprofile', '--norc', '-c', SAVE_SCRIPT],
+      stdoutPath: files.partial,
+      limitBytes: room,
+      quotaUsed: usedOther,
+      signal,
+    });
+  } catch (err) {
+    fs.rmSync(files.partial, { force: true });
+    throw err;
+  }
+  if (streamed.code !== 0 && streamed.code !== 1) {
+    fs.rmSync(files.partial, { force: true });
+    const detail = streamed.stderr || `tar exited ${streamed.code}`;
+    throw new ProgressError(502, 'PROGRESS_SAVE_FAILED', `Could not save progress. ${detail}`);
+  }
+  if (streamed.bytes <= 0 || fileSize(files.partial) <= 0) {
+    fs.rmSync(files.partial, { force: true });
+    throw new ProgressError(502, 'PROGRESS_SAVE_FAILED', 'Could not save progress. The archive was empty.');
+  }
+  fs.renameSync(files.partial, files.tar);
+  try { fs.chmodSync(files.tar, 0o600); } catch { /* the archive is still the save */ }
+
+  let pkgs = '';
+  try {
+    const listed = await k8s.runKubectl(
+      ['exec', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--', 'apt-mark', 'showmanual'],
+      { timeoutMs: 20_000 },
+    );
+    if (listed.code === 0) pkgs = `${packageNames(listed.stdout).join('\n')}\n`;
+  } catch {
+    pkgs = '';
+  }
+  if (pkgs.trim()) fs.writeFileSync(files.pkgs, pkgs, { mode: 0o600 });
+  else fs.rmSync(files.pkgs, { force: true });
+
+  const status = progressStatus(owner, challengeId);
+  if (status.usedBytes > PROGRESS_LIMIT_BYTES) {
+    discardProgress(owner, challengeId);
+    throw new ProgressError(413, 'PROGRESS_QUOTA', quotaMessage(usedProgressBytes(owner)));
+  }
+  return status;
+}
+
+async function execInBox(ns: string, script: string, input: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  return k8s.runKubectl(
+    ['exec', '-i', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--', 'bash', '--noprofile', '--norc', '-c', script],
+    { input, timeoutMs: PROGRESS_IO_MS },
+  );
+}
+
+/** Files the container runtime owns. Replacing them on restore fails with "File exists". */
+const CONTAINER_ETC = ['etc/hostname', 'etc/hosts', 'etc/resolv.conf', 'etc/mtab'];
+
+function containerFileNoise(stderr: string): boolean {
+  const lines = stderr.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return false;
+  return lines.every((line) => (
+    /tar: etc\/(hostname|hosts|resolv\.conf|mtab):/.test(line)
+    || /tar: Exiting with failure status/.test(line)
+    || /command terminated with exit code/.test(line)
+  ));
 }
 
 /**
- * Copy the box filesystem out, then the caller deletes the pod. Throws on
- * failure so the pod is left running and the work is not thrown away.
+ * Put a saved archive back after setup.sh. Setup often deletes lab paths, so
+ * the save has to land on top of that starter state. Returns false when this
+ * lab has no save.
  */
-async function saveBoxWork(ns: string, challengeId: string): Promise<void> {
-  const dest = workArchivePath(ns, challengeId);
-  fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
-  const partial = `${dest}.partial`;
-  const cmd = await k8s.controllerKubectlCommand([
-    'exec', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--',
-    'sh', '-c',
-    'if command -v systemctl >/dev/null 2>&1; then systemctl stop docker >/dev/null 2>&1 || true; fi; exec tar -C / -cf - --exclude=./proc --exclude=./sys --exclude=./dev --exclude=./run --exclude=./tmp --exclude=./var/cache .',
-  ]);
-  await new Promise<void>((resolve, reject) => {
-    const child = spawnKubectl(cmd.args, cmd.env, WORK_SAVE_TIMEOUT_MS);
-    const stdout = child.stdout;
-    const errStream = child.stderr;
-    if (!stdout || !errStream) {
-      child.kill('SIGKILL');
-      throw new Error('box snapshot could not capture kubectl output');
-    }
-    const out = fs.createWriteStream(partial);
-    let bytes = 0;
-    let stderr = '';
-    let failed: Error | null = null;
-    const fail = (err: Error) => {
-      if (failed) return;
-      failed = err;
-      child.kill('SIGKILL');
-    };
-    stdout.on('data', (chunk: Buffer) => {
-      bytes += chunk.length;
-      if (bytes > WORK_BYTES_MAX) fail(new Error('box snapshot is larger than 4 GiB'));
-    });
-    stdout.pipe(out);
-    errStream.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-      if (stderr.length > 4000) stderr = stderr.slice(-4000);
-    });
-    child.on('error', (err: Error) => fail(err));
-    child.on('close', (code: number | null) => {
-      out.end(() => {
-        if (failed || code !== 0 || bytes <= 512) {
-          fs.rmSync(partial, { force: true });
-          reject(failed || new Error((stderr || `box snapshot failed (exit ${code})`).trim()));
-          return;
-        }
-        fs.renameSync(partial, dest);
-        resolve();
-      });
-    });
+async function restoreProgress(
+  ns: string,
+  owner: string,
+  challengeId: string,
+  onPhase?: (message: string) => void,
+): Promise<boolean> {
+  let files: { tar: string; pkgs: string; partial: string };
+  try {
+    files = progressFiles(owner, challengeId);
+  } catch {
+    return false;
+  }
+  if (fileSize(files.tar) <= 0) return false;
+  onPhase?.('Applying your saved progress');
+  const extracted = await streamKubectl({
+    args: [
+      'exec', '-i', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--',
+      'tar', '-C', '/', '-xf', '-', '--acls', '--xattrs',
+      ...CONTAINER_ETC.flatMap((rel) => ['--exclude', rel]),
+    ],
+    stdinPath: files.tar,
   });
-}
-
-/** Put a saved filesystem back onto a freshly booted box. */
-async function restoreBoxWork(ns: string, challengeId: string): Promise<void> {
-  const src = workArchivePath(ns, challengeId);
-  const cmd = await k8s.controllerKubectlCommand([
-    'exec', '-i', '-n', ns, BOX_POD, '-c', BOX_CONTAINER, '--',
-    'sh', '-c',
-    'if command -v systemctl >/dev/null 2>&1; then systemctl stop docker >/dev/null 2>&1 || true; fi; tar -C / -xf -; if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload >/dev/null 2>&1 || true; systemctl start docker >/dev/null 2>&1 || true; fi',
-  ]);
-  await new Promise<void>((resolve, reject) => {
-    const child = spawnKubectl(cmd.args, cmd.env, WORK_SAVE_TIMEOUT_MS);
-    const errStream = child.stderr;
-    const stdin = child.stdin;
-    if (!errStream || !stdin) {
-      child.kill('SIGKILL');
-      reject(new Error('box restore could not attach to kubectl'));
-      return;
-    }
-    let stderr = '';
-    errStream.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-      if (stderr.length > 4000) stderr = stderr.slice(-4000);
-    });
-    const input = fs.createReadStream(src);
-    input.on('error', (err: Error) => reject(err));
-    stdin.on('error', () => undefined);
-    input.pipe(stdin);
-    child.on('error', (err: Error) => reject(err));
-    child.on('close', (code: number | null) => {
-      if (code !== 0) reject(new Error((stderr || `box restore failed (exit ${code})`).trim()));
-      else resolve();
-    });
-  });
+  if (extracted.code !== 0 && extracted.code !== 1 && !containerFileNoise(extracted.stderr)) {
+    throw new ProgressError(
+      502,
+      'PROGRESS_RESTORE_FAILED',
+      `Your saved progress could not be applied. ${extracted.stderr || 'The archive could not be read.'}`,
+    );
+  }
+  const names = packageNames(fs.existsSync(files.pkgs) ? fs.readFileSync(files.pkgs, 'utf8') : '');
+  if (!names.length) return true;
+  const probe = await execInBox(ns, MISSING_PKGS_SCRIPT, `${names.join('\n')}\n`);
+  const missing = packageNames(probe.stdout);
+  if (!missing.length) return true;
+  onPhase?.('Installing tools from your saved progress');
+  const installed = await execInBox(ns, INSTALL_PKGS_SCRIPT, `${missing.join('\n')}\n`);
+  if (installed.code !== 0) {
+    const detail = (installed.stderr || installed.stdout || 'apt failed').trim().split('\n').slice(-3).join(' ');
+    throw new ProgressError(
+      502,
+      'PROGRESS_RESTORE_FAILED',
+      `Your saved files are back, but tools from that save could not be installed. ${detail}`,
+    );
+  }
+  return true;
 }
 
 /** devlabs.io/pool the flavor's boxes are scheduled on. */
@@ -588,11 +891,12 @@ module.exports = {
   playgroundNamespace,
   recreateBox,
   deleteBox,
-  hasBoxWork,
   discardBoxWork,
-  boxIsReady,
-  saveBoxWork,
-  restoreBoxWork,
+  PROGRESS_LIMIT_BYTES,
+  progressStatus,
+  discardProgress,
+  saveProgress,
+  restoreProgress,
   poolFor,
   scriptEnv,
   shellExecArgs,

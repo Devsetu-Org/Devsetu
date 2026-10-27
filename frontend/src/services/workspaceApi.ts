@@ -224,14 +224,23 @@ function rewriteWsUrl(url: string | null | undefined): string | null {
   }
 }
 
+/** Stop lab boots older than openSeq. A newer open is left alone. */
+export async function cancelInflightK8sStart(openSeq: number): Promise<void> {
+  await axios.post(
+    '/api/session/k8s/start/cancel',
+    { clientId: labClientId(), openSeq },
+    { headers: getAuthHeader() },
+  ).catch(() => undefined);
+}
+
 export async function startK8sSession(
   challengeId: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; signal?: AbortSignal; openSeq?: number } = {},
 ): Promise<K8sSessionStartResult> {
   const { data } = await axios.post(
     '/api/session/k8s/start',
-    { challengeId, clientId: labClientId(), force: Boolean(opts.force) },
-    { headers: getAuthHeader() },
+    { challengeId, clientId: labClientId(), force: Boolean(opts.force), openSeq: opts.openSeq || 0 },
+    { headers: getAuthHeader(), signal: opts.signal },
   );
   const payload = data as K8sSessionStartResult;
   return {
@@ -272,6 +281,59 @@ export async function fetchK8sCapacity(): Promise<K8sCapacityState> {
   const { data } = await axios.get('/api/session/k8s/capacity', { headers: getAuthHeader() });
   const d = data as Partial<K8sCapacityState>;
   return { waiting: d.waiting || [], reservingSeconds: d.reservingSeconds ?? null };
+}
+
+export type LabBootPhase = {
+  steps: string[];
+  current: string | null;
+  /** Null until the server has said whether this lab has a save. */
+  restoresSave: boolean | null;
+};
+
+export async function fetchLabBootPhase(openSeq: number, challengeId: string): Promise<LabBootPhase> {
+  const { data } = await axios.get('/api/session/k8s/boot-phase', {
+    headers: getAuthHeader(),
+    params: { openSeq, challengeId },
+  });
+  const d = data as Partial<LabBootPhase>;
+  return {
+    steps: Array.isArray(d.steps) ? d.steps.filter((s) => typeof s === 'string') : [],
+    current: typeof d.current === 'string' ? d.current : null,
+    restoresSave: typeof d.restoresSave === 'boolean' ? d.restoresSave : null,
+  };
+}
+
+export type LabProgressStatus = {
+  enabled: boolean;
+  saved: boolean;
+  bytes: number;
+  usedBytes: number;
+  limitBytes: number;
+};
+
+function asProgress(data: unknown): LabProgressStatus {
+  const d = (data || {}) as Partial<LabProgressStatus>;
+  return {
+    enabled: Boolean(d.enabled),
+    saved: Boolean(d.saved),
+    bytes: Number(d.bytes) || 0,
+    usedBytes: Number(d.usedBytes) || 0,
+    limitBytes: Number(d.limitBytes) || 500 * 1024 * 1024,
+  };
+}
+
+export async function fetchLabProgress(sessionId: string): Promise<LabProgressStatus> {
+  const { data } = await axios.get(`/api/session/${sessionId}/progress`, { headers: getAuthHeader() });
+  return asProgress(data);
+}
+
+export async function saveLabProgress(sessionId: string): Promise<LabProgressStatus> {
+  const { data } = await axios.post(
+    `/api/session/${sessionId}/progress`,
+    {},
+    { headers: getAuthHeader(), timeout: 12 * 60 * 1000 },
+  );
+  return asProgress(data);
 }
 
 export async function gradeK8sSession(

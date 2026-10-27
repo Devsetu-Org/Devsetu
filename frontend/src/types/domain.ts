@@ -426,10 +426,16 @@ export interface ActiveSession {
    */
   lockedMessage?: string | null;
   /**
-   * The lab was stopped for inactivity. The terminal shows a lock screen with a
-   * way to start a fresh machine, instead of the shell's disconnect logs.
+   * The lab's time ran out. The terminal shows a closed screen with a way to
+   * start a fresh machine, instead of the shell's disconnect logs.
    */
   idleLocked?: boolean;
+  /**
+   * The brief is open and no machine has been requested yet. Start creates the session.
+   */
+  notStarted?: boolean;
+  /** Which lab-open this boot display belongs to, so a previous lab's steps are not shown. */
+  bootSeq?: number;
 }
 
 export interface EndSessionResult {
@@ -451,9 +457,10 @@ export interface AppState {
   activeTab: WorkspaceTab;
   setActiveTab: (tab: WorkspaceTab) => void;
   ending: boolean;
-  /** Shown in the slim closing toast over the catalog. */
-  closingLabTitle?: string | null;
-  onSelectChallenge: (challenge: ChallengePublic | ChallengeFull) => Promise<void>;
+  onSelectChallenge: (
+    challenge: ChallengePublic | ChallengeFull,
+    opts?: { force?: boolean; start?: boolean },
+  ) => Promise<void>;
   /** Open freeform Spark Playground (Run-only; no default INPUT_PATH). */
   onOpenSparkPlayground?: () => Promise<void>;
   onBackToLibrary: () => void;

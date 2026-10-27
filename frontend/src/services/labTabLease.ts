@@ -26,6 +26,13 @@ export const LAB_LEASE_TAKEN_EVENT = 'devlabs:lab-lease-taken';
 export const LAB_SESSION_ENDED_EVENT = 'devlabs:lab-session-ended';
 /** Fired when this tab's lab was stopped because it sat idle. */
 export const LAB_SESSION_IDLE_EVENT = 'devlabs:lab-session-idle';
+/** Remaining time before this lab closes. Detail: { sessionId, idleRemainingMs }. */
+export const LAB_TIME_LEFT_EVENT = 'devlabs:lab-time-left';
+
+export interface LabTimeLeftDetail {
+  sessionId: string;
+  idleRemainingMs: number;
+}
 /** Fired after this tab takes the lab back, so the workspace can reconnect its terminal. */
 export const LAB_LEASE_RECLAIMED_EVENT = 'devlabs:lab-lease-reclaimed';
 
@@ -99,11 +106,17 @@ export type HeartbeatResult = 'ok' | 'taken' | 'ended' | 'idle' | 'error';
 
 export async function sendLabHeartbeat(sessionId: string, force = false): Promise<HeartbeatResult> {
   try {
-    await axios.post(
+    const res = await axios.post(
       `/api/session/${sessionId}/heartbeat`,
       { clientId: CLIENT_ID, force },
       { headers: getAuthHeader() },
     );
+    const idleRemainingMs = Number(res.data?.idleRemainingMs);
+    if (Number.isFinite(idleRemainingMs) && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<LabTimeLeftDetail>(LAB_TIME_LEFT_EVENT, {
+        detail: { sessionId, idleRemainingMs },
+      }));
+    }
     return 'ok';
   } catch (e) {
     const res = (e as { response?: { status?: number; data?: { code?: string } } })?.response;

@@ -21,6 +21,54 @@
  */
 
 const { spawn } = require('child_process');
+const { AsyncLocalStorage } = require('async_hooks');
+
+/** The open the learner walked away from. kubectl/setup children in this context are killed. */
+const startAbortStore = new AsyncLocalStorage();
+
+function startSuperseded(): Error {
+  return Object.assign(new Error('This lab open was cancelled.'), {
+    status: 409,
+    code: 'START_SUPERSEDED',
+  });
+}
+
+function isStartSuperseded(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === 'START_SUPERSEDED');
+}
+
+function currentStartSignal(): AbortSignal | undefined {
+  return (startAbortStore.getStore() as { signal?: AbortSignal } | undefined)?.signal;
+}
+
+function throwIfStartAborted(): void {
+  const ctx = startAbortStore.getStore() as { signal?: AbortSignal } | undefined;
+  if (ctx?.signal?.aborted) throw startSuperseded();
+}
+
+function trackStartChild(child: { kill: (sig: string) => void; on: (ev: string, fn: () => void) => void }): void {
+  const ctx = startAbortStore.getStore() as { signal?: AbortSignal; track?: (c: typeof child) => void } | undefined;
+  ctx?.track?.(child);
+}
+
+function runWithStartAbort<T>(signal: AbortSignal, fn: () => Promise<T>): Promise<T> {
+  const children = new Set<{ kill: (sig: string) => void }>();
+  const track = (child: { kill: (sig: string) => void; on: (ev: string, fn: () => void) => void }): void => {
+    children.add(child);
+    child.on('close', () => { children.delete(child); });
+    if (signal.aborted) {
+      try { child.kill('SIGKILL'); } catch { /* already gone */ }
+    }
+  };
+  const kill = (): void => {
+    for (const child of children) {
+      try { child.kill('SIGKILL'); } catch { /* already gone */ }
+    }
+  };
+  if (signal.aborted) kill();
+  else signal.addEventListener('abort', kill, { once: true });
+  return startAbortStore.run({ signal, track }, fn);
+}
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -394,15 +442,25 @@ function runKubectl(
       env = kubectlEnv();
     }
     return new Promise<KubectlResult>((resolve, reject) => {
+      throwIfStartAborted();
+      const signal = (startAbortStore.getStore() as { signal?: AbortSignal } | undefined)?.signal;
       const child = spawn('kubectl', fullArgs, {
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+      trackStartChild(child);
       let stdout = '';
       let stderr = '';
+      let settled = false;
+      const settle = (fn: () => void): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
       const timer = setTimeout(() => {
         child.kill('SIGKILL');
-        reject(Object.assign(new Error(`kubectl timed out after ${timeoutMs}ms`), { status: 504 }));
+        settle(() => reject(Object.assign(new Error(`kubectl timed out after ${timeoutMs}ms`), { status: 504 })));
       }, timeoutMs);
       child.stdout.on('data', (d: Buffer) => {
         stdout += d.toString();
@@ -411,12 +469,11 @@ function runKubectl(
         stderr += d.toString();
       });
       child.on('error', (err: Error) => {
-        clearTimeout(timer);
-        reject(err);
+        settle(() => reject(signal?.aborted ? startSuperseded() : err));
       });
       child.on('close', (code: number | null) => {
-        clearTimeout(timer);
-        resolve({ code: code ?? 1, stdout, stderr });
+        if (signal?.aborted) settle(() => reject(startSuperseded()));
+        else settle(() => resolve({ code: code ?? 1, stdout, stderr }));
       });
       if (opts.input != null) {
         child.stdin.write(opts.input);
@@ -1597,16 +1654,26 @@ async function runChallengeScript(
     ...(opts.env || {}),
   };
   return new Promise((resolve, reject) => {
+    throwIfStartAborted();
+    const signal = (startAbortStore.getStore() as { signal?: AbortSignal } | undefined)?.signal;
     const child = spawn('bash', [scriptPath], {
       env,
       cwd: path.dirname(scriptPath),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    trackStartChild(child);
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
-      reject(Object.assign(new Error(`script timed out: ${scriptName}`), { status: 504 }));
+      settle(() => reject(Object.assign(new Error(`script timed out: ${scriptName}`), { status: 504 })));
     }, timeoutMs);
     child.stdout.on('data', (d: Buffer) => {
       stdout += d.toString();
@@ -1615,12 +1682,11 @@ async function runChallengeScript(
       stderr += d.toString();
     });
     child.on('error', (err: Error) => {
-      clearTimeout(timer);
-      reject(err);
+      settle(() => reject(signal?.aborted ? startSuperseded() : err));
     });
     child.on('close', (code: number | null) => {
-      clearTimeout(timer);
-      resolve({ code: code ?? 1, stdout, stderr });
+      if (signal?.aborted) settle(() => reject(startSuperseded()));
+      else settle(() => resolve({ code: code ?? 1, stdout, stderr }));
     });
   });
 }
@@ -1654,4 +1720,9 @@ module.exports = {
   resolveLearnerHome,
   scriptsDir,
   runChallengeScript,
+  startSuperseded,
+  isStartSuperseded,
+  throwIfStartAborted,
+  currentStartSignal,
+  runWithStartAbort,
 };
