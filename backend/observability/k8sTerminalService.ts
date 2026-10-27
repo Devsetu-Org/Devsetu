@@ -528,9 +528,9 @@ function attachShell(
       lastActivityAt?: number | null;
       startTime?: number;
     } | null;
-    const last = Number(session?.lastActivityAt) || Number(session?.startTime) || 0;
+    const opened = sessionIdle.openedAt(session || {});
     const idle = session?.endReason === 'idle_timeout'
-      || (session?.status === 'active' && last > 0 && Date.now() - last >= sessionIdle.IDLE_MS);
+      || (session?.status === 'active' && opened > 0 && Date.now() - opened >= sessionIdle.IDLE_MS);
     if (idle && session?.status === 'active') {
       void sessionIdle.endSessionById(sessionId, 'idle_timeout');
     }
@@ -576,6 +576,9 @@ function attachShell(
     closeAll(MOVED_NOTICE);
     return;
   }
+
+  // Lab time starts when the shell is up, not when setup finished.
+  sessionIdle.markLabClockStarted(sessionId);
 
   ws.on('message', (msg: unknown) => {
     const buf = Buffer.isBuffer(msg) ? msg : Buffer.from(msg as ArrayBuffer);

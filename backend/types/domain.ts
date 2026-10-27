@@ -425,7 +425,7 @@ export interface GameSession {
   entrypoint?: string | null;
   workspaceUpdatedAt?: number | null;
   boardState?: BoardState | null;
-  /** Last user activity (API / terminal). Used for idle timeout. */
+  /** When the lab clock started (shell ready). Null until then; not reset by activity. */
   lastActivityAt?: number | null;
   /** Why the session left `active`, when the server ended it (for example `idle_timeout`). */
   endReason?: string | null;

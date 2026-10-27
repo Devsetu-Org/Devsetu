@@ -48,7 +48,7 @@ export default function UsernameGate({ onSaved, onLogout }: UsernameGateProps): 
             spellCheck={false}
             maxLength={24}
             value={username}
-            placeholder="rithvik"
+            placeholder="Arjun"
             aria-invalid={Boolean(error)}
             onChange={(event) => {
               setError(null);

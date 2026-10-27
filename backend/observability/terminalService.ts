@@ -7,6 +7,7 @@ import type { IPty, ObservabilityWebSocket } from '../types/ws';
 const pty = require('node-pty');
 const sessionStore = require('../db/sessionStore');
 const bus = require('./terminalEventBus');
+const sessionIdle = require('../workspace/sessionIdle');
 
 function parseQuery(req: IncomingMessage): URLSearchParams {
   try {
@@ -92,6 +93,8 @@ function handleConnection(ws: ObservabilityWebSocket, req: IncomingMessage): voi
     ws.close();
     return;
   }
+
+  sessionIdle.markLabClockStarted(sessionId);
 
   let closed = false;
   const closeAll = () => {

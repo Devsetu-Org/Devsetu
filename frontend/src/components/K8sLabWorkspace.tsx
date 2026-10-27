@@ -476,7 +476,7 @@ export default function K8sLabWorkspace({
   const openingHeldForCapacity = capacity.reservingSeconds !== null || capacityWaits.length > 0;
   const timeLeftMs = useLabTimeLeft(
     session.id,
-    !idleLocked && !session.id.startsWith('pending-k8s-'),
+    Boolean(labReady && !idleLocked && !notStarted && !session.id.startsWith('pending-k8s-')),
   );
 
   useEffect(() => {
