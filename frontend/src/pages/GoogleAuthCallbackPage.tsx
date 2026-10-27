@@ -1,11 +1,53 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import BrandMark from '../components/BrandMark';
-import { acceptAuthSession } from '../services/authApi';
+import {
+  acceptAuthSession,
+  GOOGLE_OAUTH_RESULT,
+  GOOGLE_OAUTH_WINDOW_NAME,
+  takePostLoginPath,
+  writeOAuthBridge,
+  type GoogleOAuthResult,
+} from '../services/authApi';
 import type { UserRecord } from '../types/domain';
 
 interface GoogleAuthCallbackPageProps {
   onLoggedIn: (user: UserRecord) => void;
+}
+
+function safeAppPath(path: string | null): string {
+  if (!path || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/auth/')) {
+    return '/track';
+  }
+  return path;
+}
+
+function isOAuthPopupWindow(): boolean {
+  try {
+    if (window.opener && !window.opener.closed) return true;
+  } catch { /* cross-origin */ }
+  return window.name === GOOGLE_OAUTH_WINDOW_NAME;
+}
+
+/**
+ * Hand result to the lab tab. Returns true when this window should stay on the
+ * "you can close this" screen (separate OAuth tab) instead of navigating in-app.
+ */
+function deliverToOpener(result: GoogleOAuthResult): boolean {
+  writeOAuthBridge(result);
+  if (result.ok) {
+    acceptAuthSession(result.token, result.user);
+  }
+  let posted = false;
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(result, window.location.origin);
+      posted = true;
+    }
+  } catch { /* ignore */ }
+  const popup = isOAuthPopupWindow();
+  try { window.close(); } catch { /* ignore */ }
+  return posted || popup;
 }
 
 /** Landing after Google OAuth redirect (?token=&user= / ?pending= / ?error=). */
@@ -21,7 +63,6 @@ export default function GoogleAuthCallbackPage({
   const handledRef = useRef(false);
 
   useEffect(() => {
-    // Signing in re-renders the app with this page still mounted; the token must be consumed once.
     if (handledRef.current) return undefined;
     handledRef.current = true;
     const error = searchParams.get('error');
@@ -30,7 +71,16 @@ export default function GoogleAuthCallbackPage({
     const token = searchParams.get('token');
     const userRaw = searchParams.get('user');
 
+    const finishPopup = (msg: string, nextTone: 'pending' | 'error' | 'ok'): void => {
+      setTone(nextTone);
+      setMessage(msg);
+    };
+
     if (error) {
+      if (deliverToOpener({ type: GOOGLE_OAUTH_RESULT, ok: false, error })) {
+        finishPopup('You can close this window.', 'error');
+        return undefined;
+      }
       setTone('error');
       setMessage(error);
       const t = window.setTimeout(() => navigate('/', { replace: true }), 2800);
@@ -38,26 +88,48 @@ export default function GoogleAuthCallbackPage({
     }
 
     if (pending === '1') {
+      const msg = pendingMessage || 'Account created. Awaiting admin approval.';
+      if (deliverToOpener({ type: GOOGLE_OAUTH_RESULT, ok: false, error: msg, pending: true })) {
+        finishPopup(msg, 'pending');
+        return undefined;
+      }
       setTone('pending');
-      setMessage(pendingMessage || 'Account created. Awaiting admin approval.');
+      setMessage(msg);
       const t = window.setTimeout(() => navigate('/', { replace: true }), 3200);
       return () => window.clearTimeout(t);
     }
 
     if (!token || !userRaw) {
+      const msg = 'Missing sign-in details. Returning home…';
+      if (deliverToOpener({ type: GOOGLE_OAUTH_RESULT, ok: false, error: msg })) {
+        finishPopup(msg, 'error');
+        return undefined;
+      }
       setTone('error');
-      setMessage('Missing sign-in details. Returning home…');
+      setMessage(msg);
       const t = window.setTimeout(() => navigate('/', { replace: true }), 2000);
       return () => window.clearTimeout(t);
     }
 
     try {
       const user = JSON.parse(userRaw) as UserRecord;
-      acceptAuthSession(token, user);
+      if (deliverToOpener({ type: GOOGLE_OAUTH_RESULT, ok: true, token, user })) {
+        // Lab tab picks up the session via bridge / postMessage. Stay here so this
+        // tab is not a second app with Google under it.
+        finishPopup('Signed in. You can close this window.', 'ok');
+        return undefined;
+      }
+      // Same-tab OAuth (legacy / popup blocked): session already stored by deliver.
       onLoggedInRef.current(user);
+      window.location.replace(safeAppPath(takePostLoginPath()));
     } catch {
+      const msg = 'Could not complete Google sign-in.';
+      if (deliverToOpener({ type: GOOGLE_OAUTH_RESULT, ok: false, error: msg })) {
+        finishPopup(msg, 'error');
+        return undefined;
+      }
       setTone('error');
-      setMessage('Could not complete Google sign-in.');
+      setMessage(msg);
       const t = window.setTimeout(() => navigate('/', { replace: true }), 2500);
       return () => window.clearTimeout(t);
     }

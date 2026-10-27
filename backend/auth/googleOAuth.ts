@@ -67,7 +67,8 @@ function buildAuthorizeUrl(state: string): string {
     scope: 'openid email profile',
     access_type: 'online',
     include_granted_scopes: 'true',
-    prompt: 'select_account',
+    // Do not force the account chooser every time; a returning browser session can
+    // continue. prompt=select_account left Google under lab pages in history.
     state,
   });
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
