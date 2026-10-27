@@ -133,6 +133,8 @@ async function startBoardSession({
     }
     sessionStore.set(existing.id, existing);
     await sessionStore.persistRow(existing);
+    const sessionIdle = require('./sessionIdle');
+    sessionIdle.markLabClockStarted(existing.id);
     return { session: existing, created: false, spec };
   }
 
@@ -154,6 +156,8 @@ async function startBoardSession({
 
   sessionStore.set(sessionId, session);
   await sessionStore.persistRow(session);
+  const sessionIdle = require('./sessionIdle');
+  sessionIdle.markLabClockStarted(sessionId);
   return { session, created: true, spec };
 }
 

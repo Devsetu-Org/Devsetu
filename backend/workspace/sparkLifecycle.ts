@@ -146,6 +146,8 @@ async function startSparkSession({
     }
 
     await sessionStore.persistRow(existing);
+    const sessionIdle = require('./sessionIdle');
+    sessionIdle.markLabClockStarted(existing.id);
     return { session: existing, created: false };
   }
 
@@ -182,6 +184,8 @@ async function startSparkSession({
     throw wrapSeedError(err);
   }
 
+  const sessionIdle = require('./sessionIdle');
+  sessionIdle.markLabClockStarted(sessionId);
   return { session, created: true };
 }
 

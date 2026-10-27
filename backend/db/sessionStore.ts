@@ -36,7 +36,8 @@ function makeSession({
     terminalService: null,
     services: [],
     commandHistory: [],
-    lastActivityAt: Date.now(),
+    // Set when the shell (or a non-shell lab) is ready; until then the lab clock has not started.
+    lastActivityAt: null,
   };
 }
 
@@ -139,8 +140,9 @@ async function restoreFromDB(): Promise<void> {
       ? Number(row.workspace_updated_at)
       : session.workspaceUpdatedAt || null;
     session.boardState = row.board_state || session.boardState || null;
+    // Keep a restored clock if redis had one; otherwise wait for the next shell attach.
     if (!Number(session.lastActivityAt)) {
-      session.lastActivityAt = Number(session.startTime) || Date.now();
+      session.lastActivityAt = null;
     }
 
     sessions.set(row.id, session);

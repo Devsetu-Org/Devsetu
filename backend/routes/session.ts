@@ -1158,8 +1158,10 @@ router.post('/:id/heartbeat', express.json({ limit: '4kb' }), (req: ExpressReque
       code: 'LAB_OPEN_IN_OTHER_TAB',
     });
   }
-  const last = Number(session.lastActivityAt) || Number(session.startTime) || Date.now();
-  const idleRemainingMs = Math.max(0, last + sessionIdle.IDLE_MS - Date.now());
+  const opened = sessionIdle.openedAt(session);
+  const idleRemainingMs = opened
+    ? Math.max(0, opened + sessionIdle.IDLE_MS - Date.now())
+    : sessionIdle.IDLE_MS;
   res.json({ ok: true, leaseTtlMs: sessionExclusivity.LEASE_TTL_MS, idleRemainingMs });
 });
 

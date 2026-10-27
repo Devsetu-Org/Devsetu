@@ -190,8 +190,8 @@ function labelValue(raw: string): string {
 
 /**
  * The pod clock starts when the kubelet accepts the pod, so it includes image pull and boot.
- * The lab clock starts when the machine is handed over and runs out on its own.
- * Five extra minutes keep that full lab time, because this pod clock includes image pull and boot.
+ * The lab clock starts when the shell is ready. Five extra minutes keep that full lab time,
+ * because this pod clock includes image pull and boot.
  * A start cancelled before the pod existed can still land afterwards; this stops that machine
  * even when the learner never opens another lab. Loaded lazily: sessionIdle pulls in this module.
  */

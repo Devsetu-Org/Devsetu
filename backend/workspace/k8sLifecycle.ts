@@ -464,8 +464,8 @@ async function provisionAndCommit(
     if (controller.signal.aborted || openGen.get(session.id) !== myGen) {
       throw k8s.startSuperseded();
     }
-    // The lab's time starts now, when the machine is ready. Later activity does not move it.
-    session.lastActivityAt = Date.now();
+    // Clock starts when the shell attaches, not when setup finishes.
+    session.lastActivityAt = null;
     await sessionStore.persistRow(session);
     return provisioned;
   } catch (err) {
@@ -557,6 +557,9 @@ async function resetK8sSession(sessionId: string): Promise<GameSession> {
   await ensureProvisioned(ns, challengeId, true);
   session.status = 'active';
   session.endTime = null;
+  session.endReason = null;
+  // Fresh machine: the next shell attach starts a new lab clock.
+  session.lastActivityAt = null;
   await sessionStore.persistRow(session);
   return session;
 }

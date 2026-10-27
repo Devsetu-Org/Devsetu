@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * Close a lab after a fixed time from when its machine is ready (45 minutes by default).
- * Typing, heartbeats, and other activity do not add time. Kubernetes namespace labs
- * park via endK8sSession. Linux and Docker sandboxes are ephemeral: the pod is
- * deleted and nothing is saved.
+ * Close a lab after a fixed time from when the shell is ready (45 minutes by default).
+ * Boot, image pull, and setup do not count. Typing and heartbeats do not add time.
+ * Kubernetes namespace labs park via endK8sSession. Linux and Docker sandboxes are
+ * ephemeral: the pod is deleted and nothing is saved.
  */
 
 import type { GameSession } from '../types/domain';
@@ -28,8 +28,22 @@ const SWEEP_MS = Math.max(
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 let ending = new Set<string>();
 
-function openedAt(session: GameSession & { lastActivityAt?: number }): number {
-  return Number(session.lastActivityAt) || Number(session.startTime) || 0;
+/** When the lab clock started. 0 until the shell (or a non-shell lab) is ready. */
+function openedAt(session: GameSession & { lastActivityAt?: number | null }): number {
+  const started = Number(session.lastActivityAt);
+  return Number.isFinite(started) && started > 0 ? started : 0;
+}
+
+/**
+ * Start the lab clock once. Later attaches and activity leave it alone.
+ * Call this when the shell is up, or when a board/Spark lab is handed to the browser.
+ */
+function markLabClockStarted(sessionId: string | null | undefined): void {
+  if (!sessionId) return;
+  const session = sessionStore.get(sessionId) as (GameSession & { lastActivityAt?: number | null }) | null;
+  if (!session || session.status !== 'active') return;
+  if (openedAt(session)) return;
+  session.lastActivityAt = Date.now();
 }
 
 async function endSessionById(sessionId: string, reason: string): Promise<void> {
@@ -69,13 +83,17 @@ async function endSessionById(sessionId: string, reason: string): Promise<void> 
 async function sweepOnce(): Promise<void> {
   const now = Date.now();
   const idle: string[] = [];
-  for (const session of sessionStore.all() as Array<GameSession & { lastActivityAt?: number }>) {
+  for (const session of sessionStore.all() as Array<GameSession & { lastActivityAt?: number | null }>) {
     if (session.status !== 'active') continue;
     if (session.runtime === 'kubernetes' && k8sLifecycle.isStartInFlight(session.id)) continue;
     const opened = openedAt(session);
-    if (opened > 0 && now - opened >= IDLE_MS) {
-      idle.push(session.id);
+    if (opened > 0) {
+      if (now - opened >= IDLE_MS) idle.push(session.id);
+      continue;
     }
+    // Shell never connected: still tear down after one lab window from session create.
+    const created = Number(session.startTime) || 0;
+    if (created > 0 && now - created >= IDLE_MS) idle.push(session.id);
   }
   for (const id of idle) {
     await endSessionById(id, 'idle_timeout');
@@ -101,6 +119,8 @@ function stopIdleWatcher(): void {
 
 module.exports = {
   IDLE_MS,
+  markLabClockStarted,
+  openedAt,
   startIdleWatcher,
   stopIdleWatcher,
   sweepOnce,
