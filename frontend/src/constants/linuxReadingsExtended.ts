@@ -782,13 +782,13 @@ sudo -u leela touch /srv/team/nope.txt
     showBlogStamp: true,
     gatedByChallengeId: 'linux-10-hunt-the-runaway-process',
     lede:
-      'Checkout on the **order box** is crawling. The CPU graph is stuck at 100%. Something is burning the machine. This post is how you **find** that process, **stop** it without taking down the wrong worker, and make a heavy report **share** the CPU.',
+      'Overnight on a **community radio** station PC, the air is fine but the CPU graph is stuck at 100%. Something is burning the machine. This post is how you **find** that process, **stop** it without taking down the wrong worker, and make a heavy report **share** the CPU.',
     sections: [
       {
         id: 'what-is-a-process',
         title: 'A program that is running',
         body: [
-          'A **program** is a file on disk, for example **`/opt/order-processor/bin/order-reindex`**. A **process** is one running copy of it, with its own memory, its own owner, and its own number, the **PID**. Start the same program twice and you get two processes with two PIDs.',
+          'A **program** is a file on disk, for example **`/opt/radio/bin/track-encoder`**. A **process** is one running copy of it, with its own memory, its own owner, and its own number, the **PID**. Start the same program twice and you get two processes with two PIDs.',
           'Every process was started by another process, its **parent**. The parent’s PID is the **PPID**. Follow the parents far enough and you reach PID **1** — **systemd** on most servers — which the kernel starts at boot.',
         ],
         subsections: [
@@ -811,9 +811,9 @@ echo $!
         ],
         callout: {
           kind: 'idea',
-          title: 'Three jobs on the order box',
+          title: 'Three jobs on the station PC',
           body: [
-            'Tonight three programs are running as the **`orders`** account. **`order-reindex`** is rebuilding a search index and will not stop. **`report-builder`** is the nightly report: it may keep running, but it must stay out of the way. **`notification-retry`** must not be touched. The CPU graph is pinned. One of those three is the reason.',
+            'Tonight three programs are running as the **`radio`** account. **`track-encoder`** is re-encoding the archive and will not stop. **`show-report`** is the overnight listenership report: it may keep running, but it must stay out of the way. **`stream-heartbeat`** must not be touched — that is what keeps the live stream marked healthy. The CPU graph is pinned. One of those three is the reason.',
           ],
         },
       },
@@ -837,9 +837,9 @@ echo $!
               code: `ps aux --sort=-%cpu | head -5
 ps -eo pid,user,ni,pcpu,cmd --sort=-pcpu | head -5
 # PID USER  NI %CPU CMD
-# 1842 orders 0 99.7 /opt/order-processor/bin/order-reindex
-# 1901 orders 0  0.1 /opt/order-processor/bin/report-builder
-# 1910 orders 0  0.0 /opt/notification-service/bin/notification-retry`,
+# 1842 radio  0 99.7 /opt/radio/bin/track-encoder
+# 1901 radio  0  0.1 /opt/radio/bin/show-report
+# 1910 radio  0  0.0 /opt/radio/bin/stream-heartbeat`,
             },
           },
           {
@@ -847,7 +847,7 @@ ps -eo pid,user,ni,pcpu,cmd --sort=-pcpu | head -5
             title: 'What those columns mean',
             body: [
               'Four columns do most of the work. **PID** is the number you act on. **%CPU** (or **pcpu**) is the share of one core. **USER** is who owns it. **CMD** (or **COMMAND**) is how it was started. **NI** is niceness, which comes later.',
-              '**STAT** is the state. A process is not always busy. Most of the time it is sleeping and uses no CPU. **`order-reindex`** is **R** (running). A waiting shell is **S**.',
+              '**STAT** is the state. A process is not always busy. Most of the time it is sleeping and uses no CPU. **`track-encoder`** is **R** (running). A waiting shell is **S**.',
             ],
           },
         ],
@@ -868,7 +868,7 @@ ps -eo pid,user,ni,pcpu,cmd --sort=-pcpu | head -5
           language: 'shell',
           code: `top
 # P sort by CPU, M by memory, k kill, q quit
-top -u orders
+top -u radio
 htop`,
         },
         tableAfter: {
@@ -885,18 +885,18 @@ htop`,
         id: 'pgrep-proc',
         title: 'Get the PID without scanning by eye',
         body: [
-          'Scanning **`ps aux`** by eye is slow when many lines look similar. **`pgrep`** prints the PIDs whose name matches. **`-a`** shows the full command line. **`-f`** matches against the whole command line, not only the short name — that is how you pick **`order-reindex`** out of a path under **`/opt`**. **`-u`** limits the search to one user.',
-          'Write the PID down when you will use it more than once. A file under **`~/answers/`** is enough for a lab. **`pidof`** does the same job for an exact program name.',
+          'Scanning **`ps aux`** by eye is slow when many lines look similar. **`pgrep`** prints the PIDs whose name matches. **`-a`** shows the full command line. **`-f`** matches against the whole command line, not only the short name — that is how you pick **`track-encoder`** out of a path under **`/opt`**. **`-u`** limits the search to one user.',
+          'Write the PID down when you will use it more than once. A file under **`~/notes/`** is enough. **`pidof`** does the same job for an exact program name.',
         ],
         code: {
           language: 'shell',
-          code: `pgrep -af order-reindex
-# 1842 /opt/order-processor/bin/order-reindex
-mkdir -p ~/answers
-pgrep -f order-reindex > ~/answers/runaway-pid
-cat ~/answers/runaway-pid
+          code: `pgrep -af track-encoder
+# 1842 /opt/radio/bin/track-encoder
+mkdir -p ~/notes
+pgrep -f track-encoder > ~/notes/runaway-pid
+cat ~/notes/runaway-pid
 # 1842
-pgrep -u orders -af report-builder
+pgrep -u radio -af show-report
 pidof sshd`,
         },
         after: [
@@ -914,7 +914,7 @@ ls -l /proc/1842/cwd`,
           kind: 'warn',
           title: 'Match the path, not a short name',
           body: [
-            '**`pgrep reindex`** can match more than you meant. **`pgrep -f order-reindex`** matches the command line. Run **`pgrep -af`** first and read the lines before you act.',
+            '**`pgrep encoder`** can match more than you meant. **`pgrep -f track-encoder`** matches the command line. Run **`pgrep -af`** first and read the lines before you act.',
           ],
         },
       },
@@ -931,11 +931,11 @@ ls -l /proc/1842/cwd`,
             title: 'Ask first, force second',
             body: [
               'Always try **SIGTERM** first. A well-behaved program catches it, finishes or saves what it is doing, and exits. Give it a few seconds, then check whether it is still there.',
-              '**`order-reindex`** ignores SIGTERM on purpose in this story. **`ps -p`** still prints a line after **`kill`**. Then use **SIGKILL**. The kernel removes the process on the spot. It gets no chance to clean up, so half-written files and leftover locks are common side effects. Use **`-9`** only when SIGTERM was ignored.',
+              '**`track-encoder`** ignores SIGTERM on purpose in this story. **`ps -p`** still prints a line after **`kill`**. Then use **SIGKILL**. The kernel removes the process on the spot. It gets no chance to clean up, so half-written files and leftover locks are common side effects. Use **`-9`** only when SIGTERM was ignored.',
             ],
             code: {
               language: 'shell',
-              code: `PID=$(cat ~/answers/runaway-pid)
+              code: `PID=$(cat ~/notes/runaway-pid)
 sudo kill "$PID"
 ps -p "$PID"
 # still there: it ignored SIGTERM
@@ -970,10 +970,10 @@ ps -p "$PID"
         codes: [
           {
             language: 'shell',
-            code: `pgrep -af order-reindex
-sudo pkill -f order-reindex
+            code: `pgrep -af track-encoder
+sudo pkill -f track-encoder
 # or, only if it ignored SIGTERM:
-sudo pkill -9 -f order-reindex
+sudo pkill -9 -f track-encoder
 
 kill -STOP 1901
 ps -o pid,stat,cmd -p 1901
@@ -984,7 +984,7 @@ kill -CONT 1901`,
           kind: 'warn',
           title: 'Leave the workers that must stay',
           body: [
-            'On this box **`notification-retry`** must keep running, and **`report-builder`** must stay up too. Kill the PID you recorded for the hog. Do not **`pkill -f order`** and hope — that pattern can match more than one program.',
+            'On this box **`stream-heartbeat`** must keep running, and **`show-report`** must stay up too. Kill the PID you recorded for the hog. Do not **`pkill -f radio`** and hope — that pattern can match more than one program.',
           ],
         },
       },
@@ -993,7 +993,7 @@ kill -CONT 1901`,
         title: 'Make the report share the CPU',
         body: [
           'When several processes want the CPU, the kernel shares it. A process’s **niceness** tells the kernel how much to favour it. The range is **-20** (greedy) to **19** (nicest, gets what is left). Everything starts at **0**.',
-          '**`report-builder`** is allowed to keep running. It must stay out of the way of checkout. Raise its niceness to **15** without restarting it. Any user can make their own processes nicer. Only root can make a process **less** nice (a lower number), and only root can change another user’s process.',
+          '**`show-report`** is allowed to keep running. It must stay out of the way of the live playlist. Raise its niceness to **15** without restarting it. Any user can make their own processes nicer. Only root can make a process **less** nice (a lower number), and only root can change another user’s process.',
         ],
         subsections: [
           {
@@ -1004,11 +1004,11 @@ kill -CONT 1901`,
             ],
             code: {
               language: 'shell',
-              code: `pgrep -af report-builder
-sudo renice -n 15 -p "$(pgrep -f report-builder)"
-ps -o pid,ni,cmd -p "$(pgrep -f report-builder)"
+              code: `pgrep -af show-report
+sudo renice -n 15 -p "$(pgrep -f show-report)"
+ps -o pid,ni,cmd -p "$(pgrep -f show-report)"
 # PID  NI CMD
-# 1901 15 /opt/order-processor/bin/report-builder`,
+# 1901 15 /opt/radio/bin/show-report`,
             },
           },
           {
@@ -1019,7 +1019,7 @@ ps -o pid,ni,cmd -p "$(pgrep -f report-builder)"
             ],
             code: {
               language: 'shell',
-              code: `nice -n 15 /opt/order-processor/bin/report-builder &
+              code: `nice -n 15 /opt/radio/bin/show-report &
 nice ./report.sh
 sudo nice -n -5 ./urgent.sh`,
             },
@@ -1076,14 +1076,14 @@ ps -eo pid,ni,comm --sort=-ni | head`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-11-keep-the-batch-running-after-logout',
     lede:
-      'Every night someone runs **`batch-export`** on the **order box** to push the day’s orders to the warehouse. It takes about an hour. Twice this week the export died halfway when a laptop slept and the terminal closed. This post is how you run that job in the **background**, keep using the shell, and keep the export alive after you **log out**.',
+      'Every week someone SSHs into a **county weather station** PC and runs **`forecast-pack`** to bundle the week’s sensor readings for the agronomist. It takes about an hour. Twice this week the pack died halfway when a laptop slept and the terminal closed. This post is how you run that job in the **background**, keep using the shell, and keep the pack alive after you **log out**.',
     sections: [
       {
         id: 'foreground-background',
         title: 'Foreground holds the prompt',
         body: [
-          'When you type a command, the shell normally **waits** for it to finish before showing the prompt again. That command is in the **foreground**: it owns the terminal, and you cannot type anything else until it is done. For **`ls`** that is fine. For an hour-long export, it is not.',
-          'The program on this box is **`/opt/order-processor/bin/batch-export`**. It prints a line for every batch it sends. Any long command works the same way. **`sleep 600`** is a harmless stand-in while you practise.',
+          'When you type a command, the shell normally **waits** for it to finish before showing the prompt again. That command is in the **foreground**: it owns the terminal, and you cannot type anything else until it is done. For **`ls`** that is fine. For an hour-long pack, it is not.',
+          'The program on this box is **`/opt/weather/bin/forecast-pack`**. It prints a line for every batch of readings it writes. Any long command works the same way. **`sleep 600`** is a harmless stand-in while you practise.',
         ],
         subsections: [
           {
@@ -1095,7 +1095,7 @@ ps -eo pid,ni,comm --sort=-ni | head`,
             ],
             code: {
               language: 'shell',
-              code: `/opt/order-processor/bin/batch-export &
+              code: `/opt/weather/bin/forecast-pack &
 # [1] 2301
 sleep 600 &
 # [2] 2302`,
@@ -1106,13 +1106,13 @@ sleep 600 &
             title: 'Send stdout and stderr to a log',
             body: [
               'Programs have two output streams: **stdout** for normal lines and **stderr** for errors. **`> file`** sends stdout into a file. **`2>&1`** means “send stderr (stream **2**) to the same place as stdout (stream **1**)”. Put **`2>&1`** **after** **`> file`**. The order matters.',
-              '**`>>`** appends instead of replacing the file. Watch progress with **`tail -f`**. **Ctrl-C** stops **`tail`**, not the batch.',
+              '**`>>`** appends instead of replacing the file. Watch progress with **`tail -f`**. **Ctrl-C** stops **`tail`**, not the pack.',
             ],
             code: {
               language: 'shell',
-              code: `/opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
-tail -f ~/batch-export.log
-# Ctrl-C stops watching. The export keeps running.`,
+              code: `/opt/weather/bin/forecast-pack > ~/forecast-pack.log 2>&1 &
+tail -f ~/forecast-pack.log
+# Ctrl-C stops watching. The pack keeps running.`,
             },
           },
         ],
@@ -1126,27 +1126,27 @@ tail -f ~/batch-export.log
       },
       {
         id: 'job-control',
-        title: 'Job control: practise on the export',
+        title: 'Job control: practise on the pack',
         body: [
-          'Every command you start from a shell is a **job** of that shell, numbered **1**, **2**, **3**…. Refer to a job as **`%1`**, **`%2`**, and so on — that is not a PID. Before you rely on **`nohup`**, practise moving **`batch-export`** between foreground and background.',
+          'Every command you start from a shell is a **job** of that shell, numbered **1**, **2**, **3**…. Refer to a job as **`%1`**, **`%2`**, and so on — that is not a PID. Before you rely on **`nohup`**, practise moving **`forecast-pack`** between foreground and background.',
         ],
         subsections: [
           {
             id: 'ctrl-z-jobs-bg-fg',
             title: 'Ctrl-Z, jobs, bg, fg, Ctrl-C',
             body: [
-              'Start the export in the foreground. Press **Ctrl-Z** to pause it. The shell prints **Stopped** and gives you the prompt. **`jobs`** lists the jobs of **this** shell. The **`+`** marks the current job — the one **`fg`** and **`bg`** act on if you omit a number. **`jobs -l`** also shows PIDs.',
+              'Start the pack in the foreground. Press **Ctrl-Z** to pause it. The shell prints **Stopped** and gives you the prompt. **`jobs`** lists the jobs of **this** shell. The **`+`** marks the current job — the one **`fg`** and **`bg`** act on if you omit a number. **`jobs -l`** also shows PIDs.',
               '**`bg`** resumes the paused job in the background. **`fg`** brings it back to the foreground so it owns the terminal again. In the foreground, **Ctrl-C** sends **SIGINT** and stops it.',
             ],
             code: {
               language: 'shell',
-              code: `/opt/order-processor/bin/batch-export
+              code: `/opt/weather/bin/forecast-pack
 # Ctrl-Z
-# [1]+  Stopped                 /opt/order-processor/bin/batch-export
+# [1]+  Stopped                 /opt/weather/bin/forecast-pack
 jobs
-# [1]+  Stopped                 /opt/order-processor/bin/batch-export
+# [1]+  Stopped                 /opt/weather/bin/forecast-pack
 bg
-# [1]+ /opt/order-processor/bin/batch-export &
+# [1]+ /opt/weather/bin/forecast-pack &
 jobs -l
 fg
 # Ctrl-C stops it`,
@@ -1169,25 +1169,25 @@ fg
           kind: 'warn',
           title: 'jobs only knows this shell',
           body: [
-            '**`jobs`** is empty in a new login. After you log out and back in, find the export with **`pgrep -af batch-export`**, the same way you find any other process.',
+            '**`jobs`** is empty in a new login. After you log out and back in, find the pack with **`pgrep -af forecast-pack`**, the same way you find any other process.',
           ],
         },
       },
       {
         id: 'hangup',
-        title: 'Why the export died halfway',
+        title: 'Why the pack died halfway',
         body: [
-          'Background jobs still belong to the shell that started them. When that terminal goes away — you close the window, the laptop sleeps, or an SSH link drops — the system sends **SIGHUP** (“hang up”). The shell passes it on. The default reaction is to **exit**, so the warehouse gets half the orders.',
-          'You reach a remote server with **SSH**. Close the laptop and that session ends the same way a local terminal does. SSH gets its own post later. For tonight, the export has to ignore SIGHUP.',
+          'Background jobs still belong to the shell that started them. When that terminal goes away — you close the window, the laptop sleeps, or an SSH link drops — the system sends **SIGHUP** (“hang up”). The shell passes it on. The default reaction is to **exit**, so the agronomist gets half the week’s readings.',
+          'You reach a remote server with **SSH**. Close the laptop and that session ends the same way a local terminal does. SSH gets its own post later. For tonight, the pack has to ignore SIGHUP.',
         ],
         code: {
           language: 'shell',
           code: `# What closing the terminal does to an unprotected job:
-/opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+/opt/weather/bin/forecast-pack > ~/forecast-pack.log 2>&1 &
 PID=$!
 kill -HUP "$PID"
-pgrep -af batch-export
-# empty: the export exited on SIGHUP`,
+pgrep -af forecast-pack
+# empty: the pack exited on SIGHUP`,
         },
       },
       {
@@ -1202,16 +1202,16 @@ pgrep -af batch-export
             title: 'nohup: the recipe for tonight',
             body: [
               '**`nohup command`** starts the command with SIGHUP ignored. Add **`&`** or it still holds the prompt in the foreground.',
-              'Without a redirection, **`nohup`** writes to **`nohup.out`** in the current folder. Name your own log. The line the lab expects is one piece at a time: **`nohup`** ignores hang-ups, **`> ~/batch-export.log 2>&1`** catches both streams, **`&`** returns the prompt.',
+              'Without a redirection, **`nohup`** writes to **`nohup.out`** in the current folder. Name your own log. Put the pieces together: **`nohup`** ignores hang-ups, **`> ~/forecast-pack.log 2>&1`** catches both streams, **`&`** returns the prompt.',
             ],
             code: {
               language: 'shell',
               code: `cd ~
-nohup /opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+nohup /opt/weather/bin/forecast-pack > ~/forecast-pack.log 2>&1 &
 jobs -l
-# [1]+ 2301 Running  nohup /opt/order-processor/bin/batch-export > ... &
-tail -f ~/batch-export.log
-# batch-export: exported batch 12/1800
+# [1]+ 2301 Running  nohup /opt/weather/bin/forecast-pack > ... &
+tail -f ~/forecast-pack.log
+# forecast-pack: wrote batch 12/180
 # Ctrl-C stops tail only`,
             },
           },
@@ -1219,14 +1219,14 @@ tail -f ~/batch-export.log
             id: 'prove-it',
             title: 'Prove it survives hang-up',
             body: [
-              'You do not have to log out to check. **`kill -HUP`** is what a closing terminal sends. After **`nohup`**, the process should still be there. Run it as **`learner`**, not as root: the export is your job for the night.',
+              'You do not have to log out to check. **`kill -HUP`** is what a closing terminal sends. After **`nohup`**, the process should still be there. Run it as your own login, not as root: the pack is your job for the night.',
             ],
             code: {
               language: 'shell',
-              code: `pgrep -af batch-export
-# 2301 /opt/order-processor/bin/batch-export
-kill -HUP "$(pgrep -f batch-export)"
-pgrep -af batch-export
+              code: `pgrep -af forecast-pack
+# 2301 /opt/weather/bin/forecast-pack
+kill -HUP "$(pgrep -f forecast-pack)"
+pgrep -af forecast-pack
 # 2301 ... still running`,
             },
           },
@@ -1234,16 +1234,16 @@ pgrep -af batch-export
             id: 'disown',
             title: 'disown: already started without nohup',
             body: [
-              'Started the export with only **`&`**? **`disown`** removes it from the shell’s job list, so the shell will not pass SIGHUP to it when you leave. **`disown %N`** picks a job. **`disown -h`** keeps it in **`jobs`** but still protects it.',
+              'Started the pack with only **`&`**? **`disown`** removes it from the shell’s job list, so the shell will not pass SIGHUP to it when you leave. **`disown %N`** picks a job. **`disown -h`** keeps it in **`jobs`** but still protects it.',
             ],
             code: {
               language: 'shell',
-              code: `/opt/order-processor/bin/batch-export > ~/batch-export.log 2>&1 &
+              code: `/opt/weather/bin/forecast-pack > ~/forecast-pack.log 2>&1 &
 # [1] 2301
 disown %1
 jobs
 # empty
-pgrep -af batch-export
+pgrep -af forecast-pack
 # 2301 ... still there`,
             },
           },
@@ -1252,7 +1252,7 @@ pgrep -af batch-export
           kind: 'tip',
           title: 'After you log back in',
           body: [
-            '**`jobs`** will not list the export. Use **`pgrep -af batch-export`** and **`tail -f ~/batch-export.log`**. Stop it with **`kill`** on that PID when the warehouse has the full file.',
+            '**`jobs`** will not list the pack. Use **`pgrep -af forecast-pack`** and **`tail -f ~/forecast-pack.log`**. Stop it with **`kill`** on that PID when the agronomist has the full file.',
           ],
         },
       },
@@ -1261,7 +1261,7 @@ pgrep -af batch-export
         title: 'When you need the session back',
         body: [
           '**`nohup`** keeps one command alive. You cannot come back and type into it. **`tmux`** (and the older **`screen`**) run a **terminal session on the server** that keeps going when you disconnect. Detach, log out, log in later, and attach again. Everything inside is as you left it.',
-          'Use **`tmux`** when you need an interactive shell that survives a dropped link. Use **`nohup`** when the job is one command and a log file is enough. A job that must also start again after a **reboot** belongs in a **systemd** service — that is the next post and the next lab.',
+          'Use **`tmux`** when you need an interactive shell that survives a dropped link. Use **`nohup`** when the job is one command and a log file is enough. A job that must also start again after a **reboot** belongs in a **systemd** service — that is the next post.',
         ],
         subsections: [
           {
@@ -1272,12 +1272,12 @@ pgrep -af batch-export
             ],
             code: {
               language: 'shell',
-              code: `tmux new -s export
-/opt/order-processor/bin/batch-export
+              code: `tmux new -s forecast
+/opt/weather/bin/forecast-pack
 # Ctrl-b, then d
 tmux ls
-tmux attach -t export
-tmux kill-session -t export`,
+tmux attach -t forecast
+tmux kill-session -t forecast`,
             },
           },
           {
@@ -1304,10 +1304,10 @@ n / p               next / previous window
             ],
             code: {
               language: 'shell',
-              code: `screen -S export
+              code: `screen -S forecast
 # Ctrl-a, then d
 screen -ls
-screen -r export`,
+screen -r forecast`,
             },
           },
         ],
@@ -1315,7 +1315,7 @@ screen -r export`,
           headers: ['Tool', 'Survives logout?', 'Interact later?', 'Best for'],
           rows: [
             ['`command &`', 'No', 'Only from the same shell', 'Short work while you keep typing'],
-            ['`nohup … &`', 'Yes', 'No — read its log', 'One long command, like tonight’s export'],
+            ['`nohup … &`', 'Yes', 'No — read its log', 'One long command, like tonight’s pack'],
             ['`disown`', 'Yes', 'No — read its log', 'A job you already started without nohup'],
             ['`tmux` / `screen`', 'Yes', 'Yes — reattach', 'Long interactive work on a server'],
             ['systemd service', 'Yes, and after reboot', 'Via `systemctl` / logs', 'Something that must always be up'],
@@ -1365,15 +1365,15 @@ screen -r export`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-12-run-order-processor-as-a-service',
     lede:
-      '**order-processor** only ran when someone started it in a terminal. The box rebooted overnight, nobody restarted it, and orders queued for hours. **systemd** is how a Linux server keeps a program up: start it at boot, run it as the right user, and bring it back when it crashes.',
+      '**climate-panel** only ran when someone started it in a terminal at the **botanical garden** greenhouse. The box rebooted overnight, nobody restarted it, and the vents sat closed for hours. **systemd** is how a Linux server keeps a program up: start it at boot, run it as the right user, and bring it back when it crashes.',
     sections: [
       {
         id: 'what-is-a-service',
         title: 'Why nohup is not enough',
         body: [
-          'A **service** (a **daemon**) runs in the background with no terminal, waiting for work: web requests, payments, notifications. Nobody starts it by hand each morning.',
+          'A **service** (a **daemon**) runs in the background with no terminal, waiting for work: sensor readings, desk checkouts, web requests. Nobody starts it by hand each morning.',
           '**`nohup … &`** keeps a job alive after logout. It will not start again after a **reboot**, and nobody restarts it if it **crashes**. **systemd** does both. It is the first process the kernel starts (PID **1**). It starts, stops, watches, and restarts everything else.',
-          'The program on this box is **`/opt/order-processor/bin/order-processor`**. It refuses to run as root. It reads its port from **`ORDER_PROCESSOR_PORT`** in **`/etc/order-processor/order-processor.env`**. A system user **`orders`** already exists.',
+          'The program on this box is **`/opt/climate-panel/bin/climate-panel`**. It refuses to run as root. It reads its port from **`CLIMATE_PANEL_PORT`** in **`/etc/climate-panel/climate-panel.env`**. A system user **`greenhouse`** already exists.',
         ],
         subsections: [
           {
@@ -1381,7 +1381,7 @@ screen -r export`,
             title: 'Units: what systemd manages',
             body: [
               'systemd calls each thing it manages a **unit**, described by a short text file. The name ends with the type: **`.service`** for a program, **`.timer`** for a schedule, **`.target`** for a stage of boot (for example **`multi-user.target`**, the normal running system).',
-              'This post is about **`.service`** units. You can usually leave off **`.service`** in commands: **`order-processor`** and **`order-processor.service`** mean the same thing.',
+              'This post is about **`.service`** units. You can usually leave off **`.service`** in commands: **`climate-panel`** and **`climate-panel.service`** mean the same thing.',
             ],
             code: {
               language: 'shell',
@@ -1398,12 +1398,12 @@ systemctl list-unit-files --type=service`,
             ],
             code: {
               language: 'shell',
-              code: `/opt/order-processor/bin/order-processor
-# ORDER_PROCESSOR_PORT is not set
-sudo /opt/order-processor/bin/order-processor
+              code: `/opt/climate-panel/bin/climate-panel
+# CLIMATE_PANEL_PORT is not set
+sudo /opt/climate-panel/bin/climate-panel
 # refusing to run as root
-cat /etc/order-processor/order-processor.env
-id orders`,
+cat /etc/climate-panel/climate-panel.env
+id greenhouse`,
             },
           },
         ],
@@ -1423,14 +1423,14 @@ id orders`,
             ],
             code: {
               language: 'shell',
-              code: `$ systemctl status order-processor
-● order-processor.service - Order Processor
-     Loaded: loaded (/etc/systemd/system/order-processor.service; enabled; ...)
+              code: `$ systemctl status climate-panel
+● climate-panel.service - Greenhouse Climate Panel
+     Loaded: loaded (/etc/systemd/system/climate-panel.service; enabled; ...)
      Active: active (running) since Mon 2026-10-05 09:12:04 UTC; 2h ago
-   Main PID: 812 (order-processor)
+   Main PID: 812 (climate-panel)
      Memory: 18.2M
-     CGroup: /system.slice/order-processor.service
-             └─812 /opt/order-processor/bin/order-processor`,
+     CGroup: /system.slice/climate-panel.service
+             └─812 /opt/climate-panel/bin/climate-panel`,
             },
           },
           {
@@ -1458,9 +1458,9 @@ last lines   recent journal lines`,
             ],
             code: {
               language: 'shell',
-              code: `sudo systemctl start order-processor
-sudo systemctl stop order-processor
-sudo systemctl restart order-processor
+              code: `sudo systemctl start climate-panel
+sudo systemctl stop climate-panel
+sudo systemctl restart climate-panel
 sudo systemctl reload nginx`,
             },
           },
@@ -1472,11 +1472,11 @@ sudo systemctl reload nginx`,
             ],
             code: {
               language: 'shell',
-              code: `sudo systemctl enable order-processor
-sudo systemctl enable --now order-processor
-sudo systemctl disable --now order-processor
-systemctl is-enabled order-processor
-systemctl is-active order-processor`,
+              code: `sudo systemctl enable climate-panel
+sudo systemctl enable --now climate-panel
+sudo systemctl disable --now climate-panel
+systemctl is-enabled climate-panel
+systemctl is-active climate-panel`,
             },
           },
           {
@@ -1488,8 +1488,8 @@ systemctl is-active order-processor`,
             code: {
               language: 'shell',
               code: `systemctl --failed
-systemctl is-failed order-processor
-sudo systemctl reset-failed order-processor`,
+systemctl is-failed climate-panel
+sudo systemctl reset-failed climate-panel`,
             },
           },
         ],
@@ -1507,7 +1507,7 @@ sudo systemctl reset-failed order-processor`,
       },
       {
         id: 'unit-file',
-        title: 'Write a unit for order-processor',
+        title: 'Write a unit for climate-panel',
         body: [
           'Your own units live in **`/etc/systemd/system/`**. Units from packages live in **`/lib/systemd/system/`**. Read those for examples. Do not edit them there — a package upgrade overwrites them.',
           'A unit file has three sections. **[Unit]** is what this is and when it may start. **[Service]** is how to run it. **[Install]** is where **`enable`** hooks it into boot.',
@@ -1517,20 +1517,20 @@ sudo systemctl reset-failed order-processor`,
             id: 'the-unit-file',
             title: 'The unit file',
             body: [
-              'Save this as **`/etc/systemd/system/order-processor.service`**.',
+              'Save this as **`/etc/systemd/system/climate-panel.service`**.',
             ],
             code: {
               language: 'ini',
-              filename: '/etc/systemd/system/order-processor.service',
+              filename: '/etc/systemd/system/climate-panel.service',
               code: `[Unit]
-Description=Order Processor
+Description=Greenhouse Climate Panel
 After=network.target
 
 [Service]
-User=orders
-Group=orders
-EnvironmentFile=/etc/order-processor/order-processor.env
-ExecStart=/opt/order-processor/bin/order-processor
+User=greenhouse
+Group=greenhouse
+EnvironmentFile=/etc/climate-panel/climate-panel.env
+ExecStart=/opt/climate-panel/bin/climate-panel
 Restart=on-failure
 RestartSec=2
 
@@ -1566,20 +1566,20 @@ WantedBy=multi-user.target`,
             title: 'Load it, then prove a crash comes back',
             body: [
               'systemd reads unit files into memory. After you create or change one, run **`daemon-reload`**. Forgetting that is why an edit “does nothing.” Then **`enable --now`**, and check.',
-              'The grader will kill the process. systemd must bring it back without you. Read the main PID, send **SIGKILL**, wait, and read **`status`** again.',
+              'Prove a crash comes back: read the main PID, send **SIGKILL**, wait, and read **`status`** again. systemd should start a new PID without you.',
             ],
             code: {
               language: 'shell',
-              code: `sudo nano /etc/systemd/system/order-processor.service
+              code: `sudo nano /etc/systemd/system/climate-panel.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now order-processor
-systemctl status order-processor
+sudo systemctl enable --now climate-panel
+systemctl status climate-panel
 curl http://127.0.0.1:8080/health
 # {"status":"ok",...}
 
-sudo kill -9 "$(systemctl show -p MainPID --value order-processor)"
+sudo kill -9 "$(systemctl show -p MainPID --value climate-panel)"
 sleep 3
-systemctl status order-processor
+systemctl status climate-panel
 # active again, new PID`,
             },
           },
@@ -1589,15 +1589,15 @@ systemctl status order-processor
         id: 'drop-ins',
         title: 'Change a vendor unit without editing it',
         body: [
-          '**payment-handler** and **order-processor** both came from a package under **`/lib/systemd/system/`**. After a reboot, order-processor came up before payment-handler, could not load its payment routes, and exited. Nothing restarted it.',
-          'Edit the vendor file and the next package upgrade silently reverts your fix. Put your changes in a **drop-in** under **`/etc/systemd/system/order-processor.service.d/`**. It overrides only the keys you list.',
+          '**sensor-bridge** and **climate-panel** both came from a package under **`/lib/systemd/system/`**. After a reboot, climate-panel came up before sensor-bridge, could not read the probes, and exited. Nothing restarted it.',
+          'Edit the vendor file and the next package upgrade silently reverts your fix. Put your changes in a **drop-in** under **`/etc/systemd/system/climate-panel.service.d/`**. It overrides only the keys you list.',
         ],
         subsections: [
           {
             id: 'requires-after',
             title: 'Requires and After',
             body: [
-              '**`Requires=`** pulls the other unit in: starting order-processor also starts payment-handler, and stopping payment-handler stops order-processor. **`Wants=`** is softer — it still starts the other unit, but carries on if that unit fails.',
+              '**`Requires=`** pulls the other unit in: starting climate-panel also starts sensor-bridge, and stopping sensor-bridge stops climate-panel. **`Wants=`** is softer — it still starts the other unit, but carries on if that unit fails.',
               '**`After=`** is order only. **`Requires=`** without **`After=`** starts both at the same time. You usually want both lines.',
             ],
           },
@@ -1605,14 +1605,14 @@ systemctl status order-processor
             id: 'systemctl-edit',
             title: 'systemctl edit writes the drop-in',
             body: [
-              '**`systemctl edit order-processor`** opens an editor, saves to **`…/order-processor.service.d/override.conf`**, and reloads systemd for you. **`systemctl cat`** prints the vendor unit plus every drop-in, in order.',
+              '**`systemctl edit climate-panel`** opens an editor, saves to **`…/climate-panel.service.d/override.conf`**, and reloads systemd for you. **`systemctl cat`** prints the vendor unit plus every drop-in, in order.',
             ],
             code: {
               language: 'ini',
               filename: 'override.conf',
               code: `[Unit]
-Requires=payment-handler.service
-After=payment-handler.service
+Requires=sensor-bridge.service
+After=sensor-bridge.service
 
 [Service]
 Restart=on-failure
@@ -1623,17 +1623,17 @@ RestartSec=2`,
         codes: [
           {
             language: 'shell',
-            code: `systemctl status order-processor
-journalctl -u order-processor -n 20
-systemctl cat order-processor
+            code: `systemctl status climate-panel
+journalctl -u climate-panel -n 20
+systemctl cat climate-panel
 
-sudo systemctl edit order-processor
+sudo systemctl edit climate-panel
 # paste the override, save
 
-systemctl cat order-processor
-sudo systemctl stop order-processor payment-handler
-sudo systemctl start order-processor
-systemctl status payment-handler order-processor
+systemctl cat climate-panel
+sudo systemctl stop climate-panel sensor-bridge
+sudo systemctl start climate-panel
+systemctl status sensor-bridge climate-panel
 curl http://127.0.0.1:8080/health`,
           },
         ],
@@ -1642,8 +1642,8 @@ curl http://127.0.0.1:8080/health`,
         ],
         code: {
           language: 'shell',
-          code: `sudo mkdir -p /etc/systemd/system/order-processor.service.d
-sudo nano /etc/systemd/system/order-processor.service.d/override.conf
+          code: `sudo mkdir -p /etc/systemd/system/climate-panel.service.d
+sudo nano /etc/systemd/system/climate-panel.service.d/override.conf
 sudo systemctl daemon-reload`,
         },
         callout: {
@@ -1669,8 +1669,8 @@ sudo systemctl daemon-reload`,
             ],
             code: {
               language: 'shell',
-              code: `journalctl -u order-processor -n 20 --no-pager
-journalctl -u notification-service -n 30 --no-pager`,
+              code: `journalctl -u climate-panel -n 20 --no-pager
+journalctl -u mist-controller -n 30 --no-pager`,
             },
           },
           {
@@ -1681,9 +1681,9 @@ journalctl -u notification-service -n 30 --no-pager`,
             ],
             code: {
               language: 'shell',
-              code: `journalctl -u order-processor -f
-journalctl -u order-processor --since "1 hour ago"
-journalctl -u order-processor --since today -p err
+              code: `journalctl -u climate-panel -f
+journalctl -u climate-panel --since "1 hour ago"
+journalctl -u climate-panel --since today -p err
 journalctl -b -p err`,
             },
           },
@@ -1693,12 +1693,12 @@ journalctl -b -p err`,
         id: 'debugging',
         title: 'When a service will not stay up',
         body: [
-          '**notification-service** is in a restart loop. The person who set it up is away. Work the same loop every time: **`status`** → **`journalctl -u`** → fix one cause → **`daemon-reload`** if you edited the unit → **`restart`** → read the journal again. Each fix reveals the next error. Do not “fix” it by running as root or deleting the unit.',
+          '**mist-controller** is in a restart loop. The person who set it up is away. Work the same loop every time: **`status`** → **`journalctl -u`** → fix one cause → **`daemon-reload`** if you edited the unit → **`restart`** → read the journal again. Each fix reveals the next error. Do not “fix” it by running as root or deleting the unit.',
         ],
         bullets: [
           '**Wrong path in `ExecStart=`** — status **`203/EXEC`**, journal says “Failed to locate executable.” Point at the real binary.',
           '**Binary not executable** — same **`203/EXEC`**, or “Permission denied.” **`chmod 755`** on the program.',
-          '**Typo in an environment file** — the program starts, then exits: “SMTP_HOST is not set.” Fix the file. Env changes need a **restart**, not **`daemon-reload`**.',
+          '**Typo in an environment file** — the program starts, then exits: “MIST_HOST is not set.” Fix the file. Env changes need a **restart**, not **`daemon-reload`**.',
           '**Port already in use** — journal says “address in use.” **`sudo ss -tlnp`** shows who holds the port; stop that process.',
           '**Edited the unit but nothing changed** — you forgot **`daemon-reload`**.',
           '**Works until reboot** — started but never **enabled**.',
@@ -1707,20 +1707,20 @@ journalctl -b -p err`,
         codes: [
           {
             language: 'shell',
-            code: `systemctl status notification-service
-journalctl -u notification-service -n 30 --no-pager
+            code: `systemctl status mist-controller
+journalctl -u mist-controller -n 30 --no-pager
 
 # After fixing the unit file:
 sudo systemctl daemon-reload
-sudo systemctl restart notification-service
+sudo systemctl restart mist-controller
 
 # After fixing only an env file:
-sudo systemctl restart notification-service
+sudo systemctl restart mist-controller
 
 # Port conflict:
 sudo ss -tlnp | grep 8085
 sudo pkill -f /usr/local/bin/debug-listener
-sudo systemctl restart notification-service
+sudo systemctl restart mist-controller
 curl http://127.0.0.1:8085/health`,
           },
         ],
@@ -1777,17 +1777,17 @@ curl http://127.0.0.1:8085/health`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-15-nightly-reconciliation',
     lede:
-      'Three jobs on the **order box** only run when someone remembers them. **`notification.log`** on the notification box has never been rotated and is eating the disk. This post is how you **schedule** work with cron and systemd timers, and how **logrotate** keeps a growing log from filling the machine.',
+      'Three jobs at a **school library** desk PC only run when someone remembers them. **`checkout.log`** has never been rotated and is eating the disk. This post is how you **schedule** work with cron and systemd timers, and how **logrotate** keeps a growing log from filling the machine.',
     sections: [
       {
         id: 'two-schedulers',
         title: 'Two ways to run something on a schedule',
         body: [
-          'Tonight the team needs three repeating jobs:',
+          'Tonight the desk needs three repeating jobs:',
         ],
         bullets: [
-          '**Order reconciliation** at **02:30** as **`recon`**. If the box was down at 02:30, it must catch up when the box comes back.',
-          '**Notification digest** every **15 minutes** as **`notify`**.',
+          '**Shelf inventory reconcile** at **02:30** as **`librarian`**. If the box was down at 02:30, it must catch up when the box comes back.',
+          '**Overdue digest** every **15 minutes** as **`desk`**.',
           'Your **disk report** every morning at **07:00** as you.',
         ],
         after: [
@@ -1819,7 +1819,7 @@ curl http://127.0.0.1:8085/health`,
               language: 'shell',
               code: `crontab -e
 # minute hour dom mon dow  command
-0 7 * * * /opt/order-processor/bin/disk-report
+0 7 * * * /opt/library/bin/disk-report
 crontab -l`,
             },
           },
@@ -1831,8 +1831,8 @@ crontab -l`,
             ],
             code: {
               language: 'shell',
-              code: `echo '*/15 * * * * notify /opt/notification-service/bin/digest' | sudo tee /etc/cron.d/notification-digest
-sudo chmod 644 /etc/cron.d/notification-digest
+              code: `echo '*/15 * * * * desk /opt/library/bin/overdue-digest' | sudo tee /etc/cron.d/overdue-digest
+sudo chmod 644 /etc/cron.d/overdue-digest
 # m h dom mon dow  user    command`,
             },
           },
@@ -1859,7 +1859,7 @@ sudo chmod 644 /etc/cron.d/notification-digest
         id: 'systemd-timers',
         title: 'systemd timer: catch up after downtime',
         body: [
-          'Reconciliation must run at **02:30**, and if the box was off at that minute, it must run when the box comes back. That is **`Persistent=true`** on a timer. Pair a **oneshot** service (run once and exit) with a timer that starts it.',
+          'Shelf reconcile must run at **02:30**, and if the box was off at that minute, it must run when the box comes back. That is **`Persistent=true`** on a timer. Pair a **oneshot** service (run once and exit) with a timer that starts it.',
         ],
         subsections: [
           {
@@ -1870,14 +1870,14 @@ sudo chmod 644 /etc/cron.d/notification-digest
             ],
             code: {
               language: 'ini',
-              filename: '/etc/systemd/system/order-reconcile.service',
+              filename: '/etc/systemd/system/shelf-reconcile.service',
               code: `[Unit]
-Description=Reconcile yesterday's orders
+Description=Reconcile yesterday's shelf inventory
 
 [Service]
 Type=oneshot
-User=recon
-ExecStart=/opt/order-reconciliation/bin/reconcile`,
+User=librarian
+ExecStart=/opt/library/bin/shelf-reconcile`,
             },
           },
           {
@@ -1888,9 +1888,9 @@ ExecStart=/opt/order-reconciliation/bin/reconcile`,
             ],
             code: {
               language: 'ini',
-              filename: '/etc/systemd/system/order-reconcile.timer',
+              filename: '/etc/systemd/system/shelf-reconcile.timer',
               code: `[Unit]
-Description=Nightly order reconciliation
+Description=Nightly shelf inventory reconcile
 
 [Timer]
 OnCalendar=*-*-* 02:30:00
@@ -1909,11 +1909,11 @@ WantedBy=timers.target`,
             code: {
               language: 'shell',
               code: `sudo systemctl daemon-reload
-sudo systemctl enable --now order-reconcile.timer
-systemctl list-timers order-reconcile.timer
+sudo systemctl enable --now shelf-reconcile.timer
+systemctl list-timers shelf-reconcile.timer
 systemd-analyze calendar '*-*-* 02:30:00'
-sudo systemctl start order-reconcile.service
-journalctl -u order-reconcile.service -n 5`,
+sudo systemctl start shelf-reconcile.service
+journalctl -u shelf-reconcile.service -n 5`,
             },
           },
         ],
@@ -1921,7 +1921,7 @@ journalctl -u order-reconcile.service -n 5`,
           kind: 'tip',
           title: 'Enable the timer, not the service',
           body: [
-            '**`systemctl enable order-reconcile.service`** does nothing useful here — the service has no **`[Install]`**. Enable **`order-reconcile.timer`**.',
+            '**`systemctl enable shelf-reconcile.service`** does nothing useful here — the service has no **`[Install]`**. Enable **`shelf-reconcile.timer`**.',
           ],
         },
       },
@@ -1929,7 +1929,7 @@ journalctl -u order-reconcile.service -n 5`,
         id: 'logrotate',
         title: 'logrotate: stop the log from eating the disk',
         body: [
-          '**`/var/log/notification-service/notification.log`** grows every few seconds and has never been rotated. On the last box, the disk filled and order confirmations stopped.',
+          '**`/var/log/checkout/checkout.log`** grows every few seconds and has never been rotated. On the last box, the disk filled and the self-checkout kiosk stopped writing.',
           '**logrotate** runs daily (from a timer or cron). It renames or copies the active log, compresses old copies, and deletes the oldest. Rules live in **`/etc/logrotate.d/`**. Read the files already there before you write your own.',
         ],
         subsections: [
@@ -1937,13 +1937,13 @@ journalctl -u order-reconcile.service -n 5`,
             id: 'open-log',
             title: 'Does the service reopen its log?',
             body: [
-              'That question decides the rule. **notification-service** opens the log once at startup and keeps that file descriptor forever. **`lsof`** shows it. If you only rename **`notification.log`** to **`notification.log.1`**, the service keeps writing into the renamed file. New lines never hit the path you expect.',
+              'That question decides the rule. **checkout-desk** opens the log once at startup and keeps that file descriptor forever. **`lsof`** shows it. If you only rename **`checkout.log`** to **`checkout.log.1`**, the service keeps writing into the renamed file. New lines never hit the path you expect.',
             ],
             code: {
               language: 'shell',
-              code: `ls -lh /var/log/notification-service/
-sudo lsof /var/log/notification-service/notification.log
-# notification-service still holds the file open
+              code: `ls -lh /var/log/checkout/
+sudo lsof /var/log/checkout/checkout.log
+# checkout-desk still holds the file open
 ls /etc/logrotate.d/`,
             },
           },
@@ -1951,13 +1951,13 @@ ls /etc/logrotate.d/`,
             id: 'copytruncate',
             title: 'copytruncate when the app will not reopen',
             body: [
-              '**`copytruncate`** copies the content out, then truncates the original in place. The open file descriptor still points at the same inode. The service keeps writing to **`notification.log`** without a restart.',
+              '**`copytruncate`** copies the content out, then truncates the original in place. The open file descriptor still points at the same inode. The service keeps writing to **`checkout.log`** without a restart.',
               'If the service could reopen on a signal, **`create`** plus a **`postrotate`** that runs **`systemctl reload …`** would be cleaner. With **`copytruncate`**, a few lines can be lost between the copy and the truncate.',
             ],
             code: {
               language: 'text',
-              filename: '/etc/logrotate.d/notification-service',
-              code: `/var/log/notification-service/*.log {
+              filename: '/etc/logrotate.d/checkout-desk',
+              code: `/var/log/checkout/*.log {
     daily
     rotate 7
     compress
@@ -1980,12 +1980,12 @@ ls /etc/logrotate.d/`,
           ],
         },
         after: [
-          'Dry-run first. Force a rotation only when the dry run is clean. Confirm **`notification.log.1`** (or **`.1.gz`**) exists, and that new lines still land in **`notification.log`**.',
+          'Dry-run first. Force a rotation only when the dry run is clean. Confirm **`checkout.log.1`** (or **`.1.gz`**) exists, and that new lines still land in **`checkout.log`**.',
         ],
         code: {
           language: 'shell',
-          code: `sudo tee /etc/logrotate.d/notification-service >/dev/null <<'EOF'
-/var/log/notification-service/*.log {
+          code: `sudo tee /etc/logrotate.d/checkout-desk >/dev/null <<'EOF'
+/var/log/checkout/*.log {
     daily
     rotate 7
     compress
@@ -1995,10 +1995,10 @@ ls /etc/logrotate.d/`,
     copytruncate
 }
 EOF
-sudo logrotate -d /etc/logrotate.d/notification-service
-sudo logrotate -f /etc/logrotate.d/notification-service
-ls -lh /var/log/notification-service/
-tail -f /var/log/notification-service/notification.log`,
+sudo logrotate -d /etc/logrotate.d/checkout-desk
+sudo logrotate -f /etc/logrotate.d/checkout-desk
+ls -lh /var/log/checkout/
+tail -f /var/log/checkout/checkout.log`,
         },
         callout: {
           kind: 'warn',
@@ -2099,45 +2099,45 @@ tail -f /var/log/notification-service/notification.log`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-18-disk-full-on-the-order-box',
     lede:
-      '**order-processor** is crash-looping on the **order box**. It cannot write its log. The separate volume at **`/var/log/order-processor`** is full, someone already deleted files, and **`du`** still shows less used space than **`df`**. This post is how you **find** what filled the disk, **free** space without losing the evidence you need, and later **archive** a bad release with **`tar`** before you roll back.',
+      'The city’s **municipal map tile cache** stopped serving new zoom levels. The volume at **`/var/cache/map-tiles`** is full, someone already deleted warm files, and **`du`** still shows less used space than **`df`**. This post is how you **find** what filled the disk, **free** space without losing the evidence you need, and later **archive** a bad **tile-server** release with **`tar`** before you roll back.',
     sections: [
       {
         id: 'what-is-full',
         title: 'Confirm which filesystem is full',
         body: [
           'Linux shows one tree starting at **`/`**, but several disks can sit under it. Each disk is a **filesystem** attached at a **mount point**. **`df`** asks a filesystem how much capacity is left. **`du`** walks files under a path and totals what it can see.',
-          'Start with **`df -h`**. Read **Use%** and **Mounted on**. If only **`/var/log/order-processor`** is at 100%, cleaning **`/`** will not help. **`df -h path`** shows the filesystem that owns that path.',
+          'Start with **`df -h`**. Read **Use%** and **Mounted on**. If only **`/var/cache/map-tiles`** is at 100%, cleaning **`/`** will not help. **`df -h path`** shows the filesystem that owns that path.',
         ],
         code: {
           language: 'shell',
           code: `df -h
 # Filesystem      Size  Used Avail Use% Mounted on
 # /dev/nvme0n1p1   40G   12G   26G  32% /
-# /dev/nvme0n1p3   64M   64M     0 100% /var/log/order-processor
+# /dev/nvme0n1p3    8G    8G     0 100% /var/cache/map-tiles
 
-df -h /var/log/order-processor
-systemctl status order-processor
-# crash loop: cannot write the log`,
+df -h /var/cache/map-tiles
+systemctl status tile-server
+# failing: cannot write new tiles to the cache`,
         },
         subsections: [
           {
             id: 'bytes-or-inodes',
             title: 'Bytes or inodes',
             body: [
-              'A filesystem can run out of **bytes** (a few huge files) or **inodes** (millions of tiny files). Every file and directory needs an inode. **`df -h`** can show free bytes while programs still get “No space left on device.” Check **`df -i`** too.',
+              'A filesystem can run out of **bytes** (a few huge files) or **inodes** (millions of tiny tiles). Every file and directory needs an inode. **`df -h`** can show free bytes while programs still get “No space left on device.” Check **`df -i`** too.',
             ],
             code: {
               language: 'shell',
-              code: `df -i /var/log/order-processor
+              code: `df -i /var/cache/map-tiles
 # IUse% near 100% means too many files, not one huge one`,
             },
           },
         ],
         callout: {
           kind: 'idea',
-          title: 'Tonight on the order box',
+          title: 'Tonight on the tile cache',
           body: [
-            'The log volume is tiny on purpose. Keep the live **`order-processor.log`** and the newest rotated copy (**`.1`**) for the timeline. Older rotations can go. The heap dump must leave this volume. Something is still holding a **deleted** file open — that is why **`df`** and **`du`** disagree.',
+            'The cache volume is small on purpose. Keep the live **`tile-server.log`** and the newest rotated copy (**`.1`**) for the timeline. Older rotations can go. The oversized **`debug-dump.bin`** must leave this volume. Something is still holding a **deleted** file open — that is why **`df`** and **`du`** disagree.',
           ],
         },
       },
@@ -2156,25 +2156,26 @@ systemctl status order-processor
             ],
             code: {
               language: 'shell',
-              code: `sudo du -xhd1 /var/log/order-processor 2>/dev/null | sort -h
-sudo du -ah /var/log/order-processor | sort -h | tail
-ls -lhS /var/log/order-processor
-# order-processor-heap.hprof
-# order-processor.log.5 … .1
-# order-processor.log`,
+              code: `sudo du -xhd1 /var/cache/map-tiles 2>/dev/null | sort -h
+sudo du -ah /var/cache/map-tiles | sort -h | tail
+ls -lhS /var/cache/map-tiles
+# debug-dump.bin
+# tile-server.log.5 … .1
+# tile-server.log
+# z14/ z15/ …`,
             },
           },
           {
             id: 'free-obvious',
             title: 'Free the obvious space first',
             body: [
-              'Delete the older rotated logs (**`.2`** through **`.5`**). Keep **`.1`** and the live log. Move the heap dump off the full volume — **`/var/tmp/`** is on a different filesystem here — so investigators still have it.',
+              'Delete the older rotated logs (**`.2`** through **`.5`**). Keep **`.1`** and the live log. Move the debug dump off the full volume — **`/var/tmp/`** is on a different filesystem here — so investigators still have it.',
             ],
             code: {
               language: 'shell',
-              code: `sudo rm /var/log/order-processor/order-processor.log.{2,3,4,5}
-sudo mv /var/log/order-processor/order-processor-heap.hprof /var/tmp/
-df -h /var/log/order-processor
+              code: `sudo rm /var/cache/map-tiles/tile-server.log.{2,3,4,5}
+sudo mv /var/cache/map-tiles/debug-dump.bin /var/tmp/
+df -h /var/cache/map-tiles
 # better, but still higher than du says`,
             },
           },
@@ -2196,22 +2197,20 @@ df -h /var/log/order-processor
         ],
         code: {
           language: 'shell',
-          code: `sudo lsof +L1 /var/log/order-processor
-# order-expo  1234 … /var/log/order-processor/export-spool.tmp (deleted)
-mkdir -p ~/answers
-echo order-exporter > ~/answers/held-by
-sudo systemctl restart order-exporter
-df -h /var/log/order-processor
+          code: `sudo lsof +L1 /var/cache/map-tiles
+# tile-warme  1234 … /var/cache/map-tiles/warm-spool.tmp (deleted)
+sudo systemctl restart tile-warmer
+df -h /var/cache/map-tiles
 # space comes back`,
         },
         after: [
-          'Without **`lsof`**, look under **`/proc/*/fd`** for links that end in **`(deleted)`**. Then bring **order-processor** back and check health.',
+          'Without **`lsof`**, look under **`/proc/*/fd`** for links that end in **`(deleted)`**. Then bring **tile-server** back and check health.',
         ],
         codes: [
           {
             language: 'shell',
-            code: `sudo systemctl restart order-processor
-systemctl status order-processor
+            code: `sudo systemctl restart tile-server
+systemctl status tile-server
 curl http://127.0.0.1:8080/health`,
           },
         ],
@@ -2220,13 +2219,13 @@ curl http://127.0.0.1:8080/health`,
         id: 'mounts',
         title: 'Map the mounts',
         body: [
-          '**`lsblk -f`** shows devices, filesystem types, and mount points. **`findmnt`** shows what is mounted where. **`findmnt -T path`** answers which filesystem owns a path — useful when **`/var/log/order-processor`** is its own tiny volume.',
+          '**`lsblk -f`** shows devices, filesystem types, and mount points. **`findmnt`** shows what is mounted where. **`findmnt -T path`** answers which filesystem owns a path — useful when **`/var/cache/map-tiles`** is its own volume.',
         ],
         code: {
           language: 'shell',
           code: `lsblk -f
-findmnt /var/log/order-processor
-findmnt -T /var/log/order-processor/order-processor.log`,
+findmnt /var/cache/map-tiles
+findmnt -T /var/cache/map-tiles/tile-server.log`,
         },
         subsections: [
           {
@@ -2249,7 +2248,7 @@ findmnt --verify`,
           kind: 'idea',
           title: 'Moving across mounts frees space',
           body: [
-            'Moving the heap dump to **`/var/tmp/`** freed the log volume because that path is another filesystem. Moving a file inside the same mount only renames it — **`df`** does not change.',
+            'Moving the debug dump to **`/var/tmp/`** freed the cache volume because that path is another filesystem. Moving a file inside the same mount only renames it — **`df`** does not change.',
           ],
         },
       },
@@ -2257,7 +2256,7 @@ findmnt --verify`,
         id: 'tar-and-links',
         title: 'Archive a release, then roll back',
         body: [
-          'A bad **order-processor** release is a different night, same toolkit. Releases live under **`/opt/order-processor/releases/`**. **`/opt/order-processor/current`** is a **symlink** to the live version. Fix the outage first: point **`current`** at the last good release. Then archive the bad folder with **`tar`**, restore an older backup if you need it, and wire config with links.',
+          'A bad **tile-server** release is a different night, same toolkit. Releases live under **`/opt/tile-server/releases/`**. **`/opt/tile-server/current`** is a **symlink** to the live version. Fix the outage first: point **`current`** at the last good release. Then archive the bad folder with **`tar`**, restore an older backup if you need it, and wire config with links.',
         ],
         subsections: [
           {
@@ -2268,11 +2267,11 @@ findmnt --verify`,
             ],
             code: {
               language: 'shell',
-              code: `ls -l /opt/order-processor /opt/order-processor/releases
-readlink /opt/order-processor/current
+              code: `ls -l /opt/tile-server /opt/tile-server/releases
+readlink /opt/tile-server/current
 # releases/v1.2
-sudo ln -sfn releases/v1.1 /opt/order-processor/current
-/opt/order-processor/current/bin/order-processor
+sudo ln -sfn releases/v1.1 /opt/tile-server/current
+/opt/tile-server/current/bin/tile-server
 # v1.1 again`,
             },
           },
@@ -2284,29 +2283,29 @@ sudo ln -sfn releases/v1.1 /opt/order-processor/current
             ],
             code: {
               language: 'shell',
-              code: `sudo tar -C /opt/order-processor/releases -czf /var/backups/order-processor-v1.2.tar.gz v1.2
-tar -tzf /var/backups/order-processor-v1.2.tar.gz | head
+              code: `sudo tar -C /opt/tile-server/releases -czf /var/backups/tile-server-v1.2.tar.gz v1.2
+tar -tzf /var/backups/tile-server-v1.2.tar.gz | head
 # v1.2/
 # v1.2/VERSION
-sudo rm -rf /opt/order-processor/releases/v1.2
+sudo rm -rf /opt/tile-server/releases/v1.2
 
-sudo tar -C /opt/order-processor/releases -xzf /var/backups/order-processor-v1.0.tar.gz
-ls -l /opt/order-processor/releases/v1.0/bin`,
+sudo tar -C /opt/tile-server/releases -xzf /var/backups/tile-server-v1.0.tar.gz
+ls -l /opt/tile-server/releases/v1.0/bin`,
             },
           },
           {
             id: 'hard-vs-soft',
             title: 'Symlink for config, hard link for a backup',
             body: [
-              'A **symlink** stores a path. Point **`/etc/order-processor/app.conf`** at **`…/current/app.conf`** so future rollbacks pick up the matching config. A **hard link** is a second name for the same inode. **`ln`** without **`-s`** makes one. **`ls -li`** shows matching inode numbers. Hard links cannot cross filesystems or point at directories.',
+              'A **symlink** stores a path. Point **`/etc/tile-server/app.conf`** at **`…/current/app.conf`** so future rollbacks pick up the matching config. A **hard link** is a second name for the same inode. **`ln`** without **`-s`** makes one. **`ls -li`** shows matching inode numbers. Hard links cannot cross filesystems or point at directories.',
             ],
             code: {
               language: 'shell',
-              code: `sudo ln -sfn /opt/order-processor/current/app.conf /etc/order-processor/app.conf
-cat /etc/order-processor/app.conf
+              code: `sudo ln -sfn /opt/tile-server/current/app.conf /etc/tile-server/app.conf
+cat /etc/tile-server/app.conf
 
-sudo ln /opt/order-processor/releases/v1.1/app.conf /var/backups/app.conf.v1.1
-ls -li /opt/order-processor/releases/v1.1/app.conf /var/backups/app.conf.v1.1
+sudo ln /opt/tile-server/releases/v1.1/app.conf /var/backups/app.conf.v1.1
+ls -li /opt/tile-server/releases/v1.1/app.conf /var/backups/app.conf.v1.1
 # same inode, link count 2`,
             },
           },
@@ -2352,7 +2351,7 @@ ls -li /opt/order-processor/releases/v1.1/app.conf /var/backups/app.conf.v1.1
     takeaways: [
       '**`df`** reports a filesystem. **`du`** totals files you can still see. Start with **`df`**, then narrow with **`du -x`**.',
       'When **`df`** and **`du`** disagree, a process still holds a **deleted** file. Find it with **`lsof +L1`** and restart that process so the blocks return.',
-      'Keep the evidence you need (newest log, heap dump on another mount). Delete only what you can name.',
+      'Keep the evidence you need (newest log, debug dump on another mount). Delete only what you can name.',
       '**`tar -C`** builds clean archives. **`ln -sfn`** rolls a release back. A **hard link** keeps a second name for the same inode.',
     ],
     relatedLabsIntro: '',
@@ -2370,27 +2369,27 @@ ls -li /opt/order-processor/releases/v1.1/app.conf /var/backups/app.conf.v1.1
     showBlogStamp: true,
     gatedByChallengeId: 'linux-20-why-cant-order-reach-payment',
     lede:
-      'Every checkout fails with *payment service unavailable*. **order-processor** calls **`http://payment.internal:9090`**. **payment-handler** was moved onto this same **order box**, and **`systemctl status`** says it is running. This post is how you debug that call from the **bottom up** — address, name, port, request — and how you open **only** the ports the network should reach.',
+      'The lobby **campus kiosk** cannot sign anyone in. It calls **`http://id.campus.local:8443/health`**, and every attempt fails. **id-broker** was moved onto this same kiosk host, and **`systemctl status`** says it is running. This post is how you debug that call from the **bottom up** — address, name, port, request — and how you open **only** the ports the network should reach.',
     sections: [
       {
         id: 'endpoint',
         title: 'Write down the exact endpoint',
         body: [
-          'The failing call is **`http://payment.internal:9090/health`** (or whatever **`check-payments`** uses). It has a **protocol**, a **host name**, a **port**, and a **path**. Each part can fail on its own.',
-          'Test from the machine that fails — this box — not from your laptop. A success elsewhere only proves your laptop’s DNS and path.',
+          'The failing call is **`http://id.campus.local:8443/health`** (or whatever the kiosk probe uses). It has a **protocol**, a **host name**, a **port**, and a **path**. Each part can fail on its own.',
+          'Test from the machine that fails — this kiosk host — not from your laptop. A success elsewhere only proves your laptop’s DNS and path.',
         ],
         code: {
           language: 'shell',
-          code: `/opt/order-processor/bin/check-payments
-# payment service unavailable
-cat /etc/order-processor/app.conf
-# … http://payment.internal:9090 …`,
+          code: `/opt/campus-kiosk/bin/probe-id
+# identity service unavailable
+cat /etc/campus-kiosk/app.conf
+# … http://id.campus.local:8443 …`,
         },
         table: {
           headers: ['Part', 'Tonight', 'Question'],
           rows: [
-            ['Host', '`payment.internal`', 'What IP does this name resolve to?'],
-            ['Port', '`9090`', 'Is anything listening there?'],
+            ['Host', '`id.campus.local`', 'What IP does this name resolve to?'],
+            ['Port', '`8443`', 'Is anything listening there?'],
             ['Path', '`/health`', 'Does the app answer once TCP works?'],
           ],
         },
@@ -2410,16 +2409,15 @@ cat /etc/order-processor/app.conf
         ],
         code: {
           language: 'shell',
-          code: `mkdir -p ~/answers
-ip -4 addr show dev eth0
+          code: `ip -4 addr show dev eth0
 # inet 10.x.y.z/…
 ip route
 cat /etc/resolv.conf
 # nameserver …
 
-# Record without the /prefix:
-ip -4 -o addr show dev eth0 | awk '{print $4}' | cut -d/ -f1 > ~/answers/box-ip
-awk '/^nameserver/{print $2; exit}' /etc/resolv.conf > ~/answers/resolver`,
+# Address without the /prefix:
+ip -4 -o addr show dev eth0 | awk '{print $4}' | cut -d/ -f1
+awk '/^nameserver/{print $2; exit}' /etc/resolv.conf`,
         },
         after: [
           '**`127.0.0.1`** means this machine. A service that only listens on loopback is fine for local curls and invisible from another host.',
@@ -2429,7 +2427,7 @@ awk '/^nameserver/{print $2; exit}' /etc/resolv.conf > ~/answers/resolver`,
         id: 'name-resolution',
         title: 'What does the name resolve to?',
         body: [
-          '**`getent hosts`** uses the same resolver path most programs use: usually **`/etc/hosts` first**, then DNS (**`hosts: files dns`** in **`nsswitch.conf`**). That is what **order-processor** sees.',
+          '**`getent hosts`** uses the same resolver path most programs use: usually **`/etc/hosts` first**, then DNS (**`hosts: files dns`** in **`nsswitch.conf`**). That is what the kiosk app sees.',
           '**`dig`** asks DNS only and skips **`/etc/hosts`**. Empty **`dig`** plus a wrong **`getent`** answer means the lie is in **`/etc/hosts`**.',
         ],
         subsections: [
@@ -2437,30 +2435,29 @@ awk '/^nameserver/{print $2; exit}' /etc/resolv.conf > ~/answers/resolver`,
             id: 'getent-vs-dig',
             title: 'getent versus dig',
             body: [
-              'Record what **`payment.internal`** resolves to **before** you change it. Tonight it still points at the old box.',
+              'Record what **`id.campus.local`** resolves to **before** you change it. Tonight it still points at the old identity host.',
             ],
             code: {
               language: 'shell',
-              code: `getent hosts payment.internal
-# 10.99.0.7  payment.internal
-dig +short payment.internal
+              code: `getent hosts id.campus.local
+# 10.40.2.18  id.campus.local
+dig +short id.campus.local
 # (empty — DNS has no answer)
-grep payment /etc/hosts
-echo 10.99.0.7 > ~/answers/payment-ip-before`,
+grep id.campus /etc/hosts`,
             },
           },
           {
             id: 'fix-hosts',
             title: 'Point the name at this box',
             body: [
-              'Edit **`/etc/hosts`** so **`payment.internal`** is **`127.0.0.1`**. On some lab boxes **`sed -i`** fails because the file is bind-mounted — an editor that writes in place works. Confirm with **`getent`** again.',
+              'Edit **`/etc/hosts`** so **`id.campus.local`** is **`127.0.0.1`**. On some hosts **`sed -i`** fails because the file is bind-mounted — an editor that writes in place works. Confirm with **`getent`** again.',
             ],
             code: {
               language: 'shell',
               code: `sudo nano /etc/hosts
-# 127.0.0.1  payment.internal
-getent hosts payment.internal
-# 127.0.0.1  payment.internal`,
+# 127.0.0.1  id.campus.local
+getent hosts id.campus.local
+# 127.0.0.1  id.campus.local`,
             },
           },
         ],
@@ -2468,7 +2465,7 @@ getent hosts payment.internal
           kind: 'warn',
           title: 'A working IP can hide a DNS problem',
           body: [
-            'If **`curl http://127.0.0.1:9090/health`** works but **`curl http://payment.internal:9090/health`** does not, the listener is fine. Fix the name.',
+            'If **`curl http://127.0.0.1:8443/health`** works but **`curl http://id.campus.local:8443/health`** does not, the listener is fine. Fix the name.',
           ],
         },
       },
@@ -2476,32 +2473,31 @@ getent hosts payment.internal
         id: 'listeners',
         title: 'Is anything listening on that port?',
         body: [
-          'A port is not a program. A process **listens** on an address and port. **`ss -tlnp`** lists TCP listeners and the owning process. Check the destination — tonight, this box.',
+          'A port is not a program. A process **listens** on an address and port. **`ss -tlnp`** lists TCP listeners and the owning process. Check the destination — tonight, this kiosk host.',
         ],
         subsections: [
           {
             id: 'ss',
             title: 'ss: see the real port',
             body: [
-              'payment-handler may be up and still listening on the **wrong** port. Record that port, then fix the config and restart.',
+              '**id-broker** may be up and still listening on the **wrong** port. Record that port, then fix the config and restart.',
             ],
             code: {
               language: 'shell',
               code: `sudo ss -tlnp
-# … 127.0.0.1:9099 … users:(("payment-handler",…))
-echo 9099 > ~/answers/payment-port-before
+# … 127.0.0.1:8444 … users:(("id-broker",…))
 
-sudo sed -i 's/^PAYMENT_HANDLER_PORT=.*/PAYMENT_HANDLER_PORT=9090/' \\
-  /etc/payment-handler/payment-handler.env
-sudo systemctl restart payment-handler
-ss -tln | grep 9090`,
+sudo sed -i 's/^ID_BROKER_PORT=.*/ID_BROKER_PORT=8443/' \\
+  /etc/id-broker/id-broker.env
+sudo systemctl restart id-broker
+ss -tln | grep 8443`,
             },
           },
           {
             id: 'bind-address',
             title: 'The bind address matters',
             body: [
-              '**`127.0.0.1:9090`** accepts only local connections. **`0.0.0.0:9090`** accepts IPv4 on every interface. A firewall cannot make a loopback-only listener reachable from another host.',
+              '**`127.0.0.1:8443`** accepts only local connections. **`0.0.0.0:8443`** accepts IPv4 on every interface. A firewall cannot make a loopback-only listener reachable from another host.',
             ],
           },
         ],
@@ -2523,8 +2519,8 @@ ss -tln | grep 9090`,
         ],
         code: {
           language: 'shell',
-          code: `curl -v --connect-timeout 5 http://payment.internal:9090/health
-/opt/order-processor/bin/check-payments
+          code: `curl -v --connect-timeout 5 http://id.campus.local:8443/health
+/opt/campus-kiosk/bin/probe-id
 # exit 0`,
         },
       },
@@ -2532,7 +2528,7 @@ ss -tln | grep 9090`,
         id: 'firewall',
         title: 'Open only the right ports',
         body: [
-          'A port scan of the order box lit up four listeners on every interface and **no** host firewall. **SSH (22)** and **order-processor (8080)** must stay reachable from the network. **metrics-exporter (9100)** and the **order-cache debug port (6379)** must stay up **locally** but must not answer strangers.',
+          'A port scan of the kiosk host lit up four listeners on every interface and **no** host firewall. From outside, only **SSH (22)** and **HTTPS for the lobby UI (443)** should answer. **metrics-exporter (9100)** and the **session-cache debug port (6379)** must stay up **locally** but must not answer strangers.',
           '**nftables** is the kernel firewall. The safe pattern is **default deny** on input: allow loopback, allow replies to connections this box opened, allow the ports you mean to serve — and nothing else.',
         ],
         subsections: [
@@ -2545,7 +2541,7 @@ ss -tln | grep 9090`,
             code: {
               language: 'shell',
               code: `sudo ss -tlnp
-# 0.0.0.0:22, :8080, :9100, :6379
+# 0.0.0.0:22, :443, :9100, :6379
 sudo nft list ruleset
 # empty`,
             },
@@ -2571,7 +2567,7 @@ table inet filter {
     ct state invalid drop
     meta l4proto { icmp, ipv6-icmp } accept
 
-    tcp dport { 22, 8080 } accept
+    tcp dport { 22, 443 } accept
   }
   chain forward {
     type filter hook forward priority filter; policy drop;
@@ -2921,7 +2917,7 @@ sudo journalctl -u sshd -n 50 --no-pager  # many other distributions`,
     showBlogStamp: true,
     gatedByChallengeId: 'linux-23-script-the-health-check',
     lede:
-      'Before every deploy someone runs three **`curl`** commands by hand and guesses from the output. Last week that guess shipped onto a dead **payment-handler**. Partners also drop order-batch CSVs into a spool folder every morning for someone to count by spreadsheet. This post is how you turn both chores into **scripts** whose **exit codes** and loops a pipeline can trust.',
+      'Before every release someone runs three **`curl`** commands by hand and guesses from the output. Last week that guess shipped while **desk-api** was already down. Ops also drops daily report CSVs into a spool folder every morning for someone to count by spreadsheet. This post is how you turn both chores into **scripts** whose **exit codes** and loops a pipeline can trust.',
     sections: [
       {
         id: 'why-a-script',
@@ -2956,7 +2952,7 @@ chmod +x /tmp/hello.sh
         ],
         code: {
           language: 'shell',
-          code: `name="order processor"
+          code: `name="desk api"
 port=8080
 url="http://127.0.0.1:\${port}/health"
 echo "$name → $url"
@@ -2974,7 +2970,7 @@ echo "$name → $url"
             code: {
               language: 'shell',
               code: `if [ $# -ne 1 ]; then
-  echo "usage: check-health <service>" >&2
+  echo "usage: check-endpoint <service>" >&2
   exit 2
 fi`,
             },
@@ -2984,7 +2980,7 @@ fi`,
           kind: 'warn',
           title: 'Make "$var" a reflex',
           body: [
-            'A file named **`batch 0002 (retry).csv`** becomes several arguments when **`$f`** is unquoted. Write **`"$f"`** unless you deliberately want splitting or globs.',
+            'A file named **`report 0002 (retry).csv`** becomes several arguments when **`$f`** is unquoted. Write **`"$f"`** unless you deliberately want splitting or globs.',
           ],
         },
       },
@@ -3017,27 +3013,27 @@ fi`,
         },
       },
       {
-        id: 'health-script',
-        title: 'Script the health check',
+        id: 'endpoint-script',
+        title: 'Script the endpoint check',
         body: [
-          'Service ports live in **`/etc/order-platform/services`** (name and port). The deploy pipeline needs **`/usr/local/bin/check-health <name>`**: look up the port, **`curl`** **`http://127.0.0.1:<port>/health`**, print **`<name> OK`** or **`DOWN`**, and exit **0** / **1**. Wrong args → exit **2**. Unknown name → exit **3**. Do not hard-code ports — the grader adds services later.',
+          'Service ports live in **`/etc/ops/service-ports`** (name and port). The release pipeline needs **`/usr/local/bin/check-endpoint <name>`**: look up the port, **`curl`** **`http://127.0.0.1:<port>/health`**, print **`<name> OK`** or **`DOWN`**, and exit **0** / **1**. Wrong args → exit **2**. Unknown name → exit **3**. Do not hard-code ports — ops adds services later.',
         ],
         subsections: [
           {
-            id: 'check-health-body',
+            id: 'check-endpoint-body',
             title: 'The script',
             body: [
               '**`awk`** picks the port for an exact name. **`curl -f`** treats HTTP errors as failure. **`chmod 755`** so any user can run it.',
             ],
             code: {
               language: 'shell',
-              filename: '/usr/local/bin/check-health',
+              filename: '/usr/local/bin/check-endpoint',
               code: `#!/bin/bash
-# check-health <service> — exit 0 OK, 1 DOWN, 2 usage, 3 unknown.
-registry=/etc/order-platform/services
+# check-endpoint <service> — exit 0 OK, 1 DOWN, 2 usage, 3 unknown.
+registry=/etc/ops/service-ports
 
 if [ $# -ne 1 ]; then
-  echo "usage: check-health <service>" >&2
+  echo "usage: check-endpoint <service>" >&2
   exit 2
 fi
 name="$1"
@@ -3058,49 +3054,49 @@ fi`,
             },
           },
           {
-            id: 'try-health',
+            id: 'try-endpoint',
             title: 'Try the exit codes',
             body: [
               'Install it, then exercise every path. **`bash -x`** traces expansions when a check misbehaves.',
             ],
             code: {
               language: 'shell',
-              code: `sudo tee /usr/local/bin/check-health >/dev/null <<'EOF'
+              code: `sudo tee /usr/local/bin/check-endpoint >/dev/null <<'EOF'
 # paste the script
 EOF
-sudo chmod 755 /usr/local/bin/check-health
+sudo chmod 755 /usr/local/bin/check-endpoint
 
-check-health; echo "exit=$?"
-check-health order-processor; echo "exit=$?"
-check-health notification-service; echo "exit=$?"
-check-health inventory-service; echo "exit=$?"
-bash -x /usr/local/bin/check-health order-processor`,
+check-endpoint; echo "exit=$?"
+check-endpoint desk-api; echo "exit=$?"
+check-endpoint notice-board; echo "exit=$?"
+check-endpoint asset-index; echo "exit=$?"
+bash -x /usr/local/bin/check-endpoint desk-api`,
             },
           },
         ],
       },
       {
         id: 'loops-functions',
-        title: 'Loop over order batches',
+        title: 'Loop over report CSVs',
         body: [
-          'Partners drop CSVs into **`$ORDER_SPOOL/incoming/`**. Each file has a header plus one order per line. Some names contain spaces. Every morning: print **`<file> <count>`**, move the file to **`processed/`**, then print **`TOTAL <sum>`**.',
+          'Nightly jobs drop CSVs into **`$REPORT_SPOOL/incoming/`**. Each file has a header plus one row per line. Some names contain spaces. Every morning: print **`<file> <count>`**, move the file to **`processed/`**, then print **`TOTAL <sum>`**.',
           'A **`for`** loop walks a list. A **function** names one step so the loop stays readable. **`shopt -s nullglob`** makes an unmatched **`*.csv`** expand to nothing instead of a literal filename.',
         ],
         subsections: [
           {
-            id: 'process-batches',
-            title: 'process-batches',
+            id: 'fold-reports',
+            title: 'fold-reports',
             body: [
-              '**`\${ORDER_SPOOL:-/var/spool/orders}`** uses the environment when set. **`wc -l`** counts lines; subtract one for the header. Quote **`"$f"`** every time.',
+              '**`\${REPORT_SPOOL:-/var/spool/reports}`** uses the environment when set. **`wc -l`** counts lines; subtract one for the header. Quote **`"$f"`** every time.',
             ],
             code: {
               language: 'shell',
-              filename: '~/bin/process-batches',
+              filename: '~/bin/fold-reports',
               code: `#!/bin/bash
-# process-batches — count and archive CSVs from $ORDER_SPOOL/incoming.
-spool="\${ORDER_SPOOL:-/var/spool/orders}"
+# fold-reports — count and archive CSVs from $REPORT_SPOOL/incoming.
+spool="\${REPORT_SPOOL:-/var/spool/reports}"
 
-count_orders() {
+count_rows() {
   local lines
   lines=$(wc -l < "$1")
   echo $((lines - 1))
@@ -3109,7 +3105,7 @@ count_orders() {
 shopt -s nullglob
 total=0
 for f in "$spool"/incoming/*.csv; do
-  n=$(count_orders "$f")
+  n=$(count_rows "$f")
   echo "$(basename "$f") $n"
   total=$((total + n))
   mv "$f" "$spool/processed/"
@@ -3119,25 +3115,25 @@ echo "TOTAL $total"`,
           },
           {
             id: 'bashrc-path',
-            title: 'PATH and ORDER_SPOOL in ~/.bashrc',
+            title: 'PATH and REPORT_SPOOL in ~/.bashrc',
             body: [
-              '**`~/.bashrc`** runs for interactive shells. Put **`~/bin`** on your **`PATH`** and export **`ORDER_SPOOL`** there. **`source ~/.bashrc`** applies it to the current shell. Scripts you ship for cron should still set their own defaults — they do not read your bashrc.',
+              '**`~/.bashrc`** runs for interactive shells. Put **`~/bin`** on your **`PATH`** and export **`REPORT_SPOOL`** there. **`source ~/.bashrc`** applies it to the current shell. Scripts you ship for cron should still set their own defaults — they do not read your bashrc.',
             ],
             code: {
               language: 'shell',
               code: `mkdir -p ~/bin
-chmod +x ~/bin/process-batches
+chmod +x ~/bin/fold-reports
 
 cat >> ~/.bashrc <<'EOF'
 export PATH="$HOME/bin:$PATH"
-export ORDER_SPOOL=/var/spool/orders
+export REPORT_SPOOL=/var/spool/reports
 EOF
 source ~/.bashrc
-command -v process-batches
-# /home/learner/bin/process-batches
-process-batches
-# batch-0001.csv 17
-# batch 0002 (retry).csv 31
+command -v fold-reports
+# /home/learner/bin/fold-reports
+fold-reports
+# report-0001.csv 17
+# report 0002 (retry).csv 31
 # TOTAL 48`,
             },
           },
@@ -3159,9 +3155,9 @@ process-batches
         ],
         code: {
           language: 'shell',
-          code: `bash -n ~/bin/process-batches
-bash -x ~/bin/process-batches
-shellcheck /usr/local/bin/check-health   # if installed`,
+          code: `bash -n ~/bin/fold-reports
+bash -x ~/bin/fold-reports
+shellcheck /usr/local/bin/check-endpoint   # if installed`,
         },
       },
       {
@@ -3179,7 +3175,7 @@ shellcheck /usr/local/bin/check-health   # if installed`,
             ['Tests', '`[[ -f "$p" ]]`, `(( n > 0 ))`'],
             ['Function', '`name() { local x="$1"; …; }`'],
             ['Glob loop', '`shopt -s nullglob; for f in dir/*.csv; do …; done`'],
-            ['Default env', '`\${ORDER_SPOOL:-/var/spool/orders}`'],
+            ['Default env', '`\${REPORT_SPOOL:-/var/spool/reports}`'],
             ['Interactive PATH', '`export PATH="$HOME/bin:$PATH"` in `~/.bashrc`'],
             ['Check / trace', '`bash -n`, `bash -x`, `shellcheck`'],
           ],
