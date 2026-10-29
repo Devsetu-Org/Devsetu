@@ -40,7 +40,7 @@ import PlatformLeaderboardPage from './pages/PlatformLeaderboardPage';
 import LearnerProfilePage from './pages/LearnerProfilePage';
 import AppLayout from './layouts/AppLayout';
 import { AppStateProvider, useAppState } from './context/AppStateContext';
-import { getToken, getCurrentUser, logout, fetchMe, takePostLoginPath } from './services/authApi';
+import { getToken, getCurrentUser, isAdminUser, logout, fetchMe, takePostLoginPath } from './services/authApi';
 import { fetchChallenges, fetchChallenge } from './services/challengeApi';
 import { startSession, startBoardSession, endSession, restoreSession } from './services/sessionApi';
 import { startSparkSession, startK8sSession, cancelInflightK8sStart, fetchK8sAvailability } from './services/workspaceApi';
@@ -82,6 +82,8 @@ import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from 
 } from './types/domain';
 
 const LAB_LOCKED_FALLBACK_MSG = 'Something is down on our side. Please contact the administrator.';
+/** Public site: Kafka terminal is preview-only until the PE sub-track ships. Admins still start clusters. */
+const KAFKA_COMING_SOON_MSG = 'Coming soon';
 
 /** Started Kubernetes labs (machine requested or shell up) need a leave warning. */
 function needsK8sLeaveConfirm(session: ActiveSession | null | undefined): boolean {
@@ -543,6 +545,17 @@ export default function App(): React.JSX.Element {
         const full = await fetchChallenge(challenge.id);
         if (attempt.stale()) return;
         setActiveChallenge(full);
+
+        // Public users can read the Kafka brief; the live cluster stays admin-only for now.
+        if (
+          full.sandboxType === 'kafka'
+          && !isAdminUser(currentUser)
+          && !isAdminUser(getCurrentUser())
+        ) {
+          attempt.settle();
+          lockLab(KAFKA_COMING_SOON_MSG);
+          return;
+        }
 
         const availability = await fetchK8sAvailability(full.id).catch(() => null);
         if (attempt.stale()) return;

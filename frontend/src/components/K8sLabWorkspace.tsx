@@ -407,7 +407,11 @@ export default function K8sLabWorkspace({
   const lockedMessage = session.lockedMessage || null;
   const idleLocked = Boolean(session.idleLocked);
   const notStarted = Boolean(session.notStarted);
-  const terminalLocked = Boolean(lockedMessage) || idleLocked;
+  const kafkaComingSoon =
+    challenge?.sandboxType === 'kafka'
+    && !isAdmin
+    && (lockedMessage === 'Coming soon' || Boolean(lockedMessage?.toLowerCase().includes('coming soon')));
+  const terminalLocked = Boolean(lockedMessage) || idleLocked || kafkaComingSoon;
   const challengeId = challenge?.id || '';
   const box = isBoxChallenge(challenge);
   const machineLabel = boxMachineLabel(challenge);
@@ -415,6 +419,8 @@ export default function K8sLabWorkspace({
     ? (box ? 'Start the machine to use the terminal' : 'Start the lab to use the terminal')
     : idleLocked
     ? 'This lab\'s time has run out'
+    : kafkaComingSoon
+      ? 'Coming soon'
     : lockedMessage
       ? 'Lab is unavailable right now'
       : 'Lab is still preparing';
@@ -1213,24 +1219,38 @@ export default function K8sLabWorkspace({
                 </div>
               ) : terminalLocked ? (
                 <div className="k8s-lab-locked" role="status" aria-live="polite">
-                  <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
-                    <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  </svg>
-                  <strong>{idleLocked ? 'This lab\'s time is up' : 'This lab is locked for now'}</strong>
+                  {kafkaComingSoon ? (
+                    <span className="k8s-lab-coming-soon-badge" aria-hidden="true">🔜</span>
+                  ) : (
+                    <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+                      <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    </svg>
+                  )}
+                  <strong>
+                    {kafkaComingSoon
+                      ? 'Coming soon'
+                      : idleLocked
+                        ? 'This lab\'s time is up'
+                        : 'This lab is locked for now'}
+                  </strong>
                   <p>
-                    {idleLocked
-                      ? (challenge?.sandboxType === 'kafka'
-                        ? 'The time for this lab ran out, so the cluster was stopped. Start again for a fresh cluster.'
-                        : box
-                          ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
-                          : 'The time for this lab ran out, so the lab was closed.')
-                      : lockedMessage}
+                    {kafkaComingSoon
+                      ? 'The Kafka Platform Engineering labs are on the way. You can read the brief on the left.'
+                      : idleLocked
+                        ? (challenge?.sandboxType === 'kafka'
+                          ? 'The time for this lab ran out, so the cluster was stopped. Start again for a fresh cluster.'
+                          : box
+                            ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
+                            : 'The time for this lab ran out, so the lab was closed.')
+                        : lockedMessage}
                   </p>
-                  <p className="k8s-lab-locked-hint">
-                    You can still read the description and the rest of the brief on the left.
-                  </p>
-                  {challenge && (
+                  {!kafkaComingSoon && (
+                    <p className="k8s-lab-locked-hint">
+                      You can still read the description and the rest of the brief on the left.
+                    </p>
+                  )}
+                  {challenge && !kafkaComingSoon && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"

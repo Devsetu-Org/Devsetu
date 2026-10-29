@@ -23016,6 +23016,13 @@ kbd {
   margin-bottom: 4px;
 }
 
+.k8s-lab-coming-soon-badge {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
 .k8s-lab-standby .k8s-lab-locked-icon {
   color: var(--brand-bright);
 }

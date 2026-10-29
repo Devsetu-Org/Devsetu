@@ -19,5 +19,8 @@ deploy/env.ec2
 # Local sandbox data (problem statements, builds, sessions, solutions) — not used.
 sandbox/
 
+# Local founder-pack notes — not part of the product.
+founder/
+
 kube/*.kubeconfig
 kube/homes/
