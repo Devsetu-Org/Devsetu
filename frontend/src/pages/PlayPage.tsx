@@ -10,7 +10,6 @@ import K8sLabWorkspace, {
   boxMachineLabel,
   isBoxChallenge,
   isKubernetesChallenge,
-  isPublicLabComingSoon,
 } from '../components/K8sLabWorkspace';
 import {
   LeaderboardIcon,
@@ -149,12 +148,12 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
     const startId = searchParams.get('start');
     if (!startId) return;
     const challenge = byId.get(startId);
-    if (!challenge || !challenge.finalized || isPublicLabComingSoon(challenge, currentUser)) return;
+    if (!challenge || !challenge.finalized) return;
     const next = new URLSearchParams(searchParams);
     next.delete('start');
     setSearchParams(next, { replace: true });
     void onSelectChallenge(challenge);
-  }, [readingTrack, searchParams, setSearchParams, byId, onSelectChallenge, currentUser]);
+  }, [readingTrack, searchParams, setSearchParams, byId, onSelectChallenge]);
 
   const catalogRows = useMemo(() => {
     return listPlayCatalogEntries()
@@ -578,8 +577,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       }
 
                       const { challenge, trackId } = row;
-                      const comingSoon = isPublicLabComingSoon(challenge, currentUser);
-                      const playable = Boolean(challenge.finalized) && !comingSoon;
+                      const playable = Boolean(challenge.finalized);
                       const solved = Boolean(challenge.solved);
                       const locked = Boolean(challenge.locked);
                       const vis = visibilityMark(challenge.visibleTo);
@@ -591,15 +589,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         <li key={row.key}>
                           <button
                             type="button"
-                            className={`play-problem-row play-problem-row--lab${playable ? '' : ' disabled'}${solved ? ' is-solved' : ''}${locked ? ' is-locked' : ''}${comingSoon ? ' play-problem-row--soon' : ''}`}
+                            className={`play-problem-row play-problem-row--lab${playable ? '' : ' disabled'}${solved ? ' is-solved' : ''}${locked ? ' is-locked' : ''}`}
                             disabled={!playable}
-                            title={
-                              comingSoon
-                                ? 'Coming soon'
-                                : locked
-                                  ? 'Subscribe to unlock this lab'
-                                  : undefined
-                            }
+                            title={locked ? 'Subscribe to unlock this lab' : undefined}
                             onClick={() => {
                               if (playable) void onSelectChallenge(challenge);
                             }}
@@ -627,11 +619,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                                   {vis.letter}
                                 </span>
                               ) : null}
-                              {comingSoon ? (
-                                <span className="play-problem-soon" title="Coming soon">
-                                  Coming soon
-                                </span>
-                              ) : challenge.k8sPlatform?.practice ? null : (
+                              {challenge.k8sPlatform?.practice ? null : (
                                 <span className="play-problem-tokens" title={`${tokens} tokens`}>
                                   <span className="play-problem-tokens-coin">
                                     <IconCoins size={14} />

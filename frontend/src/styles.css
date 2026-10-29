@@ -7814,18 +7814,6 @@ button.play-primer-link {
   gap: 4px;
 }
 
-.play-problem-soon {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.play-problem-row--soon .play-problem-meta {
-  grid-template-columns: minmax(5.5rem, max-content);
-}
-
 .play-problem-tokens-coin {
   display: inline-flex;
   color: #f0c674;

@@ -120,8 +120,6 @@ export default function TrackRoadmapModal({
                         <span className="track-roadmap-meta">
                           {solved ? (
                             <StatusCheckIcon className="track-roadmap-check" title="Solved" />
-                          ) : locked ? (
-                            'Coming soon'
                           ) : (
                             kind
                           )}
