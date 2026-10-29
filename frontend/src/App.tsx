@@ -40,7 +40,7 @@ import PlatformLeaderboardPage from './pages/PlatformLeaderboardPage';
 import LearnerProfilePage from './pages/LearnerProfilePage';
 import AppLayout from './layouts/AppLayout';
 import { AppStateProvider, useAppState } from './context/AppStateContext';
-import { getToken, getCurrentUser, isAdminUser, logout, fetchMe, takePostLoginPath } from './services/authApi';
+import { getToken, getCurrentUser, logout, fetchMe, takePostLoginPath } from './services/authApi';
 import { fetchChallenges, fetchChallenge } from './services/challengeApi';
 import { startSession, startBoardSession, endSession, restoreSession } from './services/sessionApi';
 import { startSparkSession, startK8sSession, cancelInflightK8sStart, fetchK8sAvailability } from './services/workspaceApi';
@@ -66,7 +66,12 @@ import {
 } from './fixtures/sparkPlaygroundStarter';
 import { isSparkPlatformChallenge } from './components/SparkPlatformWorkspace';
 import { isBoardChallenge } from './components/BoardWorkspace';
-import { isBoxChallenge, isKubernetesChallenge } from './components/K8sLabWorkspace';
+import {
+  isBoxChallenge,
+  isKubernetesChallenge,
+  isPublicLabComingSoon,
+  LAB_COMING_SOON_MSG,
+} from './components/K8sLabWorkspace';
 import { SPARK_PLAYGROUND_CHALLENGE_ID } from './constants/playgroundDatasets';
 import { PRICING_PATH } from './constants/pricing';
 import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from './constants/playCatalog';import type {
@@ -82,8 +87,6 @@ import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from 
 } from './types/domain';
 
 const LAB_LOCKED_FALLBACK_MSG = 'Something is down on our side. Please contact the administrator.';
-/** Public site: Kafka terminal is preview-only until the PE sub-track ships. Admins still start clusters. */
-const KAFKA_COMING_SOON_MSG = 'Coming soon';
 
 /** Started Kubernetes labs (machine requested or shell up) need a leave warning. */
 function needsK8sLeaveConfirm(session: ActiveSession | null | undefined): boolean {
@@ -546,14 +549,10 @@ export default function App(): React.JSX.Element {
         if (attempt.stale()) return;
         setActiveChallenge(full);
 
-        // Public users can read the Kafka brief; the live cluster stays admin-only for now.
-        if (
-          full.sandboxType === 'kafka'
-          && !isAdminUser(currentUser)
-          && !isAdminUser(getCurrentUser())
-        ) {
+        // Public users can read the brief; live terminals stay admin-only for now.
+        if (isPublicLabComingSoon(full, currentUser)) {
           attempt.settle();
-          lockLab(KAFKA_COMING_SOON_MSG);
+          lockLab(LAB_COMING_SOON_MSG);
           return;
         }
 

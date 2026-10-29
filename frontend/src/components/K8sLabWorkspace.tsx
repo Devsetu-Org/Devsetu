@@ -92,6 +92,21 @@ export function boxMachineLabel(
   return 'Linux';
 }
 
+/** Shown on the locked terminal for public users until live labs ship. */
+export const LAB_COMING_SOON_MSG = 'Coming soon';
+
+/**
+ * Public (non-admin) users cannot start Linux, Docker, Kubernetes, or Kafka
+ * terminals yet. Admins still run live clusters for testing.
+ */
+export function isPublicLabComingSoon(
+  challenge: ChallengePublic | ChallengeFull | null | undefined,
+  user?: Parameters<typeof isAdminUser>[0],
+): boolean {
+  if (!isKubernetesChallenge(challenge)) return false;
+  return !isAdminUser(user) && !isAdminUser(getCurrentUser());
+}
+
 type MainTab = 'terminal' | 'editor';
 
 type EvalResult = {
@@ -407,19 +422,24 @@ export default function K8sLabWorkspace({
   const lockedMessage = session.lockedMessage || null;
   const idleLocked = Boolean(session.idleLocked);
   const notStarted = Boolean(session.notStarted);
-  const kafkaComingSoon =
-    challenge?.sandboxType === 'kafka'
-    && !isAdmin
-    && (lockedMessage === 'Coming soon' || Boolean(lockedMessage?.toLowerCase().includes('coming soon')));
-  const terminalLocked = Boolean(lockedMessage) || idleLocked || kafkaComingSoon;
+  const labComingSoon =
+    isPublicLabComingSoon(challenge, currentUser)
+    || (
+      !isAdmin
+      && Boolean(lockedMessage)
+      && lockedMessage.toLowerCase().includes('coming soon')
+    );
+  // Public preview: never show the Start button — Coming soon replaces standby.
+  const showNotStarted = notStarted && !labComingSoon;
+  const terminalLocked = Boolean(lockedMessage) || idleLocked || labComingSoon;
   const challengeId = challenge?.id || '';
   const box = isBoxChallenge(challenge);
   const machineLabel = boxMachineLabel(challenge);
-  const notReadyTitle = notStarted
+  const notReadyTitle = showNotStarted
     ? (box ? 'Start the machine to use the terminal' : 'Start the lab to use the terminal')
     : idleLocked
     ? 'This lab\'s time has run out'
-    : kafkaComingSoon
+    : labComingSoon
       ? 'Coming soon'
     : lockedMessage
       ? 'Lab is unavailable right now'
@@ -1079,7 +1099,7 @@ export default function K8sLabWorkspace({
           <div className="spark-ide-actionbar">
             <div className="spark-ide-actionbar-left">
               <div className="k8s-lab-main-tabs" role="tablist" aria-label="Lab workspace">
-                {!box && !terminalLocked && !notStarted && (
+                {!box && !terminalLocked && !showNotStarted && (
                 <button
                   type="button"
                   role="tab"
@@ -1098,7 +1118,9 @@ export default function K8sLabWorkspace({
                   className={`k8s-lab-main-tab${mainTab === 'terminal' ? ' active' : ''}`}
                   onClick={() => setMainTab('terminal')}
                   title={
-                    notStarted
+                    labComingSoon
+                      ? 'Coming soon'
+                      : showNotStarted
                       ? (box ? 'Machine has not been started' : 'Lab has not been started')
                       : terminalLocked
                       ? (idleLocked ? 'This lab\'s time has run out' : 'Terminal is unavailable right now')
@@ -1109,8 +1131,8 @@ export default function K8sLabWorkspace({
                 >
                   Terminal
                   <span
-                    className={`k8s-lab-term-status${labReady && !terminalLocked && !notStarted ? ' is-ready' : ''}${terminalLocked ? ' is-locked' : ''}${notStarted ? ' is-idle' : ''}`}
-                    aria-label={notStarted ? 'not started' : terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
+                    className={`k8s-lab-term-status${labReady && !terminalLocked && !showNotStarted ? ' is-ready' : ''}${terminalLocked || labComingSoon ? ' is-locked' : ''}${showNotStarted ? ' is-idle' : ''}`}
+                    aria-label={labComingSoon ? 'coming soon' : showNotStarted ? 'not started' : terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
                   />
                 </button>
               </div>
@@ -1195,7 +1217,7 @@ export default function K8sLabWorkspace({
               className={`k8s-lab-term-pane-layer${mainTab === 'terminal' ? ' is-active' : ''}`}
               aria-hidden={mainTab !== 'terminal'}
             >
-              {notStarted ? (
+              {showNotStarted ? (
                 <div className="k8s-lab-locked k8s-lab-standby" role="status">
                   <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
@@ -1219,7 +1241,7 @@ export default function K8sLabWorkspace({
                 </div>
               ) : terminalLocked ? (
                 <div className="k8s-lab-locked" role="status" aria-live="polite">
-                  {kafkaComingSoon ? (
+                  {labComingSoon ? (
                     <span className="k8s-lab-coming-soon-badge" aria-hidden="true">🔜</span>
                   ) : (
                     <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
@@ -1228,15 +1250,15 @@ export default function K8sLabWorkspace({
                     </svg>
                   )}
                   <strong>
-                    {kafkaComingSoon
+                    {labComingSoon
                       ? 'Coming soon'
                       : idleLocked
                         ? 'This lab\'s time is up'
                         : 'This lab is locked for now'}
                   </strong>
                   <p>
-                    {kafkaComingSoon
-                      ? 'The Kafka Platform Engineering labs are on the way. You can read the brief on the left.'
+                    {labComingSoon
+                      ? 'Live terminals for these labs are on the way. You can read the brief on the left.'
                       : idleLocked
                         ? (challenge?.sandboxType === 'kafka'
                           ? 'The time for this lab ran out, so the cluster was stopped. Start again for a fresh cluster.'
@@ -1245,12 +1267,12 @@ export default function K8sLabWorkspace({
                             : 'The time for this lab ran out, so the lab was closed.')
                         : lockedMessage}
                   </p>
-                  {!kafkaComingSoon && (
+                  {!labComingSoon && (
                     <p className="k8s-lab-locked-hint">
                       You can still read the description and the rest of the brief on the left.
                     </p>
                   )}
-                  {challenge && !kafkaComingSoon && (
+                  {challenge && !labComingSoon && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"

@@ -1,4 +1,5 @@
 import { isBoardChallenge } from '../components/BoardWorkspace';
+import { isPublicLabComingSoon } from '../components/K8sLabWorkspace';
 import type { ReadingTrack } from '../constants/readingTracks';
 import type { PlayPanel } from '../constants/playCatalog';
 import type { ChallengePublic } from '../types/domain';
@@ -70,7 +71,7 @@ export function buildPanelRoadmapNodes(
         trackId: labTrackId(challenge),
         title: challenge.title,
         challenge,
-        playable: Boolean(challenge.finalized),
+        playable: Boolean(challenge.finalized) && !isPublicLabComingSoon(challenge),
         solved: Boolean(challenge.solved),
       });
     }
@@ -86,7 +87,7 @@ export function buildPanelRoadmapNodes(
       trackId: labTrackId(challenge),
       title: challenge.title,
       challenge,
-      playable: Boolean(challenge.finalized),
+      playable: Boolean(challenge.finalized) && !isPublicLabComingSoon(challenge),
       solved: Boolean(challenge.solved),
     });
   }
