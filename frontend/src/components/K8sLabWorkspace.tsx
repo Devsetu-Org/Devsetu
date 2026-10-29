@@ -426,8 +426,7 @@ export default function K8sLabWorkspace({
     isPublicLabComingSoon(challenge, currentUser)
     || (
       !isAdmin
-      && Boolean(lockedMessage)
-      && lockedMessage.toLowerCase().includes('coming soon')
+      && Boolean(lockedMessage?.toLowerCase().includes('coming soon'))
     );
   // Public preview: never show the Start button — Coming soon replaces standby.
   const showNotStarted = notStarted && !labComingSoon;
