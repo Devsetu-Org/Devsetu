@@ -23,11 +23,12 @@ const path = require('path');
 const pty = require('node-pty');
 const sessionStore = require('../db/sessionStore');
 const loader = require('../challenges/loader');
-const { boxFlavor } = require('../challenges/labTypes');
+const { boxFlavor, isKafkaLabType } = require('../challenges/labTypes');
 const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const k8sCluster = require('../workspace/k8sCluster');
 const labShell = require('../workspace/labShell');
 const linuxBox = require('../workspace/linuxBox');
+const kafkaBox = require('../workspace/kafkaBox');
 const sessionIdle = require('../workspace/sessionIdle');
 const sessionExclusivity = require('../workspace/sessionExclusivity');
 const terminalEventBus = require('./terminalEventBus');
@@ -236,12 +237,16 @@ function handleConnection(ws: ObservabilityWebSocket, req: IncomingMessage): voi
       ? 'The playground stays. Here is a fresh shell.'
       : undefined,
   };
-  const flavor: BoxFlavor | null = boxFlavor(loader.getChallenge(challengeId)?.sandboxType);
+  const sandboxType = loader.getChallenge(challengeId)?.sandboxType;
+  const flavor: BoxFlavor | null = boxFlavor(sandboxType);
+  const kafka = isKafkaLabType(sandboxType);
 
   void (async () => {
     const started = flavor
       ? await startBoxShell(ws, target, flavor)
-      : await startKubectlShell(ws, target, session);
+      : kafka
+        ? await startKafkaShell(ws, target)
+        : await startKubectlShell(ws, target, session);
     if (!started) return;
     if (isLinuxBlogPlayground(challengeId)) {
       started.banner =
@@ -366,6 +371,31 @@ async function animateBanner(ws: ObservabilityWebSocket, subtitle: string): Prom
 
 /** Sessions that have already seen the animated intro (static on later opens). */
 const introShownSessions = new Set<string>();
+
+const KAFKA_SUBTITLE =
+  `\x1b[1;36m⚡ This cluster is yours\x1b[0m \x1b[1m— three Kafka brokers.\x1b[0m\r\n`
+  + `\x1b[38;5;245mBOOTSTRAP_SERVERS lists the three brokers. The Kafka scripts are on PATH.\x1b[0m\r\n`;
+
+/** Kafka labs: bash in the shell pod. No kubeconfig, no learner user. */
+async function startKafkaShell(
+  ws: ObservabilityWebSocket,
+  { sessionId, ns, challengeId, cols, rows }: ShellTarget,
+): Promise<StartedShell | null> {
+  let child: IPty;
+  try {
+    const cmd = await k8sCluster.controllerKubectlCommand(kafkaBox.shellExecArgs(ns));
+    child = pty.spawn('kubectl', cmd.args, {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      env: { ...cmd.env, TERM: 'xterm-256color' },
+    });
+  } catch (err: unknown) {
+    return spawnFailed(ws, sessionId, err);
+  }
+  console.log(`[k8s-terminal] session=${sessionId} ns=${ns} pod=${kafkaBox.SHELL} challenge=${challengeId}`);
+  return { child, cleanup: () => undefined, banner: KAFKA_SUBTITLE };
+}
 
 /** Box labs: login shell as `learner` inside the lab's box pod. */
 async function startBoxShell(

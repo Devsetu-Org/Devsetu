@@ -10,7 +10,8 @@ const loader = require('../challenges/loader');
 const k8s = require('./k8sCluster');
 const capacity = require('./k8sCapacity');
 const linuxBox = require('./linuxBox');
-const { isClusterLabType, boxFlavor } = require('../challenges/labTypes');
+const kafkaBox = require('./kafkaBox');
+const { isClusterLabType, isKafkaLabType, boxFlavor } = require('../challenges/labTypes');
 const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const terminalEventBus = require('../observability/terminalEventBus');
 
@@ -134,6 +135,10 @@ function boxFlavorOf(challengeId: string): BoxFlavor | null {
   return boxFlavor(loader.getChallenge(challengeId)?.sandboxType);
 }
 
+function isKafkaLab(challengeId: string): boolean {
+  return isKafkaLabType(loader.getChallenge(challengeId)?.sandboxType);
+}
+
 /**
  * One learner namespace hosts every lab of that learner, so provision / reset /
  * park for it run strictly one at a time, whichever lab they belong to. Otherwise
@@ -245,7 +250,8 @@ const CAPACITY_FAILURE = /exceeded quota|Unschedulable|Insufficient (cpu|memory)
 /** Whether the challenge's node pool can run labs right now; the message is shown on a locked lab. */
 async function labAvailability(challengeId: string): Promise<{ available: boolean; message: string | null }> {
   const flavor = boxFlavorOf(challengeId);
-  const available = await capacity.poolUp(flavor ? linuxBox.poolFor(flavor) : undefined);
+  const pool = isKafkaLab(challengeId) ? kafkaBox.POOL : (flavor ? linuxBox.poolFor(flavor) : undefined);
+  const available = await capacity.poolUp(pool);
   return { available, message: available ? null : LAB_CAPACITY_DOWN_MSG };
 }
 
@@ -263,7 +269,8 @@ function ensureProvisioned(
   owner?: string | null,
 ): Promise<boolean> {
   const flavor = boxFlavorOf(challengeId);
-  const onPhase = flavor && owner
+  const kafka = isKafkaLab(challengeId);
+  const onPhase = (flavor || kafka) && owner
     ? (message: string) => noteBootPhase(owner, message)
     : undefined;
   return withNsLock(ns, async () => {
@@ -271,7 +278,9 @@ function ensureProvisioned(
       const run = (): Promise<boolean> => (
         flavor
           ? provisionBox(ns, challengeId, flavor, forceSetup, owner || null, onPhase)
-          : provision(ns, challengeId, forceSetup)
+          : kafka
+            ? provisionKafka(ns, challengeId, onPhase)
+            : provision(ns, challengeId, forceSetup)
       );
       if (!signal) return await run();
       if (signal.aborted) throw k8s.startSuperseded();
@@ -280,6 +289,7 @@ function ensureProvisioned(
       // Still inside the namespace lock, so the next open cannot see a half-built machine.
       if (!k8s.isStartSuperseded(err)) throw err;
       if (flavor) await linuxBox.deleteBox(ns).catch(() => {});
+      else if (kafka) await kafkaBox.deletePod(ns).catch(() => {});
       else await k8s.wipeChallengeResources(ns, challengeId).catch(() => {});
       throw err;
     }
@@ -330,6 +340,38 @@ async function provisionBox(
         { status: 502 },
       );
     }
+  }
+  return true;
+}
+
+/** Every open boots a fresh kafka-3 cluster (three broker pods and a shell), then setup.sh. No saved progress. */
+async function provisionKafka(
+  ns: string,
+  challengeId: string,
+  onPhase?: (message: string) => void,
+): Promise<boolean> {
+  const spec = platformSpecOf(challengeId);
+  const shape = String(spec.shape || 'kafka-3');
+  if (shape !== 'kafka-3') {
+    throw Object.assign(new Error(`Kafka lab shape ${shape} is not available yet`), { status: 400 });
+  }
+  onPhase?.('Creating your machine');
+  await requirePool(ns, challengeId, kafkaBox.POOL);
+  try {
+    await kafkaBox.recreate(ns, challengeId, onPhase);
+  } catch (err) {
+    if (k8s.isStartSuperseded(err)) throw err;
+    console.error(`[kafka] ${ns}: could not start a cluster for ${challengeId}: ${(err as Error).message || err}`);
+    throw labEnvUnavailable();
+  }
+  onPhase?.('Preparing the lab');
+  const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
+    timeoutMs: 180_000,
+    env: kafkaBox.scriptEnv(ns),
+  });
+  if (result.code !== 0) {
+    const msg = (result.stderr || result.stdout || 'setup failed').trim();
+    throw Object.assign(new Error(`Lab setup failed: ${msg}`), { status: 502 });
   }
   return true;
 }
@@ -419,10 +461,11 @@ function namespaceFor(userId: string | null, userName: string | null): string {
 }
 
 function namespaceForChallenge(challengeId: string, userId: string | null, userName: string | null): string {
-  const flavor = boxFlavorOf(challengeId);
-  if (!flavor) return namespaceFor(userId, userName);
   const owner = workspaceStore.sanitizeOwner(userId || 'anonymous');
   const user = userName || owner;
+  if (isKafkaLab(challengeId)) return kafkaBox.namespace(user);
+  const flavor = boxFlavorOf(challengeId);
+  if (!flavor) return namespaceFor(userId, userName);
   // Own namespace so opening a blog playground cannot snapshot or delete a lab box.
   if (isLinuxBlogPlayground(challengeId)) return linuxBox.playgroundNamespace(user);
   return linuxBox.boxNamespace(user, flavor);
@@ -506,7 +549,7 @@ async function startK8sSession({
   }
 
   const owner = workspaceStore.sanitizeOwner(userId || candidateName || 'anonymous');
-  if (boxFlavorOf(challengeId)) beginBootPhase(owner, challengeId, openSeq);
+  if (boxFlavorOf(challengeId) || isKafkaLab(challengeId)) beginBootPhase(owner, challengeId, openSeq);
   const ns = namespaceForChallenge(challengeId, userId || candidateName, userName || candidateName);
 
   const existing = await findExistingK8sSession(challengeId, owner);
@@ -591,7 +634,12 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
   void capacity.nudge();
 
   const flavor = challengeId ? boxFlavorOf(challengeId) : null;
-  if (ns && challengeId && flavor) {
+  const kafka = Boolean(challengeId && isKafkaLab(challengeId));
+  if (ns && challengeId && kafka) {
+    void withNsLock(ns, () => kafkaBox.deletePod(ns)).catch((err: unknown) => {
+      console.warn(`[kafka] background cluster stop failed for ${ns}: ${(err as Error).message || err}`);
+    });
+  } else if (ns && challengeId && flavor) {
     // Ephemeral sandbox: drop any archive left from the old save path, then delete
     // the pod. A failed delete leaves the pod up; the next open replaces it.
     void withNsLock(ns, async () => {

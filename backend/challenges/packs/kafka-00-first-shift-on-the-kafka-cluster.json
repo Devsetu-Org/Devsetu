@@ -1,0 +1,43 @@
+{
+  "id": "kafka-00-first-shift-on-the-kafka-cluster",
+  "number": 800,
+  "finalized": true,
+  "title": "First Shift on the Kafka Cluster",
+  "description": "**SITUATION:**\n\nRidely is a ride-hailing app. A rider asks for a bike or a car, a driver nearby accepts, and the rider gets a push when that driver is on the way. The rider, the driver, and support all need to know when a driver is assigned. A single row stores only the latest value, so anyone who reads late misses the earlier updates. Kafka stores each assignment in order, and each app reads that list at its own speed.\n\nA platform engineering team runs this Kafka. You joined that team. This is your first shift.\n\nTwo logs are already live. **trips** is every ride, from the ask to the drop-off. **matches** is every time a driver is assigned to a rider. When matches stops moving, this team gets paged, so you start there.\n\nThe cluster is three Kafka servers, called brokers. Each log is split into pieces called partitions so the work can be shared. For each piece, one broker is the leader and takes the writes. The other two keep copies. One broker is also the controller: it picks those leaders.\n\nYour handover is short. Write down who the controller is, who leads matches partition 3, and how far that piece of the log has been written. A few assignments are already on partition 3, so that number will not be zero. Someone also left a leftover topic named `scratch`. Delete it. Leave trips and matches alone.\n\n**YOUR TASK:**\n\n1. Record the controller's broker id in `~/answers/controller`.\n2. Record the leader broker id of `matches` partition 3 in `~/answers/matches-3-leader`.\n3. Record how far that partition has been written in `~/answers/matches-3-end`.\n4. Delete the `scratch` topic.\n5. Leave `trips` and `matches` as you found them.\n\n**SPEC:**\n\n- The value in `~/answers/matches-3-end` is the log end offset, not the last stable offset.\n- `trips` and `matches` still have 6 partitions and replication factor 3.\n\n**REFERENCES:**\n",
+  "difficulty": "L0",
+  "tags": [
+    "kafka",
+    "l0",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The controller is the LeaderId in the quorum status. The number for matches partition 3 is the log end offset, from kafka-get-offsets.sh --time -1.",
+      "The grader reads ~/answers and the cluster. Delete scratch. Leave trips and matches as you found them."
+    ],
+    "overview": "First Shift on the Kafka Cluster",
+    "brief": "First Shift on the Kafka Cluster",
+    "solution": "",
+    "idLabel": "00",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

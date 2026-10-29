@@ -1,0 +1,43 @@
+{
+  "id": "kafka-02-orders-audit-has-one-copy",
+  "number": 802,
+  "finalized": false,
+  "title": "Trips-Audit Has One Copy",
+  "description": "**SITUATION:**\n\nSupport reads **trips-audit** when a rider disputes a fare. It is the log of what changed, beside **trips**, not the log the on-call team watches. This cluster has three brokers. A partition with a copy on each of them can lose one broker and keep serving. A partition with a single copy cannot: when that broker stops, nobody else has the data.\n\ntrips-audit was created with one copy of each of its 4 partitions, and every copy sits on **kafka-0**, broker id 1. That broker is patched tonight. If it stops first, the audit log goes offline. The broker that leads each partition has to stay the leader. Moving leadership now would change which broker support is reading. Each partition needs a replica on all three brokers, and all three have to be caught up, before the patch starts. trips and matches are already copied across the cluster. Do not move them.\n\n**YOUR TASK:**\n\n1. Give every `trips-audit` partition a replica on all three brokers.\n2. Wait until brokers 1, 2, and 3 are in sync on every `trips-audit` partition.\n3. Leave each partition's leader on the broker that leads it now.\n4. Do not change replica placement on any other topic.\n\n**SPEC:**\n\n- `trips-audit` still has 4 partitions.\n- Each `trips-audit` leader is the broker that led that partition when the lab opened.\n\n**REFERENCES:**\n",
+  "difficulty": "L1",
+  "tags": [
+    "kafka",
+    "l1",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Trips-Audit Has One Copy",
+    "brief": "Trips-Audit Has One Copy",
+    "solution": "",
+    "idLabel": "02",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

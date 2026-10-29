@@ -1,0 +1,43 @@
+{
+  "id": "kafka-03-broker-2-left-the-isr",
+  "number": 803,
+  "finalized": false,
+  "title": "Broker 2 Left the ISR",
+  "description": "**SITUATION:**\n\n**matches** is still accepting driver assignments. The page is not a failed write. It is under-replicated partitions: a partition whose copies are not all caught up. **kafka-2**, broker id 3, is stopped. Each matches partition still has a leader on kafka-0 or kafka-1, and a write is still accepted, because the topic only requires two copies in sync. The third copy is absent. If a second broker stops now, assignments will be rejected.\n\nkafka-2 still has its log. It does not need a new leader chosen by hand, and it does not need its data wiped. It needs to start, rejoin, and catch up until every matches partition again has three brokers in sync. Leave the rule that a write needs two in-sync copies. Leave off the setting that would let a broker which was behind become leader and drop assignments the others already stored. Start only kafka-2. The other two brokers are doing the work.\n\n**YOUR TASK:**\n\n1. Start `kafka-2` with `qb-broker start kafka-2`.\n2. Wait until every `matches` partition has three in-sync replicas.\n3. Do not choose a new leader by hand, and do not delete broker data.\n\n**SPEC:**\n\n- `min.insync.replicas` on `matches` is still 2.\n- Unclean leader election on `matches` is still off.\n\n**REFERENCES:**\n",
+  "difficulty": "L1",
+  "tags": [
+    "kafka",
+    "l1",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Broker 2 Left the ISR",
+    "brief": "Broker 2 Left the ISR",
+    "solution": "",
+    "idLabel": "03",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

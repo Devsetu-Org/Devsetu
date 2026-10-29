@@ -1,0 +1,149 @@
+# Spike for the Kafka platform track: one learner pod, three combined KRaft brokers,
+# and a shell. Containers in a pod share a network namespace, so each broker binds
+# its own ports on 127.0.0.1. The shell is where the Kafka CLI runs; its JVM is
+# capped separately so a describe does not land on a broker's heap.
+#
+# Driven by ./deploy/eks/eks-kafka.sh trial
+# Image pin and the numbers this produced: deploy/eks/kafka/README.md
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dl-kafka-spike
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kafka-3
+  namespace: dl-kafka-spike
+  labels: {app: kafka-lab, shape: kafka-3}
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  terminationGracePeriodSeconds: 20
+  nodeSelector:
+    devlabs.io/pool: kafka
+  tolerations:
+    - key: devlabs.io/pool
+      value: kafka
+      effect: NoSchedule
+  containers:
+    - name: kafka-0
+      image: apache/kafka:3.9.1
+      imagePullPolicy: IfNotPresent
+      env:
+        - {name: KAFKA_NODE_ID, value: "1"}
+        - {name: KAFKA_LISTENERS, value: "PLAINTEXT://127.0.0.1:19092,CONTROLLER://127.0.0.1:19093,PLAINTEXT_HOST://127.0.0.1:9092"}
+        - {name: KAFKA_ADVERTISED_LISTENERS, value: "PLAINTEXT://127.0.0.1:19092,PLAINTEXT_HOST://127.0.0.1:9092"}
+        - {name: CLUSTER_ID, value: "4L6g3nShT-eMCtK--X86sw"}
+        - {name: KAFKA_PROCESS_ROLES, value: "broker,controller"}
+        - {name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"}
+        - {name: KAFKA_INTER_BROKER_LISTENER_NAME, value: PLAINTEXT}
+        - {name: KAFKA_CONTROLLER_LISTENER_NAMES, value: CONTROLLER}
+        - {name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "1@127.0.0.1:19093,2@127.0.0.1:29093,3@127.0.0.1:39093"}
+        - {name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS, value: "3"}
+        - {name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "2"}
+        - {name: KAFKA_DEFAULT_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_MIN_INSYNC_REPLICAS, value: "2"}
+        - {name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0"}
+        - {name: KAFKA_NUM_NETWORK_THREADS, value: "2"}
+        - {name: KAFKA_NUM_IO_THREADS, value: "2"}
+        - {name: KAFKA_NUM_REPLICA_FETCHERS, value: "1"}
+        - {name: KAFKA_LOG_CLEANER_THREADS, value: "1"}
+        # Default dedupe buffer is 128 MB and will not fit a 192 MB heap.
+        - {name: KAFKA_LOG_CLEANER_DEDUPE_BUFFER_SIZE, value: "16777216"}
+        - {name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data}
+        - {name: KAFKA_HEAP_OPTS, value: "-Xms192m -Xmx192m"}
+        - {name: KAFKA_JVM_PERFORMANCE_OPTS, value: "-server -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -Xss256k"}
+      volumeMounts:
+        - {name: data-0, mountPath: /var/lib/kafka/data}
+      resources:
+        requests: {cpu: 50m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 384Mi}
+    - name: kafka-1
+      image: apache/kafka:3.9.1
+      imagePullPolicy: IfNotPresent
+      env:
+        - {name: KAFKA_NODE_ID, value: "2"}
+        - {name: KAFKA_LISTENERS, value: "PLAINTEXT://127.0.0.1:29092,CONTROLLER://127.0.0.1:29093,PLAINTEXT_HOST://127.0.0.1:9093"}
+        - {name: KAFKA_ADVERTISED_LISTENERS, value: "PLAINTEXT://127.0.0.1:29092,PLAINTEXT_HOST://127.0.0.1:9093"}
+        - {name: CLUSTER_ID, value: "4L6g3nShT-eMCtK--X86sw"}
+        - {name: KAFKA_PROCESS_ROLES, value: "broker,controller"}
+        - {name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"}
+        - {name: KAFKA_INTER_BROKER_LISTENER_NAME, value: PLAINTEXT}
+        - {name: KAFKA_CONTROLLER_LISTENER_NAMES, value: CONTROLLER}
+        - {name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "1@127.0.0.1:19093,2@127.0.0.1:29093,3@127.0.0.1:39093"}
+        - {name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS, value: "3"}
+        - {name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "2"}
+        - {name: KAFKA_DEFAULT_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_MIN_INSYNC_REPLICAS, value: "2"}
+        - {name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0"}
+        - {name: KAFKA_NUM_NETWORK_THREADS, value: "2"}
+        - {name: KAFKA_NUM_IO_THREADS, value: "2"}
+        - {name: KAFKA_NUM_REPLICA_FETCHERS, value: "1"}
+        - {name: KAFKA_LOG_CLEANER_THREADS, value: "1"}
+        # Default dedupe buffer is 128 MB and will not fit a 192 MB heap.
+        - {name: KAFKA_LOG_CLEANER_DEDUPE_BUFFER_SIZE, value: "16777216"}
+        - {name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data}
+        - {name: KAFKA_HEAP_OPTS, value: "-Xms192m -Xmx192m"}
+        - {name: KAFKA_JVM_PERFORMANCE_OPTS, value: "-server -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -Xss256k"}
+      volumeMounts:
+        - {name: data-1, mountPath: /var/lib/kafka/data}
+      resources:
+        requests: {cpu: 50m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 384Mi}
+    - name: kafka-2
+      image: apache/kafka:3.9.1
+      imagePullPolicy: IfNotPresent
+      env:
+        - {name: KAFKA_NODE_ID, value: "3"}
+        - {name: KAFKA_LISTENERS, value: "PLAINTEXT://127.0.0.1:39092,CONTROLLER://127.0.0.1:39093,PLAINTEXT_HOST://127.0.0.1:9094"}
+        - {name: KAFKA_ADVERTISED_LISTENERS, value: "PLAINTEXT://127.0.0.1:39092,PLAINTEXT_HOST://127.0.0.1:9094"}
+        - {name: CLUSTER_ID, value: "4L6g3nShT-eMCtK--X86sw"}
+        - {name: KAFKA_PROCESS_ROLES, value: "broker,controller"}
+        - {name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"}
+        - {name: KAFKA_INTER_BROKER_LISTENER_NAME, value: PLAINTEXT}
+        - {name: KAFKA_CONTROLLER_LISTENER_NAMES, value: CONTROLLER}
+        - {name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "1@127.0.0.1:19093,2@127.0.0.1:29093,3@127.0.0.1:39093"}
+        - {name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS, value: "3"}
+        - {name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "2"}
+        - {name: KAFKA_DEFAULT_REPLICATION_FACTOR, value: "3"}
+        - {name: KAFKA_MIN_INSYNC_REPLICAS, value: "2"}
+        - {name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0"}
+        - {name: KAFKA_NUM_NETWORK_THREADS, value: "2"}
+        - {name: KAFKA_NUM_IO_THREADS, value: "2"}
+        - {name: KAFKA_NUM_REPLICA_FETCHERS, value: "1"}
+        - {name: KAFKA_LOG_CLEANER_THREADS, value: "1"}
+        # Default dedupe buffer is 128 MB and will not fit a 192 MB heap.
+        - {name: KAFKA_LOG_CLEANER_DEDUPE_BUFFER_SIZE, value: "16777216"}
+        - {name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data}
+        - {name: KAFKA_HEAP_OPTS, value: "-Xms192m -Xmx192m"}
+        - {name: KAFKA_JVM_PERFORMANCE_OPTS, value: "-server -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -Xss256k"}
+      volumeMounts:
+        - {name: data-2, mountPath: /var/lib/kafka/data}
+      resources:
+        requests: {cpu: 50m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 384Mi}
+    - name: shell
+      image: apache/kafka:3.9.1
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sleep", "infinity"]
+      env:
+        - {name: KAFKA_HEAP_OPTS, value: "-Xms64m -Xmx64m"}
+      resources:
+        requests: {cpu: 25m, memory: 64Mi}
+        limits: {cpu: 500m, memory: 256Mi}
+  volumes:
+    - name: data-0
+      emptyDir: {sizeLimit: 1Gi}
+    - name: data-1
+      emptyDir: {sizeLimit: 1Gi}
+    - name: data-2
+      emptyDir: {sizeLimit: 1Gi}

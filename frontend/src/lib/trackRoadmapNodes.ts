@@ -22,7 +22,7 @@ export type TrackRoadmapNode =
     };
 
 function catalogIdLabel(challenge: ChallengePublic): string {
-  const fromK8sId = /^(?:k8s|linux|docker)-0*(\d+)-/i.exec(challenge.id)?.[1];
+  const fromK8sId = /^(?:k8s|linux|docker|kafka)-0*(\d+)-/i.exec(challenge.id)?.[1];
   if (fromK8sId) return String(Number(fromK8sId));
   if (/^l1-/i.test(challenge.id)) return '1';
   const ps = challenge.problemStatement;

@@ -1,0 +1,43 @@
+{
+  "id": "kafka-01-open-the-notifications-topic",
+  "number": 801,
+  "finalized": true,
+  "title": "Open the Alerts Topic",
+  "description": "**SITUATION:**\n\nRidely already runs two streams on this three-broker cluster. **trips** is every ride, from request to drop-off. **matches** is every time a driver is assigned to a rider. Each has 6 partitions, a copy of every partition on all three brokers, and a write is accepted only when at least two of those copies are in sync.\n\nAlerts is the third stream: the push a rider gets when a driver is on the way. The sender will only read a topic named `alerts`, and that topic is not on the cluster. The ticket's template says one copy, and keep every record forever. It is the wrong shape for a stream this team will page on.\n\nA new Ridely stream matches the two that are already live. Six partitions. A copy on every broker. Records kept for 3 days, then deleted by age, not folded down to the latest key. A write is accepted only when two copies are in sync. Create that topic. Do not change trips or matches.\n\n**YOUR TASK:**\n\n1. Create `alerts` with 6 partitions and replication factor 3.\n2. Set its `retention.ms` to `259200000` (3 days).\n3. Set its `min.insync.replicas` to `2`, and leave the cleanup policy as `delete`.\n4. Do not change `trips` or `matches`.\n\n**SPEC:**\n\n- Every `alerts` partition has three in-sync replicas.\n- `trips` and `matches` still have 6 partitions, replication factor 3, `min.insync.replicas` 2, cleanup policy `delete`, and `retention.ms` `604800000`.\n\n**REFERENCES:**\n",
+  "difficulty": "L0",
+  "tags": [
+    "kafka",
+    "l0",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "kafka-topics.sh --create takes --partitions and --replication-factor. Retention and min.insync.replicas are --config.",
+      "The grader reads the cluster. Leave trips and matches as you found them."
+    ],
+    "overview": "Open the Alerts Topic",
+    "brief": "Open the Alerts Topic",
+    "solution": "",
+    "idLabel": "01",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

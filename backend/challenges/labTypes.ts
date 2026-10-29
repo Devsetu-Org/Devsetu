@@ -7,7 +7,9 @@
  *   kubernetes — learner namespace ns-<user>, kubectl-only shell
  *   linux      — one systemd machine (pod `box`) in lx-<user>, shell inside it
  *   docker     — the same machine plus dockerd (pod `box`) in dk-<user>
- * linux and docker are "box" labs (workspace/linuxBox).
+ *   kafka      — three broker pods plus a shell pod in kf-<user> (workspace/kafkaBox)
+ * linux and docker are "box" labs (workspace/linuxBox). Kafka is not: no learner
+ * user, no systemd, no saved progress.
  */
 
 import type { BoxFlavor } from '../types/domain';
@@ -15,11 +17,15 @@ import type { BoxFlavor } from '../types/domain';
 const fs = require('fs');
 const path = require('path');
 
-const CLUSTER_LAB_TYPES = new Set(['kubernetes', 'linux', 'docker']);
+const CLUSTER_LAB_TYPES = new Set(['kubernetes', 'linux', 'docker', 'kafka']);
 const BOX_FLAVORS = new Set<string>(['linux', 'docker']);
 
 function isClusterLabType(sandboxType: unknown): boolean {
   return CLUSTER_LAB_TYPES.has(String(sandboxType || ''));
+}
+
+function isKafkaLabType(sandboxType: unknown): boolean {
+  return String(sandboxType || '') === 'kafka';
 }
 
 /** linux / docker: the learner works on one machine, not in a namespace. */
@@ -32,9 +38,9 @@ function boxFlavor(sandboxType: unknown): BoxFlavor | null {
   return BOX_FLAVORS.has(t) ? (t as BoxFlavor) : null;
 }
 
-/** backend/challenges/<linux|docker|k8s>/<id>: setup.sh, grade.sh, solution/. */
+/** backend/challenges/<linux|docker|kafka|k8s>/<id>: setup.sh, grade.sh, solution/. */
 function labPackDir(challengeId: string): string {
-  for (const track of ['linux', 'docker']) {
+  for (const track of ['linux', 'docker', 'kafka']) {
     const dir = path.join(__dirname, track, challengeId);
     if (fs.existsSync(dir)) return dir;
   }
@@ -43,6 +49,7 @@ function labPackDir(challengeId: string): string {
 
 module.exports = {
   isClusterLabType,
+  isKafkaLabType,
   isBoxLabType,
   boxFlavor,
   labPackDir,

@@ -74,7 +74,7 @@ interface LibraryViewProps {
  * from pack folders / solution filenames (*-l25.yaml).
  */
 function catalogIdLabel(challenge: ChallengePublic): string {
-  const fromK8sId = /^(?:k8s|linux|docker)-0*(\d+)-/i.exec(challenge.id)?.[1];
+  const fromK8sId = /^(?:k8s|linux|docker|kafka)-0*(\d+)-/i.exec(challenge.id)?.[1];
   if (fromK8sId) return String(Number(fromK8sId)); // "02" → "2", "25" → "25"
   if (/^l1-/i.test(challenge.id)) return '1';
   const ps = challenge.problemStatement;

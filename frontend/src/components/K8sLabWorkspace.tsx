@@ -66,28 +66,45 @@ function k8sTerminalWsUrl(sessionId: string): string {
 }
 
 /**
- * Cluster labs (sandboxType kubernetes, linux or docker) share this workspace and the
- * kubernetes session runtime; Linux and Docker labs are a single machine with a shell.
+ * Cluster labs (sandboxType kubernetes, linux, docker, or kafka) share this workspace
+ * and the kubernetes session runtime. Linux, Docker, and Kafka are a shell with no Editor.
  */
 export function isKubernetesChallenge(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): boolean {
   const t = challenge?.sandboxType || '';
-  return t === 'kubernetes' || t === 'linux' || t === 'docker';
+  return t === 'kubernetes' || t === 'linux' || t === 'docker' || t === 'kafka';
 }
 
-/** Linux and Docker labs: one machine per learner, no namespace or Editor. */
+/** Linux, Docker, and Kafka labs: one machine per learner, no Editor. */
 export function isBoxChallenge(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): boolean {
   const t = challenge?.sandboxType || '';
-  return t === 'linux' || t === 'docker';
+  return t === 'linux' || t === 'docker' || t === 'kafka';
 }
 
 export function boxMachineLabel(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): string {
-  return challenge?.sandboxType === 'docker' ? 'Docker' : 'Linux';
+  if (challenge?.sandboxType === 'docker') return 'Docker';
+  if (challenge?.sandboxType === 'kafka') return 'Kafka';
+  return 'Linux';
+}
+
+/** Shown on the locked terminal for public users until live labs ship. */
+export const LAB_COMING_SOON_MSG = 'Coming soon';
+
+/**
+ * Public (non-admin) users cannot start Linux, Docker, Kubernetes, or Kafka
+ * terminals yet. Admins still run live clusters for testing.
+ */
+export function isPublicLabComingSoon(
+  challenge: ChallengePublic | ChallengeFull | null | undefined,
+  user?: Parameters<typeof isAdminUser>[0],
+): boolean {
+  if (!isKubernetesChallenge(challenge)) return false;
+  return !isAdminUser(user) && !isAdminUser(getCurrentUser());
 }
 
 type MainTab = 'terminal' | 'editor';
@@ -363,7 +380,7 @@ function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: s
   const currentAt = Math.max(0, BOOT_PHASES.indexOf(reported));
   return (
     <div className="k8s-lab-boot">
-      <strong>Starting your {machineLabel} machine</strong>
+      <strong>Starting your {machineLabel} {machineLabel === 'Kafka' ? 'cluster' : 'machine'}</strong>
       <ol className="k8s-lab-boot-log">
         {BOOT_PHASES.map((step, index) => {
           const skipped = step === SAVE_PHASE && phase.restoresSave === false && reported !== SAVE_PHASE;
@@ -405,14 +422,24 @@ export default function K8sLabWorkspace({
   const lockedMessage = session.lockedMessage || null;
   const idleLocked = Boolean(session.idleLocked);
   const notStarted = Boolean(session.notStarted);
-  const terminalLocked = Boolean(lockedMessage) || idleLocked;
+  const labComingSoon =
+    isPublicLabComingSoon(challenge, currentUser)
+    || (
+      !isAdmin
+      && Boolean(lockedMessage?.toLowerCase().includes('coming soon'))
+    );
+  // Public preview: never show the Start button — Coming soon replaces standby.
+  const showNotStarted = notStarted && !labComingSoon;
+  const terminalLocked = Boolean(lockedMessage) || idleLocked || labComingSoon;
   const challengeId = challenge?.id || '';
   const box = isBoxChallenge(challenge);
   const machineLabel = boxMachineLabel(challenge);
-  const notReadyTitle = notStarted
+  const notReadyTitle = showNotStarted
     ? (box ? 'Start the machine to use the terminal' : 'Start the lab to use the terminal')
     : idleLocked
     ? 'This lab\'s time has run out'
+    : labComingSoon
+      ? 'Coming soon'
     : lockedMessage
       ? 'Lab is unavailable right now'
       : 'Lab is still preparing';
@@ -438,7 +465,7 @@ export default function K8sLabWorkspace({
   const [mainTab, setMainTab] = useState<MainTab>(box ? 'terminal' : 'editor');
   const showBrief = isNarrow ? mobilePane === 'brief' : !briefCollapsed;
   const showWorkspace = isNarrow ? mobilePane === 'workspace' : true;
-  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux';
+  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux' && challenge?.sandboxType !== 'kafka';
   const showResize = !isNarrow && !briefCollapsed;
   const [briefTab, setBriefTab] = useState<ProblemStatementTab>('description');
   const [briefChallenge, setBriefChallenge] = useState<ChallengePublic | ChallengeFull | null>(challenge);
@@ -1071,7 +1098,7 @@ export default function K8sLabWorkspace({
           <div className="spark-ide-actionbar">
             <div className="spark-ide-actionbar-left">
               <div className="k8s-lab-main-tabs" role="tablist" aria-label="Lab workspace">
-                {!box && !terminalLocked && !notStarted && (
+                {!box && !terminalLocked && !showNotStarted && (
                 <button
                   type="button"
                   role="tab"
@@ -1090,7 +1117,9 @@ export default function K8sLabWorkspace({
                   className={`k8s-lab-main-tab${mainTab === 'terminal' ? ' active' : ''}`}
                   onClick={() => setMainTab('terminal')}
                   title={
-                    notStarted
+                    labComingSoon
+                      ? 'Coming soon'
+                      : showNotStarted
                       ? (box ? 'Machine has not been started' : 'Lab has not been started')
                       : terminalLocked
                       ? (idleLocked ? 'This lab\'s time has run out' : 'Terminal is unavailable right now')
@@ -1101,8 +1130,8 @@ export default function K8sLabWorkspace({
                 >
                   Terminal
                   <span
-                    className={`k8s-lab-term-status${labReady && !terminalLocked && !notStarted ? ' is-ready' : ''}${terminalLocked ? ' is-locked' : ''}${notStarted ? ' is-idle' : ''}`}
-                    aria-label={notStarted ? 'not started' : terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
+                    className={`k8s-lab-term-status${labReady && !terminalLocked && !showNotStarted ? ' is-ready' : ''}${terminalLocked || labComingSoon ? ' is-locked' : ''}${showNotStarted ? ' is-idle' : ''}`}
+                    aria-label={labComingSoon ? 'coming soon' : showNotStarted ? 'not started' : terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
                   />
                 </button>
               </div>
@@ -1187,7 +1216,7 @@ export default function K8sLabWorkspace({
               className={`k8s-lab-term-pane-layer${mainTab === 'terminal' ? ' is-active' : ''}`}
               aria-hidden={mainTab !== 'terminal'}
             >
-              {notStarted ? (
+              {showNotStarted ? (
                 <div className="k8s-lab-locked k8s-lab-standby" role="status">
                   <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
@@ -1211,22 +1240,38 @@ export default function K8sLabWorkspace({
                 </div>
               ) : terminalLocked ? (
                 <div className="k8s-lab-locked" role="status" aria-live="polite">
-                  <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
-                    <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  </svg>
-                  <strong>{idleLocked ? 'This lab\'s time is up' : 'This lab is locked for now'}</strong>
+                  {labComingSoon ? (
+                    <span className="k8s-lab-coming-soon-badge" aria-hidden="true">🔜</span>
+                  ) : (
+                    <svg className="k8s-lab-locked-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+                      <rect x="4.5" y="10.5" width="15" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    </svg>
+                  )}
+                  <strong>
+                    {labComingSoon
+                      ? 'Coming soon'
+                      : idleLocked
+                        ? 'This lab\'s time is up'
+                        : 'This lab is locked for now'}
+                  </strong>
                   <p>
-                    {idleLocked
-                      ? (box
-                        ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
-                        : 'The time for this lab ran out, so the lab was closed.')
-                      : lockedMessage}
+                    {labComingSoon
+                      ? 'Live terminals for these labs are on the way. You can read the brief on the left.'
+                      : idleLocked
+                        ? (challenge?.sandboxType === 'kafka'
+                          ? 'The time for this lab ran out, so the cluster was stopped. Start again for a fresh cluster.'
+                          : box
+                            ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
+                            : 'The time for this lab ran out, so the lab was closed.')
+                        : lockedMessage}
                   </p>
-                  <p className="k8s-lab-locked-hint">
-                    You can still read the description and the rest of the brief on the left.
-                  </p>
-                  {challenge && (
+                  {!labComingSoon && (
+                    <p className="k8s-lab-locked-hint">
+                      You can still read the description and the rest of the brief on the left.
+                    </p>
+                  )}
+                  {challenge && !labComingSoon && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"

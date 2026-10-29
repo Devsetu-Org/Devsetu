@@ -176,6 +176,41 @@ export const PLAY_DOMAINS: PlayDomain[] = [
     ],
   },
   {
+    id: 'platforms-engineer',
+    label: 'Platforms Engineer',
+    blurb:
+      'The shared systems other engineers run on. Kafka Platform Engineering is coming soon. Kubernetes cluster operations are ahead.',
+    panels: [
+      {
+        id: 'kafka',
+        label: 'Kafka',
+        subtitle: 'A cluster that is already up',
+        tileBlurb:
+          'Topics, replicas, disk, and consumer lag on Ridely’s Kafka. You run the brokers. You don’t write the services.',
+        blurb:
+          'Topics, replicas, disk, and consumer lag on Ridely’s Kafka. The cluster is already up. You run the brokers.',
+        challengeIds: [
+          'kafka-00-first-shift-on-the-kafka-cluster',
+          'kafka-01-open-the-notifications-topic',
+          'kafka-02-orders-audit-has-one-copy',
+          'kafka-03-broker-2-left-the-isr',
+          'kafka-04-payments-is-rejecting-writes',
+          'kafka-05-disk-full-on-broker-1',
+          'kafka-06-orders-was-compacted',
+          'kafka-07-one-partition-of-payments-is-behind',
+          'kafka-08-put-the-notification-offsets-back',
+          'kafka-09-payments-incident',
+        ],
+      },
+      {
+        id: 'kubernetes',
+        label: 'Kubernetes',
+        blurb: 'CKA-style labs: cluster install, control plane, networking, and node operations.',
+        challengeIds: [],
+      },
+    ],
+  },
+  {
     id: 'data-engineer',
     label: 'Data Engineer',
     comingSoon: true,
@@ -218,19 +253,6 @@ export const PLAY_DOMAINS: PlayDomain[] = [
     label: 'Software Engineer',
     blurb: 'Services, APIs, and application reliability.',
     panels: [],
-  },
-  {
-    id: 'platforms-engineer',
-    label: 'Platforms Engineer',
-    blurb: 'Cluster operations and shared platform primitives — CKA-oriented Kubernetes ahead.',
-    panels: [
-      {
-        id: 'kubernetes',
-        label: 'Kubernetes',
-        blurb: 'CKA-style labs: cluster install, control plane, networking, and node operations.',
-        challengeIds: [],
-      },
-    ],
   },
   {
     id: 'distributed-systems-engineer',

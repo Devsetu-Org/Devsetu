@@ -1,0 +1,43 @@
+{
+  "id": "kafka-07-one-partition-of-payments-is-behind",
+  "number": 807,
+  "finalized": false,
+  "title": "One Partition of Matches Is Behind",
+  "description": "**SITUATION:**\n\n**match-desk** reads **matches** as one group of consumers. This cluster has a single broker, and matches has 6 partitions. Three instances share the group. Every partition except 4 is caught up. Partition 4 is not. Instance 2, the member assigned to that partition, stopped fetching after it saved an early position, so the unread assignments there keep growing. The other two instances are healthy. Do not stop them, and do not restart the whole group to get at one member.\n\nThe records are still in the log. The lag has to shrink because instance 2 reads forward from the position it already saved. Moving the group's saved positions would also make the lag look small, including a jump to the end of the log, and that hides the unread assignments instead of sending them. Restart instance 2 only. Wait until every matches partition has fewer than 10 records still unread, and the saved positions have moved forward from where they were when the lab opened.\n\n**YOUR TASK:**\n\n1. Restart match-desk instance 2 with `qb-service restart match-desk@2`.\n2. Wait until lag on every `matches` partition is under 10.\n3. Do not move the group's saved positions.\n\n**SPEC:**\n\n- Group `match-desk` is stable.\n- Each committed offset moved forward from the value recorded at the start of the lab, and did not jump to the end of the log.\n\n**REFERENCES:**\n",
+  "difficulty": "L1",
+  "tags": [
+    "kafka",
+    "l1",
+    "kafka-1"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "One Partition of Matches Is Behind",
+    "brief": "One Partition of Matches Is Behind",
+    "solution": "",
+    "idLabel": "07",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-1",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

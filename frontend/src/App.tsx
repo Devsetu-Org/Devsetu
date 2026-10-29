@@ -66,7 +66,12 @@ import {
 } from './fixtures/sparkPlaygroundStarter';
 import { isSparkPlatformChallenge } from './components/SparkPlatformWorkspace';
 import { isBoardChallenge } from './components/BoardWorkspace';
-import { isBoxChallenge, isKubernetesChallenge } from './components/K8sLabWorkspace';
+import {
+  isBoxChallenge,
+  isKubernetesChallenge,
+  isPublicLabComingSoon,
+  LAB_COMING_SOON_MSG,
+} from './components/K8sLabWorkspace';
 import { SPARK_PLAYGROUND_CHALLENGE_ID } from './constants/playgroundDatasets';
 import { PRICING_PATH } from './constants/pricing';
 import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from './constants/playCatalog';import type {
@@ -543,6 +548,13 @@ export default function App(): React.JSX.Element {
         const full = await fetchChallenge(challenge.id);
         if (attempt.stale()) return;
         setActiveChallenge(full);
+
+        // Public users can read the brief; live terminals stay admin-only for now.
+        if (isPublicLabComingSoon(full, currentUser)) {
+          attempt.settle();
+          lockLab(LAB_COMING_SOON_MSG);
+          return;
+        }
 
         const availability = await fetchK8sAvailability(full.id).catch(() => null);
         if (attempt.stale()) return;
@@ -1427,9 +1439,11 @@ export default function App(): React.JSX.Element {
         }}
       >
         <p>
-          {isBoxChallenge(activeChallenge)
-            ? 'Your machine will be stopped. All unsaved progress will be removed.'
-            : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
+          {activeChallenge?.sandboxType === 'kafka'
+            ? 'Your cluster will be stopped. Topics you created in this lab are removed.'
+            : isBoxChallenge(activeChallenge)
+              ? 'Your machine will be stopped. All unsaved progress will be removed.'
+              : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
         </p>
       </ConfirmDialog>
       {needsUsername ? (

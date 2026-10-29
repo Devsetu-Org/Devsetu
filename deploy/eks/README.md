@@ -20,6 +20,7 @@ Defaults match the live `devlabs` cluster in **ap-south-2** (see `env.sh`).
 | `eks-nodegroup-update.sh` | Roll learner node groups onto the current launch template and latest AMI (evicts their pods) | — |
 | `eks-docker.sh` | Docker-module capacity, same subcommands as `eks-linux.sh`: managed node group `labs-docker` (t4g.medium), Karpenter `labs-docker-elastic`, `nri-cgroup-rw-docker`, `devlabs/docker-box.json` seccomp (`seccomp`), and the Docker Hub pull-through mirror `dl-mirror/registry-mirror` (`docker/registry-mirror.yaml`) | — |
 | `eks-spark.sh` | Spark Labs capacity: `base` (managed node group `labs-spark`, t4g.medium), `up` (Karpenter `labs-spark-elastic`), `sleep` / `wake` / `down` | — |
+| `eks-kafka.sh` | Kafka-lab capacity: `base` (managed node group `labs-kafka`, t4g.medium), `up` (Karpenter `labs-kafka-elastic`), `trial` (three-broker spike + memory sample), `sleep` / `wake` / `down`. Footprint: `kafka/README.md` | — |
 | `eks-kubeconfig.sh` | Refresh `kube/k8s-lab.kubeconfig` | — |
 | `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig; wakes `system-k8s` and installs add-on placement + Kyverno + admission (`EKS_SKIP_PLATFORM=1` to skip). Run `eks-karpenter.sh` separately afterward. | Starts paying (system node once platform runs) |
 | `eks-destroy.sh` | Delete NGs + cluster | Stops paying |
@@ -111,6 +112,14 @@ the CNI won't reuse for 30 s: replacing 28 pods at once starts in ~8 s instead o
   Overflow `labs-spark-elastic` (`karpenter/nodepool-spark.yaml`, cpu limit 4 = two extra
   nodes) must match (`EKS_SPARK_*` in `env.sh`). Not in `EKS_NODEGROUPS`: park it with
   `eks-spark.sh sleep`. Spark pods must select and tolerate `devlabs.io/pool=spark`.
+- `labs-kafka` — launch template `devlabs-labs-kafka` (`nodegroups.sh`): t4g.medium,
+  `maxPods: 12`, `podPidsLimit: 1024`, `kubeReserved` 70m / 387Mi / 1Gi, 30 GiB gp3,
+  label `devlabs.io/pool=kafka,devlabs.io/tier=base`, taint `devlabs.io/pool=kafka:NoSchedule`.
+  A three-broker lab pod requests 832 Mi (measured), so three fit. Overflow `labs-kafka-elastic`
+  (`karpenter/nodepool-kafka.yaml`, cpu limit 4 = two extra nodes) must match
+  (`EKS_KAFKA_*` in `env.sh`). Not in `EKS_NODEGROUPS`: park it with `eks-kafka.sh sleep`.
+  Kafka pods must select and tolerate `devlabs.io/pool=kafka`. Architecture and the
+  measured footprint: `kafka/README.md`.
 
 Change density via `EKS_LABS_MAX_PODS` (reserve = `11 × maxPods + 255` Mi) **and** the
 NodeClass. Existing node groups pick up a new launch template version only with
