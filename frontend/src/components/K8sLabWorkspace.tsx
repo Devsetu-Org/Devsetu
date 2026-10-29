@@ -66,28 +66,30 @@ function k8sTerminalWsUrl(sessionId: string): string {
 }
 
 /**
- * Cluster labs (sandboxType kubernetes, linux or docker) share this workspace and the
- * kubernetes session runtime; Linux and Docker labs are a single machine with a shell.
+ * Cluster labs (sandboxType kubernetes, linux, docker, or kafka) share this workspace
+ * and the kubernetes session runtime. Linux, Docker, and Kafka are a shell with no Editor.
  */
 export function isKubernetesChallenge(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): boolean {
   const t = challenge?.sandboxType || '';
-  return t === 'kubernetes' || t === 'linux' || t === 'docker';
+  return t === 'kubernetes' || t === 'linux' || t === 'docker' || t === 'kafka';
 }
 
-/** Linux and Docker labs: one machine per learner, no namespace or Editor. */
+/** Linux, Docker, and Kafka labs: one machine per learner, no Editor. */
 export function isBoxChallenge(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): boolean {
   const t = challenge?.sandboxType || '';
-  return t === 'linux' || t === 'docker';
+  return t === 'linux' || t === 'docker' || t === 'kafka';
 }
 
 export function boxMachineLabel(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): string {
-  return challenge?.sandboxType === 'docker' ? 'Docker' : 'Linux';
+  if (challenge?.sandboxType === 'docker') return 'Docker';
+  if (challenge?.sandboxType === 'kafka') return 'Kafka';
+  return 'Linux';
 }
 
 type MainTab = 'terminal' | 'editor';
@@ -363,7 +365,7 @@ function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: s
   const currentAt = Math.max(0, BOOT_PHASES.indexOf(reported));
   return (
     <div className="k8s-lab-boot">
-      <strong>Starting your {machineLabel} machine</strong>
+      <strong>Starting your {machineLabel} {machineLabel === 'Kafka' ? 'cluster' : 'machine'}</strong>
       <ol className="k8s-lab-boot-log">
         {BOOT_PHASES.map((step, index) => {
           const skipped = step === SAVE_PHASE && phase.restoresSave === false && reported !== SAVE_PHASE;
@@ -438,7 +440,7 @@ export default function K8sLabWorkspace({
   const [mainTab, setMainTab] = useState<MainTab>(box ? 'terminal' : 'editor');
   const showBrief = isNarrow ? mobilePane === 'brief' : !briefCollapsed;
   const showWorkspace = isNarrow ? mobilePane === 'workspace' : true;
-  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux';
+  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux' && challenge?.sandboxType !== 'kafka';
   const showResize = !isNarrow && !briefCollapsed;
   const [briefTab, setBriefTab] = useState<ProblemStatementTab>('description');
   const [briefChallenge, setBriefChallenge] = useState<ChallengePublic | ChallengeFull | null>(challenge);
@@ -1218,9 +1220,11 @@ export default function K8sLabWorkspace({
                   <strong>{idleLocked ? 'This lab\'s time is up' : 'This lab is locked for now'}</strong>
                   <p>
                     {idleLocked
-                      ? (box
-                        ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
-                        : 'The time for this lab ran out, so the lab was closed.')
+                      ? (challenge?.sandboxType === 'kafka'
+                        ? 'The time for this lab ran out, so the cluster was stopped. Start again for a fresh cluster.'
+                        : box
+                          ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
+                          : 'The time for this lab ran out, so the lab was closed.')
                       : lockedMessage}
                   </p>
                   <p className="k8s-lab-locked-hint">

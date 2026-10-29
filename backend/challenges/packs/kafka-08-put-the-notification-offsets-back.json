@@ -1,0 +1,43 @@
+{
+  "id": "kafka-08-put-the-notification-offsets-back",
+  "number": 808,
+  "finalized": false,
+  "title": "Put the Alert Offsets Back",
+  "description": "**SITUATION:**\n\n**alert-pager** reads **alerts** on this single-broker cluster. During the last page, the group's saved position was moved to the end of the log. The rider pushes were not deleted. They are still in the log, past the point the service will read if it starts from there. The service is stopped, which is the only reason the saved position can be put back. A running group will not take a new position.\n\nThe 02:00 positions are in `~/ticket/offsets.txt`, one partition and one position on each line. That file is what the ticket captured. The backlog from those positions is nine days of rider pushes, and that is what the service is supposed to send. Starting from the beginning would resend history from well before 02:00. Leaving the group at the end sends nothing. Editing the ticket file does not change the positions captured when the lab opened. Put the committed positions back to that capture, then start the service and let the group settle there.\n\n**YOUR TASK:**\n\n1. Stop `alert-pager` so the group will take a new position.\n2. Set the group's committed offsets from `~/ticket/offsets.txt`.\n3. Start `alert-pager` again.\n4. Do not move the group to the start of the log or to the latest offset.\n\n**SPEC:**\n\n- Committed offsets match the positions captured from the ticket when the lab opened.\n- The group is stable, and `alert-pager` is running.\n\n**REFERENCES:**\n",
+  "difficulty": "L1",
+  "tags": [
+    "kafka",
+    "l1",
+    "kafka-1"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Put the Alert Offsets Back",
+    "brief": "Put the Alert Offsets Back",
+    "solution": "",
+    "idLabel": "08",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-1",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

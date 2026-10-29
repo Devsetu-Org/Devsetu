@@ -1,0 +1,43 @@
+{
+  "id": "kafka-09-payments-incident",
+  "number": 809,
+  "finalized": false,
+  "title": "Matches Incident",
+  "description": "**SITUATION:**\n\nSome **matches** partitions are rejecting new assignments, and **match-desk** is behind on those same partitions. The rest still take writes, and the desk is caught up there.\n\n**kafka-2** (broker id 3) leads the failing partitions. Its log directory is 64 MiB and full. **debug-dump** filled it. A leader that cannot append stays leader, so those partitions reject writes instead of moving to a broker that has room. The other two brokers already hold caught-up copies. The desk is stuck reading those leaders, so lag grows only there.\n\nDo not let a broker that was out of sync become leader. Do not move match-desk to the end of the log. Free the disk, or stop kafka-2 so a caught-up copy can lead, and bring kafka-2 back only once it can write. The desk has to read forward. Every matches partition has to accept a write again, with three copies in sync, and a write still requires two copies in sync.\n\n**YOUR TASK:**\n\n1. Free `kafka-2`'s disk by deleting `debug-dump` or giving it a finite retention, or stop `kafka-2` with `qb-broker stop kafka-2` so a caught-up replica can lead.\n2. Bring `kafka-2` back with `qb-broker start kafka-2` only after it can write.\n3. Leave `debug-dump` absent, or on a finite retention, with `kafka-2`'s log directory under 80% full.\n4. Let `match-desk` catch up by reading. Do not move it to the end of the log.\n5. Do not turn on unclean leader election.\n\n**SPEC:**\n\n- `min.insync.replicas` on `matches` is still 2.\n- Every `matches` partition has three in-sync replicas.\n- Lag on every `matches` partition is under 10, and each committed offset moved forward from the value recorded at the start of the lab.\n- A produce to each `matches` partition succeeds.\n\n**REFERENCES:**\n",
+  "difficulty": "L2",
+  "tags": [
+    "kafka",
+    "l2",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Matches Incident",
+    "brief": "Matches Incident",
+    "solution": "",
+    "idLabel": "09",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 20
+}

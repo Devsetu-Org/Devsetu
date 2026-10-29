@@ -5,7 +5,8 @@ const pool = require('../db/pool');
 const k8s = require('./k8sCluster');
 const loader = require('../challenges/loader');
 const linuxBox = require('./linuxBox');
-const { isBoxLabType } = require('../challenges/labTypes');
+const kafkaBox = require('./kafkaBox');
+const { isBoxLabType, isKafkaLabType } = require('../challenges/labTypes');
 
 export type K8sGradeResult = {
   passed: boolean;
@@ -43,7 +44,11 @@ async function gradeK8sSession(
     (c?.k8sPlatform?.grade?.timeoutSeconds || 60) * 1000,
   );
 
-  const env = isBoxLabType(c?.sandboxType) ? linuxBox.scriptEnv() : undefined;
+  const env = isBoxLabType(c?.sandboxType)
+    ? linuxBox.scriptEnv()
+    : isKafkaLabType(c?.sandboxType)
+      ? kafkaBox.scriptEnv(ns)
+      : undefined;
   const result = await k8s.runChallengeScript(ns, challengeId, script, { timeoutMs, env });
   const stdout = (result.stdout || '').trim();
   const stderr = (result.stderr || '').trim();

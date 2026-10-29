@@ -1427,9 +1427,11 @@ export default function App(): React.JSX.Element {
         }}
       >
         <p>
-          {isBoxChallenge(activeChallenge)
-            ? 'Your machine will be stopped. All unsaved progress will be removed.'
-            : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
+          {activeChallenge?.sandboxType === 'kafka'
+            ? 'Your cluster will be stopped. Topics you created in this lab are removed.'
+            : isBoxChallenge(activeChallenge)
+              ? 'Your machine will be stopped. All unsaved progress will be removed.'
+              : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
         </p>
       </ConfirmDialog>
       {needsUsername ? (

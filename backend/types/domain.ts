@@ -360,7 +360,7 @@ export interface ChallengeFull extends ChallengePublic {
   validationSpec: ValidationSpec | null;
   /** Mapped from platform_spec when sandboxType is spark-platform. */
   sparkPlatform?: SparkPlatformSpec | null;
-  /** Mapped from platform_spec when sandboxType is kubernetes. */
+  /** Mapped from platform_spec when sandboxType is kubernetes, linux, docker, or kafka. */
   k8sPlatform?: K8sPlatformSpec | null;
   /** Full spec (with gold) in cache; public APIs strip gold. */
   boardSpec?: BoardSpec | PublicBoardSpec | null;

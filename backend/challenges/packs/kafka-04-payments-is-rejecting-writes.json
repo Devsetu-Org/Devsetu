@@ -1,0 +1,43 @@
+{
+  "id": "kafka-04-payments-is-rejecting-writes",
+  "number": 804,
+  "finalized": false,
+  "title": "Matches Is Rejecting Writes",
+  "description": "**SITUATION:**\n\nNew assignments to **matches** are being rejected. The topic was left with only two copies, on **kafka-0** (broker id 1) and **kafka-1** (broker id 2), and it still refuses a write unless two copies are in sync. kafka-1 is down. One in-sync copy is not enough, so the write fails. **kafka-2** (broker id 3) was never given a copy, so it cannot take the write either.\n\nA note on the ticket says to drop the minimum to one copy so the page goes green. Do not. That would accept an assignment the cluster can lose with the next single disk. Start kafka-1, put a copy of every matches partition on all three brokers, and leave the minimum at two. A new assignment then has to be accepted. After that, losing any one broker must not be enough to reject the next assignment. trips is not part of this page. Leave it alone.\n\n**YOUR TASK:**\n\n1. Start `kafka-1` with `qb-broker start kafka-1`.\n2. Give every `matches` partition a replica on all three brokers.\n3. Leave `min.insync.replicas` at 2. Do not set it to 1.\n4. Leave `trips` unchanged.\n\n**SPEC:**\n\n- Every `matches` partition has three in-sync replicas.\n- A produce of one record to `matches` succeeds.\n\n**REFERENCES:**\n",
+  "difficulty": "L1",
+  "tags": [
+    "kafka",
+    "l1",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Matches Is Rejecting Writes",
+    "brief": "Matches Is Rejecting Writes",
+    "solution": "",
+    "idLabel": "04",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Managed node group helpers, sourced by eks-recreate.sh, eks-linux.sh, eks-docker.sh,
-# and eks-spark.sh (after env.sh).
+# eks-spark.sh, and eks-kafka.sh (after env.sh).
 
 IFS=',' read -r -a SUBNETS <<< "$EKS_SUBNET_IDS"
 
@@ -40,6 +40,10 @@ ensure_nodegroup() {
     labs-spark)
       ensure_launch_template labs-spark
       node_args=(--launch-template "name=${EKS_SPARK_LAUNCH_TEMPLATE}")
+      ;;
+    labs-kafka)
+      ensure_launch_template labs-kafka
+      node_args=(--launch-template "name=${EKS_KAFKA_LAUNCH_TEMPLATE}")
       ;;
   esac
   echo "==> creating nodegroup $ng ($instance_type, $ami_type, desired=0)"
@@ -92,6 +96,12 @@ ensure_launch_template() {
       name="$EKS_SPARK_LAUNCH_TEMPLATE"; max_pods="$EKS_SPARK_MAX_PODS"
       reserved="$EKS_SPARK_KUBE_RESERVED_MEMORY"; disk="$EKS_SPARK_DISK_GB"; pool=spark
       extra="      podPidsLimit: ${EKS_SPARK_POD_PIDS_LIMIT}
+"
+      ;;
+    labs-kafka)
+      name="$EKS_KAFKA_LAUNCH_TEMPLATE"; max_pods="$EKS_KAFKA_MAX_PODS"
+      reserved="$EKS_KAFKA_KUBE_RESERVED_MEMORY"; disk="$EKS_KAFKA_DISK_GB"; pool=kafka
+      extra="      podPidsLimit: ${EKS_KAFKA_POD_PIDS_LIMIT}
 "
       ;;
     *) echo "no launch template for $ng" >&2; return 1 ;;

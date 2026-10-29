@@ -1,0 +1,43 @@
+{
+  "id": "kafka-06-orders-was-compacted",
+  "number": 806,
+  "finalized": false,
+  "title": "Trips Was Compacted",
+  "description": "**SITUATION:**\n\nThis cluster has one broker. It is not the three-broker ride cluster from the earlier labs, so there is no second copy to fall back on. Support reported that last week's **trips** are gone. The log was changed from deleting old records by age to keeping only the latest record for each key, and that cleanup has already run. The missing rides are not hiding in another replica. They were removed. Do not try to write them back. The end of the trips log has to stay exactly where it is now.\n\n**trip-status** is the other log on this broker. It holds the current status of each ride, one record per ride, and it is still deleting by age. That is the log which should keep only the latest record for each key. trips is a history of rides. It has to go back to deleting by age. Two changes of that kind. Nothing else on the broker is part of this ticket, and nothing new is written to trips.\n\n**YOUR TASK:**\n\n1. Set the `trips` cleanup policy to `delete`.\n2. Set the `trip-status` cleanup policy to `compact`.\n3. Do not write new records to `trips`.\n\n**SPEC:**\n\n- The end offset of `trips` is unchanged from the start of the lab.\n\n**REFERENCES:**\n",
+  "difficulty": "L1",
+  "tags": [
+    "kafka",
+    "l1",
+    "kafka-1"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Trips Was Compacted",
+    "brief": "Trips Was Compacted",
+    "solution": "",
+    "idLabel": "06",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-1",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

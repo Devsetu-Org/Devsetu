@@ -1,0 +1,43 @@
+{
+  "id": "kafka-05-disk-full-on-broker-1",
+  "number": 805,
+  "finalized": false,
+  "title": "Disk Full on Broker 1",
+  "description": "**SITUATION:**\n\n**kafka-1** keeps falling out of the in-sync set on **matches**. Its log directory is full, so it cannot append, and the other brokers stop treating it as caught up. That directory is 64 MiB. It is this broker's own disk, not the machine underneath the cluster. Almost all of those bytes are **debug-dump**, a topic opened during an earlier incident and then set to keep records forever. **trips** was left the same way: retention is off, so nothing on that log is ever deleted. **matches** is small. Do not delete it, and do not shorten how long it keeps an assignment.\n\ndebug-dump's segments are already closed, so removing that topic frees the directory. trips should keep records for 7 days, and it should still delete by age rather than fold down to the latest key. Once the directory has room, kafka-1 has to catch up and sit in sync on every matches partition. The directory has to finish under 80% full, or the broker will drop out again.\n\n**YOUR TASK:**\n\n1. Delete the `debug-dump` topic.\n2. Set `trips` `retention.ms` to `604800000` (7 days) and leave its cleanup policy as `delete`.\n3. Do not delete `matches` or change its retention.\n4. Wait until `kafka-1` is in sync on every `matches` partition.\n\n**SPEC:**\n\n- `kafka-1`'s log directory is under 80% full.\n- `matches` `retention.ms` is the value recorded when the lab opened.\n- Every `matches` partition has three in-sync replicas.\n\n**REFERENCES:**\n",
+  "difficulty": "L2",
+  "tags": [
+    "kafka",
+    "l2",
+    "kafka-3"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
+      "The cluster session is not open yet, so this lab is listed and not startable.",
+      "Read SPEC carefully. The grader checks the cluster, not a file you upload."
+    ],
+    "overview": "Disk Full on Broker 1",
+    "brief": "Disk Full on Broker 1",
+    "solution": "",
+    "idLabel": "05",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 20
+}

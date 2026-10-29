@@ -24,10 +24,10 @@ export interface ValidationSpec {
 
 /**
  * Play runtime. compose = Docker sandbox; spark-platform = shared batch; kubernetes = per-user
- * Namespace labs; linux = per-user Linux machine; docker = the same machine running Docker
- * (both run on the kubernetes session runtime).
+ * Namespace labs; linux = per-user Linux machine; docker = the same machine running Docker;
+ * kafka = per-user Kafka cluster. Linux, Docker, and Kafka run on the kubernetes session runtime.
  */
-export type SandboxType = 'compose' | 'spark-platform' | 'board' | 'kubernetes' | 'linux' | 'docker';
+export type SandboxType = 'compose' | 'spark-platform' | 'board' | 'kubernetes' | 'linux' | 'docker' | 'kafka';
 
 export interface K8sPlatformSpec {
   quota?: { pods?: string; cpu?: string; memory?: string };
