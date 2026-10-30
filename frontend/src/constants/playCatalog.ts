@@ -186,9 +186,9 @@ export const PLAY_DOMAINS: PlayDomain[] = [
         label: 'Kafka',
         subtitle: 'A cluster that is already up',
         tileBlurb:
-          'Topics, replicas, disk, and consumer lag on Ridely’s Kafka. You run the brokers. You don’t write the services.',
+          'Topics, replicas, disk, and consumer lag on QuickBite’s Kafka. You run the brokers. You don’t write the services.',
         blurb:
-          'Topics, replicas, disk, and consumer lag on Ridely’s Kafka. The cluster is already up. You run the brokers.',
+          'Topics, replicas, disk, and consumer lag on QuickBite’s Kafka. The cluster is already up. You run the brokers.',
         challengeIds: [
           'kafka-00-first-shift-on-the-kafka-cluster',
           'kafka-01-open-the-notifications-topic',

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Healthy kafka-3. trips and matches are in service. A few assignments are
-# already on matches partition 3, so its log end is not zero. scratch is a
-# leftover topic the learner has to delete.
+# Healthy kafka-3. orders, rider.dispatch, and restaurant.notifications are
+# in service. A few assignments are already on rider.dispatch partition 3,
+# so its log end is not zero. scratch is a leftover topic to delete.
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib/lab.sh"
 
 create_topic() {
-  local name=$1 i
+  local name=$1 parts=${2:-6} i
   for i in $(seq 1 30); do
-    if in_shell "kafka-topics.sh --bootstrap-server $BOOTSTRAP_SERVERS --create --if-not-exists --topic $name --partitions 6 --replication-factor 3 --config min.insync.replicas=2"; then
+    if in_shell "kafka-topics.sh --bootstrap-server $BOOTSTRAP_SERVERS --create --if-not-exists --topic $name --partitions $parts --replication-factor 3 --config min.insync.replicas=2"; then
       return 0
     fi
     sleep 2
@@ -16,30 +16,31 @@ create_topic() {
   return 1
 }
 
-create_topic trips
-create_topic matches
+create_topic orders
+create_topic rider.dispatch
+create_topic restaurant.notifications 3
 
 # A new producer sticks to one partition, so a short batch can miss partition 3.
 # Round-robin across six records puts one assignment on every partition.
 produced=0
 for _ in $(seq 1 15); do
-  if in_shell "printf '%s\n' ride-1 ride-2 ride-3 ride-4 ride-5 ride-6 | kafka-console-producer.sh --bootstrap-server $BOOTSTRAP_SERVERS --topic matches --producer-property partitioner.class=org.apache.kafka.clients.producer.RoundRobinPartitioner"; then
+  if in_shell "printf '%s\n' order-1 order-2 order-3 order-4 order-5 order-6 | kafka-console-producer.sh --bootstrap-server $BOOTSTRAP_SERVERS --topic rider.dispatch --producer-property partitioner.class=org.apache.kafka.clients.producer.RoundRobinPartitioner"; then
     produced=1
     break
   fi
   sleep 2
 done
-[[ "$produced" -eq 1 ]] || { echo "could not write matches partition 3" >&2; exit 1; }
+[[ "$produced" -eq 1 ]] || { echo "could not write rider.dispatch partition 3" >&2; exit 1; }
 
 end=""
 for _ in $(seq 1 15); do
-  end="$(in_shell "kafka-get-offsets.sh --bootstrap-server $BOOTSTRAP_SERVERS --topic matches --partitions 3 --time -1" | awk -F: 'NF { print $NF; exit }')"
+  end="$(in_shell "kafka-get-offsets.sh --bootstrap-server $BOOTSTRAP_SERVERS --topic rider.dispatch --partitions 3 --time -1" | awk -F: 'NF { print $NF; exit }')"
   [[ -n "$end" && "$end" != 0 ]] && break
   sleep 1
 done
 [[ -n "$end" && "$end" != 0 ]] || {
-  echo "matches partition 3 is still empty after setup" >&2
-  in_shell "kafka-get-offsets.sh --bootstrap-server $BOOTSTRAP_SERVERS --topic matches --time -1" >&2 || true
+  echo "rider.dispatch partition 3 is still empty after setup" >&2
+  in_shell "kafka-get-offsets.sh --bootstrap-server $BOOTSTRAP_SERVERS --topic rider.dispatch --time -1" >&2 || true
   exit 1
 }
 
@@ -47,6 +48,6 @@ in_shell "kafka-topics.sh --bootstrap-server $BOOTSTRAP_SERVERS --create --if-no
   || { echo "could not create scratch" >&2; exit 1; }
 
 # Fresh pod, but a re-run of setup on the same shell must not keep old answers.
-in_shell 'mkdir -p "$HOME/answers" && rm -f "$HOME/answers/controller" "$HOME/answers/matches-3-leader" "$HOME/answers/matches-3-end"'
+in_shell 'mkdir -p "$HOME/answers" && rm -f "$HOME/answers/controller" "$HOME/answers/rider-dispatch-3-leader" "$HOME/answers/rider-dispatch-3-end"'
 
-ok "trips, matches, and scratch are ready"
+ok "orders, rider.dispatch, restaurant.notifications, and scratch are ready"

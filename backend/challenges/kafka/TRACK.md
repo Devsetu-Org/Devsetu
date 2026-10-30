@@ -21,46 +21,46 @@ A healthy `kafka-3` lab starts from the trial pod: three combined KRaft brokers,
 
 Shape: `kafka-3`. Difficulty: L0.
 
-**Situation.** Ridely is a ride-hailing app. Assignments land in Kafka so every app can read them. A platform team runs the cluster; this is the learner's first shift. `trips` and `matches` are live; `matches` pages the team. Orient on brokers, partitions, leader, and controller, then write down the controller, the leader of `matches` partition 3, and how far that partition has been written. Delete leftover `scratch`.
+**Situation.** First shift on QuickBite's Data Platform Kafka. The cluster is already up. `orders`, `restaurant.notifications`, and `rider.dispatch` are live; what each carries is in the Intro. Leftover topic `scratch` must be deleted. The learner writes down the controller, the leader of `rider.dispatch` partition 3, and how far that partition has been written.
 
 **Task.**
 
-1. Find the controller leader id.
-2. Find the leader of `matches-3`, and that partition's end offset.
-3. Delete `scratch`.
-4. Write `~/answers/controller`, `~/answers/matches-3-leader`, and `~/answers/matches-3-end`.
+1. Write the controller broker id to `~/answers/controller`.
+2. Write the leader of `rider.dispatch` partition 3 to `~/answers/rider-dispatch-3-leader`.
+3. Write that partition's log end to `~/answers/rider-dispatch-3-end`.
+4. Delete `scratch`.
 
 **Spec.**
 
-- `scratch` is gone. `matches` and `trips` are unchanged.
-- The three answer files match the cluster at grade time. The end offset is the log end, not the last stable offset.
+- The end offset is the position after the last record on that partition, not the last stable offset.
 
-**Setup.** Create `trips` and `matches`, 6 partitions, replication factor 3, `min.insync.replicas=2`. Produce a few records so the end offset is not zero. Create `scratch` with 1 partition. All three brokers running.
+**Setup.** Create `orders` and `rider.dispatch` with 6 partitions, and `restaurant.notifications` with 3. Replication factor 3, `min.insync.replicas=2`. Produce six records round-robin onto `rider.dispatch` so partition 3 is not empty. Create `scratch` with 1 partition and replication factor 1. All three brokers running.
 
-**Grade.** Answer files match `kafka-metadata-quorum.sh describe --status` and `kafka-get-offsets.sh --topic matches --partitions 3`. `scratch` does not exist. `matches` still has 6 partitions and replication factor 3.
+**Grade.** Answer files match `kafka-metadata-quorum.sh describe --status` and `kafka-get-offsets.sh --topic rider.dispatch --partitions 3 --time -1`. `scratch` does not exist.
 
 ---
 
-## kafka-01 — Open the alerts topic
+## kafka-01 — Open the order status topic
 
 Shape: `kafka-3`. Difficulty: L0.
 
-**Situation.** The rider push is about to ship. The ticket asks for a topic named `alerts`. The template attached to the ticket says one replica and keep the log forever. That template is wrong. The spec below is the one Ridely uses for a new stream.
+**Situation.** `orders`, `rider.dispatch`, and `restaurant.notifications` are already live. The ordering service needs `order.status` for preparation, pickup, and delivery. The ticket template says one replica and keep-forever. That template is wrong. The spec below is the one QuickBite uses for a new stream, matching `orders`.
 
-**Task.** Create `alerts` to the spec. Do not change `trips` or `matches`.
+**Task.** Create `order.status` to the spec. Do not change the three topics already live.
 
 **Spec.**
 
-- Name: `alerts`
+- Name: `order.status`
 - Partitions: 6
 - Replication factor: 3
 - `retention.ms`: 259200000 (3 days)
 - `min.insync.replicas`: 2
 - Cleanup policy stays `delete`
+- `restaurant.notifications` stays at 3 partitions. `orders` and `rider.dispatch` stay at 6.
 
-**Setup.** Healthy cluster with `trips` and `matches` only. No `alerts`.
+**Setup.** Healthy cluster with `orders` and `rider.dispatch` at 6 partitions, `restaurant.notifications` at 3, replication factor 3, `min.insync.replicas=2`. No `order.status`.
 
-**Grade.** `kafka-topics.sh --describe` and `kafka-configs.sh --describe --entity-type topics --entity-name alerts` match the spec. Every partition has three in-sync replicas. `trips` and `matches` are untouched.
+**Grade.** `kafka-topics.sh --describe` and `kafka-configs.sh --describe --entity-type topics --entity-name order.status` match the spec. Every partition has three in-sync replicas. The three existing topics are untouched, including `restaurant.notifications` at 3 partitions and `retention.ms` `604800000`.
 
 ---
 

@@ -20,6 +20,7 @@ import {
 import TrackLeaderboardModal from '../components/TrackLeaderboardModal';
 import MonthlyPaperCard, { MonthlyPaperBanner } from '../components/MonthlyPaperCard';
 import PlatformLeaderboardCard from '../components/PlatformLeaderboardCard';
+import TrackIntroModal from '../components/TrackIntroModal';
 import TrackRoadmapModal from '../components/TrackRoadmapModal';
 import { buildPanelRoadmapNodes } from '../lib/trackRoadmapNodes';
 import { IconCoins, IconLock } from '../components/ChromeIcons';
@@ -107,6 +108,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   );
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(false);
 
   const domainId =
     isPlayDomainId(params.domainId) && !getPlayDomain(params.domainId)?.comingSoon
@@ -134,6 +136,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
     const readingsOnly =
       panel.challengeIds.length === 0 && Boolean(readingTrackForPanel(domainId, panel.id));
     setKindFilter(readingsOnly ? 'blog' : 'lab');
+    setIntroOpen(false);
   }, [panel, domainId]);
 
   const byId = useMemo(() => {
@@ -466,6 +469,15 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         <PrimerGuideIcon className="play-primer-link-icon" title="" />
                       </Link>
                     )}
+                    {panel.id === 'kafka' && (
+                      <button
+                        type="button"
+                        className="play-intro-link"
+                        onClick={() => setIntroOpen(true)}
+                      >
+                        Intro
+                      </button>
+                    )}
                     {roadmapNodes.length > 0 && (
                       <button
                         type="button"
@@ -499,6 +511,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 fullPath={`${playCatalogPath(domain.id, panel.id)}/leaderboard`}
                 onClose={() => setLeaderboardOpen(false)}
               />
+              {panel.id === 'kafka' && (
+                <TrackIntroModal open={introOpen} onClose={() => setIntroOpen(false)} />
+              )}
               <TrackRoadmapModal
                 open={roadmapOpen}
                 trackLabel={panel.label}
