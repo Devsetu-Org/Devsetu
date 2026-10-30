@@ -2,8 +2,8 @@
   "id": "kafka-01-open-the-notifications-topic",
   "number": 801,
   "finalized": true,
-  "title": "Open the Alerts Topic",
-  "description": "**SITUATION:**\n\nRidely already runs two streams on this three-broker cluster. **trips** is every ride, from request to drop-off. **matches** is every time a driver is assigned to a rider. Each has 6 partitions, a copy of every partition on all three brokers, and a write is accepted only when at least two of those copies are in sync.\n\nAlerts is the third stream: the push a rider gets when a driver is on the way. The sender will only read a topic named `alerts`, and that topic is not on the cluster. The ticket's template says one copy, and keep every record forever. It is the wrong shape for a stream this team will page on.\n\nA new Ridely stream matches the two that are already live. Six partitions. A copy on every broker. Records kept for 3 days, then deleted by age, not folded down to the latest key. A write is accepted only when two copies are in sync. Create that topic. Do not change trips or matches.\n\n**YOUR TASK:**\n\n1. Create `alerts` with 6 partitions and replication factor 3.\n2. Set its `retention.ms` to `259200000` (3 days).\n3. Set its `min.insync.replicas` to `2`, and leave the cleanup policy as `delete`.\n4. Do not change `trips` or `matches`.\n\n**SPEC:**\n\n- Every `alerts` partition has three in-sync replicas.\n- `trips` and `matches` still have 6 partitions, replication factor 3, `min.insync.replicas` 2, cleanup policy `delete`, and `retention.ms` `604800000`.\n\n**REFERENCES:**\n",
+  "title": "Open the Order Status Topic",
+  "description": "**SITUATION:**\n\n`orders`, `rider.dispatch`, and `restaurant.notifications` are already on this three-broker cluster. The Intro describes them. Do not change them.\n\n`order.status` is not on the cluster yet. The ordering service will write it as an order moves through preparation, pickup, and delivery. The sender will only read a topic with that name. The ticket's template says one copy, and keep every record forever. That is the wrong shape. A new QuickBite topic follows `orders`: 6 partitions, a copy on every broker, records kept for 3 days and then deleted by age, and a write accepted only when two copies are in sync.\n\n**YOUR TASK:**\n\n1. Create `order.status` with 6 partitions and replication factor 3.\n2. Set its `retention.ms` to `259200000` (3 days).\n3. Set its `min.insync.replicas` to `2`, and leave the cleanup policy as `delete`.\n4. Do not change `orders`, `rider.dispatch`, or `restaurant.notifications`.\n\n**SPEC:**\n\n- Every `order.status` partition has three in-sync replicas.\n- `orders` and `rider.dispatch` still have 6 partitions, replication factor 3, `min.insync.replicas` 2, cleanup policy `delete`, and `retention.ms` `604800000`.\n- `restaurant.notifications` still has 3 partitions, replication factor 3, `min.insync.replicas` 2, cleanup policy `delete`, and `retention.ms` `604800000`.\n",
   "difficulty": "L0",
   "tags": [
     "kafka",
@@ -20,10 +20,10 @@
     "hints": [
       "BOOTSTRAP_SERVERS is already set. The Kafka scripts are on PATH.",
       "kafka-topics.sh --create takes --partitions and --replication-factor. Retention and min.insync.replicas are --config.",
-      "The grader reads the cluster. Leave trips and matches as you found them."
+      "The grader reads the cluster. Leave orders, rider.dispatch, and restaurant.notifications as you found them."
     ],
-    "overview": "Open the Alerts Topic",
-    "brief": "Open the Alerts Topic",
+    "overview": "Open the Order Status Topic",
+    "brief": "Open the Order Status Topic",
     "solution": "",
     "idLabel": "01",
     "theory": ""

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# alerts: 6 partitions, RF 3, retention.ms 259200000, min.insync.replicas 2,
-# cleanup.policy delete, ISR 3 on every partition. trips and matches stay as setup left them.
+# order.status: 6 partitions, RF 3, retention.ms 259200000, min.insync.replicas 2,
+# cleanup.policy delete, ISR 3 on every partition. The three live topics stay
+# as setup left them. restaurant.notifications has 3 partitions, not 6.
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib/lab.sh"
 
 report="$(shell_script <<'EOF'
@@ -48,7 +49,7 @@ dump() {
       END { print out }
     ' <<<"$desc")
     # A topic the learner just created may still be catching up. Keep the last reading.
-    if [[ "$isr" == "3,3,3,3,3,3" || "$attempt" -eq 15 ]]; then
+    if [[ "$isr" =~ ^(3,)*3$ || "$attempt" -eq 15 ]]; then
       break
     fi
     sleep 2
@@ -56,9 +57,10 @@ dump() {
   echo "TOPIC $topic parts=${parts:-} rf=${rf:-} retention=${retention:-} minisr=${minisr:-} cleanup=${cleanup:-} isr=${isr:-}"
 }
 
-dump alerts
-dump trips
-dump matches
+dump order.status
+dump orders
+dump rider.dispatch
+dump restaurant.notifications
 EOF
 )" || { echo "could not read the cluster" >&2; exit 1; }
 
@@ -75,41 +77,42 @@ missing() {
   awk -v topic="$1" '$1 == "MISSING" && $2 == topic { found = 1 } END { exit found ? 0 : 1 }' <<<"$report"
 }
 
-if missing alerts; then
-  fail "alerts does not exist"
+if missing order.status; then
+  fail "order.status does not exist"
 else
-  n="$(line_for alerts)"
-  [[ "$(field "$n" parts)" == 6 ]] || fail "alerts has $(field "$n" parts) partitions; spec is 6"
-  ok "alerts partitions"
-  [[ "$(field "$n" rf)" == 3 ]] || fail "alerts replication factor is $(field "$n" rf); spec is 3"
-  ok "alerts replication factor"
-  [[ "$(field "$n" retention)" == 259200000 ]] || fail "alerts retention.ms is $(field "$n" retention); spec is 259200000 (3 days)"
-  ok "alerts retention"
-  [[ "$(field "$n" minisr)" == 2 ]] || fail "alerts min.insync.replicas is $(field "$n" minisr); spec is 2"
-  ok "alerts min.insync.replicas"
-  [[ "$(field "$n" cleanup)" == delete ]] || fail "alerts cleanup.policy is $(field "$n" cleanup); spec is delete"
-  ok "alerts cleanup policy"
-  [[ "$(field "$n" isr)" == "3,3,3,3,3,3" ]] || fail "every alerts partition needs 3 in-sync replicas; got $(field "$n" isr)"
-  ok "alerts in-sync replicas"
+  n="$(line_for order.status)"
+  [[ "$(field "$n" parts)" == 6 ]] || fail "order.status has $(field "$n" parts) partitions; spec is 6"
+  ok "order.status partitions"
+  [[ "$(field "$n" rf)" == 3 ]] || fail "order.status replication factor is $(field "$n" rf); spec is 3"
+  ok "order.status replication factor"
+  [[ "$(field "$n" retention)" == 259200000 ]] || fail "order.status retention.ms is $(field "$n" retention); spec is 259200000 (3 days)"
+  ok "order.status retention"
+  [[ "$(field "$n" minisr)" == 2 ]] || fail "order.status min.insync.replicas is $(field "$n" minisr); spec is 2"
+  ok "order.status min.insync.replicas"
+  [[ "$(field "$n" cleanup)" == delete ]] || fail "order.status cleanup.policy is $(field "$n" cleanup); spec is delete"
+  ok "order.status cleanup policy"
+  [[ "$(field "$n" isr)" == "3,3,3,3,3,3" ]] || fail "every order.status partition needs 3 in-sync replicas; got $(field "$n" isr)"
+  ok "order.status in-sync replicas"
 fi
 
 check_untouched() {
-  local topic=$1 line
-  # A miss on alerts must not hide this topic's own ok line.
+  local topic=$1 parts=$2 isr=$3 line
+  # A miss on order.status must not hide this topic's own ok line.
   _grade_miss=0
   if missing "$topic"; then
     fail "$topic is missing; do not delete it"
     return
   fi
   line="$(line_for "$topic")"
-  [[ "$(field "$line" parts)" == 6 && "$(field "$line" rf)" == 3 \
+  [[ "$(field "$line" parts)" == "$parts" && "$(field "$line" rf)" == 3 \
     && "$(field "$line" retention)" == 604800000 && "$(field "$line" minisr)" == 2 \
-    && "$(field "$line" cleanup)" == delete && "$(field "$line" isr)" == "3,3,3,3,3,3" ]] \
+    && "$(field "$line" cleanup)" == delete && "$(field "$line" isr)" == "$isr" ]] \
     || fail "$topic was changed (partitions $(field "$line" parts), replication factor $(field "$line" rf), retention.ms $(field "$line" retention), min.insync.replicas $(field "$line" minisr), cleanup.policy $(field "$line" cleanup), in-sync $(field "$line" isr))"
   ok "$topic unchanged"
 }
 
-check_untouched trips
-check_untouched matches
+check_untouched orders 6 3,3,3,3,3,3
+check_untouched rider.dispatch 6 3,3,3,3,3,3
+check_untouched restaurant.notifications 3 3,3,3
 
-pass "alerts matches the spec"
+pass "order.status matches the spec"
