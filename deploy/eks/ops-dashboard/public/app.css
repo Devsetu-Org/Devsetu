@@ -188,6 +188,10 @@ body.drawer-open .page {
   color: #c4b5fd;
 }
 
+.widget[data-section="kafka"] .widget-kicker {
+  color: #67e8f9;
+}
+
 .widget-title {
   margin: 0;
   font-family: var(--display);
