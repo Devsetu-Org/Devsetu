@@ -319,7 +319,8 @@ async function waitForPodsScheduled(ns: string, timeoutMs = 90_000): Promise<boo
  * True only when at least one Ready, schedulable node carries
  * `devlabs.io/pool=<pool>`. A Karpenter NodePool alone does not count: without a
  * live node the lab would sit Pending. Lookup errors count as down so a lab is
- * locked instead of scheduled into Pending.
+ * locked instead of scheduled into Pending. Callers must not special-case
+ * admin/staff — availability and start both use this for every role.
  */
 async function poolUp(pool: string = K8S_LAB_POOL): Promise<boolean> {
   const hit = poolChecks.get(pool);

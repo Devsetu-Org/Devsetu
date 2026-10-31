@@ -247,15 +247,22 @@ function labCapacityDown(): Error {
 /** Setup failed because pods had no room (pool asleep or full), not because of a lab bug. */
 const CAPACITY_FAILURE = /exceeded quota|Unschedulable|Insufficient (cpu|memory)|Too many pods/i;
 
-/** Whether the challenge's node pool can run labs right now; the message is shown on a locked lab. */
+/**
+ * Whether the challenge's node pool can run labs right now; the message is
+ * shown on a locked lab. Role-agnostic: admins get the same answer as learners.
+ */
 async function labAvailability(challengeId: string): Promise<{ available: boolean; message: string | null }> {
   const flavor = boxFlavorOf(challengeId);
   const pool = isKafkaLab(challengeId) ? kafkaBox.POOL : (flavor ? linuxBox.poolFor(flavor) : undefined);
+  // Fresh read — do not serve a stale "up" after the pool was drained.
+  capacity.invalidatePool(pool);
   const available = await capacity.poolUp(pool);
   return { available, message: available ? null : LAB_CAPACITY_DOWN_MSG };
 }
 
+/** Refuse start when the pool has no Ready node. No admin / staff bypass. */
 async function requirePool(ns: string, challengeId: string, pool?: string): Promise<void> {
+  capacity.invalidatePool(pool);
   if (await capacity.poolUp(pool)) return;
   console.warn(`[k8s] ${ns}: node pool ${pool || 'labs'} has no nodes and cannot add any, refusing to open ${challengeId}`);
   throw labCapacityDown();

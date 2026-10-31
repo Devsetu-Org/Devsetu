@@ -536,11 +536,17 @@ export default function App(): React.JSX.Element {
         bootSeq: attempt.openSeq,
       };
       // Pool down: keep the lab on screen with its brief readable and the terminal locked.
+      // Capacity applies to every role — there is no admin bypass.
       const lockLab = (message: string | null): void => {
         setActiveSession({ ...pendingSession, lockedMessage: message || LAB_LOCKED_FALLBACK_MSG });
       };
       setActiveTab('problem');
-      setActiveSession(startNow ? pendingSession : { ...pendingSession, notStarted: true });
+      // Locked/checking first — never show Start or Creating until the pool is
+      // confirmed up. Admins used to flash Start/Creating when kafka was empty.
+      setActiveSession({
+        ...pendingSession,
+        lockedMessage: 'Checking whether the lab machines are available…',
+      });
       setPlayState('active');
       openingSessionRef.current = pendingId;
 
@@ -550,14 +556,15 @@ export default function App(): React.JSX.Element {
         setActiveChallenge(full);
 
         // Public users can read the brief; live terminals stay admin-only for now.
+        // This is only the Coming soon preview gate — not a capacity bypass.
         if (isPublicLabComingSoon(full, currentUser)) {
           attempt.settle();
           lockLab(LAB_COMING_SOON_MSG);
           return;
         }
 
-        // Fail closed: a down pool or a failed check locks the terminal.
-        // Do not show "Start machine" and then create Pending pods.
+        // Fail closed for everyone (including admin): a down pool or a failed
+        // check locks the terminal. Do not show Start, then Pending pods.
         const availability = await fetchK8sAvailability(full.id).catch(() => ({
           available: false,
           message: LAB_LOCKED_FALLBACK_MSG,
@@ -575,6 +582,8 @@ export default function App(): React.JSX.Element {
           return;
         }
 
+        // Pool is up — only now leave the lock and show the boot/warming UI.
+        setActiveSession(pendingSession);
         await cancelInflightK8sStart(attempt.openSeq);
         if (attempt.stale()) return;
         const res = await startK8sSession(full.id, { force, signal: attempt.signal, openSeq: attempt.openSeq });
