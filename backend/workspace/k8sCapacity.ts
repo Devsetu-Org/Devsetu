@@ -51,14 +51,16 @@ type NodeLike = {
   spec?: { unschedulable?: boolean };
   status?: { conditions?: Array<{ type?: string; status?: string }> };
 };
-type NodePoolLike = {
-  spec?: { limits?: { cpu?: string }; template?: { metadata?: { labels?: Record<string, string> } } };
-};
-
 /** devlabs.io/pool of the Kubernetes-lab learner nodes (deploy/eks/karpenter/nodepool.yaml). */
 const K8S_LAB_POOL = 'labs';
-const POOL_CHECK_TTL_MS = 15_000;
+const POOL_CHECK_TTL_MS = 5_000;
 const poolChecks = new Map<string, { at: number; up: boolean }>();
+
+/** Drop cached pool checks (e.g. after an admin wakes a node group). */
+function invalidatePool(pool?: string): void {
+  if (pool) poolChecks.delete(pool);
+  else poolChecks.clear();
+}
 
 type Waiting = { since: number; notified: boolean };
 
@@ -314,29 +316,25 @@ async function waitForPodsScheduled(ns: string, timeoutMs = 90_000): Promise<boo
 }
 
 /**
- * False only when the pool cannot run anything: no Ready node carries
- * devlabs.io/pool=<pool> and every Karpenter NodePool that would add one is missing or
- * capped at cpu 0 (eks-labs-sleep.sh). Lookup errors count as up, so a flaky API never
- * blocks an open.
+ * True only when at least one Ready, schedulable node carries
+ * `devlabs.io/pool=<pool>`. A Karpenter NodePool alone does not count: without a
+ * live node the lab would sit Pending. Lookup errors count as down so a lab is
+ * locked instead of scheduled into Pending. Callers must not special-case
+ * admin/staff — availability and start both use this for every role.
  */
 async function poolUp(pool: string = K8S_LAB_POOL): Promise<boolean> {
   const hit = poolChecks.get(pool);
   if (hit && Date.now() - hit.at < POOL_CHECK_TTL_MS) return hit.up;
-  let up = true;
+  let up = false;
   try {
     const nodes = await kubectlJson<NodeLike>(['get', 'nodes', '-l', `devlabs.io/pool=${pool}`]);
-    const ready = nodes.items.some((n) => !n.spec?.unschedulable
+    up = nodes.items.some((n) => !n.spec?.unschedulable
       && Boolean(n.status?.conditions?.some((c) => c.type === 'Ready' && c.status === 'True')));
-    if (!ready) {
-      const pools = await kubectlJson<NodePoolLike>(['get', 'nodepools.karpenter.sh']);
-      up = pools.items.some((p) => {
-        if (p.spec?.template?.metadata?.labels?.['devlabs.io/pool'] !== pool) return false;
-        const cpu = p.spec?.limits?.cpu;
-        return cpu == null || parseFloat(cpu) > 0;
-      });
-    }
-  } catch (_e) {
-    up = true;
+  } catch (err) {
+    console.warn(
+      `[k8s-capacity] pool ${pool}: could not list nodes, treating as offline: ${(err as Error).message || err}`,
+    );
+    up = false;
   }
   poolChecks.set(pool, { at: Date.now(), up });
   return up;
@@ -351,4 +349,5 @@ function reservingSeconds(ns: string): number | null {
 module.exports = {
   start, nudge, waitingPods, reservingSeconds, waitForReservation, waitForPodsScheduled, reservation,
   poolUp,
+  invalidatePool,
 };

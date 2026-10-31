@@ -97,7 +97,9 @@ export const LAB_COMING_SOON_MSG = 'Coming soon';
 
 /**
  * Public (non-admin) users cannot start Linux, Docker, Kubernetes, or Kafka
- * terminals yet. Admins still run live clusters for testing.
+ * terminals yet. Admins may open the start path for testing when the pool is
+ * up — but pool capacity still applies to admins the same as everyone else.
+ * This gate is only Coming soon, never a capacity bypass.
  */
 export function isPublicLabComingSoon(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
@@ -376,8 +378,11 @@ function BootMark({ state }: { state: BootStepState }): JSX.Element {
 }
 
 function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: string }): JSX.Element {
-  const reported = phase.current === INSTALL_PHASE ? SAVE_PHASE : (phase.current || BOOT_PHASES[0]);
-  const currentAt = Math.max(0, BOOT_PHASES.indexOf(reported));
+  // No backend phase yet → all upcoming. Never invent "Creating your machine".
+  const reported = phase.current === INSTALL_PHASE
+    ? SAVE_PHASE
+    : (phase.current && BOOT_PHASES.includes(phase.current) ? phase.current : null);
+  const currentAt = reported ? BOOT_PHASES.indexOf(reported) : -1;
   return (
     <div className="k8s-lab-boot">
       <strong>Starting your {machineLabel} {machineLabel === 'Kafka' ? 'cluster' : 'machine'}</strong>
@@ -386,11 +391,13 @@ function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: s
           const skipped = step === SAVE_PHASE && phase.restoresSave === false && reported !== SAVE_PHASE;
           const state: BootStepState = skipped
             ? 'skipped'
-            : index === currentAt
-              ? 'current'
-              : index < currentAt
-                ? 'done'
-                : 'upcoming';
+            : currentAt < 0
+              ? 'upcoming'
+              : index === currentAt
+                ? 'current'
+                : index < currentAt
+                  ? 'done'
+                  : 'upcoming';
           return (
             <li key={step} className={`is-${state}`} aria-current={state === 'current' ? 'step' : undefined}>
               <BootMark state={state} />
@@ -1253,7 +1260,9 @@ export default function K8sLabWorkspace({
                       ? 'Coming soon'
                       : idleLocked
                         ? 'This lab\'s time is up'
-                        : 'This lab is locked for now'}
+                        : lockedMessage?.startsWith('Checking whether')
+                          ? 'Checking lab machines'
+                          : 'This lab is locked for now'}
                   </strong>
                   <p>
                     {labComingSoon
@@ -1271,7 +1280,7 @@ export default function K8sLabWorkspace({
                       You can still read the description and the rest of the brief on the left.
                     </p>
                   )}
-                  {challenge && !labComingSoon && (
+                  {challenge && !labComingSoon && !lockedMessage?.startsWith('Checking whether') && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"

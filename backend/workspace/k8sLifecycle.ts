@@ -234,8 +234,8 @@ function labEnvUnavailable(): Error {
 }
 
 const LAB_CAPACITY_DOWN_MSG =
-  'The cluster that runs these labs is busy or offline right now, so your lab could not start. '
-  + 'Please try again in a few minutes, and contact the administrator if it keeps happening.';
+  'The machines that run these labs are offline right now, so your lab could not start. '
+  + 'Please try again later, and contact the administrator if it keeps happening.';
 
 function labCapacityDown(): Error {
   return Object.assign(new Error(LAB_CAPACITY_DOWN_MSG), {
@@ -247,15 +247,22 @@ function labCapacityDown(): Error {
 /** Setup failed because pods had no room (pool asleep or full), not because of a lab bug. */
 const CAPACITY_FAILURE = /exceeded quota|Unschedulable|Insufficient (cpu|memory)|Too many pods/i;
 
-/** Whether the challenge's node pool can run labs right now; the message is shown on a locked lab. */
+/**
+ * Whether the challenge's node pool can run labs right now; the message is
+ * shown on a locked lab. Role-agnostic: admins get the same answer as learners.
+ */
 async function labAvailability(challengeId: string): Promise<{ available: boolean; message: string | null }> {
   const flavor = boxFlavorOf(challengeId);
   const pool = isKafkaLab(challengeId) ? kafkaBox.POOL : (flavor ? linuxBox.poolFor(flavor) : undefined);
+  // Fresh read — do not serve a stale "up" after the pool was drained.
+  capacity.invalidatePool(pool);
   const available = await capacity.poolUp(pool);
   return { available, message: available ? null : LAB_CAPACITY_DOWN_MSG };
 }
 
+/** Refuse start when the pool has no Ready node. No admin / staff bypass. */
 async function requirePool(ns: string, challengeId: string, pool?: string): Promise<void> {
+  capacity.invalidatePool(pool);
   if (await capacity.poolUp(pool)) return;
   console.warn(`[k8s] ${ns}: node pool ${pool || 'labs'} has no nodes and cannot add any, refusing to open ${challengeId}`);
   throw labCapacityDown();
@@ -309,9 +316,9 @@ async function provisionBox(
   owner: string | null,
   onPhase?: (message: string) => void,
 ): Promise<boolean> {
-  onPhase?.('Creating your machine');
   const spec = platformSpecOf(challengeId);
   await requirePool(ns, challengeId, linuxBox.poolFor(flavor));
+  onPhase?.('Creating your machine');
   linuxBox.discardBoxWork(ns, challengeId);
   try {
     await linuxBox.recreateBox(ns, challengeId, flavor, spec.box, onPhase);
@@ -355,8 +362,8 @@ async function provisionKafka(
   if (shape !== 'kafka-3') {
     throw Object.assign(new Error(`Kafka lab shape ${shape} is not available yet`), { status: 400 });
   }
-  onPhase?.('Creating your machine');
   await requirePool(ns, challengeId, kafkaBox.POOL);
+  onPhase?.('Creating your machine');
   try {
     await kafkaBox.recreate(ns, challengeId, onPhase);
   } catch (err) {
@@ -549,7 +556,14 @@ async function startK8sSession({
   }
 
   const owner = workspaceStore.sanitizeOwner(userId || candidateName || 'anonymous');
-  if (boxFlavorOf(challengeId) || isKafkaLab(challengeId)) beginBootPhase(owner, challengeId, openSeq);
+  const flavor = boxFlavorOf(challengeId);
+  const kafka = isKafkaLab(challengeId);
+  // Refuse before any boot-phase UI. Otherwise a down pool still shows
+  // "Creating your machine" and can leave Pending pods.
+  if (flavor || kafka) {
+    await requirePool(owner, challengeId, kafka ? kafkaBox.POOL : linuxBox.poolFor(flavor!));
+  }
+  if (flavor || kafka) beginBootPhase(owner, challengeId, openSeq);
   const ns = namespaceForChallenge(challengeId, userId || candidateName, userName || candidateName);
 
   const existing = await findExistingK8sSession(challengeId, owner);
