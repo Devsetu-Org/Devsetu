@@ -84,9 +84,12 @@ export default function LinuxBlogPlayground({ onClose, onSubscribe }: LinuxBlogP
 
     const start = async (): Promise<void> => {
       try {
-        const availability = await fetchK8sAvailability(LINUX_BLOG_PLAYGROUND_ID).catch(() => null);
+        const availability = await fetchK8sAvailability(LINUX_BLOG_PLAYGROUND_ID).catch(() => ({
+          available: false,
+          message: 'The Linux machines are unavailable right now.',
+        }));
         if (cancelled || token !== playgroundLiveToken) return;
-        if (availability && !availability.available) {
+        if (!availability.available) {
           setPhase('error');
           setStatus('Unavailable');
           setError(availability.message || 'The Linux machines are unavailable right now.');
