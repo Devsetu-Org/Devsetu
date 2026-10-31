@@ -51,10 +51,6 @@ type NodeLike = {
   spec?: { unschedulable?: boolean };
   status?: { conditions?: Array<{ type?: string; status?: string }> };
 };
-type NodePoolLike = {
-  spec?: { limits?: { cpu?: string }; template?: { metadata?: { labels?: Record<string, string> } } };
-};
-
 /** devlabs.io/pool of the Kubernetes-lab learner nodes (deploy/eks/karpenter/nodepool.yaml). */
 const K8S_LAB_POOL = 'labs';
 const POOL_CHECK_TTL_MS = 15_000;
@@ -314,10 +310,11 @@ async function waitForPodsScheduled(ns: string, timeoutMs = 90_000): Promise<boo
 }
 
 /**
- * False only when the pool cannot run anything: no Ready node carries
- * devlabs.io/pool=<pool> and every Karpenter NodePool that would add one is missing or
- * capped at cpu 0 (eks-labs-sleep.sh). Lookup errors count as up, so a flaky API never
- * blocks an open.
+ * True only when at least one Ready, schedulable node carries
+ * `devlabs.io/pool=<pool>`. A Karpenter NodePool alone does not count: without a
+ * live node the lab would sit Pending (and a missing NodePool CRD used to look
+ * like "up" via the old fail-open path). Lookup errors still count as up so a
+ * flaky API never blocks an open.
  */
 async function poolUp(pool: string = K8S_LAB_POOL): Promise<boolean> {
   const hit = poolChecks.get(pool);
@@ -325,16 +322,8 @@ async function poolUp(pool: string = K8S_LAB_POOL): Promise<boolean> {
   let up = true;
   try {
     const nodes = await kubectlJson<NodeLike>(['get', 'nodes', '-l', `devlabs.io/pool=${pool}`]);
-    const ready = nodes.items.some((n) => !n.spec?.unschedulable
+    up = nodes.items.some((n) => !n.spec?.unschedulable
       && Boolean(n.status?.conditions?.some((c) => c.type === 'Ready' && c.status === 'True')));
-    if (!ready) {
-      const pools = await kubectlJson<NodePoolLike>(['get', 'nodepools.karpenter.sh']);
-      up = pools.items.some((p) => {
-        if (p.spec?.template?.metadata?.labels?.['devlabs.io/pool'] !== pool) return false;
-        const cpu = p.spec?.limits?.cpu;
-        return cpu == null || parseFloat(cpu) > 0;
-      });
-    }
   } catch (_e) {
     up = true;
   }

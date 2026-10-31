@@ -234,8 +234,8 @@ function labEnvUnavailable(): Error {
 }
 
 const LAB_CAPACITY_DOWN_MSG =
-  'The cluster that runs these labs is busy or offline right now, so your lab could not start. '
-  + 'Please try again in a few minutes, and contact the administrator if it keeps happening.';
+  'The machines that run these labs are offline right now, so your lab could not start. '
+  + 'Please try again later, and contact the administrator if it keeps happening.';
 
 function labCapacityDown(): Error {
   return Object.assign(new Error(LAB_CAPACITY_DOWN_MSG), {
