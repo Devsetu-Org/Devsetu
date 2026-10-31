@@ -312,20 +312,22 @@ async function waitForPodsScheduled(ns: string, timeoutMs = 90_000): Promise<boo
 /**
  * True only when at least one Ready, schedulable node carries
  * `devlabs.io/pool=<pool>`. A Karpenter NodePool alone does not count: without a
- * live node the lab would sit Pending (and a missing NodePool CRD used to look
- * like "up" via the old fail-open path). Lookup errors still count as up so a
- * flaky API never blocks an open.
+ * live node the lab would sit Pending. Lookup errors count as down so a lab is
+ * locked instead of scheduled into Pending.
  */
 async function poolUp(pool: string = K8S_LAB_POOL): Promise<boolean> {
   const hit = poolChecks.get(pool);
   if (hit && Date.now() - hit.at < POOL_CHECK_TTL_MS) return hit.up;
-  let up = true;
+  let up = false;
   try {
     const nodes = await kubectlJson<NodeLike>(['get', 'nodes', '-l', `devlabs.io/pool=${pool}`]);
     up = nodes.items.some((n) => !n.spec?.unschedulable
       && Boolean(n.status?.conditions?.some((c) => c.type === 'Ready' && c.status === 'True')));
-  } catch (_e) {
-    up = true;
+  } catch (err) {
+    console.warn(
+      `[k8s-capacity] pool ${pool}: could not list nodes, treating as offline: ${(err as Error).message || err}`,
+    );
+    up = false;
   }
   poolChecks.set(pool, { at: Date.now(), up });
   return up;

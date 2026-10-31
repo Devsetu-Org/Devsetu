@@ -556,9 +556,14 @@ export default function App(): React.JSX.Element {
           return;
         }
 
-        const availability = await fetchK8sAvailability(full.id).catch(() => null);
+        // Fail closed: a down pool or a failed check locks the terminal.
+        // Do not show "Start machine" and then create Pending pods.
+        const availability = await fetchK8sAvailability(full.id).catch(() => ({
+          available: false,
+          message: LAB_LOCKED_FALLBACK_MSG,
+        }));
         if (attempt.stale()) return;
-        if (availability && !availability.available) {
+        if (!availability.available) {
           attempt.settle();
           lockLab(availability.message);
           return;

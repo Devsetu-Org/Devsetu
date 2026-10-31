@@ -261,7 +261,8 @@ export async function fetchK8sAvailability(challengeId: string): Promise<K8sLabA
     headers: getAuthHeader(),
   });
   const d = data as Partial<K8sLabAvailability>;
-  return { available: d.available !== false, message: d.message ?? null };
+  // Only an explicit true means the pool is up. Missing/false → locked lab.
+  return { available: d.available === true, message: d.message ?? null };
 }
 
 export interface K8sCapacityWait {
