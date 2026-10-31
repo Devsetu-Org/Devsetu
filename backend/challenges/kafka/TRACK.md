@@ -44,7 +44,7 @@ Shape: `kafka-3`. Difficulty: L0.
 
 Shape: `kafka-3`. Difficulty: L0.
 
-**Situation.** `orders`, `rider.dispatch`, and `restaurant.notifications` are already live. The ordering service needs `order.status` for preparation, pickup, and delivery. The ticket template says one replica and keep-forever. That template is wrong. The spec below is the one QuickBite uses for a new stream, matching `orders`.
+**Situation.** QuickBite already runs `orders`, `rider.dispatch`, and `restaurant.notifications` on the three-broker POC cluster. These must not change in this lab. The next need is `order.status`: one event per status change (preparation, pickup, delivery), keyed by Order ID so each order's events stay in sequence. Customers, riders, and support each need that shared ordered log. Today those changes are not recorded anywhere they can all read.
 
 **Task.** Create `order.status` to the spec. Do not change the three topics already live.
 

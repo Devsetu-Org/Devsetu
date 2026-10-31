@@ -285,6 +285,82 @@ const ACTIONS = {
     argv: [path.join(EKS_ROOT, 'eks-docker.sh'), 'down'],
     confirm: 'down',
   },
+  'kafka-base': {
+    label: 'Kafka base',
+    section: 'kafka',
+    summary: 'labs-kafka Desired=1.',
+    description: [
+      'Creates the labs-kafka managed node group and launch template if missing, scales it to Desired=1, and waits for a Ready node labeled pool=kafka.',
+      'That node is tainted so only Kafka lab pods (and pool DaemonSets) schedule there. Three concurrent kafka-3 labs fit on one t4g.medium at the current squeeze.',
+      'Not in EKS_NODEGROUPS, so a normal cluster sleep leaves it alone — park it with Kafka sleep / Kafka down. Does not apply the Karpenter overflow pool; run Kafka up for that.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'base'],
+  },
+  'kafka-up': {
+    label: 'Kafka elastic (up)',
+    section: 'kafka',
+    summary: 'Apply labs-kafka-elastic NodePool only.',
+    description: [
+      'Applies only the Karpenter EC2NodeClass + NodePool labs-kafka-elastic. When Kafka labs are Pending because the managed base is full, Karpenter buys matching Graviton nodes (same pool label/taint as the base) and removes them once empty.',
+      'Does not scale the managed NG — run Kafka base first for that. Prerequisite: Karpenter controller already installed (Install Karpenter).',
+      'If Karpenter CRDs are missing, Kafka wake skips this half and keeps only the managed base node.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'up'],
+  },
+  'kafka-wake': {
+    label: 'Kafka wake',
+    section: 'kafka',
+    summary: 'Wake labs-kafka, then elastic if Karpenter exists.',
+    description: [
+      'Convenience path after Kafka sleep: scales labs-kafka back to 1, waits for Ready, then applies labs-kafka-elastic when Karpenter CRDs are present.',
+      'Use when Kafka capacity was parked and you want the always-on base (and overflow) restored. If you only want the single managed node, prefer Kafka base.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'wake'],
+  },
+  'kafka-sleep': {
+    label: 'Kafka sleep',
+    section: 'kafka',
+    summary: 'Park elastic and labs-kafka → 0.',
+    description: [
+      'Parks Kafka capacity without touching system-k8s or the EKS control plane. First patches labs-kafka-elastic cpu limit to 0 and deletes its NodeClaims (Karpenter terminates those EC2 instances), then scales the labs-kafka managed group to Desired=0.',
+      'Open Kafka labs will sit Pending until capacity wakes again.',
+      'Bring capacity back with Kafka wake (base + elastic) or Kafka base alone if you do not need overflow.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'sleep'],
+  },
+  'kafka-trial': {
+    label: 'Kafka trial',
+    section: 'kafka',
+    summary: 'Base + three-broker spike, then measure.',
+    description: [
+      'End-to-end capacity probe for the Kafka pool. Runs Kafka base, applies the trial three-broker pod, waits for brokers, runs a small CLI create/describe, then prints memory samples.',
+      'Use after heap / cleaner / launch-template changes to confirm the squeeze still fits before learners hit the pool.',
+      'Requires the apache/kafka image pullable on the node. First run may spend time pulling.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'trial'],
+  },
+  'kafka-measure': {
+    label: 'Kafka measure',
+    section: 'kafka',
+    summary: 'Re-sample the running trial spike.',
+    description: [
+      'Re-runs kubectl top and cgroup memory samples against the existing trial pod (dl-kafka-spike/kafka-3), plus a short CLI call.',
+      'Does not recreate the spike. Use after Kafka trial, or when that namespace is still up from an earlier run.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'measure'],
+  },
+  'kafka-down': {
+    label: 'Kafka down',
+    section: 'kafka',
+    summary: 'Tear down trial spike + elastic; sleep NG.',
+    description: [
+      'Full Kafka teardown for spike / infra experiments: deletes the dl-kafka-spike namespace, deletes the labs-kafka-elastic NodePool/EC2NodeClass (Karpenter terminates those nodes), then sleeps labs-kafka to Desired=0.',
+      'After this, Kafka labs will not work until you run Kafka base again (and up if you want elastic). Stronger than sleep alone because the elastic NodePool is removed from the cluster.',
+      'Confirm by typing down. Prefer Kafka sleep when you only want to park capacity and keep the elastic pool definition installed.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'down'],
+    confirm: 'down',
+  },
 };
 
 /**
