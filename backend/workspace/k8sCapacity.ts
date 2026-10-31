@@ -53,8 +53,14 @@ type NodeLike = {
 };
 /** devlabs.io/pool of the Kubernetes-lab learner nodes (deploy/eks/karpenter/nodepool.yaml). */
 const K8S_LAB_POOL = 'labs';
-const POOL_CHECK_TTL_MS = 15_000;
+const POOL_CHECK_TTL_MS = 5_000;
 const poolChecks = new Map<string, { at: number; up: boolean }>();
+
+/** Drop cached pool checks (e.g. after an admin wakes a node group). */
+function invalidatePool(pool?: string): void {
+  if (pool) poolChecks.delete(pool);
+  else poolChecks.clear();
+}
 
 type Waiting = { since: number; notified: boolean };
 
@@ -342,4 +348,5 @@ function reservingSeconds(ns: string): number | null {
 module.exports = {
   start, nudge, waitingPods, reservingSeconds, waitForReservation, waitForPodsScheduled, reservation,
   poolUp,
+  invalidatePool,
 };

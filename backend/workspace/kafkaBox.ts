@@ -331,6 +331,17 @@ async function recreate(
   challengeId: string,
   onPhase?: (message: string) => void,
 ): Promise<void> {
+  // Last guard: never apply pods when the kafka pool has no Ready node.
+  const capacity = require('./k8sCapacity');
+  if (!(await capacity.poolUp(POOL))) {
+    throw Object.assign(
+      new Error(
+        'The machines that run these labs are offline right now, so your lab could not start. '
+        + 'Please try again later, and contact the administrator if it keeps happening.',
+      ),
+      { status: 503, code: 'LAB_ENV_UNAVAILABLE' },
+    );
+  }
   onPhase?.('Creating your machine');
   await ensureNamespace(ns);
   await deleteCluster(ns, true);

@@ -309,9 +309,9 @@ async function provisionBox(
   owner: string | null,
   onPhase?: (message: string) => void,
 ): Promise<boolean> {
-  onPhase?.('Creating your machine');
   const spec = platformSpecOf(challengeId);
   await requirePool(ns, challengeId, linuxBox.poolFor(flavor));
+  onPhase?.('Creating your machine');
   linuxBox.discardBoxWork(ns, challengeId);
   try {
     await linuxBox.recreateBox(ns, challengeId, flavor, spec.box, onPhase);
@@ -355,8 +355,8 @@ async function provisionKafka(
   if (shape !== 'kafka-3') {
     throw Object.assign(new Error(`Kafka lab shape ${shape} is not available yet`), { status: 400 });
   }
-  onPhase?.('Creating your machine');
   await requirePool(ns, challengeId, kafkaBox.POOL);
+  onPhase?.('Creating your machine');
   try {
     await kafkaBox.recreate(ns, challengeId, onPhase);
   } catch (err) {
@@ -549,7 +549,14 @@ async function startK8sSession({
   }
 
   const owner = workspaceStore.sanitizeOwner(userId || candidateName || 'anonymous');
-  if (boxFlavorOf(challengeId) || isKafkaLab(challengeId)) beginBootPhase(owner, challengeId, openSeq);
+  const flavor = boxFlavorOf(challengeId);
+  const kafka = isKafkaLab(challengeId);
+  // Refuse before any boot-phase UI. Otherwise a down pool still shows
+  // "Creating your machine" and can leave Pending pods.
+  if (flavor || kafka) {
+    await requirePool(owner, challengeId, kafka ? kafkaBox.POOL : linuxBox.poolFor(flavor!));
+  }
+  if (flavor || kafka) beginBootPhase(owner, challengeId, openSeq);
   const ns = namespaceForChallenge(challengeId, userId || candidateName, userName || candidateName);
 
   const existing = await findExistingK8sSession(challengeId, owner);
