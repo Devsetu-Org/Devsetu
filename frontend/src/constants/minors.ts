@@ -206,6 +206,186 @@ const QUERY_ENGINE_CHAPTERS: ProjectModule[] = [
   },
 ];
 
+const GIT_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'How Git stores history as a graph of snapshots',
+    blurb:
+      'Content-addressed objects, trees, commits, refs, and the five chapters ahead.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'objects',
+    label: 'Objects',
+    subtitle: 'Blobs, trees, commits, and a hash store',
+    blurb:
+      'Hash content, zlib-compress it, and store it under objects/ab/…. Round-trip hash-object and cat-file.',
+    status: 'ready',
+  },
+  {
+    id: 'refs',
+    label: 'Refs',
+    subtitle: 'HEAD, branches, and update-ref',
+    blurb:
+      'A ref is a name for a commit. HEAD is symbolic or detached. Switching branches moves a pointer, not the objects.',
+    status: 'ready',
+  },
+  {
+    id: 'index',
+    label: 'Index',
+    subtitle: 'The staging area between the worktree and a commit',
+    blurb:
+      'add stages blob hashes by path. status reports staged, modified, and untracked paths against HEAD and the worktree.',
+    status: 'ready',
+  },
+  {
+    id: 'commit-checkout',
+    label: 'Commit and checkout',
+    subtitle: 'Snapshots in, worktree out',
+    blurb:
+      'write-tree and commit turn the index into a commit. checkout materializes a tree into the worktree without clobbering local edits unsafely.',
+    status: 'ready',
+  },
+  {
+    id: 'history-merge',
+    label: 'History and merge',
+    subtitle: 'log, diff, and a three-way merge',
+    blurb:
+      'Walk parents for log. Diff two trees. Merge finds a base and combines tips, writing conflict markers when both sides changed the same path.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your git against the reference on the same repos',
+    blurb:
+      'Object walks, checkout, and merges on fixed fixtures. Correct answers first, then time versus the reference.',
+    status: 'planned',
+  },
+];
+
+const SHELL_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'How a shell turns a line into processes',
+    blurb:
+      'Tokens, argv, pipes, redirection, and the five chapters ahead.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'lexer',
+    label: 'Lexer',
+    subtitle: 'Quotes, escapes, and tokens',
+    blurb:
+      'Split a line into words and operators. Single and double quotes, backslash escapes, and the pipe and redirect tokens.',
+    status: 'ready',
+  },
+  {
+    id: 'exec',
+    label: 'Exec',
+    subtitle: 'Run a simple command',
+    blurb:
+      'Look up a program on PATH, start it with argv, wait for it, and return its exit status. Builtins: cd and exit.',
+    status: 'ready',
+  },
+  {
+    id: 'redirects',
+    label: 'Redirects',
+    subtitle: '>, >>, <, and 2>',
+    blurb:
+      'Open files and wire them to stdin, stdout, or stderr before the child starts. Append versus truncate.',
+    status: 'ready',
+  },
+  {
+    id: 'pipes',
+    label: 'Pipes',
+    subtitle: 'a | b | c',
+    blurb:
+      'Connect stdout of one process to stdin of the next. Pipeline exit status follows the last command.',
+    status: 'ready',
+  },
+  {
+    id: 'jobs',
+    label: 'Jobs',
+    subtitle: 'Background and wait',
+    blurb:
+      'Trailing & starts a job without waiting. wait reaps it. A simple Ctrl-C story for the foreground pipeline.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your shell against the reference on the same scripts',
+    blurb:
+      'Gold scripts compare stdout, stderr, and exit status. Then time a fixed suite versus the reference.',
+    status: 'planned',
+  },
+];
+
+const SEARCH_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'How search turns documents into ranked hits',
+    blurb:
+      'Tokens, postings, segments, queries, ranking, and the five chapters ahead.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'analyze',
+    label: 'Analyze',
+    subtitle: 'Text to tokens',
+    blurb:
+      'Lowercase, split on non-letters, drop stopwords. The rest of the index never sees raw prose.',
+    status: 'ready',
+  },
+  {
+    id: 'postings',
+    label: 'Postings',
+    subtitle: 'Term to document lists',
+    blurb:
+      'A posting is (docId, frequency). Build an in-memory map, then write a sorted on-disk segment.',
+    status: 'ready',
+  },
+  {
+    id: 'index',
+    label: 'Index',
+    subtitle: 'Add documents and flush segments',
+    blurb:
+      'Assign doc ids, keep a catalog of segments, flush when a threshold hits. Open an index from a directory.',
+    status: 'ready',
+  },
+  {
+    id: 'query',
+    label: 'Query',
+    subtitle: 'Boolean retrieval',
+    blurb:
+      'AND and OR over posting lists. Intersect and union keep doc ids sorted. Phrase matching is out of scope.',
+    status: 'ready',
+  },
+  {
+    id: 'rank',
+    label: 'Rank',
+    subtitle: 'BM25 over one collection',
+    blurb:
+      'Score each hit with BM25, sort descending, and return the top k. Ties break on doc id.',
+    status: 'ready',
+  },
+  {
+    id: 'benchmark',
+    label: 'Benchmark',
+    subtitle: 'Your index against the reference on the same corpus',
+    blurb:
+      'Fixed documents and queries. Correct hit sets and order first, then time versus the reference.',
+    status: 'planned',
+  },
+];
+
 const CONSENSUS_CHAPTERS: ProjectModule[] = [
   {
     id: 'overview',
@@ -267,6 +447,69 @@ const CONSENSUS_CHAPTERS: ProjectModule[] = [
 ];
 
 export const MINORS: MinorEntry[] = [
+  {
+    id: 'git',
+    name: 'Git',
+    subtitle: 'Building a tiny Git',
+    blurb:
+      'Content-addressed blobs and trees, a staging index, commits that form a DAG, then log, diff, and a three-way merge.',
+    about: [
+      'Git stores every version of every file as a hashed object. Directories are trees of those hashes. A commit points at a tree and at parent commits, so history is a graph of snapshots, not a list of patches.',
+      'You build tinygit: init, hash-object, cat-file, add, status, commit, checkout, log, diff, and merge. Loose objects only. No remotes, no packfiles, no rebase. Each chapter ends with tests that prove that piece works.',
+    ],
+    language: 'Go',
+    facts: [
+      'Objects',
+      'Index',
+      'Merge',
+      `${GIT_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
+    ],
+    status: 'planned',
+    chapters: GIT_CHAPTERS,
+    languages: ['go'],
+  },
+  {
+    id: 'shell',
+    name: 'Shell',
+    subtitle: 'Building a Unix shell',
+    blurb:
+      'Tokenize a line, run a program, wire redirects and pipes, then background jobs and wait.',
+    about: [
+      'A shell is a small language that starts processes. Words become argv. Operators open files or connect pipes. The hard part is getting the file descriptors right before the child runs.',
+      'You build tinysh: a lexer with quotes, exec with PATH and builtins, redirects, pipelines, and a light jobs chapter. Gold scripts compare stdout, stderr, and exit status to a fixed reference. No job-control TTY full story, no functions, no $(…).',
+    ],
+    language: 'Go',
+    facts: [
+      'Lexer',
+      'Pipes',
+      'Jobs',
+      `${SHELL_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
+    ],
+    status: 'planned',
+    chapters: SHELL_CHAPTERS,
+    languages: ['go'],
+  },
+  {
+    id: 'search-index',
+    name: 'Search index',
+    subtitle: 'Building a full-text index',
+    blurb:
+      'Analyze text into tokens, write posting lists, flush segments, answer boolean queries, and rank with BM25.',
+    about: [
+      'Search is not SQL. Documents become tokens; tokens become sorted lists of document ids; a query walks those lists and ranks the survivors.',
+      'You build findx: an analyzer, on-disk postings segments, an index that flushes, boolean AND/OR retrieval, and BM25 ranking. No phrase queries, no positional index, no distributed shards. Each chapter ends with tests that prove that piece works.',
+    ],
+    language: 'Go',
+    facts: [
+      'Postings',
+      'BM25',
+      'Segments',
+      `${SEARCH_CHAPTERS.filter((c) => c.kind !== 'reading').length} chapters`,
+    ],
+    status: 'planned',
+    chapters: SEARCH_CHAPTERS,
+    languages: ['go'],
+  },
   {
     id: 'query-engine',
     name: 'Query engine',

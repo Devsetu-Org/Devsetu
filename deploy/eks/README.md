@@ -235,7 +235,9 @@ kubectl -n ns-<user> describe resourcequota dl-lab-quota
 `eks-destroy.sh` first deletes the balloons, the NodePools (Karpenter terminates its own
 nodes) and the Karpenter controller, then terminates any leftover Karpenter-tagged
 instances. Karpenter nodes live outside the node groups, so without this step the cluster
-delete would leave them running and billing.
+delete would leave them running and billing. It then deletes every managed node group
+actually attached to the cluster (`labs-docker`, `labs-spark`, and `labs-kafka` included),
+not only `EKS_NODEGROUPS`. Sleep and wake still skip those three.
 
 Kept across destroy (reused on recreate): the `devlabs-labs-k8s` launch template, the
 `Karpenter-devlabs` CloudFormation stack (IAM roles, interruption queue), the Karpenter

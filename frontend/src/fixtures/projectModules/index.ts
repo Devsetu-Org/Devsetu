@@ -36,6 +36,9 @@ import { LSM_TREE_OVERVIEW } from './lsmTreeOverview';
 import { B_TREE_OVERVIEW } from './bTreeOverview';
 import { CONSENSUS_OVERVIEW } from './consensusOverview';
 import { QUERY_ENGINE_OVERVIEW } from './queryEngineOverview';
+import { GIT_OVERVIEW } from './gitOverview';
+import { SHELL_OVERVIEW } from './shellOverview';
+import { SEARCH_OVERVIEW } from './searchOverview';
 import {
   QUERY_ENGINE_CATALOG_GO,
   QUERY_ENGINE_EXECUTE_GO,
@@ -43,6 +46,27 @@ import {
   QUERY_ENGINE_PARSER_GO,
   QUERY_ENGINE_RELATIONAL_GO,
 } from './queryEngineChaptersGo';
+import {
+  GIT_COMMIT_CHECKOUT_GO,
+  GIT_HISTORY_MERGE_GO,
+  GIT_INDEX_GO,
+  GIT_OBJECTS_GO,
+  GIT_REFS_GO,
+} from './gitChaptersGo';
+import {
+  SHELL_EXEC_GO,
+  SHELL_JOBS_GO,
+  SHELL_LEXER_GO,
+  SHELL_PIPES_GO,
+  SHELL_REDIRECTS_GO,
+} from './shellChaptersGo';
+import {
+  SEARCH_INDEX_ANALYZE_GO,
+  SEARCH_INDEX_INDEX_GO,
+  SEARCH_INDEX_POSTINGS_GO,
+  SEARCH_INDEX_QUERY_GO,
+  SEARCH_INDEX_RANK_GO,
+} from './searchIndexChaptersGo';
 import { CINDER_EVENT_LOOP } from './cinderEventLoop';
 import type { LanguageId } from '../../constants/languages';
 import type { ChapterReading, ProjectModuleContent } from './types';
@@ -82,6 +106,21 @@ const MINOR_CHAPTER_CONTENT: ProjectModuleContent[] = [
   QUERY_ENGINE_CATALOG_GO,
   QUERY_ENGINE_EXECUTE_GO,
   QUERY_ENGINE_RELATIONAL_GO,
+  GIT_OBJECTS_GO,
+  GIT_REFS_GO,
+  GIT_INDEX_GO,
+  GIT_COMMIT_CHECKOUT_GO,
+  GIT_HISTORY_MERGE_GO,
+  SHELL_LEXER_GO,
+  SHELL_EXEC_GO,
+  SHELL_REDIRECTS_GO,
+  SHELL_PIPES_GO,
+  SHELL_JOBS_GO,
+  SEARCH_INDEX_ANALYZE_GO,
+  SEARCH_INDEX_POSTINGS_GO,
+  SEARCH_INDEX_INDEX_GO,
+  SEARCH_INDEX_QUERY_GO,
+  SEARCH_INDEX_RANK_GO,
 ];
 
 const DEFAULT_LANGUAGE: LanguageId = 'go';
@@ -107,6 +146,9 @@ const MINOR_READINGS = new Map<string, ChapterReading>([
   ['b-tree/overview', B_TREE_OVERVIEW],
   ['consensus/overview', CONSENSUS_OVERVIEW],
   ['query-engine/overview', QUERY_ENGINE_OVERVIEW],
+  ['git/overview', GIT_OVERVIEW],
+  ['shell/overview', SHELL_OVERVIEW],
+  ['search-index/overview', SEARCH_OVERVIEW],
 ]);
 
 export function getModuleContent(
