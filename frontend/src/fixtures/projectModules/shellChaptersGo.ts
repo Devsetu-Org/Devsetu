@@ -1,5 +1,5 @@
 /**
- * Shell chapters 1–5, Go only for now. Each starter repo is loaded whole
+ * Shell chapters 1–5, Go. Each starter repo is loaded whole
  * from its `go/files/` folder; `solution/` folders are never globbed, so they
  * stay out of the bundle.
  *

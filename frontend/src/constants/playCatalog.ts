@@ -12,6 +12,29 @@ export type PlayDomainId =
 
 export type PlayPanelId = string;
 
+/** One lab row inside a chapter card. Pack labs use challengeId; planned labs are title-only. */
+export type PlayChapterLab =
+  | {
+      challengeId: string;
+      /** Green “Free” mark on the chapter shelf (display only until billing covers Spark). */
+      free?: boolean;
+    }
+  | {
+      title: string;
+      /** Planned lab with no pack yet — shown locked on the chapter shelf. */
+      placeholder: true;
+    };
+
+export interface PlayChapter {
+  id: string;
+  /** Small label above the title, e.g. "Chapter 1". */
+  kicker: string;
+  title: string;
+  /** Blog slug on this panel's reading track. The shelf links it above the labs. */
+  readingSlug?: string;
+  labs: PlayChapterLab[];
+}
+
 export interface PlayPanel {
   id: PlayPanelId;
   label: string;
@@ -22,6 +45,12 @@ export interface PlayPanel {
   tileBlurb?: string;
   /** Challenge ids shown under this panel (order preserved). */
   challengeIds: string[];
+  /**
+   * Optional chapter cards for the panel shelf (Spark). When set, Play renders
+   * a chapter grid instead of the flat lab table. challengeIds still drives
+   * catalog membership and must list every pack lab in the chapters.
+   */
+  chapters?: PlayChapter[];
 }
 
 export interface PlayDomain {
@@ -179,7 +208,7 @@ export const PLAY_DOMAINS: PlayDomain[] = [
     id: 'platforms-engineer',
     label: 'Platforms Engineer',
     blurb:
-      'The shared systems other engineers run on. Kafka Platform Engineering is coming soon. Kubernetes cluster operations are ahead.',
+      'The shared systems other engineers run on. Kafka, Spark, and Kubernetes clusters that are already up.',
     panels: [
       {
         id: 'kafka',
@@ -203,10 +232,127 @@ export const PLAY_DOMAINS: PlayDomain[] = [
         ],
       },
       {
+        id: 'spark',
+        label: 'Spark',
+        subtitle: 'A cluster that is already up',
+        tileBlurb:
+          'Master, workers, and live applications on QuickBite’s Spark. You run the cluster. You don’t write the jobs.',
+        blurb:
+          'Master, workers, and live applications on QuickBite’s Spark. The cluster is already up. You run the workers.',
+        challengeIds: [
+          'spark-01-stand-up-the-cluster-and-find-everything-on-disk',
+          'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments',
+          'spark-03-trace-a-job-from-submission-to-last-task',
+          'spark-04-find-where-the-data-actually-lives',
+          'spark-05-the-executor-memory-map',
+          'spark-06-diagnose-an-executor-lost-to-memory-pressure',
+          'spark-07-the-capstone-bug-slow-then-dead',
+          'spark-08-drain-a-worker-without-breaking-anything',
+          'spark-09-submit-the-same-workload-on-yarn',
+          'spark-10-read-the-rm-and-nm-as-instruments',
+          'spark-11-land-in-the-right-capacity-queue',
+          'spark-12-client-mode-driver-is-on-the-wrong-host',
+          'spark-13-someone-elses-job-changed-yesterday',
+        ],
+        chapters: [
+          {
+            id: 'foundations',
+            kicker: 'Chapter 1',
+            title: 'Foundations of a Spark Cluster',
+            readingSlug: 'foundations-of-a-spark-cluster',
+            labs: [
+              { challengeId: 'spark-01-stand-up-the-cluster-and-find-everything-on-disk', free: true },
+              { challengeId: 'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments', free: true },
+              { challengeId: 'spark-03-trace-a-job-from-submission-to-last-task' },
+              { challengeId: 'spark-04-find-where-the-data-actually-lives' },
+              { challengeId: 'spark-05-the-executor-memory-map' },
+              { challengeId: 'spark-06-diagnose-an-executor-lost-to-memory-pressure' },
+              { challengeId: 'spark-07-the-capstone-bug-slow-then-dead' },
+              { challengeId: 'spark-08-drain-a-worker-without-breaking-anything' },
+            ],
+          },
+          {
+            id: 'yarn',
+            kicker: 'Chapter 2',
+            title: 'Spark on YARN',
+            readingSlug: 'spark-on-yarn',
+            labs: [
+              { challengeId: 'spark-09-submit-the-same-workload-on-yarn', free: true },
+              { challengeId: 'spark-10-read-the-rm-and-nm-as-instruments' },
+              { challengeId: 'spark-11-land-in-the-right-capacity-queue' },
+              { challengeId: 'spark-12-client-mode-driver-is-on-the-wrong-host' },
+              { challengeId: 'spark-13-someone-elses-job-changed-yesterday' },
+            ],
+          },
+          {
+            id: 'kubernetes',
+            kicker: 'Chapter 3',
+            title: 'Spark on Kubernetes',
+            readingSlug: 'spark-on-kubernetes',
+            labs: [
+              { title: 'Driver and Executor Pods', placeholder: true },
+              { title: 'Namespace and Quota Block the Submit', placeholder: true },
+              { title: 'Wrong Image, Missing Dependency', placeholder: true },
+              { title: 'Dynamic Allocation Without the Shuffle Service', placeholder: true },
+              { title: 'Which Namespace, Which Quota, Which Image', placeholder: true },
+            ],
+          },
+          {
+            id: 'platform-automations',
+            kicker: 'Chapter 4',
+            title: 'Platform Automations',
+            readingSlug: 'platform-automations',
+            labs: [
+              { title: 'Infra-as-Code for the Cluster Shape', placeholder: true },
+              { title: 'Automated Environment and Dependency Provision', placeholder: true },
+              { title: 'Guardrail: Refuse the Bad Request', placeholder: true },
+              { title: 'Detect Drift, Then Reconcile', placeholder: true },
+              { title: 'Self-Service Job Request API', placeholder: true },
+            ],
+          },
+          {
+            id: 'observability',
+            kicker: 'Chapter 5',
+            title: 'Observability and Optimizations',
+            readingSlug: 'observability-and-optimizations',
+            labs: [
+              { title: 'History Server Reads the Right Event Logs', placeholder: true },
+              { title: 'Stage Time Is One Hot Task', placeholder: true },
+              { title: 'Spill and GC Before You Add Executors', placeholder: true },
+              { title: 'Lag Report as a Tool', placeholder: true },
+              { title: 'Shuffle Service Health on the Critical Path', placeholder: true },
+            ],
+          },
+          {
+            id: 'incidents',
+            kicker: 'Chapter 6',
+            title: 'Incidents',
+            readingSlug: 'incidents',
+            labs: [
+              { title: 'Disk Full and a Stuck Query at Once', placeholder: true },
+              { title: 'Checkpoint Restored Wrong After the Firefight', placeholder: true },
+              { title: 'Executors Lost Under Shared-Worker Pressure', placeholder: true },
+              { title: 'Drain During an Incident Without Making It Worse', placeholder: true },
+              { title: 'Cascading Failure Across Queue and Namespace', placeholder: true },
+            ],
+          },
+        ],
+      },
+      {
         id: 'kubernetes',
         label: 'Kubernetes',
-        blurb: 'CKA-style labs: cluster install, control plane, networking, and node operations.',
-        challengeIds: [],
+        subtitle: 'A cluster that is already up',
+        tileBlurb:
+          'Nodes, scheduling, and the control plane on QuickBite’s Kubernetes. You run the cluster. You don’t share it.',
+        blurb:
+          'Nodes, scheduling, and the control plane on QuickBite’s Kubernetes. The cluster is already up. You are the admin of that lab only.',
+        challengeIds: [
+          'k8s-platform-01-first-shift-on-the-cluster',
+          'k8s-platform-02-place-the-three-services',
+          'k8s-platform-03-payment-handler-on-the-tainted-node',
+          'k8s-platform-04-one-pod-asks-for-too-much',
+          'k8s-platform-05-a-collector-on-every-node',
+        ],
       },
     ],
   },
@@ -347,6 +493,19 @@ export function catalogPathForChallenge(
     }
   }
   return '/track';
+}
+
+/**
+ * Shelf URL that keeps a not-yet-started (or still-booting) lab open across
+ * reload. Cleared once the real `/track/<sessionId>` URL takes over.
+ */
+export function catalogLabPath(
+  challengeId: string,
+  sandboxType?: string | null,
+  tags?: string[] | null,
+): string {
+  const base = catalogPathForChallenge(challengeId, sandboxType, tags);
+  return `${base}?lab=${encodeURIComponent(challengeId)}`;
 }
 
 export function getPlayDomain(id: PlayDomainId | null | undefined): PlayDomain | null {

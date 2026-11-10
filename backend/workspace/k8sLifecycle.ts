@@ -11,7 +11,8 @@ const k8s = require('./k8sCluster');
 const capacity = require('./k8sCapacity');
 const linuxBox = require('./linuxBox');
 const kafkaBox = require('./kafkaBox');
-const { isClusterLabType, isKafkaLabType, boxFlavor } = require('../challenges/labTypes');
+const sparkBox = require('./sparkBox');
+const { isClusterLabType, isKafkaLabType, isSparkLabType, boxFlavor } = require('../challenges/labTypes');
 const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const terminalEventBus = require('../observability/terminalEventBus');
 
@@ -139,6 +140,10 @@ function isKafkaLab(challengeId: string): boolean {
   return isKafkaLabType(loader.getChallenge(challengeId)?.sandboxType);
 }
 
+function isSparkLab(challengeId: string): boolean {
+  return isSparkLabType(loader.getChallenge(challengeId)?.sandboxType);
+}
+
 /**
  * One learner namespace hosts every lab of that learner, so provision / reset /
  * park for it run strictly one at a time, whichever lab they belong to. Otherwise
@@ -253,7 +258,11 @@ const CAPACITY_FAILURE = /exceeded quota|Unschedulable|Insufficient (cpu|memory)
  */
 async function labAvailability(challengeId: string): Promise<{ available: boolean; message: string | null }> {
   const flavor = boxFlavorOf(challengeId);
-  const pool = isKafkaLab(challengeId) ? kafkaBox.POOL : (flavor ? linuxBox.poolFor(flavor) : undefined);
+  const pool = isKafkaLab(challengeId)
+    ? kafkaBox.POOL
+    : isSparkLab(challengeId)
+      ? sparkBox.POOL
+      : (flavor ? linuxBox.poolFor(flavor) : undefined);
   // Fresh read — do not serve a stale "up" after the pool was drained.
   capacity.invalidatePool(pool);
   const available = await capacity.poolUp(pool);
@@ -277,7 +286,8 @@ function ensureProvisioned(
 ): Promise<boolean> {
   const flavor = boxFlavorOf(challengeId);
   const kafka = isKafkaLab(challengeId);
-  const onPhase = (flavor || kafka) && owner
+  const spark = isSparkLab(challengeId);
+  const onPhase = (flavor || kafka || spark) && owner
     ? (message: string) => noteBootPhase(owner, message)
     : undefined;
   return withNsLock(ns, async () => {
@@ -287,7 +297,9 @@ function ensureProvisioned(
           ? provisionBox(ns, challengeId, flavor, forceSetup, owner || null, onPhase)
           : kafka
             ? provisionKafka(ns, challengeId, onPhase)
-            : provision(ns, challengeId, forceSetup)
+            : spark
+              ? provisionSpark(ns, challengeId, onPhase)
+              : provision(ns, challengeId, forceSetup)
       );
       if (!signal) return await run();
       if (signal.aborted) throw k8s.startSuperseded();
@@ -297,6 +309,7 @@ function ensureProvisioned(
       if (!k8s.isStartSuperseded(err)) throw err;
       if (flavor) await linuxBox.deleteBox(ns).catch(() => {});
       else if (kafka) await kafkaBox.deletePod(ns).catch(() => {});
+      else if (spark) await sparkBox.deletePod(ns).catch(() => {});
       else await k8s.wipeChallengeResources(ns, challengeId).catch(() => {});
       throw err;
     }
@@ -377,6 +390,95 @@ async function provisionKafka(
     env: kafkaBox.scriptEnv(ns),
   });
   if (result.code !== 0) {
+    const msg = (result.stderr || result.stdout || 'setup failed').trim();
+    throw Object.assign(new Error(`Lab setup failed: ${msg}`), { status: 502 });
+  }
+  return true;
+}
+
+/** Every open boots a fresh Spark standalone cluster (master + workers + shell), then setup.sh. No saved progress. */
+async function provisionSpark(
+  ns: string,
+  challengeId: string,
+  onPhase?: (message: string) => void,
+): Promise<boolean> {
+  const spec = platformSpecOf(challengeId);
+  const shape = String(spec.shape || 'spark-3');
+  if (shape !== 'spark-3' && shape !== 'spark-2' && shape !== 'yarn-2') {
+    throw Object.assign(new Error(`Spark lab shape ${shape} is not available yet`), { status: 400 });
+  }
+  await requirePool(ns, challengeId, sparkBox.POOL);
+  const daemonMode = String((spec as { daemonMode?: string }).daemonMode || 'auto') === 'manual'
+    ? 'manual'
+    : 'auto';
+  const yarn = shape === 'yarn-2';
+  const bootPhases = Array.isArray((spec as { boot?: { phases?: unknown } }).boot?.phases)
+    ? ((spec as { boot: { phases: unknown[] } }).boot.phases
+      .map((p) => String(p || '').trim())
+      .filter(Boolean))
+    : [];
+  const customBoot = bootPhases.length > 0;
+  onPhase?.(
+    customBoot
+      ? bootPhases[0]
+      : daemonMode === 'manual'
+        ? 'Planning for a Spark cluster'
+        : yarn
+          ? 'Creating your YARN cluster'
+          : 'Creating your cluster',
+  );
+  // Labs that start Master/Workers inside setup.sh (e.g. spark-02) emit those
+  // steps via BOOT_PHASE lines. Others finish the stepper with Preparing the lab.
+  const setupDrivenBoot = customBoot && bootPhases.some((p) => /^Starting the master$/i.test(p));
+  try {
+    await sparkBox.recreate(
+      ns,
+      challengeId,
+      shape,
+      customBoot
+        ? (message: string) => {
+            if (bootPhases.includes(message)) {
+              onPhase?.(message);
+              return;
+            }
+            if (/^Pulling the Spark/i.test(message) || /^Using the cached Spark/i.test(message)) {
+              const pull = bootPhases.find((p) => /^Pulling the Spark/i.test(p));
+              onPhase?.(pull || bootPhases[0]);
+              return;
+            }
+            // Warmed-cluster labs: keep the pull step while idle pods come up.
+            onPhase?.(bootPhases[0]);
+          }
+        : onPhase,
+      { daemonMode },
+    );
+  } catch (err) {
+    if (k8s.isStartSuperseded(err)) throw err;
+    console.error(`[spark] ${ns}: could not start a cluster for ${challengeId}: ${(err as Error).message || err}`);
+    throw labEnvUnavailable();
+  }
+  if (!setupDrivenBoot) {
+    const prepare = customBoot
+      ? (bootPhases.find((p) => /^Preparing the lab$/i.test(p)) || bootPhases[bootPhases.length - 1])
+      : 'Preparing the lab';
+    onPhase?.(prepare);
+  }
+  // spark-02 waits out spark.worker.timeout (~30s+) after killing a Worker.
+  const setupTimeoutMs = Math.max(
+    300_000,
+    (Number((spec.grade as { timeoutSeconds?: number } | undefined)?.timeoutSeconds) || 0) * 1000,
+  );
+  const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
+    timeoutMs: setupTimeoutMs,
+    env: sparkBox.scriptEnv(ns),
+    onBootPhase: setupDrivenBoot ? onPhase : undefined,
+  });
+  if (result.code !== 0) {
+    // Failed setup marks the session ended without endK8sSession, which would
+    // otherwise skip delete because status is already ended — tear the cluster now.
+    await sparkBox.deletePod(ns).catch((err: unknown) => {
+      console.warn(`[spark] ${ns}: cleanup after setup failure: ${(err as Error).message || err}`);
+    });
     const msg = (result.stderr || result.stdout || 'setup failed').trim();
     throw Object.assign(new Error(`Lab setup failed: ${msg}`), { status: 502 });
   }
@@ -471,6 +573,7 @@ function namespaceForChallenge(challengeId: string, userId: string | null, userN
   const owner = workspaceStore.sanitizeOwner(userId || 'anonymous');
   const user = userName || owner;
   if (isKafkaLab(challengeId)) return kafkaBox.namespace(user);
+  if (isSparkLab(challengeId)) return sparkBox.namespace(user);
   const flavor = boxFlavorOf(challengeId);
   if (!flavor) return namespaceFor(userId, userName);
   // Own namespace so opening a blog playground cannot snapshot or delete a lab box.
@@ -558,12 +661,18 @@ async function startK8sSession({
   const owner = workspaceStore.sanitizeOwner(userId || candidateName || 'anonymous');
   const flavor = boxFlavorOf(challengeId);
   const kafka = isKafkaLab(challengeId);
+  const spark = isSparkLab(challengeId);
   // Refuse before any boot-phase UI. Otherwise a down pool still shows
   // "Creating your machine" and can leave Pending pods.
-  if (flavor || kafka) {
-    await requirePool(owner, challengeId, kafka ? kafkaBox.POOL : linuxBox.poolFor(flavor!));
+  if (flavor || kafka || spark) {
+    const pool = kafka
+      ? kafkaBox.POOL
+      : spark
+        ? sparkBox.POOL
+        : linuxBox.poolFor(flavor!);
+    await requirePool(owner, challengeId, pool);
   }
-  if (flavor || kafka) beginBootPhase(owner, challengeId, openSeq);
+  if (flavor || kafka || spark) beginBootPhase(owner, challengeId, openSeq);
   const ns = namespaceForChallenge(challengeId, userId || candidateName, userName || candidateName);
 
   const existing = await findExistingK8sSession(challengeId, owner);
@@ -649,9 +758,14 @@ async function endK8sSession(sessionId: string): Promise<GameSession> {
 
   const flavor = challengeId ? boxFlavorOf(challengeId) : null;
   const kafka = Boolean(challengeId && isKafkaLab(challengeId));
+  const spark = Boolean(challengeId && isSparkLab(challengeId));
   if (ns && challengeId && kafka) {
     void withNsLock(ns, () => kafkaBox.deletePod(ns)).catch((err: unknown) => {
       console.warn(`[kafka] background cluster stop failed for ${ns}: ${(err as Error).message || err}`);
+    });
+  } else if (ns && challengeId && spark) {
+    void withNsLock(ns, () => sparkBox.deletePod(ns)).catch((err: unknown) => {
+      console.warn(`[spark] background cluster stop failed for ${ns}: ${(err as Error).message || err}`);
     });
   } else if (ns && challengeId && flavor) {
     // Ephemeral sandbox: drop any archive left from the old save path, then delete

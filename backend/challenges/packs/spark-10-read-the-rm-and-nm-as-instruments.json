@@ -1,0 +1,52 @@
+{
+  "id": "spark-10-read-the-rm-and-nm-as-instruments",
+  "number": 819,
+  "finalized": true,
+  "title": "Read the RM and NM as Instruments",
+  "description": "**SITUATION:**\n\nLab 2.1 taught you to submit on YARN. Now treat the **ResourceManager** and **NodeManager** UIs the way Lab 1.2 treated Master and Worker UIs: as instruments, not ground truth.\n\nThis lab starts the same three-host YARN shape (`ds-spark-01` = ResourceManager, `ds-spark-02` / `ds-spark-03` = NodeManagers, plus `shell`) and plants **one finished probe application** named `store-rollup-probe`. The cluster should be idle afterward. Your job is to answer Investigation questions that only the RM / NM panels can answer — then verify two of those claims from `yarn logs` and the node itself.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Confirm two active NodeManagers on the RM before you dig into the probe app.\n2. From the RM UI (or `yarn` CLI), read active nodes, available memory, and the probe application's id and final state.\n3. From an NM UI (or RM node/container view), identify a host that held a container for that app.\n4. Cross-check two UI claims on a node — `yarn logs -applicationId …` and/or the NM local log dirs — and record how you verified.\n5. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- ResourceManager lists 2 active NodeManagers; both NM JVMs are running.\n- Probe app `store-rollup-probe` is FINISHED; Investigation id matches the planted app.\n- Available MB comes from the RM cluster metrics (not a guess).\n- Cross-check uses yarn logs or NM local dirs — not the Spark History Server alone.\n- Do not change capacity-scheduler queues or NodeManager memory.\n- Investigation tab is complete — every field filled.\n",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "yarn",
+    "l0",
+    "orientation",
+    "yarn-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide tab for RM/NM ports and the probe app name.",
+      "ResourceManager UI is on ds-spark-01:8088. NodeManager UIs are on ds-spark-02/03:8042.",
+      "Probe application name is store-rollup-probe — id is also in ~/lab/probe_app_id on the shell.",
+      "yarn application -status <id> and yarn logs -applicationId <id> are fair game.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Read the RM and NM as Instruments",
+    "brief": "Read the RM and NM as Instruments",
+    "solution": "",
+    "idLabel": "10",
+    "theory": "",
+    "guide": "# QuickBite on-call — read YARN like instruments\n\nSame hosts as Lab 2.1. Roles unchanged.\n\n| Host | Role |\n|------|------|\n| `ds-spark-01` | **ResourceManager** (UI `:8088`) |\n| `ds-spark-02` | **NodeManager** (UI `:8042`) |\n| `ds-spark-03` | **NodeManager** (UI `:8042`) |\n| `shell` | Submit client |\n\nSetup already started YARN and ran one probe job to completion:\n\n- Name: `store-rollup-probe`\n- Id: also written to `~/lab/probe_app_id` on the shell\n\nThe cluster should be **idle** now (no RUNNING apps required). Treat every UI number as a claim until you can show it on a node.\n\n## 1. RM cluster view\n\nOpen the ResourceManager UI or use the CLI:\n\n```bash\nyarn node -list\nyarn application -list -appStates ALL\n```\n\nRecord:\n\n- How many **active** NodeManagers\n- **Available MB** for the cluster (cluster metrics / scheduler overview)\n- The probe application's **id** and **final state** (expect FINISHED)\n\n## 2. NM / containers view\n\nFrom the RM application page or an NM UI, find a host that held a container for the probe app (`ds-spark-02` or `ds-spark-03`).\n\n## 3. Cross-check on the node\n\nPick two claims from the UI (for example: app finished, container on a given NM) and prove them without trusting the browser alone:\n\n```bash\nyarn application -status \"$APP_ID\"\nyarn logs -applicationId \"$APP_ID\" 2>/dev/null | head\n# On an NM host, local dirs under /var/hadoop/yarn/logs may still hold container logs.\n```\n\n## 4. Investigation\n\nFill every field. The point of the lab is RM / NM literacy — and knowing the UI can lag or lie until you check the node.\n"
+  },
+  "platformSpec": {
+    "shape": "yarn-2",
+    "daemonMode": "auto",
+    "chapter": "yarn",
+    "kind": "orientation",
+    "reservePods": 4,
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

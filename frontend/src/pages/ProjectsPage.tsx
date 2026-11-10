@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { PROJECTS, MAJORS_PATH, getProject, type ProjectEntry } from '../constants/projects';
+import { PROJECTS, MAJORS_PATH, PROJECTS_PATH, getProject, type ProjectEntry } from '../constants/projects';
+import { MinorsGrid } from './MinorsPage';
 import { hasModuleContent } from '../fixtures/projectModules';
 import NotifyButton from '../components/NotifyButton';
 import ChapterList from '../components/ChapterList';
@@ -10,7 +11,7 @@ function ProjectDetail({ project }: { project: ProjectEntry }): JSX.Element {
     <div className="app-page play-problems-page project-detail--list">
       <header className="project-detail-compact">
         <p className="play-papers-crumb">
-          <Link to={MAJORS_PATH}>Majors</Link>
+          <Link to={PROJECTS_PATH}>Projects</Link>
           <span aria-hidden> / </span>
           <span>{project.name}</span>
         </p>
@@ -51,25 +52,18 @@ export default function ProjectsPage(): JSX.Element {
   if (projectId) {
     const project = getProject(projectId);
     if (!project || (project.status !== 'ready' && !project.previewable)) {
-      return <Navigate to={MAJORS_PATH} replace />;
+      return <Navigate to={PROJECTS_PATH} replace />;
     }
     return <ProjectDetail project={project} />;
   }
 
-  return (
-    <div className="app-page play-problems-page">
-      <header className="play-problems-hero">
-        <div className="play-problems-hero-copy">
-          <h1 className="play-problems-title">Majors</h1>
-          <p className="play-problems-lead">
-            Long-form builds instead of single labs. Each one starts from an empty repo and ends
-            with a system you can run, break, and explain.
-          </p>
-        </div>
-      </header>
+  return <Navigate to={PROJECTS_PATH} replace />;
+}
 
-      <section className="playgrounds-grid">
-        {PROJECTS.map((project) => {
+export function MajorTiles(): JSX.Element {
+  return (
+    <section className="playgrounds-grid" aria-label="Majors">
+      {PROJECTS.map((project) => {
           if (project.status !== 'ready' && project.previewable) {
             return (
               <Link
@@ -123,6 +117,38 @@ export default function ProjectsPage(): JSX.Element {
             </Link>
           );
         })}
+    </section>
+  );
+}
+
+export function ProjectsHub(): JSX.Element {
+  return (
+    <div className="app-page play-problems-page app-page--no-scrollbar">
+      <header className="play-problems-hero">
+        <div className="play-problems-hero-copy">
+          <h1 className="play-problems-title">Projects</h1>
+          <p className="play-problems-lead">
+            Builds you carry. A major runs for many chapters, from an empty repo to a system you
+            can restart. A minor is a smaller program, finished on its own.
+          </p>
+        </div>
+      </header>
+
+      <section className="projects-group" aria-labelledby="projects-majors">
+        <h2 id="projects-majors" className="projects-group-title">Majors</h2>
+        <p className="projects-group-lead">
+          Long builds. Each one starts empty and ends as a system you can run, break, and explain.
+        </p>
+        <MajorTiles />
+      </section>
+
+      <section className="projects-group" aria-labelledby="projects-minors">
+        <h2 id="projects-minors" className="projects-group-title">Minors</h2>
+        <p className="projects-group-lead">
+          Smaller builds. A listener, a protocol, a storage engine — one program, sometimes a few
+          chapters.
+        </p>
+        <MinorsGrid />
       </section>
     </div>
   );

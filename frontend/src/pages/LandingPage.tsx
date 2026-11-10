@@ -300,9 +300,10 @@ function LandingContent(): JSX.Element {
           <div className="landing-feature-copy">
             <h3>Build the systems you only read about.</h3>
             <p>
-              <strong>Projects</strong> are hand-crafted majors that take you from an empty repo to
+              <strong>Projects</strong> are builds you carry. A major takes you from an empty repo to
               a working system — a key-value store, a query engine, a message bus — chapter by
-              chapter, with theory on one side and a live scratch workspace on the other.
+              chapter. A minor is a smaller program you finish on its own. Theory on one side, a
+              live scratch workspace on the other.
             </p>
           </div>
           <figure className="landing-feature-media" aria-label="Projects animation">

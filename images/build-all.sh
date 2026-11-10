@@ -14,7 +14,7 @@ REPO="${IMAGE_REPO:-devsetu}"
 PLATFORMS="${IMAGE_PLATFORMS:-linux/amd64,linux/arm64}"
 BUILDER="${BUILDX_BUILDER:-devlabs-multiarch}"
 
-ALL_IMAGES="order-processor payment-handler notification-service order-reconciliation slow-order-processor zombie-order-processor linux-lab docker-lab nri-cgroup-rw"
+ALL_IMAGES="order-processor payment-handler notification-service order-reconciliation slow-order-processor zombie-order-processor linux-lab docker-lab nri-cgroup-rw spark-yarn-lab"
 
 # Each tag is also passed as APP_VERSION (the apps echo it on /health).
 tags_for() {
@@ -28,6 +28,7 @@ tags_for() {
     linux-lab) echo "v0.5" ;;
     docker-lab) echo "v0.2" ;;
     nri-cgroup-rw) echo "v0.1" ;;
+    spark-yarn-lab) echo "v0.1" ;;
     *) echo "unknown image: $1" >&2; return 1 ;;
   esac
 }

@@ -24,6 +24,16 @@ A single command already parses. When you see `|`, read another command. A trail
 
 The first command is already parsed. While `kind() == Pipe`: `bump`, reject EOF/`&`/`|` as the next token, parse another `cmd`, append it.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — finish `split_pipeline` in `tinysh/parse/pipeline.py`
+
+The first command is already parsed. While `kind() == Pipe`: `bump`, reject EOF/`&`/`|` as the next token, parse another `cmd`, append it.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — finish `SplitPipeline` in `src/parse/pipeline.cc`
+
+The first command is already parsed. While `Kind() == kPipe`: `Bump`, reject EOF/`&`/`|` as the next token, parse another `Cmd`, append it.
+<!-- /lang -->
 
 ## Wire the pipes
 <!-- mode: read-and-implement tasks:4.2 -->
@@ -40,6 +50,16 @@ The `n == 1` path is given. For `n > 1`:
 3. If `i < n-1`, create a pipe and set stdout to the write end.
 4. `startCmd`, then close the write end you handed over and the previous read end.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.2)` — multi-stage branch of `wire_pipes` in `tinysh/exec/pipe.py`
+
+The `n == 1` path is given. For `n > 1`, use `os.pipe` between neighbours, `start_cmd` each stage, and close unused ends in the parent.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.2)` — multi-stage branch of `WirePipes` in `src/exec/pipe.cc`
+
+The `n == 1` path is given. For `n > 1`, use `pipe()` between neighbours, `StartCmd` each stage, and close unused ends in the parent.
+<!-- /lang -->
 
 ## Wait for status
 <!-- mode: read-and-implement tasks:4.3 -->
@@ -51,6 +71,16 @@ Wait for every process. The status that matters is the last one's.
 
 Loop over `procs`, `waitCmd` each, keep the last status, return it.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.3)` — `wait_foreground` in `tinysh/exec/wait.py`
+
+Loop over `procs`, `wait_cmd` each, keep the last status, return it.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.3)` — `WaitForeground` in `src/exec/wait.cc`
+
+Loop over `procs`, `WaitCmd` each, keep the last status, return it.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -59,6 +89,19 @@ Loop over `procs`, `waitCmd` each, keep the last status, return it.
 ```bash
 make test
 make race
+printf '%s\n' "printf 'abc\\n' | tr a-z A-Z" | make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' "printf 'abc\\n' | tr a-z A-Z" | make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 printf '%s\n' "printf 'abc\\n' | tr a-z A-Z" | make run
 ```
 <!-- /lang -->

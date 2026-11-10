@@ -34,6 +34,7 @@ const { isClusterLabType } = require('../challenges/labTypes');
 const { catalogSettingsLocked, writePackSettings } = require('../challenges/catalogSettings');
 const reviewStore = require('../challenges/reviewStore');
 const pool = require('../db/pool');
+const k8sGrade = require('../workspace/k8sGrade');
 
 const router = express.Router();
 
@@ -550,6 +551,21 @@ router.get(
     }
   },
 );
+
+// GET /api/challenges/:id/submissions — this user's kubernetes/Spark-box submits for the lab
+router.get('/:id/submissions', requireInterviewer, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+  try {
+    const c = loader.getPublicChallenge(req.params.id);
+    if (!c || !canViewChallenge(req.user, (c as { visibleTo?: string }).visibleTo)) {
+      return res.status(404).json({ error: 'challenge not found' });
+    }
+    const userId = requestUserId(req);
+    const submissions = await k8sGrade.listK8sSubmissionsForChallenge(req.params.id, userId);
+    res.json({ challengeId: req.params.id, submissions });
+  } catch (e) {
+    next(e);
+  }
+});
 
 // GET /api/challenges/:id/solution-status — token cost of opening the solution for this user
 router.get('/:id/solution-status', requireInterviewer, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {

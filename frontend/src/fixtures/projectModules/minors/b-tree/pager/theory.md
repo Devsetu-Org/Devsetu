@@ -60,6 +60,12 @@ Page 0 is the **header**: it records where the tree's root is, how many pages th
 <!-- lang: go -->
 The header layout, the `Meta` struct that mirrors it, and `Open`, `Sync`, and `Close` are given in `internal/pager/page.go` and `pager.go`. Read them first: they are about 100 lines.
 <!-- /lang -->
+<!-- lang: python -->
+The header layout, the `Meta` dataclass that mirrors it, and `open`, `sync`, and `close` are given in `btreekv/pager/page.py` and `pager.py`. Read them first: they are about 100 lines.
+<!-- /lang -->
+<!-- lang: cpp -->
+The header layout, the `Meta` struct that mirrors it, and `Open`, `Sync`, and `Close` are given in `src/pager/page.h` / `page.cc` and `pager.h` / `pager.cc`. Read them first: they are about 100 lines.
+<!-- /lang -->
 
 ## Checksummed pages
 <!-- mode: read-and-implement tasks:1.1,1.2 -->
@@ -111,6 +117,52 @@ You will need to import `errors`, `fmt`, and `io` as well.
 
 > [!scope] No locking here
 > `ReadAt` and `WriteAt` are safe to call from many goroutines at once, so `ReadPage` and
+> `WritePage` take no lock. Only the header state (`Meta`) needs one.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.1)` — `write_page`
+
+In `btreekv/pager/readwrite.py` (attached as `Pager.write_page`):
+
+1. `check_buf(buf)` rejects a buffer that is not exactly `PAGE_SIZE` bytes (given).
+2. Copy `buf[:USABLE]` into a local `bytearray(PAGE_SIZE)`. Do **not** write into the caller's buffer: callers reuse it, and a test checks it.
+3. Compute `crc32c(page[:USABLE])` and store it in `page[USABLE:]` with `struct.pack_into("<I", page, USABLE, ...)`.
+4. Write all of `page` at offset `no * PAGE_SIZE` with `os.pwrite(self._fd, page, offset)`.
+
+You will need to import `os` and `struct`, and pull `PAGE_SIZE`, `USABLE`, `check_buf`, `crc32c` from `.page`.
+
+### `TODO(1.2)` — `read_page`
+
+In the same file:
+
+1. `check_buf(buf)`, then `raw = os.pread(self._fd, PAGE_SIZE, no * PAGE_SIZE)`.
+2. If `len(raw) < PAGE_SIZE`, raise `ErrBadPage`.
+3. Copy `raw` into `buf`, compare `struct.unpack_from("<I", buf, USABLE)[0]` with `crc32c(buf[:USABLE])`, and raise `ErrChecksum` on a mismatch.
+
+> [!scope] No locking here
+> `os.pread` and `os.pwrite` are safe to call from many threads at once, so `read_page` and
+> `write_page` take no lock. Only the header state (`Meta`) needs one.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.1)` — `WritePage`
+
+In `src/pager/readwrite.cc`:
+
+1. `CheckBuf(buf, len)` rejects a buffer that is not exactly `kPageSize` bytes (given).
+2. Copy `buf[0..kUsable)` into a local `uint8_t page[kPageSize]`. Do **not** write into the caller's buffer: callers reuse it, and a test checks it.
+3. Compute `Crc32c(page, kUsable)` and store it little-endian at `page[kUsable]`.
+4. Write all of `page` at offset `int64_t(no) * kPageSize` with `pwrite` on `fd_`.
+
+### `TODO(1.2)` — `ReadPage`
+
+In the same file:
+
+1. `CheckBuf(buf, len)`, then `pread` into `buf` at `int64_t(no) * kPageSize`.
+2. If fewer than `kPageSize` bytes came back, throw `BadPageError`.
+3. Compare the little-endian trailer at `buf[kUsable]` with `Crc32c(buf, kUsable)` and throw `ChecksumError` on a mismatch.
+
+> [!scope] No locking here
+> `pread` and `pwrite` are safe to call from many threads at once, so `ReadPage` and
 > `WritePage` take no lock. Only the header state (`Meta`) needs one.
 <!-- /lang -->
 
@@ -166,6 +218,42 @@ In the same file, with the mutex already held:
 
 `EncodeFreePage` is exported because chapter 3 logs freed pages exactly as `Free` writes them.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.3)` — `allocate`
+
+In `btreekv/pager/alloc.py`. The mutex is already held for you.
+
+- Free page available (`self._meta.free_head != 0`): read that page into a `PAGE_SIZE` buffer, `next = decode_free_page(buf)`, set `self._meta.free_head = next`, and return the page you popped. **Do not write to disk.**
+- Otherwise: `no = self._meta.page_count`, `write_page(no, bytearray(PAGE_SIZE))` so the file really grows, `self._meta.page_count += 1`, return `no`.
+
+### `TODO(1.4)` — `free`
+
+In the same file, with the mutex already held:
+
+1. If `no == 0` or `no >= self._meta.page_count`, raise `ErrBadPage`. Page 0 is the header; a page past the end does not exist.
+2. Build the page with `encode_free_page(buf, self._meta.free_head)` in a `PAGE_SIZE` buffer.
+3. `write_page(no, buf)`, and only if that succeeded `self._meta.free_head = no`.
+
+`encode_free_page` is public because chapter 3 logs freed pages exactly as `free` writes them.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.3)` — `Allocate`
+
+In `src/pager/alloc.cc`. The mutex is already held for you.
+
+- Free page available (`meta_.free_head != 0`): read that page into a `kPageSize` buffer, take the next pointer from `DecodeFreePage`, set `meta_.free_head` to it, and return the page you popped. **Do not write to disk.**
+- Otherwise: return `meta_.page_count`, `WritePage` a blank page there so the file really grows, and increment `meta_.page_count`.
+
+### `TODO(1.4)` — `Free`
+
+In the same file, with the mutex already held:
+
+1. If `no == 0` or `no >= meta_.page_count`, throw `BadPageError`. Page 0 is the header; a page past the end does not exist.
+2. Build the page with `EncodeFreePage(buf, meta_.free_head)` in a `kPageSize` buffer.
+3. `WritePage(no, buf)`, and only then set `meta_.free_head = no`.
+
+`EncodeFreePage` is exported because chapter 3 logs freed pages exactly as `Free` writes them.
+<!-- /lang -->
 
 > [!warn] Free a page twice and the list loops
 > If page 7 is freed twice, it points at itself and the next two `Allocate` calls both
@@ -179,6 +267,19 @@ In the same file, with the mutex already held:
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
+make run      # a REPL over your pager
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # every acceptance test (python3 -m unittest)
+make run      # a REPL over your pager
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # build and run every acceptance test
+make asan     # the same tests under AddressSanitizer + UBSan
 make run      # a REPL over your pager
 ```
 <!-- /lang -->

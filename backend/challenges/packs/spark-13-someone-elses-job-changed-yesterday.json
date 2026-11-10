@@ -1,0 +1,52 @@
+{
+  "id": "spark-13-someone-elses-job-changed-yesterday",
+  "number": 827,
+  "finalized": true,
+  "title": "Someone Else's Job Changed Yesterday",
+  "description": "**SITUATION:**\n\nThe same store-rollup submit that worked yesterday now sits **Accepted**. Nothing in a Spark UI explains it — the cluster is up, the job is fine, the queue is not.\n\nOvernight, another team's **backfill** took most of the `production` queue. Your ticket: get a successful run without an unauthorized kill of the backfill ApplicationMaster. Moving to a queue with spare capacity (or freeing capacity the ticket allows) is fine. Editing capacity-scheduler to paper over multi-tenant contention is not.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Identify the backfill that is holding `production` and your stalled Accepted submit.\n2. Get a RUNNING/FINISHED store-rollup — prefer `--queue adhoc` (spare lane) or another ticket-approved path that does not kill the backfill AM.\n3. Record the blocker app, your fix path, and the successful application id in Investigation.\n4. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- Successful application reaches RUNNING or FINISHED.\n- Do not kill the planted backfill AM (`*-backfill*` / recorded blocker id).\n- Do not raise `production` or `default` capacity to fake spare room.\n- Investigation tab is complete — every field filled.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "yarn",
+    "l2",
+    "multi-step-bug",
+    "yarn-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide tab for queue names and the planted backfill.",
+      "yarn application -list shows the backfill in production and your Accepted app.",
+      "adhoc has spare capacity — spark-submit --queue adhoc is the intended path.",
+      "Killing the backfill AM is out of spec for this ticket.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Someone Else's Job Changed Yesterday",
+    "brief": "Someone Else's Job Changed Yesterday",
+    "solution": "",
+    "idLabel": "13",
+    "theory": "",
+    "guide": "# QuickBite — it worked yesterday\n\n| Queue | Role today |\n|-------|------------|\n| `production` | Saturated by another team's backfill |\n| `adhoc` | Spare lane — ticket allows you to use it |\n| `default` | Still too small for the lab shape |\n\nSetup started `team-b-backfill` in **production** (long-running) and left your `store-rollup-yesterday` submit **Accepted** in the same queue.\n\nBackfill app id: `~/lab/blocker_app_id`  \nStalled app id: `~/lab/stuck_app_id`\n\n## Ticket rules\n\n- Do **not** kill the backfill ApplicationMaster.\n- Do **not** rewrite capacity-scheduler to inflate production/default.\n- You **may** submit into `adhoc` (spare capacity).\n\n## Fix\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode client \\\n  --queue adhoc \\\n  --name store-rollup-recovered \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\n## Investigation\n\nRecord the stalled state, the blocker application id, how you recovered, and the successful application id. The lesson is multi-tenant contention — not a Spark code bug.\n"
+  },
+  "platformSpec": {
+    "shape": "yarn-2",
+    "daemonMode": "auto",
+    "chapter": "yarn",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 360
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 20
+}

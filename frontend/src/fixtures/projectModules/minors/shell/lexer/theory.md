@@ -33,6 +33,30 @@ In `internal/lex/scan.go`, inside `scanWord`:
 
 `opStart` is already written: stop an unquoted word when the next bytes begin an operator.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.1)` — quoted and unquoted pieces of `scan_word`
+
+In `tinysh/lex/scan.py`, inside `scan_word`:
+
+1. On a normal character, `bump` and append it.
+2. On `'`, skip the opener, append until `'`, raise on EOF.
+3. On `"`, skip the opener, append until `"` (leave backslash handling for 1.2).
+4. When the loop ends, return `Token(kind=Word, lit=''.join(b), pos=start)`.
+
+`op_start` is already written: stop an unquoted word when the next characters begin an operator.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.1)` — quoted and unquoted pieces of `ScanWord`
+
+In `src/lex/scan.cc`, inside `ScanWord`:
+
+1. On a normal byte, `Bump` and append it.
+2. On `'`, skip the opener, append until `'`, throw on EOF.
+3. On `"`, skip the opener, append until `"` (leave backslash handling for 1.2).
+4. When the loop ends, return `Token{kWord, b, start}`.
+
+`OpStart` is already written: stop an unquoted word when the next bytes begin an operator.
+<!-- /lang -->
 
 ## Escapes
 <!-- mode: read-and-implement tasks:1.2 -->
@@ -43,6 +67,18 @@ A backslash outside quotes escapes the next byte: `\ ` is a space inside a word,
 ### `TODO(1.2)` — backslash in `scanWord`
 
 1. Outside quotes: on `\`, bump it; if EOF, error `trailing backslash`; else append the next bump.
+2. Inside double quotes: the same rule for `\`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.2)` — backslash in `scan_word`
+
+1. Outside quotes: on `\`, bump it; if EOF, raise `trailing backslash`; else append the next bump.
+2. Inside double quotes: the same rule for `\`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.2)` — backslash in `ScanWord`
+
+1. Outside quotes: on `\`, Bump it; if EOF, throw `trailing backslash`; else append the next Bump.
 2. Inside double quotes: the same rule for `\`.
 <!-- /lang -->
 
@@ -67,6 +103,16 @@ A backslash outside quotes escapes the next byte: `\ ` is a space inside a word,
 
 Set `Lit` to the lexeme spelling and `Pos` to the start index.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.3)` — `scan_op`
+
+`at_op` already decided this is an operator. Map the same lexemes to `Pipe`, `RedirIn`, `Amp`, `RedirOut`, `RedirApp`, `RedirErr`. Set `lit` to the lexeme and `pos` to the start index.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.3)` — `ScanOp`
+
+`AtOp` already decided this is an operator. Map the same lexemes to `kPipe`, `kRedirIn`, `kAmp`, `kRedirOut`, `kRedirApp`, `kRedirErr`. Set `lit` to the lexeme and `pos` to the start index.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -75,6 +121,19 @@ Set `Lit` to the lexeme spelling and `Pos` to the start index.
 ```bash
 make test
 make race
+printf '%s\n' 'echo "a b" | cat > out' | make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' 'echo "a b" | cat > out' | make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 printf '%s\n' 'echo "a b" | cat > out' | make run
 ```
 <!-- /lang -->

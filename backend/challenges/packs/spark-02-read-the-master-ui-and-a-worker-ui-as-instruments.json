@@ -1,0 +1,62 @@
+{
+  "id": "spark-02-read-the-master-ui-and-a-worker-ui-as-instruments",
+  "number": 811,
+  "finalized": true,
+  "title": "Stabilize Flaky Workers on the Master UI",
+  "description": "**SITUATION:**\n\nThe previously built Spark standalone cluster on `ds-spark-01`, `ds-spark-02`, and `ds-spark-03` is warmed up and is the environment for this lab. Last on-call reported that **Workers look flaky on the Master UI** \u2014 ALIVE counts jump around \u2014 so nobody trusts the dashboard enough to diagnose Spark applications properly.\n\nYou own this incident: open the Master UI, check whether Workers are actually functional, and take the actions needed to get the cluster stable again.\n\nOne note from the previous engineer: when they brought a flaky Worker back up, it **looked fine on the Master UI at first**, then **after a short while it showed down again**. They never finished the dig. So even after fixing the worker daemon issue, wait for a minute to check the status in the Master UI.\n\nRead the Master UI as a claim, then verify on the nodes before you trust it.\n\n**YOUR TASK:**\n\n1. Read the Master UI, then investigate on the Worker hosts until you know what is wrong.\n2. Restore the cluster so the Master stays at **2 ALIVE** \u2014 not a fix that looks good for a minute and then falls over again.\n3. Fill the **Investigation** tab in story order, then Submit.\n",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "l0",
+    "foundations",
+    "orientation",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Master RPC is spark://ds-spark-01:7077 \u2014 that is the control plane. UI ports 8080/8081/8082 are separate.",
+      "ps on each worker host \u2014 is the Worker JVM missing?",
+      "If bring-up looks good on the Master UI then the Worker shows down again after ~30s, compare spark.worker.timeout on that Worker host to the Master.",
+      "After fix: 2 ALIVE and it stays that way; 2 cores, 1536 MB, 0 running apps.",
+      "Fill the Investigation tab \u2014 missing answers fail on Submit."
+    ],
+    "overview": "Stabilize Flaky Workers on the Master UI",
+    "brief": "Stabilize Flaky Workers on the Master UI",
+    "solution": "",
+    "idLabel": "02",
+    "theory": "",
+    "guide": ""
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "daemonMode": "manual",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your cluster",
+      "phases": [
+        "Pulling the Spark image",
+        "Starting the master",
+        "Starting the workers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "This may take a bit \u2014 validating end to end that Worker flakiness is gone."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

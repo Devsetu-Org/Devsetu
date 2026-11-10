@@ -74,6 +74,30 @@ In `internal/buffer/pin.go`. The pool mutex is already held for you in both. `Fe
 - Panic if `f.pins == 0`: unpinning twice is a bug in the caller, and hiding it would let a frame be recycled under someone's feet.
 - `f.pins--`. If `dirty`: `f.dirty = true` and `f.lsn = p.logSize()`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `pin` and `unpin`
+
+In `btreekv/buffer/pin.py`. The pool lock is already held for you in both. `fetch` and the page methods in `pool.py` (given) call `pin`. `read_page` uses `load=True`; `write_page` uses `load=False` because it overwrites the whole page and the page may not exist in the file yet.
+
+`pin(no, load)`:
+
+- **Hit** (`no in self.table`): raise pins, set `ref = True`, return the frame.
+- **Miss**: `victim()` (task 4.2). If the frame is in use, `flush_frame`, remove from `table`, clear `used`. If `load`, read from backing. Then claim it: page number, `used`, `ref`, `pins = 1`, not dirty, `lsn = 0`.
+
+`unpin(f, dirty)`: raise if `pins == 0`; else decrement. If `dirty`, set dirty and `lsn = self.log_size()`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `Pin` and `Unpin`
+
+In `src/buffer/pin.cc`. Hold `mu_` for the whole call. `Fetch` and the `PageIO` methods in `pool.cc` (given) call `Pin`. `ReadPage` uses `load = true`; `WritePage` uses `load = false`.
+
+`Pin(no, load)`:
+
+- **Hit** (`table_` has `no`): `pins++`, `ref = true`, return the frame.
+- **Miss**: `Victim()` (task 4.2). If used, `FlushFrame`, erase from `table_`, clear `used`. If `load`, read from backing. Then claim it: page number, used, ref, pins=1, not dirty, lsn=0.
+
+`Unpin(f, dirty)`: throw if `pins == 0`; else decrement. If `dirty`, set dirty and `lsn = LogSize()`.
+<!-- /lang -->
 
 ## Choosing a victim
 <!-- mode: read-and-implement tasks:4.2 -->
@@ -123,6 +147,30 @@ In `internal/buffer/evict.go`. The caller holds the mutex. Loop `step` from 0 to
 
 After the loop return `0, ErrPoolFull`. The hand moves **past** the victim, so the next sweep starts after it. `TestClockGivesASecondChance` depends on that.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.2)` — `victim`
+
+In `btreekv/buffer/evict.py`. The caller holds the lock. Loop up to `2 * len(self.frames)` steps: take `self.hand`, advance it, look at that frame.
+
+- unused: return its index.
+- pinned: skip.
+- `ref`: clear it and skip.
+- otherwise: return the index.
+
+If every frame is pinned, raise `ErrPoolFull`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.2)` — `Victim`
+
+In `src/buffer/evict.cc`. The caller holds `mu_`. Loop up to `2 * frames_.size()` steps: take `hand_`, advance it, look at that frame.
+
+- unused: return its index.
+- pinned: skip.
+- `ref`: clear it and skip.
+- otherwise: return the index.
+
+If every frame is pinned, throw `PoolFullError`.
+<!-- /lang -->
 
 ## Writing back, log first
 <!-- mode: read-and-implement tasks:4.3 -->
@@ -157,6 +205,24 @@ In `internal/buffer/flush.go`. The caller holds the mutex.
 4. Clear `f.dirty`.
 
 `FlushAll` (given) calls this for every frame; `Close` uses it as part of the checkpoint.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.3)` — `flush_frame`
+
+In `btreekv/buffer/flush.py`. The caller holds the lock.
+
+1. Return unless `f.dirty`.
+2. If `self.log is not None` and `f.lsn > self.log.durable()`, call `self.log.sync()`.
+3. Write the page to backing; clear `f.dirty`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.3)` — `FlushFrame`
+
+In `src/buffer/flush.cc`. The caller holds `mu_`.
+
+1. Return unless `f->dirty`.
+2. If `log_ != nullptr` and `f->lsn > log_->Durable()`, call `log_->Sync()`.
+3. Write the page to backing; clear `f->dirty`.
 <!-- /lang -->
 
 ## The pool under the tree
@@ -193,6 +259,19 @@ The right pool size is "as much as you can spare": Postgres's `shared_buffers` (
 make test     # every acceptance test
 make race     # the same tests with the race detector
 make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
+make run
 ```
 <!-- /lang -->
 

@@ -4,6 +4,7 @@ export type NavIconName =
   | 'track'
   | 'majors'
   | 'minors'
+  | 'machine-coding'
   | 'papers'
   | 'playgrounds'
   | 'leaderboard'
@@ -34,6 +35,13 @@ const PATHS: Record<NavIconName, JSX.Element> = {
     <>
       <path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z" />
       <path d="M4 7.5 12 12l8-4.5M12 12v9" />
+    </>
+  ),
+  'machine-coding': (
+    <>
+      <path d="m8 8-4 4 4 4" />
+      <path d="m16 8 4 4-4 4" />
+      <path d="M14 5 10 19" />
     </>
   ),
   papers: (

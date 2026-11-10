@@ -36,6 +36,12 @@ The log is a sequence of entries. Each holds a command (opaque bytes, to Raft) a
 <!-- lang: go -->
 In `raft.go`, `rf.log[0]` is a **sentinel**: index 0, term 0, never sent. Real entries start at `rf.log[1]`, so index 5 is `rf.log[5]` with no off-by-one. `lastLogIndex()` and `lastLogTerm()` work on an empty log too (both 0).
 <!-- /lang -->
+<!-- lang: python -->
+In `raft.py`, `self.log[0]` is a **sentinel**: index 0, term 0, never sent. Real entries start at `self.log[1]`, so index 5 is `self.log[5]` with no off-by-one. `lastLogIndex()` and `lastLogTerm()` work on an empty log too (both 0).
+<!-- /lang -->
+<!-- lang: cpp -->
+In `raft.cc`, `rf.log[0]` is a **sentinel**: index 0, term 0, never sent. Real entries start at `rf.log[1]`, so index 5 is `rf.log[5]` with no off-by-one. `lastLogIndex()` and `lastLogTerm()` work on an empty log too (both 0).
+<!-- /lang -->
 
 ### The Log Matching property
 
@@ -90,6 +96,28 @@ In `internal/raft/replication.go`. The prologue is given: it rejects stale terms
 
 `PrevLogIndex` 0 always matches: that is the sentinel.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `append_entries`
+
+In `raftkv/raft/replication.py`. The prologue is given: it rejects stale terms, follows the leader, resets the election timer, and fills in `reply.Term`. Below it:
+
+- `args.PrevLogIndex > self.lastLogIndex()`: `reply.ConflictIndex = self.lastLogIndex() + 1`, return.
+- `self.log[args.PrevLogIndex].Term != args.PrevLogTerm`: let `t` be that term; walk `i` down from `PrevLogIndex` while `i > 1 && self.log[i-1].Term == t`; `reply.ConflictIndex = i`, return.
+- Otherwise `self.appendToLog(args.PrevLogIndex, args.Entries)`, then `self.followerAdvanceCommit(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))` (an empty hook until chapter 3), and `reply.Success = true`.
+
+`PrevLogIndex` 0 always matches: that is the sentinel.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `AppendEntries`
+
+In `src/raft/replication.cc`. The prologue is given: it rejects stale terms, follows the leader, resets the election timer, and fills in `reply.Term`. Below it:
+
+- `args.PrevLogIndex > rf.lastLogIndex()`: `reply.ConflictIndex = rf.lastLogIndex() + 1`, return.
+- `rf.log[args.PrevLogIndex].Term != args.PrevLogTerm`: let `t` be that term; walk `i` down from `PrevLogIndex` while `i > 1 && rf.log[i-1].Term == t`; `reply.ConflictIndex = i`, return.
+- Otherwise `rf.appendToLog(args.PrevLogIndex, args.Entries)`, then `rf.followerAdvanceCommit(args.LeaderCommit, args.PrevLogIndex+len(args.Entries))` (an empty hook until chapter 3), and `reply.Success = true`.
+
+`PrevLogIndex` 0 always matches: that is the sentinel.
+<!-- /lang -->
 
 ## Appending without breaking anything
 <!-- mode: read-and-implement tasks:2.2 -->
@@ -120,6 +148,16 @@ The rule: for each incoming entry, look at the slot it belongs to.
 ### `TODO(2.2)` — `appendToLog`
 
 In `internal/raft/replication.go`: for `k, e := range entries`, the slot is `idx := prevIndex + 1 + k`. If `idx <= rf.lastLogIndex()`: matching term, `continue`; otherwise `rf.log = rf.log[:idx]`. Then `rf.log = append(rf.log, e)` and remember that something changed. Call `rf.persist()` once at the end if it did.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.2)` — `append_to_log`
+
+In `raftkv/raft/replication.py`: for `k, e := range entries`, the slot is `idx := prevIndex + 1 + k`. If `idx <= self.lastLogIndex()`: matching term, `continue`; otherwise `self.log = self.log[:idx]`. Then `self.log = append(self.log, e)` and remember that something changed. Call `self.persist()` once at the end if it did.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.2)` — `appendToLog`
+
+In `src/raft/replication.cc`: for `k, e := range entries`, the slot is `idx := prevIndex + 1 + k`. If `idx <= rf.lastLogIndex()`: matching term, `continue`; otherwise `rf.log = rf.log[:idx]`. Then `rf.log = append(rf.log, e)` and remember that something changed. Call `rf.persist()` once at the end if it did.
 <!-- /lang -->
 
 ## The leader's side
@@ -166,6 +204,24 @@ In `internal/raft/replication.go`. `broadcastAppend` (given) starts one `replica
 2. `rf.sendAppendEntries(peer, &args, &reply)`; if the call was lost, return.
 3. Lock again and handle the reply as above. On success call `rf.advanceCommit()` (an empty hook until chapter 3).
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `replicate_to`
+
+In `raftkv/raft/replication.py`. `broadcastAppend` (given) starts one `replicate_to` thread per follower. In `replicate_to`:
+
+1. Lock; return if `self.killed()` or not the leader. Build `AppendEntriesArgs` from `next := self.nextIndex[peer]`: `PrevLogIndex: next-1`, `PrevLogTerm: self.log[next-1].Term`, a **copy** of `self.log[next:]`, `LeaderCommit: self.commitIndex`. Unlock.
+2. `self.sendAppendEntries(peer, &args, &reply)`; if the call was lost, return.
+3. Lock again and handle the reply as above. On success call `self.advanceCommit()` (an empty hook until chapter 3).
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `replicateTo`
+
+In `src/raft/replication.cc`. `broadcastAppend` (given) starts one `replicateTo` thread per follower. In `replicateTo`:
+
+1. Lock; return if `rf.killed()` or not the leader. Build `AppendEntriesArgs` from `next := rf.nextIndex[peer]`: `PrevLogIndex: next-1`, `PrevLogTerm: rf.log[next-1].Term`, a **copy** of `rf.log[next:]`, `LeaderCommit: rf.commitIndex`. Unlock.
+2. `rf.sendAppendEntries(peer, &args, &reply)`; if the call was lost, return.
+3. Lock again and handle the reply as above. On success call `rf.advanceCommit()` (an empty hook until chapter 3).
+<!-- /lang -->
 
 ## Accepting commands
 <!-- mode: read-and-implement tasks:2.4 -->
@@ -190,6 +246,16 @@ In `internal/raft/replication.go`. `broadcastAppend` (given) starts one `replica
 
 In `internal/raft/replication.go`, with the lock held: if `rf.killed()` or `rf.role != Leader` return `-1, rf.currentTerm, false`. Otherwise append `LogEntry{Term: rf.currentTerm, Command: <a copy of command>}`, `rf.persist()`, `rf.broadcastAppend()`, and return `rf.lastLogIndex(), rf.currentTerm, true`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.4)` — `start`
+
+In `raftkv/raft/replication.py`, with the lock held: if `self.killed()` or `self.role != Leader` return `-1, self.currentTerm, false`. Otherwise append `LogEntry{Term: self.currentTerm, Command: <a copy of command>}`, `self.persist()`, `self.broadcastAppend()`, and return `self.lastLogIndex(), self.currentTerm, true`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.4)` — `Start`
+
+In `src/raft/replication.cc`, with the lock held: if `rf.killed()` or `rf.role != Leader` return `-1, rf.currentTerm, false`. Otherwise append `LogEntry{Term: rf.currentTerm, Command: <a copy of command>}`, `rf.persist()`, `rf.broadcastAppend()`, and return `rf.lastLogIndex(), rf.currentTerm, true`.
+<!-- /lang -->
 
 ## Try it
 <!-- mode: read-only -->
@@ -198,6 +264,20 @@ In `internal/raft/replication.go`, with the lock held: if `rf.killed()` or `rf.r
 ```bash
 make test     # chapter 1 and chapter 2 acceptance tests
 make race     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # chapter 1 and chapter 2 acceptance tests
+# (no race target)     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # chapter 1 and chapter 2 acceptance tests
+make asan     # the same tests with the race detector
 make run      # a REPL over a 3-node cluster
 ```
 <!-- /lang -->

@@ -1,0 +1,41 @@
+{
+  "id": "spark-04-find-where-the-data-actually-lives",
+  "number": 813,
+  "finalized": false,
+  "title": "Find Where the Data Actually Lives",
+  "description": "**SITUATION:**\n\nA QuickBite batch job persists an RDD with `.cache()` so the second action should reuse memory instead of recomputing. The first action finishes. The second action takes about as long as the first. Caching is not helping, and the submitter is about to raise executor memory \"just in case.\"\n\nOn platform, you do not touch config until you know where the data actually is \u2014 or why it is not. The Storage tab, the Executors tab's per-executor memory breakdown, and a worker's own log each tell part of that story. Together they usually name the cause before any knob changes.\n\n**YOUR TASK:**\n\n1. Run (or re-run) the job that calls `.cache()` and then performs a second action on the same RDD.\n2. Use the Storage tab to see what Spark claims is cached.\n3. Use the Executors tab per-executor memory breakdown.\n4. Cross-check a worker's log for eviction, spill, or related warnings.\n5. Name why the second action is not faster \u2014 before changing any config.\n6. Capture Storage, Executors, worker-log evidence, and the root cause in the Investigation tab.\n\n**SPEC:**\n\n- Diagnosis cites Storage + Executors + at least one worker log signal that agree on the same cause.\n- You have not raised `spark.executor.memory` (or other sizing knobs) to make the symptom go away.\n- The root cause is stated in plain language (e.g. never cached, evicted, wrong persistence level), not only \"it was slow.\"\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "l1",
+    "foundations",
+    "multi-step-bug",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "If Storage is empty after .cache(), look at eviction and memory pressure before changing defaults.",
+      "The Executors tab and the worker log often disagree with a single glance at the job timeline.",
+      "Persistence level and whether an action actually materializes the cache both matter.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Find Where the Data Actually Lives",
+    "brief": "Find Where the Data Actually Lives",
+    "solution": "",
+    "idLabel": "04",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "chapter": "foundations",
+    "kind": "multi-step-bug"
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

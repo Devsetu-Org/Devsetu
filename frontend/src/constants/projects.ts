@@ -1,8 +1,9 @@
-/** Majors — multi-stage builds you carry from an empty repo to a working system. */
+/** Projects — majors and minors, the builds you carry. */
 
+/** Section home: majors and minors on one shelf. */
+export const PROJECTS_PATH = '/projects';
+/** A single major, and its chapters. */
 export const MAJORS_PATH = '/majors';
-/** @deprecated Use MAJORS_PATH */
-export const PROJECTS_PATH = MAJORS_PATH;
 
 /**
  * A module is one chapter: theory on the left, a scratch repo on the right that

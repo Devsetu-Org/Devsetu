@@ -77,6 +77,16 @@ In `internal/compaction/compaction.go`:
 
 You will need to import the `memtable` package for `KindTombstone`. The caller decides `dropTombstones` and calls `Finish`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.1)` — `Merge`
+
+In `lsmkv/compaction/compaction.py`. Walk a merging iterator; skip tombstones when `drop_tombstones`; `Add` every other entry.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.1)` — `Merge`
+
+In `src/compaction/compaction.cc`. Walk a merging iterator; skip tombstones when `drop_tombstones`; `Add` every other entry.
+<!-- /lang -->
 
 ## The manifest
 <!-- mode: read-and-implement tasks:5.2 -->
@@ -125,6 +135,16 @@ In `internal/manifest/manifest.go`. `encode(s)` (given) produces the text; `tmp`
 
 Flushes call `Save` now too, which is why this comes before 5.3. Your chapter 3 `flush` is unchanged: it hands each new table to `d.addTable`, and the given `addTable` in `db.go` now commits it in the manifest before making it live.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.2)` — `save`
+
+In `lsmkv/manifest/manifest.py`. Write to a temp file, fsync, rename over `MANIFEST`, fsync the directory.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.2)` — `Save`
+
+In `src/manifest/manifest.cc`. Write to a temp file, fsync, rename over `MANIFEST`, fsync the directory.
+<!-- /lang -->
 
 ## Swapping tables safely
 <!-- mode: read-and-implement tasks:5.3 -->
@@ -165,6 +185,16 @@ In `internal/db/compact.go`. `inputs := d.tables[lo:hi]`, the new table number, 
 
 You will need to import `os` and the `compaction`, `iterator`, and `sstable` packages. `Compact` and the automatic trigger in `write` both call `compactRange(0, len(d.tables))`; one test calls it on a partial range to check the tombstone rule.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.3)` — `compact_range`
+
+In `lsmkv/db/compact.py`. Merge inputs into a new table, commit the manifest, then delete the inputs.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.3)` — `compactRange`
+
+In `src/db/compact.cc`. Merge inputs into a new table, commit the manifest, then delete the inputs.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -174,6 +204,19 @@ You will need to import `os` and the `compaction`, `iterator`, and `sstable` pac
 make test     # every acceptance test
 make race     # the same tests with the race detector
 make run      # REPL with compact and write amplification in stats
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
+make run
 ```
 <!-- /lang -->
 

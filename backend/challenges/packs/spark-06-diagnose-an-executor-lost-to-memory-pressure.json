@@ -1,0 +1,41 @@
+{
+  "id": "spark-06-diagnose-an-executor-lost-to-memory-pressure",
+  "number": 815,
+  "finalized": false,
+  "title": "Diagnose an Executor Lost to Memory Pressure",
+  "description": "**SITUATION:**\n\nA QuickBite job fails partway through. Executors disappear one at a time. The driver output has no single clear error \u2014 retries, lost executors, then failure. The submitter wants to double `spark.executor.memory` and resubmit.\n\nOn this standalone cluster the true cause is not one knob. An undersized executor and a second job quietly sharing the same worker are both in play. Fix only one and the failure comes back on the next wave. Find both before any change will hold.\n\n**YOUR TASK:**\n\n1. Reproduce or observe the failing job until executors are lost.\n2. Find the undersized-executor side of the story (requested memory vs. what the worker can actually give).\n3. Find the second job (or application) sharing the same worker and competing for the same host.\n4. Confirm both causes before changing memory or killing anything.\n5. Only then size `spark.executor.memory` (and placement) against the worker's real capacity so both causes are addressed.\n6. Record both causes, evidence, and the fix in the Investigation tab.\n\n**SPEC:**\n\n- Both the undersized executor and the co-located second workload are named with evidence (Master UI, worker capacity, and/or logs).\n- A fix that only raises memory without clearing or accounting for the co-tenant is not accepted.\n- After the correct fix, the job can finish without the same executor-loss pattern.\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "l1",
+    "foundations",
+    "multi-step-bug",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Driver stdout alone will not name the second job \u2014 check the Master UI applications list and which worker hosts the executors.",
+      "Compare spark.executor.memory to the worker's offered memory and to what else is already running there.",
+      "Raising memory without clearing the co-tenant just moves the failure later.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Diagnose an Executor Lost to Memory Pressure",
+    "brief": "Diagnose an Executor Lost to Memory Pressure",
+    "solution": "",
+    "idLabel": "06",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "chapter": "foundations",
+    "kind": "multi-step-bug"
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

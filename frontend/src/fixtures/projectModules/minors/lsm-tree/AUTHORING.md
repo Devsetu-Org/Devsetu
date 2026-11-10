@@ -14,13 +14,13 @@ picks one on the minor page; it travels as `?lang=` and is remembered per minor.
 | --- | --- | --- | --- | --- |
 | 0 | `overview` | **ready** | reading only (`lsmTreeOverview.ts`, same shape as track blogs): what, where it is used, the plan | keep the chapter table in sync with `minors.ts` |
 | 1 | `memtable` | **ready** (go, python, cpp) | skiplist search + put, tombstones, iterator | build files, REPL entry point |
-| 2 | `write-ahead-log` | **ready** (go) | record framing, append + fsync, replay to the torn tail, `db/recover.go` (`recoverLog`, `commit`) | `wal.Create`/`OpenAppend`, `db.go`, REPL on a data dir |
-| 3 | `sstable` | **ready** (go) | `sstable/build.go` (blocks, index, footer), `sstable/lookup.go` (open, one-block get), `db/flush.go` | format encoding, `writer.go`/`reader.go` wrappers, table iterator, `addTable`, newest-first `DB.Get` |
-| 4 | `read-path` | **ready** (go) | Bloom build + query, merging iterator, `db/scan.go` | filter hooks in `writer.go`/`reader.go` |
-| 5 | `compaction` | **ready** (go) | merge with tombstone dropping, atomic manifest save, `db/compact.go` | manifest load, manifest-aware `addTable`, orphan cleanup, auto trigger, `stats` |
+| 2 | `write-ahead-log` | **ready** (go, python, cpp) | record framing, append + fsync, replay to the torn tail, `db/recover.go` (`recoverLog`, `commit`) | `wal.Create`/`OpenAppend`, `db.go`, REPL on a data dir |
+| 3 | `sstable` | **ready** (go, python, cpp) | `sstable/build.go` (blocks, index, footer), `sstable/lookup.go` (open, one-block get), `db/flush.go` | format encoding, `writer.go`/`reader.go` wrappers, table iterator, `addTable`, newest-first `DB.Get` |
+| 4 | `read-path` | **ready** (go, python, cpp) | Bloom build + query, merging iterator, `db/scan.go` | filter hooks in `writer.go`/`reader.go` |
+| 5 | `compaction` | **ready** (go, python, cpp) | merge with tombstone dropping, atomic manifest save, `db/compact.go` | manifest load, manifest-aware `addTable`, orphan cleanup, auto trigger, `stats` |
 
-Chapters 2–5 are registered in `lsmTreeChaptersGo.ts`, which globs each
-`<chapter>/go/files/**` (never `solution/`). A chapter shows as "Soon" in any
+Chapters 2–5 are registered in `lsmTreeChaptersGo.ts`, `lsmTreeChaptersPython.ts`, and
+`lsmTreeChaptersCpp.ts`, which glob each `<chapter>/<lang>/files/**` (never `solution/`). A chapter shows as "Soon" in any
 language it has no fixture for, and the in-chapter language dropdown only lists
 languages that exist for that chapter.
 

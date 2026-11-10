@@ -339,6 +339,7 @@ export async function saveLabProgress(sessionId: string): Promise<LabProgressSta
 
 export async function gradeK8sSession(
   sessionId: string,
+  investigation?: Record<string, string>,
 ): Promise<{
   passed: boolean;
   message: string;
@@ -349,7 +350,7 @@ export async function gradeK8sSession(
 }> {
   const { data } = await axios.post(
     `/api/session/${sessionId}/k8s/grade`,
-    {},
+    investigation ? { investigation } : {},
     { headers: getAuthHeader() },
   );
   return data as {
@@ -379,6 +380,14 @@ export interface K8sSubmissionRecord {
 
 export async function fetchK8sSubmissions(sessionId: string): Promise<K8sSubmissionRecord[]> {
   const { data } = await axios.get(`/api/session/${sessionId}/k8s/submissions`, {
+    headers: getAuthHeader(),
+  });
+  return ((data as { submissions?: K8sSubmissionRecord[] }).submissions || []);
+}
+
+/** Submits for this lab, including ones from earlier sittings. No cluster required. */
+export async function fetchChallengeK8sSubmissions(challengeId: string): Promise<K8sSubmissionRecord[]> {
+  const { data } = await axios.get(`/api/challenges/${encodeURIComponent(challengeId)}/submissions`, {
     headers: getAuthHeader(),
   });
   return ((data as { submissions?: K8sSubmissionRecord[] }).submissions || []);

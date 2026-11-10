@@ -16,7 +16,7 @@ The index can return a posting list per term. A **boolean query** combines those
 ## Parse
 <!-- mode: read-and-implement tasks:4.1 -->
 
-Split the string on whitespace. A field that is exactly `OR` starts a new OR-group. Everything else in a group is joined and passed through `analyze.Analyze`, the same analyzer documents use. Empty groups (all stopwords) are dropped.
+Split the string on whitespace. A field that is exactly `OR` starts a new OR-group. Everything else in a group is joined and passed through the same analyzer documents use. Empty groups (all stopwords) are dropped.
 
 ```plaintext
   "The Cat OR Dog Bird"  →  groups: [cat] , [dog, bird]
@@ -27,6 +27,16 @@ Split the string on whitespace. A field that is exactly `OR` starts a new OR-gro
 
 In `internal/query/parse.go`: walk `strings.Fields(q)`. On `OR`, finish the current group. Analyze each finished group; skip empty token lists. Return `Query{Groups: ...}`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `parse`
+
+In `findx/query/parse.py`: split on whitespace. On `OR`, finish the current group. Analyze each finished group; skip empty token lists. Return `Query(groups=...)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `Parse`
+
+In `src/query/parse.cc`: split on whitespace. On `OR`, finish the current group. Analyze each finished group; skip empty token lists. Return `Query{groups}`.
+<!-- /lang -->
 
 ## Intersect (AND)
 <!-- mode: read-and-implement tasks:4.2 -->
@@ -36,11 +46,27 @@ Posting lists are sorted by doc id. Intersection is a two-pointer walk: advance 
 <!-- lang: go -->
 `docIDs`, `intersectTwo`, and `unionTwo` are given. `Docs` (given) calls your `Intersect` for each AND-group and your `Union` across groups.
 <!-- /lang -->
+<!-- lang: python -->
+`_doc_ids`, `_intersect_two`, and `_union_two` are given. `docs` (given) calls your `intersect` for each AND-group and your `union` across groups.
+<!-- /lang -->
+<!-- lang: cpp -->
+`DocIDs`, `IntersectTwo`, and `UnionTwo` are given. `Docs` (given) calls your `Intersect` for each AND-group and your `Union` across groups.
+<!-- /lang -->
 
 <!-- lang: go -->
 ### `TODO(4.2)` — `Intersect`
 
 If there are no lists, or any list is empty, return nil. Convert each list to doc ids. Fold with `intersectTwo`. Return the sorted id slice.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.2)` — `intersect`
+
+If there are no lists, or any list is empty, return `[]`. Convert each list to doc ids. Fold with `_intersect_two`. Return the sorted id list.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.2)` — `Intersect`
+
+If there are no lists, or any list is empty, return `{}`. Convert each list to doc ids. Fold with `IntersectTwo`. Return the sorted id vector.
 <!-- /lang -->
 
 ## Union (OR)
@@ -51,6 +77,16 @@ If there are no lists, or any list is empty, return nil. Convert each list to do
 
 Fold the lists with `unionTwo`. Equal ids appear once. The result stays sorted.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.3)` — `union`
+
+Fold the lists with `_union_two`. Equal ids appear once. The result stays sorted.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.3)` — `Union`
+
+Fold the lists with `UnionTwo`. Equal ids appear once. The result stays sorted.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -59,6 +95,19 @@ Fold the lists with `unionTwo`. Equal ids appear once. The result stays sorted.
 ```bash
 make test
 make race
+make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 make run
 ```
 <!-- /lang -->

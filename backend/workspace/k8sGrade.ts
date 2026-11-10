@@ -6,7 +6,8 @@ const k8s = require('./k8sCluster');
 const loader = require('../challenges/loader');
 const linuxBox = require('./linuxBox');
 const kafkaBox = require('./kafkaBox');
-const { isBoxLabType, isKafkaLabType } = require('../challenges/labTypes');
+const sparkBox = require('./sparkBox');
+const { isBoxLabType, isKafkaLabType, isSparkLabType } = require('../challenges/labTypes');
 
 export type K8sGradeResult = {
   passed: boolean;
@@ -33,6 +34,7 @@ export type K8sSubmissionRecord = {
 async function gradeK8sSession(
   ns: string,
   challengeId: string,
+  investigation?: Record<string, string> | null,
 ): Promise<K8sGradeResult> {
   const c = loader.getChallenge(challengeId) as {
     sandboxType?: string | null;
@@ -44,11 +46,17 @@ async function gradeK8sSession(
     (c?.k8sPlatform?.grade?.timeoutSeconds || 60) * 1000,
   );
 
+  if (isSparkLabType(c?.sandboxType) && investigation && typeof investigation === 'object') {
+    await sparkBox.writeInvestigationAnswers(ns, investigation);
+  }
+
   const env = isBoxLabType(c?.sandboxType)
     ? linuxBox.scriptEnv()
     : isKafkaLabType(c?.sandboxType)
       ? kafkaBox.scriptEnv(ns)
-      : undefined;
+      : isSparkLabType(c?.sandboxType)
+        ? sparkBox.scriptEnv(ns)
+        : undefined;
   const result = await k8s.runChallengeScript(ns, challengeId, script, { timeoutMs, env });
   const stdout = (result.stdout || '').trim();
   const stderr = (result.stderr || '').trim();
@@ -162,8 +170,31 @@ async function listK8sSubmissionsForSession(sessionId: string): Promise<K8sSubmi
   return (rows as Record<string, unknown>[]).map(publicK8sSubmission);
 }
 
+/** All kubernetes/Spark-box submits for this user on this lab (across sittings). */
+async function listK8sSubmissionsForChallenge(
+  challengeId: string,
+  userId: string | null | undefined,
+): Promise<K8sSubmissionRecord[]> {
+  if (!challengeId || !userId) return [];
+  const { rows } = await pool.query(
+    `SELECT * FROM submissions
+       WHERE challenge_id = $1
+         AND mode = 'submit'
+         AND entrypoint = 'kubernetes'
+         AND (
+           user_id = $2
+           OR session_id IN (SELECT id FROM sessions WHERE user_id = $2)
+         )
+       ORDER BY submitted_at DESC
+       LIMIT 50`,
+    [challengeId, userId],
+  );
+  return (rows as Record<string, unknown>[]).map(publicK8sSubmission);
+}
+
 module.exports = {
   gradeK8sSession,
   recordK8sSubmission,
   listK8sSubmissionsForSession,
+  listK8sSubmissionsForChallenge,
 };

@@ -71,6 +71,30 @@ There are no sockets. Each node is a `raft.Raft` value, and they talk through `i
 
 `internal/labharness` wraps N nodes with a `Cluster`: `Disconnect`, `Partition`, `Crash`, `Restart`, `CheckOneLeader`. A background monitor samples every node several times per election timeout and fails the test the moment two nodes lead the same term, even if the test itself is looking elsewhere. That is how a subtle bug gets caught while you are not asking about it.
 <!-- /lang -->
+<!-- lang: python -->
+There are no sockets. Each node is a `raft.Raft` value, and they talk through `internal/labrpc`, an in-process network that behaves like a bad real one:
+
+| Fault | What the network does |
+| --- | --- |
+| **Partition** | Calls between groups fail after a short delay. |
+| **Drop** | A request or its reply vanishes. The caller cannot tell which. |
+| **Duplicate** | The same request is delivered twice. |
+| **Delay** | Messages arrive late, so replies from old elections show up in new ones. |
+
+`internal/labharness` wraps N nodes with a `Cluster`: `Disconnect`, `Partition`, `Crash`, `Restart`, `CheckOneLeader`. A background monitor samples every node several times per election timeout and fails the test the moment two nodes lead the same term, even if the test itself is looking elsewhere. That is how a subtle bug gets caught while you are not asking about it.
+<!-- /lang -->
+<!-- lang: cpp -->
+There are no sockets. Each node is a `raft.Raft` value, and they talk through `internal/labrpc`, an in-process network that behaves like a bad real one:
+
+| Fault | What the network does |
+| --- | --- |
+| **Partition** | Calls between groups fail after a short delay. |
+| **Drop** | A request or its reply vanishes. The caller cannot tell which. |
+| **Duplicate** | The same request is delivered twice. |
+| **Delay** | Messages arrive late, so replies from old elections show up in new ones. |
+
+`internal/labharness` wraps N nodes with a `Cluster`: `Disconnect`, `Partition`, `Crash`, `Restart`, `CheckOneLeader`. A background monitor samples every node several times per election timeout and fails the test the moment two nodes lead the same term, even if the test itself is looking elsewhere. That is how a subtle bug gets caught while you are not asking about it.
+<!-- /lang -->
 
 <!-- lang: go -->
 ### What is given
@@ -81,6 +105,32 @@ In `internal/raft`:
 - `rpc.go`: the `RequestVoteArgs`/`Reply` and `AppendEntriesArgs`/`Reply` types.
 - `replication.go`: just enough `AppendEntries` to carry heartbeats. Chapter 2 rewrites it.
 - `persist.go`: `persist()` does nothing yet. **Call it anyway** whenever `currentTerm` or `votedFor` change. Chapter 4 makes it real, and the calls you write now will be what makes a restarted node safe.
+
+> [!warn] The locking rule
+> All state lives in the `Raft` struct under `rf.mu`. Functions documented "mu held" run with the lock taken and must not take it again (Go mutexes are not reentrant). **Never hold `rf.mu` while calling `sendRequestVote`**: an RPC can take tens of milliseconds, and the node on the other end may be calling you at the same moment. Send without the lock, take it again for the reply.
+<!-- /lang -->
+<!-- lang: python -->
+### What is given
+
+In `internal/raft`:
+
+- `raft.py`: the `Raft` struct, `Make`, and `ticker`, a thread that every few milliseconds checks the clock. A non-leader whose election deadline has passed calls your `start_election`; a leader whose heartbeat is due calls `broadcastAppend`.
+- `rpc.py`: the `RequestVoteArgs`/`Reply` and `AppendEntriesArgs`/`Reply` types.
+- `replication.py`: just enough `append_entries` to carry heartbeats. Chapter 2 rewrites it.
+- `persist.py`: `persist()` does nothing yet. **Call it anyway** whenever `currentTerm` or `votedFor` change. Chapter 4 makes it real, and the calls you write now will be what makes a restarted node safe.
+
+> [!warn] The locking rule
+> All state lives in the `Raft` struct under `self.mu`. Functions documented "mu held" run with the lock taken and must not take it again (Go mutexes are not reentrant). **Never hold `self.mu` while calling `sendRequestVote`**: an RPC can take tens of milliseconds, and the node on the other end may be calling you at the same moment. Send without the lock, take it again for the reply.
+<!-- /lang -->
+<!-- lang: cpp -->
+### What is given
+
+In `internal/raft`:
+
+- `raft.cc`: the `Raft` struct, `Make`, and `ticker`, a thread that every few milliseconds checks the clock. A non-leader whose election deadline has passed calls your `StartElection`; a leader whose heartbeat is due calls `broadcastAppend`.
+- `rpc.cc`: the `RequestVoteArgs`/`Reply` and `AppendEntriesArgs`/`Reply` types.
+- `replication.cc`: just enough `AppendEntries` to carry heartbeats. Chapter 2 rewrites it.
+- `persist.cc`: `persist()` does nothing yet. **Call it anyway** whenever `currentTerm` or `votedFor` change. Chapter 4 makes it real, and the calls you write now will be what makes a restarted node safe.
 
 > [!warn] The locking rule
 > All state lives in the `Raft` struct under `rf.mu`. Functions documented "mu held" run with the lock taken and must not take it again (Go mutexes are not reentrant). **Never hold `rf.mu` while calling `sendRequestVote`**: an RPC can take tens of milliseconds, and the node on the other end may be calling you at the same moment. Send without the lock, take it again for the reply.
@@ -112,6 +162,22 @@ In `internal/raft/election.go`:
 - Set `rf.role = Follower`.
 - Only when `term > rf.currentTerm`: set `rf.currentTerm = term`, `rf.votedFor = -1`, `rf.leaderID = -1`, and call `rf.persist()`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.1)` — `become_follower`
+
+In `raftkv/raft/election.py`:
+
+- Set `self.role = Follower`.
+- Only when `term > self.currentTerm`: set `self.currentTerm = term`, `self.votedFor = -1`, `self.leaderID = -1`, and call `self.persist()`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.1)` — `BecomeFollower`
+
+In `src/raft/election.cc`:
+
+- Set `rf.role = Follower`.
+- Only when `term > rf.currentTerm`: set `rf.currentTerm = term`, `rf.votedFor = -1`, `rf.leaderID = -1`, and call `rf.persist()`.
+<!-- /lang -->
 
 ## Granting votes
 <!-- mode: read-and-implement tasks:1.2,1.3 -->
@@ -137,6 +203,16 @@ The logs are empty in this chapter, so every candidate passes. Write the functio
 ### `TODO(1.2)` — `logUpToDate`
 
 In `internal/raft/vote.go`. Use `rf.lastLogTerm()` and `rf.lastLogIndex()`. Compare terms first; only when they are equal compare lengths.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.2)` — `log_up_to_date`
+
+In `raftkv/raft/vote.py`. Use `self.lastLogTerm()` and `self.lastLogIndex()`. Compare terms first; only when they are equal compare lengths.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.2)` — `LogUpToDate`
+
+In `src/raft/vote.cc`. Use `rf.lastLogTerm()` and `rf.lastLogIndex()`. Compare terms first; only when they are equal compare lengths.
 <!-- /lang -->
 
 ### Deciding a vote
@@ -165,6 +241,26 @@ Two details that tests look for:
 ### `TODO(1.3)` — `RequestVote`
 
 In `internal/raft/vote.go`, with the lock held for the whole function:
+
+1. If `args.Term > rf.currentTerm`, `rf.becomeFollower(args.Term)`.
+2. Set `reply.Term = rf.currentTerm` and `reply.VoteGranted = false`.
+3. If `args.Term < rf.currentTerm`, return.
+4. If `rf.votedFor` is `-1` or `args.CandidateID`, and `rf.logUpToDate(args.LastLogTerm, args.LastLogIndex)`: set `rf.votedFor`, `rf.persist()`, `rf.resetElectionTimer()`, `reply.VoteGranted = true`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.3)` — `request_vote`
+
+In `raftkv/raft/vote.py`, with the lock held for the whole function:
+
+1. If `args.Term > self.currentTerm`, `self.becomeFollower(args.Term)`.
+2. Set `reply.Term = self.currentTerm` and `reply.VoteGranted = false`.
+3. If `args.Term < self.currentTerm`, return.
+4. If `self.votedFor` is `-1` or `args.CandidateID`, and `self.logUpToDate(args.LastLogTerm, args.LastLogIndex)`: set `self.votedFor`, `self.persist()`, `self.resetElectionTimer()`, `reply.VoteGranted = true`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.3)` — `RequestVote`
+
+In `src/raft/vote.cc`, with the lock held for the whole function:
 
 1. If `args.Term > rf.currentTerm`, `rf.becomeFollower(args.Term)`.
 2. Set `reply.Term = rf.currentTerm` and `reply.VoteGranted = false`.
@@ -206,6 +302,30 @@ In `internal/raft/election.go`:
 
 `votes` is shared by every goroutine. It is only read or written with `rf.mu` held, so it needs no atomics.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.4)` — `start_election`
+
+In `raftkv/raft/election.py`:
+
+1. `self.role = Candidate`, `self.currentTerm++`, `self.votedFor = self.me`, `self.leaderID = -1`, `self.persist()`, `self.resetElectionTimer()`.
+2. `term := self.currentTerm`, and build a `RequestVoteArgs` with the last log index and term.
+3. `votes := 1`. If `votes >= self.majority()` already (a one-node cluster) call `self.becomeLeader()` and return.
+4. For each peer except yourself, `go func(peer int) { ... }(i)`: call `self.sendRequestVote(peer, &args, &reply)`; if it succeeds, lock `self.mu` and call `self.handleVoteReply(term, &reply, &votes)`.
+
+`votes` is shared by every thread. It is only read or written with `self.mu` held, so it needs no atomics.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.4)` — `StartElection`
+
+In `src/raft/election.cc`:
+
+1. `rf.role = Candidate`, `rf.currentTerm++`, `rf.votedFor = rf.me`, `rf.leaderID = -1`, `rf.persist()`, `rf.resetElectionTimer()`.
+2. `term := rf.currentTerm`, and build a `RequestVoteArgs` with the last log index and term.
+3. `votes := 1`. If `votes >= rf.majority()` already (a one-node cluster) call `rf.becomeLeader()` and return.
+4. For each peer except yourself, `go func(peer int) { ... }(i)`: call `rf.sendRequestVote(peer, &args, &reply)`; if it succeeds, lock `rf.mu` and call `rf.handleVoteReply(term, &reply, &votes)`.
+
+`votes` is shared by every thread. It is only read or written with `rf.mu` held, so it needs no atomics.
+<!-- /lang -->
 
 ## Winning
 <!-- mode: read-and-implement tasks:1.5 -->
@@ -237,6 +357,26 @@ In `internal/raft/election.go`:
 
 `broadcastAppend` is given: in this chapter it sends empty heartbeats.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.5)` — `handle_vote_reply` and `become_leader`
+
+In `raftkv/raft/election.py`:
+
+- `handle_vote_reply`: the three checks above. Reaching `self.majority()` votes calls `self.becomeLeader()`.
+- `become_leader`: `self.role = Leader`, `self.leaderID = self.me`, `self.resetLeaderProgress()`, `self.broadcastAppend()`.
+
+`broadcastAppend` is given: in this chapter it sends empty heartbeats.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.5)` — `HandleVoteReply` and `BecomeLeader`
+
+In `src/raft/election.cc`:
+
+- `HandleVoteReply`: the three checks above. Reaching `rf.majority()` votes calls `rf.becomeLeader()`.
+- `BecomeLeader`: `rf.role = Leader`, `rf.leaderID = rf.me`, `rf.resetLeaderProgress()`, `rf.broadcastAppend()`.
+
+`broadcastAppend` is given: in this chapter it sends empty heartbeats.
+<!-- /lang -->
 
 ## Try it
 <!-- mode: read-only -->
@@ -245,6 +385,20 @@ In `internal/raft/election.go`:
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # every acceptance test
+# (no race target)     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # every acceptance test
+make asan     # the same tests with the race detector
 make run      # a REPL over a 3-node cluster
 ```
 <!-- /lang -->

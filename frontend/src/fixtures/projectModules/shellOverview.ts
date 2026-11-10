@@ -70,7 +70,7 @@ export const SHELL_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **tinysh**, a small shell in Go. Tests run gold scripts and compare stdout, stderr, and exit status.',
+        'Over five chapters you build **tinysh**, a small shell in Go, Python, or C++. Tests run gold scripts and compare stdout, stderr, and exit status.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -119,7 +119,7 @@ export const SHELL_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable Go and a basic idea of processes. No prior shell internals.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++) and a basic idea of processes. No prior shell internals.',
       ],
       callout: {
         kind: 'scope',

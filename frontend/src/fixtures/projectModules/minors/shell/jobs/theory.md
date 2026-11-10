@@ -27,6 +27,20 @@ After the pipeline commands, an `&` marks background. Parsing of `&` is given (`
 2. Append it to `s.jobs` under `s.mu`.
 3. In a goroutine, `waitCmd` every proc; send the last status on `done` and close it.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.1)` — `add_job` in `tinysh/exec/jobs.py`
+
+1. Make a `Job` with a `threading.Event`.
+2. Append it to `s.jobs` under `s._mu`.
+3. In a thread, `wait_cmd` every proc; store the last status and `set` the event.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.1)` — `AddJob` in `src/exec/jobs.cc`
+
+1. Make a shared `Job` with a condition variable.
+2. Append it to `s.jobs` under `s.mu`.
+3. In a thread, `WaitCmd` every proc; store the last status and notify.
+<!-- /lang -->
 
 ## wait
 <!-- mode: read-and-implement tasks:5.2 -->
@@ -39,6 +53,20 @@ After the pipeline commands, an `&` marks background. Parsing of `&` is given (`
 1. Reject arguments.
 2. Under `s.mu`, take the job list and clear `s.jobs`.
 3. Receive from each `done` channel; return the last status.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.2)` — `builtin_wait` in `tinysh/exec/jobs.py`
+
+1. Reject arguments.
+2. Under `s._mu`, take the job list and clear `s.jobs`.
+3. Wait on each `done` event; return the last status.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.2)` — `BuiltinWait` in `src/exec/jobs.cc`
+
+1. Reject arguments.
+2. Under `s.mu`, take the job list and clear `s.jobs`.
+3. Wait on each job; return the last status.
 <!-- /lang -->
 
 ## Foreground interrupt
@@ -54,6 +82,22 @@ While a foreground pipeline runs, a SIGINT should reach the children. Without fu
 3. On signal, `Process.Signal(SIGINT)` each proc.
 4. When `fn` returns, stop notifying and return its status.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.3)` — `with_foreground_interrupt` in `tinysh/exec/signal.py`
+
+1. Install a `SIGINT` handler.
+2. Run `fn` in a thread.
+3. On signal, `send_signal(SIGINT)` each child.
+4. When `fn` returns, restore the previous handler and return its status.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.3)` — `WithForegroundInterrupt` in `src/exec/signal.cc`
+
+1. Install a `SIGINT` handler.
+2. Run `fn` (optionally on another thread).
+3. On signal, `kill(pid, SIGINT)` each child.
+4. When `fn` returns, restore the previous handler and return its status.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -62,6 +106,19 @@ While a foreground pipeline runs, a SIGINT should reach the children. Without fu
 ```bash
 make test
 make race
+printf '%s\n' "sh -c 'echo done > bg.txt' &" 'wait' 'cat bg.txt' | make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' "sh -c 'echo done > bg.txt' &" 'wait' 'cat bg.txt' | make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 printf '%s\n' "sh -c 'echo done > bg.txt' &" 'wait' 'cat bg.txt' | make run
 ```
 <!-- /lang -->

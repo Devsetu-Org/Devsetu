@@ -1,0 +1,63 @@
+{
+  "id": "spark-03-trace-a-job-from-submission-to-last-task",
+  "number": 812,
+  "finalized": true,
+  "title": "Trace a Job From Submission to Last Task",
+  "description": "**SITUATION:**\n\nThe standalone cluster on `ds-spark-01`, `ds-spark-02`, and `ds-spark-03` is warmed up — the hosts you stood up and stabilized when Workers looked flaky. Open the Master UI: you should see **2 ALIVE** workers. Your job is to run work on that healthy cluster and learn how a Spark application shows up across the screens you will live in later.\n\nUntil now you have mostly looked at **daemons**. The next layer is an **application**: you `spark-submit` from the shell, a **driver** starts there (client mode), the Master lists a new `app-…` id, and the **Application UI** is where Jobs, Stages, and Tasks become concrete.\n\nYou will submit **three** small jobs with the same client shape. What changes is the **DAG**: Part 1 is narrow transforms only (no shuffle), Part 2 adds **one** shuffle, Part 3 has **multiple** shuffles. Job details and submit parameters are in the **Guide**.\n\n**YOUR TASK:**\n\n1. Open the **Master UI** and confirm both Workers are **ALIVE** (**2 ALIVE**).\n2. **Part 1:** submit `orders-narrow` in **client** mode; capture Investigation while it runs.\n3. **Part 2:** submit `orders-by-store` the same way; capture Investigation while it runs.\n4. **Part 3:** submit `store-rollup-join`; capture stages and one task → Worker host.\n5. Fill the **Investigation** tab in story order, then Submit.",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "l0",
+    "foundations",
+    "orientation",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Part 1: /opt/spark/lab/jobs/orders_narrow.py — expect 1 stage, 0 shuffles.",
+      "Part 2: /opt/spark/lab/jobs/orders_by_store.py — expect 2 stages, 1 shuffle.",
+      "Part 3: /opt/spark/lab/jobs/store_rollup_join.py — expect ≥3 stages; trace one task to a Worker host.",
+      "Use --deploy-mode client from the shell. Executor shape: --executor-memory 512m --conf spark.executor.memoryOverhead=128m.",
+      "The three parts must be different application ids on this Master.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Trace a Job From Submission to Last Task",
+    "brief": "Trace a Job From Submission to Last Task",
+    "solution": "",
+    "idLabel": "03",
+    "theory": "",
+    "guide": "# Trace a job — three DAG shapes\n\nSame submit shape every time (client mode from the shell). What changes is the **DAG**: no shuffle, one shuffle, then several.\n\nShared submit flags:\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --total-executor-cores 2 \\\n  --executor-memory 512m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  --name <app-name> \\\n  /opt/spark/lab/jobs/<script>.py\n```\n\n---\n\n## Part 1 — `orders-narrow` (transforms only → **0** shuffles)\n\n| | |\n|---|---|\n| **Script** | `/opt/spark/lab/jobs/orders_narrow.py` |\n| **App name** | `orders-narrow` |\n| **Work** | Read orders (explicit schema) → `filter` / `select` → **write** CSV |\n| **DAG** | **One** stage — narrow transforms + write, **no** Shuffle Read/Write |\n| **Hold** | ~**75s** |\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --name orders-narrow \\\n  --total-executor-cores 2 \\\n  --executor-memory 512m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  /opt/spark/lab/jobs/orders_narrow.py\n```\n\nWhile it holds: Master UI → `app-…` id. Application UI → Jobs → Stages — **1** stage, empty Shuffle columns.\n\n---\n\n## Part 2 — `orders-by-store` (one action, **one** shuffle)\n\n| | |\n|---|---|\n| **Script** | `/opt/spark/lab/jobs/orders_by_store.py` |\n| **App name** | `orders-by-store` |\n| **Work** | `groupBy(\"store_id\").sum(\"amount\")` → `collect` |\n| **DAG** | **Two** stages — partial aggregate, **one** shuffle, final aggregate |\n| **Hold** | ~**90s** |\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --name orders-by-store \\\n  --total-executor-cores 2 \\\n  --executor-memory 512m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  /opt/spark/lab/jobs/orders_by_store.py\n```\n\nWhile it holds: new `app-…`. Stages — **2** stages; one has Shuffle Write, the next Shuffle Read.\n\n---\n\n## Part 3 — `store-rollup-join` (**multiple** shuffles)\n\n| | |\n|---|---|\n| **Script** | `/opt/spark/lab/jobs/store_rollup_join.py` |\n| **App name** | `store-rollup-join` |\n| **Work** | Join orders ↔ stores → `groupBy(\"region\").sum(\"amount\")` → `collect` |\n| **DAG** | **≥ 3** stages — join shuffle **and** aggregate shuffle |\n| **Hold** | ~**3 minutes** |\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --name store-rollup-join \\\n  --total-executor-cores 2 \\\n  --executor-memory 512m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  /opt/spark/lab/jobs/store_rollup_join.py\n```\n\nWhile it holds:\n\n1. New `app-…` (third id).\n2. Stages — more than Part 2; more than one shuffle boundary.\n3. Open a stage → one **task** → record task id, executor id, Worker host (`ds-spark-02` or `ds-spark-03`).\n\n---\n\n## Investigation\n\nFill Parts 1 → 2 → 3, then the lesson page. Submit when every field is filled.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "daemonMode": "manual",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your cluster",
+      "phases": [
+        "Pulling the Spark image",
+        "Starting the master",
+        "Starting the workers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180,
+      "submitMessage": "This may take a bit — checking all three DAG traces."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

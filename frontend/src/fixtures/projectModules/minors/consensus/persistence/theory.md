@@ -56,6 +56,20 @@ A `storage.Store` holds one opaque byte slice: `Save(state)` replaces it, `Load(
 
 The log includes the index-0 sentinel; gob carries it like any other entry.
 <!-- /lang -->
+<!-- lang: python -->
+A `storage.Store` holds one opaque byte slice: `Save(state)` replaces it, `Load()` returns it (or `nil` if nothing was ever saved). `persist` encodes the three fields into that blob; `read_persist` decodes it.
+
+`persistentState` in `persist.py` is given. Use `encoding/gob`: encode it into a `bytes.Buffer` with `gob.NewEncoder(&buf).Encode(...)`, decode it with `gob.NewDecoder(bytes.NewReader(data)).Decode(&state)`. Add `bytes` and `encoding/gob` to the file's imports.
+
+The log includes the index-0 sentinel; gob carries it like any other entry.
+<!-- /lang -->
+<!-- lang: cpp -->
+A `storage.Store` holds one opaque byte slice: `Save(state)` replaces it, `Load()` returns it (or `nil` if nothing was ever saved). `persist` encodes the three fields into that blob; `readPersist` decodes it.
+
+`persistentState` in `persist.cc` is given. Use `encoding/gob`: encode it into a `bytes.Buffer` with `gob.NewEncoder(&buf).Encode(...)`, decode it with `gob.NewDecoder(bytes.NewReader(data)).Decode(&state)`. Add `bytes` and `encoding/gob` to the file's imports.
+
+The log includes the index-0 sentinel; gob carries it like any other entry.
+<!-- /lang -->
 
 The simplest design rewrites the whole state on every change. That is O(log size) per save, which is fine for tests and wrong for production: real systems append to a log file and fsync, and occasionally snapshot (the end of chapter 5 lists what production adds). Keep the idea; skip the optimisation.
 
@@ -73,6 +87,28 @@ In the same file. `rf.store.Load()` returns `nil` on first boot: leave the fresh
 
 `Make` calls `readPersist` once, before any goroutine starts.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `persist`
+
+In `raftkv/raft/persist.py`, with the lock held (callers hold it): gob-encode `persistentState{self.currentTerm, self.votedFor, self.log}` and pass the bytes to `self.store.Save`. Panic on an encode or save error.
+
+### `TODO(4.2)` — `read_persist`
+
+In the same file. `self.store.Load()` returns `nil` on first boot: leave the fresh state alone. Otherwise decode into a `persistentState` and copy the three fields back. If the decoded log is empty, put the sentinel back with `[]LogEntry{{}}`. Do **not** touch `commitIndex` or `lastApplied`.
+
+`Make` calls `read_persist` once, before any thread starts.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `persist`
+
+In `src/raft/persist.cc`, with the lock held (callers hold it): gob-encode `persistentState{rf.currentTerm, rf.votedFor, rf.log}` and pass the bytes to `rf.store.Save`. Panic on an encode or save error.
+
+### `TODO(4.2)` — `readPersist`
+
+In the same file. `rf.store.Load()` returns `nil` on first boot: leave the fresh state alone. Otherwise decode into a `persistentState` and copy the three fields back. If the decoded log is empty, put the sentinel back with `[]LogEntry{{}}`. Do **not** touch `commitIndex` or `lastApplied`.
+
+`Make` calls `readPersist` once, before any thread starts.
+<!-- /lang -->
 
 ## Crash-safe files
 <!-- mode: read-and-implement tasks:4.3,4.4 -->
@@ -80,6 +116,12 @@ In the same file. `rf.store.Load()` returns `nil` on first boot: leave the fresh
 ### The save can crash too
 
 <!-- lang: go -->
+`storage.Mem` is what most tests use: it keeps the bytes in memory and survives because the harness holds on to it across a "crash". A real node needs a real file, `storage.File`. Overwriting a file in place is dangerous: if the power fails halfway you have half of the old state and half of the new, which can be a valid-looking nonsense (a `votedFor` from one version and a log from another).
+<!-- /lang -->
+<!-- lang: python -->
+`storage.Mem` is what most tests use: it keeps the bytes in memory and survives because the harness holds on to it across a "crash". A real node needs a real file, `storage.File`. Overwriting a file in place is dangerous: if the power fails halfway you have half of the old state and half of the new, which can be a valid-looking nonsense (a `votedFor` from one version and a log from another).
+<!-- /lang -->
+<!-- lang: cpp -->
 `storage.Mem` is what most tests use: it keeps the bytes in memory and survives because the harness holds on to it across a "crash". A real node needs a real file, `storage.File`. Overwriting a file in place is dangerous: if the power fails halfway you have half of the old state and half of the new, which can be a valid-looking nonsense (a `votedFor` from one version and a log from another).
 <!-- /lang -->
 
@@ -113,6 +155,34 @@ In `internal/storage/file.go`. `tempPath()` and `finalPath()` are given.
 
 `os.ReadFile(f.finalPath())`. If `errors.Is(err, os.ErrNotExist)`, return `nil, nil`: never saved. Any other error is returned. Add `errors` to the imports.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.3)` — `Save`
+
+In `raftkv/storage/file.py`. `tempPath()` and `finalPath()` are given.
+
+1. `os.OpenFile(f.tempPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)`.
+2. `Write(state)`, `Sync()`, `Close()`. Close the file on every error path.
+3. `os.Rename(f.tempPath(), f.finalPath())`.
+4. `os.Open(f.dir)`, `Sync()` it, `Close()` it.
+
+### `TODO(4.4)` — `Load`
+
+`os.ReadFile(f.finalPath())`. If `errors.Is(err, os.ErrNotExist)`, return `nil, nil`: never saved. Any other error is returned. Add `errors` to the imports.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.3)` — `Save`
+
+In `src/storage/file.cc`. `tempPath()` and `finalPath()` are given.
+
+1. `os.OpenFile(f.tempPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)`.
+2. `Write(state)`, `Sync()`, `Close()`. Close the file on every error path.
+3. `os.Rename(f.tempPath(), f.finalPath())`.
+4. `os.Open(f.dir)`, `Sync()` it, `Close()` it.
+
+### `TODO(4.4)` — `Load`
+
+`os.ReadFile(f.finalPath())`. If `errors.Is(err, os.ErrNotExist)`, return `nil, nil`: never saved. Any other error is returned. Add `errors` to the imports.
+<!-- /lang -->
 
 ## What the tests do
 <!-- mode: read-only -->
@@ -133,6 +203,20 @@ A "crash" in the harness stops the node, closes its network connections, and **f
 ```bash
 make test     # chapters 1-4, including crash/restart and the file store
 make race     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster: start, crash N, restart N
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # chapters 1-4, including crash/restart and the file store
+# (no race target)     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster: start, crash N, restart N
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # chapters 1-4, including crash/restart and the file store
+make asan     # the same tests with the race detector
 make run      # a REPL over a 3-node cluster: start, crash N, restart N
 ```
 <!-- /lang -->

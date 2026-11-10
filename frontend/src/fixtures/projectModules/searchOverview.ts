@@ -73,7 +73,7 @@ export const SEARCH_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **findx**, a small search engine in Go. Tests add documents, run queries, and check hit ids and order.',
+        'Over five chapters you build **findx**, a small search engine in Go, Python, or C++. Tests add documents, run queries, and check hit ids and order.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -122,7 +122,7 @@ export const SEARCH_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable Go. No IR background. Formulas appear when ranking does.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No IR background. Formulas appear when ranking does.',
       ],
       callout: {
         kind: 'scope',

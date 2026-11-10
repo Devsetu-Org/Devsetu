@@ -76,7 +76,7 @@ export const GIT_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **tinygit**, a small Git in Go. Commands mirror the real ones enough that the mental model transfers. Tests feed repositories and check objects, refs, and worktree files.',
+        'Over five chapters you build **tinygit**, a small Git in Go, Python, or C++. Commands mirror the real ones enough that the mental model transfers. Tests feed repositories and check objects, refs, and worktree files.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -125,7 +125,7 @@ export const GIT_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable Go (files, slices, hashing). No prior Git internals. Every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No prior Git internals. Every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',

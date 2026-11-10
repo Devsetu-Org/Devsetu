@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -22,19 +23,38 @@ export default function ConfirmDialog({
   onCancel,
   busy = false,
 }: ConfirmDialogProps): JSX.Element | null {
+  // Ignore backdrop clicks from the same gesture that opened the dialog (e.g. Brief Back).
+  const allowBackdrop = useRef(false);
+
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open) {
+      allowBackdrop.current = false;
+      return undefined;
+    }
+    allowBackdrop.current = false;
+    const timer = window.setTimeout(() => {
+      allowBackdrop.current = true;
+    }, 0);
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && !busy) onCancel();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', onKey);
+    };
   }, [open, busy, onCancel]);
 
   if (!open) return null;
 
-  return (
-    <div className="login-modal-overlay" role="presentation" onClick={() => !busy && onCancel()}>
+  return createPortal(
+    <div
+      className="login-modal-overlay confirm-dialog-overlay"
+      role="presentation"
+      onClick={() => {
+        if (!busy && allowBackdrop.current) onCancel();
+      }}
+    >
       <div
         className="login-modal confirm-dialog"
         role="dialog"
@@ -65,6 +85,7 @@ export default function ConfirmDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

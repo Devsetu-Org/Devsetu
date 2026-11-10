@@ -4,6 +4,7 @@ const SECTIONS = [
   { id: 'linux', title: 'Linux pool' },
   { id: 'docker', title: 'Docker pool' },
   { id: 'kafka', title: 'Kafka pool' },
+  { id: 'spark', title: 'Spark pool' },
 ];
 
 /** @type {Array<{id:string,label:string,section:string,summary:string,description:string,command:string,scriptPath:string|null,confirm:string|null}>} */
@@ -51,6 +52,7 @@ function sectionKicker(sectionId) {
   if (sectionId === 'linux') return 'Linux';
   if (sectionId === 'docker') return 'Docker';
   if (sectionId === 'kafka') return 'Kafka';
+  if (sectionId === 'spark') return 'Spark';
   return 'System';
 }
 

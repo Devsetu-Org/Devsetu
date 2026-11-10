@@ -1,10 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import ProblemStatement from './ProblemStatement';
+import { createPortal } from 'react-dom';
 import K8sLabFileEditor from './K8sLabFileEditor';
 import BriefAdminEditor, { isEditableBriefTab } from './BriefAdminEditor';
 import ChallengeVisibilityPanel from './ChallengeVisibilityPanel';
 import ChallengeReviewPanel from './ChallengeReviewPanel';
 import TerminalPanel from './TerminalPanel';
+import SparkClusterDiagram from './SparkClusterDiagram';
+import SparkInvestigationForm, {
+  loadInvestigation,
+  saveInvestigation,
+  sparkInvestigation,
+} from './SparkInvestigationForm';
 import SolutionGateModal, { hasAcknowledgedSolution } from './SolutionGateModal';
 import ConfirmDialog from './ConfirmDialog';
 import BriefBackButton from './BriefBackButton';
@@ -28,6 +34,7 @@ import {
 } from '../services/labTabLease';
 import {
   fetchK8sCapacity,
+  fetchChallengeK8sSubmissions,
   fetchK8sSubmissions,
   fetchLabBootPhase,
   fetchLabProgress,
@@ -40,7 +47,7 @@ import {
   type LabProgressStatus,
 } from '../services/workspaceApi';
 import type { ActiveSession, ChallengeFull, ChallengePublic } from '../types/domain';
-import type { ProblemStatementTab } from './ProblemStatement';
+import ProblemStatement, { challengeGuideText, type ProblemStatementTab } from './ProblemStatement';
 import { useAppState } from '../context/AppStateContext';
 
 interface K8sLabWorkspaceProps {
@@ -60,28 +67,195 @@ function clampBriefPct(pct: number): number {
   return Math.min(MAX_BRIEF_PCT, Math.max(MIN_BRIEF_PCT, Math.round(pct)));
 }
 
+/** Procured DevSetu hosts. Role is not in the hostname. */
+const SPARK_NODES = [
+  { id: 'ds-spark-01', label: 'ds-spark-01', role: 'master' as const, ui: 'ds-spark-01', clusterUi: 'http://ds-spark-01:8080' },
+  { id: 'ds-spark-02', label: 'ds-spark-02', role: 'worker' as const, ui: 'ds-spark-02', clusterUi: 'http://ds-spark-02:8081' },
+  { id: 'ds-spark-03', label: 'ds-spark-03', role: 'worker' as const, ui: 'ds-spark-03', clusterUi: 'http://ds-spark-03:8082' },
+  { id: 'ds-spark-04', label: 'ds-spark-04', role: 'worker' as const, ui: 'ds-spark-04', clusterUi: 'http://ds-spark-04:8083' },
+];
+/** Chapter 2 YARN: RM + NodeManagers + shell submit client. */
+const YARN_2 = [
+  { id: 'shell', label: 'shell', role: 'shell' as const, ui: '', clusterUi: '' },
+  { id: 'ds-spark-01', label: 'ds-spark-01', role: 'rm' as const, ui: 'ds-spark-01', clusterUi: 'http://ds-spark-01:8088' },
+  { id: 'ds-spark-02', label: 'ds-spark-02', role: 'nm' as const, ui: 'ds-spark-02', clusterUi: 'http://ds-spark-02:8042' },
+  { id: 'ds-spark-03', label: 'ds-spark-03', role: 'nm' as const, ui: 'ds-spark-03', clusterUi: 'http://ds-spark-03:8042' },
+];
+/** Chapter 1 foundations labs: three procured hosts (01 master, 02–03 workers). */
+const SPARK_2 = SPARK_NODES.slice(0, 3);
+/** Lab 1.3: submit from shell (client driver) + Application UI on shell:4040. */
+const SPARK_2_TRACE = [
+  { id: 'shell', label: 'shell', role: 'shell' as const, ui: '', clusterUi: '' },
+  ...SPARK_2,
+  {
+    id: 'shell-app',
+    label: 'shell',
+    role: 'driver' as const,
+    ui: 'shell',
+    clusterUi: 'http://shell:4040',
+  },
+];
+type SparkLabNode =
+  | (typeof SPARK_NODES)[number]
+  | (typeof YARN_2)[number]
+  | (typeof SPARK_2_TRACE)[number];
+const SPARK_LAB_NODES: Record<string, SparkLabNode[]> = {
+  'spark-01-stand-up-the-cluster-and-find-everything-on-disk': SPARK_2,
+  'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments': SPARK_2,
+  'spark-03-trace-a-job-from-submission-to-last-task': SPARK_2_TRACE,
+  'spark-04-find-where-the-data-actually-lives': SPARK_2,
+  'spark-05-the-executor-memory-map': SPARK_2,
+  'spark-06-diagnose-an-executor-lost-to-memory-pressure': SPARK_2,
+  'spark-07-the-capstone-bug-slow-then-dead': SPARK_2,
+  'spark-08-drain-a-worker-without-breaking-anything': SPARK_2,
+  'spark-09-submit-the-same-workload-on-yarn': YARN_2,
+};
+
+function sparkUiKindLabel(role: SparkLabNode['role']): string {
+  if (role === 'rm') return 'ResourceManager UI';
+  if (role === 'nm') return 'NodeManager UI';
+  if (role === 'shell') return 'Submit client';
+  if (role === 'driver') return 'Application UI';
+  if (role === 'master') return 'Master UI';
+  return 'Worker UI';
+}
+
+function sparkUiPortLabel(clusterUi: string): string {
+  const match = /:(\d+)\s*$/.exec(clusterUi);
+  return match ? `:${match[1]}` : clusterUi;
+}
+
+function sparkUiNodes(nodes: SparkLabNode[]): SparkLabNode[] {
+  return nodes.filter((node) => node.role !== 'shell' && Boolean(node.ui));
+}
+
+/** Terminal knobs — Application UI rows are dashboards, not shells. */
+function sparkShellNodes(nodes: SparkLabNode[]): SparkLabNode[] {
+  return nodes.filter((node) => node.role !== 'driver');
+}
+
+/** Pulse map — Master + Workers only (shell is a submit client, not a cluster node). */
+function sparkDiagramNodes(nodes: SparkLabNode[]): SparkLabNode[] {
+  return nodes.filter((node) => node.role === 'master' || node.role === 'worker' || node.role === 'rm' || node.role === 'nm');
+}
+
+function SparkUiChoice({
+  nodes,
+  sessionId,
+  onClose,
+}: {
+  nodes: SparkLabNode[];
+  sessionId: string;
+  onClose: () => void;
+}): JSX.Element {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="grade-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="grade-modal spark-ui-choice"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="spark-ui-choice-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="grade-modal-head">
+          <div>
+            <h2 id="spark-ui-choice-title">Open a dashboard</h2>
+            <p className="grade-modal-sub">
+              Port-forwarded to your laptop — not reachable directly from the browser.
+            </p>
+          </div>
+          <button type="button" className="grade-modal-close" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+        </header>
+        <div className="spark-ui-choice-list">
+          {sparkUiNodes(nodes).map((node) => (
+            <button
+              key={node.id}
+              type="button"
+              onClick={() => {
+                window.open(`/api/session/${sessionId}/spark-ui/${node.ui}/`, '_blank', 'noopener,noreferrer');
+                onClose();
+              }}
+            >
+              <span className="spark-ui-choice-kind">{sparkUiKindLabel(node.role)}</span>
+              <span className="spark-ui-choice-dot" aria-hidden="true">·</span>
+              <span className="spark-ui-choice-host">{node.label}</span>
+              <span className="spark-ui-choice-dot" aria-hidden="true">·</span>
+              <span className="spark-ui-choice-url">{sparkUiPortLabel(node.clusterUi)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="confirm-dialog-actions">
+          <button type="button" className="ghost" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function SparkLabKnobs({
+  nodes,
+  selected,
+  onPick,
+}: {
+  nodes: SparkLabNode[];
+  selected: string | null;
+  onPick: (id: string) => void;
+}): JSX.Element {
+  return (
+    <div className="spark-node-knobs" role="group" aria-label="Cluster nodes">
+      {nodes.map((node, index) => (
+        <React.Fragment key={node.id}>
+          {index > 0 ? <span className="spark-node-sep" aria-hidden="true">|</span> : null}
+          <button
+            type="button"
+            className={`spark-node-knob${selected === node.id ? ' is-on' : ''}`}
+            aria-pressed={selected === node.id}
+            onClick={() => onPick(node.id)}
+          >
+            {node.label}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
 function k8sTerminalWsUrl(sessionId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   return `${proto}://${window.location.host}/ws/k8s-terminal?sessionId=${sessionId}`;
 }
 
 /**
- * Cluster labs (sandboxType kubernetes, linux, docker, or kafka) share this workspace
- * and the kubernetes session runtime. Linux, Docker, and Kafka are a shell with no Editor.
+ * Cluster labs (sandboxType kubernetes, linux, docker, kafka, spark, or k8s-platform)
+ * share this workspace and the kubernetes session runtime. Linux, Docker, Kafka,
+ * Spark, and Kubernetes platform labs are a shell with no Editor.
  */
 export function isKubernetesChallenge(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): boolean {
   const t = challenge?.sandboxType || '';
-  return t === 'kubernetes' || t === 'linux' || t === 'docker' || t === 'kafka';
+  return t === 'kubernetes' || t === 'linux' || t === 'docker' || t === 'kafka' || t === 'spark' || t === 'k8s-platform';
 }
 
-/** Linux, Docker, and Kafka labs: one machine per learner, no Editor. */
+/** Linux, Docker, Kafka, Spark, and Kubernetes platform labs: one machine per learner, no Editor. */
 export function isBoxChallenge(
   challenge: ChallengePublic | ChallengeFull | null | undefined,
 ): boolean {
   const t = challenge?.sandboxType || '';
-  return t === 'linux' || t === 'docker' || t === 'kafka';
+  return t === 'linux' || t === 'docker' || t === 'kafka' || t === 'spark' || t === 'k8s-platform';
 }
 
 export function boxMachineLabel(
@@ -89,6 +263,8 @@ export function boxMachineLabel(
 ): string {
   if (challenge?.sandboxType === 'docker') return 'Docker';
   if (challenge?.sandboxType === 'kafka') return 'Kafka';
+  if (challenge?.sandboxType === 'spark') return 'Spark';
+  if (challenge?.sandboxType === 'k8s-platform') return 'Kubernetes';
   return 'Linux';
 }
 
@@ -96,7 +272,7 @@ export function boxMachineLabel(
 export const LAB_COMING_SOON_MSG = 'Coming soon';
 
 /**
- * Public (non-admin) users cannot start Linux, Docker, Kubernetes, or Kafka
+ * Public (non-admin) users cannot start Linux, Docker, Kubernetes, Kafka, Spark, or platform
  * terminals yet. Admins may open the start path for testing when the pool is
  * up — but pool capacity still applies to admins the same as everyone else.
  * This gate is only Coming soon, never a capacity bypass.
@@ -109,7 +285,7 @@ export function isPublicLabComingSoon(
   return !isAdminUser(user) && !isAdminUser(getCurrentUser());
 }
 
-type MainTab = 'terminal' | 'editor';
+type MainTab = 'terminal' | 'editor' | 'investigation';
 
 type EvalResult = {
   passed: boolean;
@@ -359,10 +535,47 @@ const BOOT_PHASES = [
   'Applying your saved progress',
 ];
 
+/** Kubernetes platform labs: the steps this open actually spends time on. */
+const K8S_PLATFORM_BOOT_PHASES = [
+  'Creating your machine',
+  'Starting the machine',
+  'Loading the node image',
+  'Preparing the cluster',
+  'Preparing the lab',
+];
+
+/** Spark labs where Master/Worker auto-start. Pull and cache are the same moment: one is skipped. */
+const SPARK_BOOT_PHASES = [
+  'Creating your cluster',
+  'Pulling the Spark image',
+  'Using the cached Spark image',
+  'Starting the master',
+  'Starting the workers',
+  'Preparing the lab',
+];
+
+/** Chapter 2 YARN labs: RM + NodeManagers. Pull and cache are the same moment: one is skipped. */
+const YARN_BOOT_PHASES = [
+  'Creating your YARN cluster',
+  'Pulling the Spark-on-YARN image',
+  'Using the cached Spark-on-YARN image',
+  'Starting the ResourceManager',
+  'Starting the NodeManagers',
+  'Preparing the lab',
+];
+
+/** Spark labs where nodes are procured idle — learner brings the cluster up. */
+const SPARK_MANUAL_BOOT_PHASES = [
+  'Planning for a Spark cluster',
+  'Procuring the nodes',
+  'Installing Spark on the nodes',
+  'Preparing the lab',
+];
+
 const SAVE_PHASE = BOOT_PHASES[3];
 const INSTALL_PHASE = 'Installing tools from your saved progress';
 
-type BootStepState = 'done' | 'current' | 'upcoming' | 'skipped';
+type BootStepState = 'done' | 'current' | 'upcoming' | 'skipped' | 'failed';
 
 function BootMark({ state }: { state: BootStepState }): JSX.Element {
   if (state === 'done') {
@@ -374,22 +587,93 @@ function BootMark({ state }: { state: BootStepState }): JSX.Element {
       </span>
     );
   }
+  if (state === 'failed') {
+    return (
+      <span className="k8s-lab-boot-mark is-failed" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M3 3l6 6M9 3 3 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </span>
+    );
+  }
   return <span className={`k8s-lab-boot-mark is-${state}`} aria-hidden="true" />;
 }
 
-function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: string }): JSX.Element {
+function BootLog({
+  phase,
+  machineLabel,
+  machineCheck,
+  machineCheckMessage,
+  sparkDaemonMode,
+  sparkYarn,
+  bootHeading,
+  bootPhases,
+}: {
+  phase: LabBootPhase;
+  machineLabel: string;
+  machineCheck?: 'checking' | 'failed' | null;
+  machineCheckMessage?: string | null;
+  sparkDaemonMode?: 'auto' | 'manual' | null;
+  sparkYarn?: boolean;
+  /** Per-lab override from platformSpec.boot */
+  bootHeading?: string | null;
+  bootPhases?: string[] | null;
+}): JSX.Element {
+  const platform = machineLabel === 'Kubernetes';
+  const spark = machineLabel === 'Spark';
+  const customPhases = Array.isArray(bootPhases) && bootPhases.length > 0 ? bootPhases : null;
+  const seenManualPhase = [phase.current, ...(phase.steps || [])].some((step) => (
+    step === 'Planning for a Spark cluster'
+    || step === 'Procuring the nodes'
+    || step === 'Installing Spark on the nodes'
+  ));
+  const seenYarnPhase = [phase.current, ...(phase.steps || [])].some((step) => (
+    step === 'Creating your YARN cluster'
+    || step === 'Pulling the Spark-on-YARN image'
+    || step === 'Using the cached Spark-on-YARN image'
+    || step === 'Starting the ResourceManager'
+    || step === 'Starting the NodeManagers'
+  ));
+  const sparkManual = !customPhases && spark && (sparkDaemonMode === 'manual' || seenManualPhase);
+  const yarn = !customPhases && spark && !sparkManual && (sparkYarn || seenYarnPhase);
+  const phases = customPhases
+    || (spark
+      ? (sparkManual ? SPARK_MANUAL_BOOT_PHASES : yarn ? YARN_BOOT_PHASES : SPARK_BOOT_PHASES)
+      : platform
+        ? K8S_PLATFORM_BOOT_PHASES
+        : BOOT_PHASES);
+  const hold = machineCheck === 'checking' || machineCheck === 'failed';
   // No backend phase yet → all upcoming. Never invent "Creating your machine".
-  const reported = phase.current === INSTALL_PHASE
+  const reported = !platform && !spark && phase.current === INSTALL_PHASE
     ? SAVE_PHASE
-    : (phase.current && BOOT_PHASES.includes(phase.current) ? phase.current : null);
-  const currentAt = reported ? BOOT_PHASES.indexOf(reported) : -1;
+    : (phase.current && phases.includes(phase.current) ? phase.current : null);
+  const currentAt = reported ? phases.indexOf(reported) : -1;
+  const seen = new Set([...(phase.steps || []), reported].filter((step): step is string => Boolean(step)));
+  const pullLabel = yarn ? 'Pulling the Spark-on-YARN image' : 'Pulling the Spark image';
+  const cacheLabel = yarn ? 'Using the cached Spark-on-YARN image' : 'Using the cached Spark image';
+  const pullSeen = seen.has(pullLabel);
+  const cacheSeen = seen.has(cacheLabel);
+  const pastImage = spark && !customPhases && !sparkManual && currentAt > phases.indexOf(cacheLabel);
+  const heading = (bootHeading && bootHeading.trim())
+    || (sparkManual
+      ? 'Preparing your nodes'
+      : yarn
+        ? 'Starting your YARN cluster'
+        : platform || spark
+          ? 'Starting your cluster'
+          : `Starting your ${machineLabel} ${machineLabel === 'Kafka' ? 'cluster' : 'machine'}`);
   return (
     <div className="k8s-lab-boot">
-      <strong>Starting your {machineLabel} {machineLabel === 'Kafka' ? 'cluster' : 'machine'}</strong>
+      <strong>{heading}</strong>
       <ol className="k8s-lab-boot-log">
-        {BOOT_PHASES.map((step, index) => {
-          const skipped = step === SAVE_PHASE && phase.restoresSave === false && reported !== SAVE_PHASE;
-          const state: BootStepState = skipped
+        {phases.map((step, index) => {
+          const skipped = !hold && !customPhases && (spark && !sparkManual
+            ? (step === pullLabel && (cacheSeen || (pastImage && !pullSeen)))
+              || (step === cacheLabel && pullSeen)
+            : !platform && !spark && step === SAVE_PHASE && phase.restoresSave === false && reported !== SAVE_PHASE);
+          const state: BootStepState = hold
+            ? (index === 0 ? (machineCheck === 'failed' ? 'failed' : 'current') : 'upcoming')
+            : skipped
             ? 'skipped'
             : currentAt < 0
               ? 'upcoming'
@@ -409,6 +693,9 @@ function BootLog({ phase, machineLabel }: { phase: LabBootPhase; machineLabel: s
           );
         })}
       </ol>
+      {machineCheck === 'failed' && machineCheckMessage ? (
+        <p className="k8s-lab-boot-fail">{machineCheckMessage}</p>
+      ) : null}
     </div>
   );
 }
@@ -441,8 +728,20 @@ export default function K8sLabWorkspace({
   const challengeId = challenge?.id || '';
   const box = isBoxChallenge(challenge);
   const machineLabel = boxMachineLabel(challenge);
+  const sparkLab = challenge?.sandboxType === 'spark';
+  const sparkYarn = sparkLab && String(challenge?.k8sPlatform?.shape || '') === 'yarn-2';
+  const sparkDaemonMode = sparkLab
+    && String(challenge?.k8sPlatform?.daemonMode || '') === 'manual'
+    ? 'manual' as const
+    : sparkLab
+      ? 'auto' as const
+      : null;
   const notReadyTitle = showNotStarted
-    ? (box ? 'Start the machine to use the terminal' : 'Start the lab to use the terminal')
+    ? (sparkLab && sparkDaemonMode === 'manual'
+      ? 'Start the lab to use the terminal'
+      : sparkLab
+      ? 'Start the cluster to use the terminal'
+      : box ? 'Start the machine to use the terminal' : 'Start the lab to use the terminal')
     : idleLocked
     ? 'This lab\'s time has run out'
     : labComingSoon
@@ -466,17 +765,34 @@ export default function K8sLabWorkspace({
       return DEFAULT_BRIEF_PCT;
     }
   });
+  const sparkNodes = SPARK_LAB_NODES[challengeId] ?? null;
+  const [sparkNode, setSparkNode] = useState<string | null>(null);
+  const [sparkUiAsk, setSparkUiAsk] = useState(false);
   const [termEpoch, setTermEpoch] = useState(0);
   // Editor first so the lab is usable instantly; the terminal connects in the background.
   // Box labs (Linux, Docker) have no Editor: files are edited on the machine itself.
   const [mainTab, setMainTab] = useState<MainTab>(box ? 'terminal' : 'editor');
+  const investigationSpec = sparkInvestigation(challengeId);
+  const investigationLab = investigationSpec != null;
+  const [investigation, setInvestigation] = useState<Record<string, string>>(() => loadInvestigation(challengeId));
+  const investigationLoaded = useRef('');
+  useEffect(() => {
+    if (!investigationLab || !challengeId) return;
+    if (investigationLoaded.current !== challengeId) {
+      investigationLoaded.current = challengeId;
+      setInvestigation(loadInvestigation(challengeId));
+      return;
+    }
+    saveInvestigation(challengeId, investigation);
+  }, [investigationLab, challengeId, investigation]);
   const showBrief = isNarrow ? mobilePane === 'brief' : !briefCollapsed;
   const showWorkspace = isNarrow ? mobilePane === 'workspace' : true;
-  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux' && challenge?.sandboxType !== 'kafka';
+  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux' && challenge?.sandboxType !== 'kafka' && challenge?.sandboxType !== 'spark';
   const showResize = !isNarrow && !briefCollapsed;
   const [briefTab, setBriefTab] = useState<ProblemStatementTab>('description');
   const [briefChallenge, setBriefChallenge] = useState<ChallengePublic | ChallengeFull | null>(challenge);
   const isPractice = Boolean((briefChallenge || challenge)?.k8sPlatform?.practice);
+  const hasGuideTab = Boolean(challengeGuideText(briefChallenge || challenge));
   const [solutionFiles, setSolutionFiles] = useState<Record<string, string> | null>(null);
   const [solutionEntrypoint, setSolutionEntrypoint] = useState<string | null>(null);
   const [solutionLoading, setSolutionLoading] = useState(false);
@@ -513,7 +829,7 @@ export default function K8sLabWorkspace({
   );
 
   useEffect(() => {
-    if (!box || labReady || terminalLocked || notStarted) return undefined;
+    if ((!box && !sparkLab) || labReady || terminalLocked || notStarted) return undefined;
     let stop = false;
     setBootPhase({ steps: [], current: null, restoresSave: null });
     const tick = (): void => {
@@ -527,7 +843,7 @@ export default function K8sLabWorkspace({
       stop = true;
       window.clearInterval(id);
     };
-  }, [box, labReady, terminalLocked, notStarted, session.id, session.bootSeq, challengeId]);
+  }, [box, sparkLab, labReady, terminalLocked, notStarted, session.id, session.bootSeq, challengeId]);
 
   useEffect(() => {
     if (!box || !labReady || session.id.startsWith('pending-k8s-')) return undefined;
@@ -567,11 +883,36 @@ export default function K8sLabWorkspace({
     }
   };
 
-  const wsUrl = useMemo(() => {
+  // One live shell per machine. Switching nodes hides the others; it does not close them.
+  const [shellNodes, setShellNodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSparkNode(null);
+    setShellNodes([]);
+    setSparkUiAsk(false);
+  }, [session.id, session.bootSeq, challengeId]);
+
+  const openSparkShell = (id: string): void => {
+    setSparkNode(id);
+    setMainTab('terminal');
+    setShellNodes((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
+
+  const shellBase = useMemo(() => {
     if (!labReady || !session.id || session.id.startsWith('pending-k8s-')) return '';
-    const base = withLabClientId(session.terminalWsUrl || k8sTerminalWsUrl(session.id));
-    return `${base}&v=${termEpoch}`;
-  }, [labReady, session.terminalWsUrl, session.id, termEpoch]);
+    return withLabClientId(session.terminalWsUrl || k8sTerminalWsUrl(session.id));
+  }, [labReady, session.terminalWsUrl, session.id]);
+
+  const wsUrl = useMemo(() => {
+    if (!shellBase) return '';
+    if (sparkNodes && !sparkNode) return '';
+    const node = sparkNode ? `&node=${encodeURIComponent(sparkNode)}` : '';
+    return `${shellBase}${node}&v=${termEpoch}`;
+  }, [shellBase, termEpoch, sparkNodes, sparkNode]);
+
+  const nodeShellUrl = (id: string): string => (
+    shellBase ? `${shellBase}&node=${encodeURIComponent(id)}&v=${termEpoch}` : ''
+  );
 
   useEffect(() => {
     const onReclaimed = (): void => setTermEpoch((n) => n + 1);
@@ -661,24 +1002,35 @@ export default function K8sLabWorkspace({
   }, [briefTab, challenge?.id]);
 
   const refreshSubmissions = () => {
-    void fetchK8sSubmissions(session.id)
+    if (!challengeId) return;
+    void fetchChallengeK8sSubmissions(challengeId)
       .then((rows) => {
         setSubmissions((prev) => {
           const pending = prev.filter((row) => row.pending);
           return pending.length ? [...pending, ...rows] : rows;
         });
       })
-      .catch(() => { /* keep last list */ });
+      .catch(() => {
+        // Fall back to this sitting if the challenge-wide list is unavailable.
+        if (!session.id || session.id.startsWith('pending-')) return;
+        void fetchK8sSubmissions(session.id)
+          .then((rows) => {
+            setSubmissions((prev) => {
+              const pending = prev.filter((row) => row.pending);
+              return pending.length ? [...pending, ...rows] : rows;
+            });
+          })
+          .catch(() => { /* keep last list */ });
+      });
   };
 
   useEffect(() => {
     setSubmissions([]);
     setSelectedSubmissionId(null);
-    // The placeholder id exists only while the machine is booting; it has no submission list.
-    if (!session.id || session.id.startsWith('pending-k8s-')) return;
+    if (!challengeId) return;
     refreshSubmissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id]);
+  }, [challengeId]);
 
   useEffect(() => {
     try {
@@ -705,6 +1057,7 @@ export default function K8sLabWorkspace({
       }
     };
     const onUp = () => {
+      shellRef.current?.classList.remove('is-pane-resizing');
       if (dragging.current) {
         dragging.current = false;
         document.body.style.cursor = '';
@@ -753,7 +1106,7 @@ export default function K8sLabWorkspace({
       if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
     };
     try {
-      const res = await gradeK8sSession(session.id);
+      const res = await gradeK8sSession(session.id, investigationLab ? investigation : undefined);
       const at = Date.now();
       const result: EvalResult = {
         passed: res.passed,
@@ -877,6 +1230,17 @@ export default function K8sLabWorkspace({
               >
                 Description
               </button>
+              {hasGuideTab ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={briefTab === 'guide'}
+                  className={`spark-brief-tab${briefTab === 'guide' ? ' active' : ''}`}
+                  onClick={() => setBriefTab('guide')}
+                >
+                  Guide
+                </button>
+              ) : null}
               {!isPractice && (
               <button
                 type="button"
@@ -1075,6 +1439,7 @@ export default function K8sLabWorkspace({
           aria-label="Resize problem panel"
           onMouseDown={() => {
             dragging.current = true;
+            shellRef.current?.classList.add('is-pane-resizing');
             document.body.style.cursor = 'col-resize';
             document.body.style.userSelect = 'none';
           }}
@@ -1127,7 +1492,7 @@ export default function K8sLabWorkspace({
                     labComingSoon
                       ? 'Coming soon'
                       : showNotStarted
-                      ? (box ? 'Machine has not been started' : 'Lab has not been started')
+                      ? (sparkLab ? 'Cluster has not been started' : box ? 'Machine has not been started' : 'Lab has not been started')
                       : terminalLocked
                       ? (idleLocked ? 'This lab\'s time has run out' : 'Terminal is unavailable right now')
                       : labReady
@@ -1141,6 +1506,18 @@ export default function K8sLabWorkspace({
                     aria-label={labComingSoon ? 'coming soon' : showNotStarted ? 'not started' : terminalLocked ? 'unavailable' : labReady ? 'ready' : 'connecting'}
                   />
                 </button>
+                {investigationLab && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mainTab === 'investigation'}
+                  className={`k8s-lab-main-tab${mainTab === 'investigation' ? ' active' : ''}`}
+                  onClick={() => setMainTab('investigation')}
+                  title="Record what you find before submitting"
+                >
+                  Investigation
+                </button>
+                )}
               </div>
             </div>
             <div className="spark-ide-actionbar-right">
@@ -1198,7 +1575,7 @@ export default function K8sLabWorkspace({
                   className="spark-ide-btn spark-ide-btn--submit"
                   disabled={busy || !labReady}
                   onClick={() => void onGrade()}
-                  title={labReady ? 'Submit for grading' : notReadyTitle}
+                  title={!labReady ? notReadyTitle : 'Submit for grading'}
                 >
                   <IconSubmit color="#04120c" />
                   <span>{busy ? 'Submitting…' : 'Submit'}</span>
@@ -1229,11 +1606,13 @@ export default function K8sLabWorkspace({
                     <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
                     <path d="M10 8.5v7l6-3.5-6-3.5z" fill="currentColor" />
                   </svg>
-                  <strong>{box ? 'Your machine is not started' : 'This lab is not started'}</strong>
+                  <strong>{sparkLab ? 'Your cluster is not started' : box ? 'Your machine is not started' : 'This lab is not started'}</strong>
                   <p>
-                    {box
-                      ? 'The description is on the left. Start the machine when you want the terminal.'
-                      : 'The description is on the left. Start the lab when you want the terminal.'}
+                    {sparkLab
+                      ? 'The description is on the left. Start the cluster when you want the terminal.'
+                      : box
+                        ? 'The description is on the left. Start the machine when you want the terminal.'
+                        : 'The description is on the left. Start the lab when you want the terminal.'}
                   </p>
                   {challenge && (
                     <button
@@ -1241,7 +1620,7 @@ export default function K8sLabWorkspace({
                       className="spark-ide-btn k8s-lab-locked-retry"
                       onClick={() => void onSelectChallenge(challenge, { start: true })}
                     >
-                      {box ? 'Start machine' : 'Start lab'}
+                      {sparkLab ? 'Start cluster' : box ? 'Start machine' : 'Start lab'}
                     </button>
                   )}
                 </div>
@@ -1260,15 +1639,13 @@ export default function K8sLabWorkspace({
                       ? 'Coming soon'
                       : idleLocked
                         ? 'This lab\'s time is up'
-                        : lockedMessage?.startsWith('Checking whether')
-                          ? 'Checking lab machines'
-                          : 'This lab is locked for now'}
+                        : 'This lab is locked for now'}
                   </strong>
                   <p>
                     {labComingSoon
                       ? 'Live terminals for these labs are on the way. You can read the brief on the left.'
                       : idleLocked
-                        ? (challenge?.sandboxType === 'kafka'
+                        ? (challenge?.sandboxType === 'kafka' || challenge?.sandboxType === 'spark' || challenge?.sandboxType === 'k8s-platform'
                           ? 'The time for this lab ran out, so the cluster was stopped. Start again for a fresh cluster.'
                           : box
                             ? 'The time for this lab ran out, so the machine was stopped. Start again for a fresh machine. Any progress you saved is put back.'
@@ -1280,7 +1657,7 @@ export default function K8sLabWorkspace({
                       You can still read the description and the rest of the brief on the left.
                     </p>
                   )}
-                  {challenge && !labComingSoon && !lockedMessage?.startsWith('Checking whether') && (
+                  {challenge && !labComingSoon && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"
@@ -1290,12 +1667,45 @@ export default function K8sLabWorkspace({
                     </button>
                   )}
                 </div>
+              ) : labReady && sparkNodes && !sparkNode ? (
+                <SparkClusterDiagram
+                  nodes={sparkDiagramNodes(sparkNodes)}
+                  onShell={openSparkShell}
+                />
               ) : !labReady ? (
-                <div className={`k8s-lab-terminal-warming${box ? ' is-boot' : ''}`} role="status" aria-live="polite">
-                  {!box && <span className="spinner" />}
+                <div className={`k8s-lab-terminal-warming${box || sparkLab ? ' is-boot' : ''}`} role="status" aria-live="polite">
+                  {!box && !sparkLab && <span className="spinner" />}
                   <div>
-                    {box ? (
-                      <BootLog phase={bootPhase} machineLabel={machineLabel} />
+                    {box || sparkLab ? (
+                      <>
+                        <BootLog
+                          phase={bootPhase}
+                          machineLabel={machineLabel}
+                          machineCheck={session.machineCheck}
+                          machineCheckMessage={session.machineCheckMessage}
+                          sparkDaemonMode={sparkDaemonMode}
+                          sparkYarn={sparkYarn}
+                          bootHeading={
+                            typeof challenge?.k8sPlatform?.boot?.heading === 'string'
+                              ? challenge.k8sPlatform.boot.heading
+                              : null
+                          }
+                          bootPhases={
+                            Array.isArray(challenge?.k8sPlatform?.boot?.phases)
+                              ? challenge.k8sPlatform.boot.phases.map((p) => String(p || '').trim()).filter(Boolean)
+                              : null
+                          }
+                        />
+                        {session.machineCheck === 'failed' && challenge && (
+                          <button
+                            type="button"
+                            className="spark-ide-btn k8s-lab-locked-retry"
+                            onClick={() => void onSelectChallenge(challenge, { start: true })}
+                          >
+                            Try again
+                          </button>
+                        )}
+                      </>
                     ) : openingHeldForCapacity ? (
                       <>
                         <strong>Adding cluster capacity for your lab…</strong>
@@ -1327,15 +1737,61 @@ export default function K8sLabWorkspace({
                       </span>
                     </div>
                   )}
-                  <TerminalPanel
-                    wsUrl={wsUrl}
-                    isActive={mainTab === 'terminal'}
-                    resizeProtocol
-                    onDisconnect={onTerminalDisconnect}
-                  />
+                  {sparkNodes && sparkNode ? (
+                    <>
+                      <div className="spark-node-bar spark-node-bar--in-term">
+                        <SparkLabKnobs
+                          nodes={sparkShellNodes(sparkNodes)}
+                          selected={sparkNode}
+                          onPick={openSparkShell}
+                        />
+                        <button
+                          type="button"
+                          className="spark-node-ui"
+                          disabled={!session.id || session.id.startsWith('pending-')}
+                          onClick={() => setSparkUiAsk(true)}
+                        >
+                          Open the UI
+                        </button>
+                      </div>
+                      <div className="k8s-lab-term-stack">
+                        {shellNodes.map((id) => (
+                          <div
+                            key={id}
+                            className={`k8s-lab-term-slot${sparkNode === id ? ' is-active' : ''}`}
+                            aria-hidden={sparkNode !== id}
+                          >
+                            <TerminalPanel
+                              wsUrl={nodeShellUrl(id)}
+                              isActive={mainTab === 'terminal' && sparkNode === id}
+                              resizeProtocol
+                              onDisconnect={onTerminalDisconnect}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <TerminalPanel
+                      wsUrl={wsUrl}
+                      isActive={mainTab === 'terminal'}
+                      resizeProtocol
+                      onDisconnect={onTerminalDisconnect}
+                    />
+                  )}
                 </>
               )}
             </div>
+            {investigationLab && (
+            <div
+              className={`k8s-lab-investigation${mainTab === 'investigation' ? ' is-active' : ''}`}
+              aria-hidden={mainTab !== 'investigation'}
+            >
+              {investigationSpec && (
+              <SparkInvestigationForm spec={investigationSpec} value={investigation} onChange={setInvestigation} />
+              )}
+            </div>
+            )}
             {!box && (
             <div
               className={`k8s-lab-scratch${mainTab === 'editor' ? ' is-active' : ''}`}
@@ -1386,7 +1842,24 @@ export default function K8sLabWorkspace({
         </div>
       </div>
       )}
-      {gradeModal && <SubmitReaction phase={gradeModal} onClose={dismissGradeModal} />}
+      {sparkUiAsk && sparkNodes && session.id && !session.id.startsWith('pending-') && (
+        <SparkUiChoice
+          nodes={sparkNodes}
+          sessionId={session.id}
+          onClose={() => setSparkUiAsk(false)}
+        />
+      )}
+      {gradeModal && (
+        <SubmitReaction
+          phase={gradeModal}
+          detail={
+            gradeModal === 'grading'
+              ? (challenge?.k8sPlatform?.grade?.submitMessage || '').trim() || null
+              : null
+          }
+          onClose={dismissGradeModal}
+        />
+      )}
       {saveModal && (
         <SubmitReaction
           phase={saveModal}

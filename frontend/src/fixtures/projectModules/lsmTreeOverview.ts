@@ -243,7 +243,7 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **lsmkv**, a working LSM storage engine in Go, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
+        'Over five chapters you build **lsmkv**, a working LSM storage engine in Go, Python, or C++, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -268,7 +268,7 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter adds only the files it needs and starts from your own code for the earlier ones. Stuck on one? You can switch that chapter to our reference solution and keep going.',
       ],
       after: [
-        '**What you need:** comfortable Go (slices, maps, structs, methods, and `go test`). No database or storage background; every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No database or storage background; every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',
@@ -286,6 +286,6 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
     'That makes writes cheap and sequential, at the cost of reads checking several places and background compaction work.',
     'A delete is a write: a tombstone shadows older values until compaction removes both.',
     'RocksDB, LevelDB, Cassandra, ScyllaDB, HBase, and CockroachDB’s Pebble are all built this way, and their classic production problems are LSM behaviour.',
-    'Across five chapters you build each piece in Go: memtable, write-ahead log, SSTable, read path, and compaction.',
+    'Across five chapters you build each piece in Go, Python, or C++: memtable, write-ahead log, SSTable, read path, and compaction.',
   ],
 };

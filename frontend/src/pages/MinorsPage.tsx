@@ -3,6 +3,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { ModuleWorkspace } from './ProjectModulePage';
 import { ReadingSection, RichText } from './K8sReadingPage';
 import { MINORS, MINORS_PATH, getMinor, getMinorChapter, type MinorEntry } from '../constants/minors';
+import { PROJECTS_PATH } from '../constants/projects';
 import type { ProjectModule } from '../constants/projects';
 import { K8S_BLOG_STAMP_SRC } from '../constants/k8sReadings';
 import { LANGUAGE_LABELS, isLanguageId, type LanguageId } from '../constants/languages';
@@ -154,22 +155,11 @@ function canOpen(minor: MinorEntry, isAdmin: boolean): boolean {
   return (minor.status === 'ready' || isAdmin) && hasAuthoredContent(minor);
 }
 
-function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
+export function MinorsGrid(): JSX.Element {
+  const isAdmin = useIsAdmin();
   return (
-    <div className="app-page play-problems-page app-page--no-scrollbar">
-      <header className="play-problems-hero">
-        <div className="play-problems-hero-copy">
-          <h1 className="play-problems-title">Minors</h1>
-          <p className="play-problems-lead">
-            Small independent builds — a listener, a protocol, a storage engine. Each one is a
-            working program you can run and break on its own; the bigger ones come in a few
-            chapters.
-          </p>
-        </div>
-      </header>
-
-      <section className="playgrounds-grid">
-        {MINORS.map((minor) => {
+    <section className="playgrounds-grid" aria-label="Minors">
+      {MINORS.map((minor) => {
           if (!canOpen(minor, isAdmin)) {
             return (
               <div key={minor.id} className="playground-tile playground-tile--soon">
@@ -201,9 +191,8 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
               </span>
             </Link>
           );
-        })}
-      </section>
-    </div>
+      })}
+    </section>
   );
 }
 
@@ -218,7 +207,7 @@ function MinorDetail({
     <div className="app-page play-problems-page project-detail--list app-page--no-scrollbar">
       <header className="project-detail-compact">
         <p className="play-papers-crumb">
-          <Link to={MINORS_PATH}>Minors</Link>
+          <Link to={PROJECTS_PATH}>Projects</Link>
           <span aria-hidden> / </span>
           <span>{minor.name}</span>
         </p>
@@ -284,7 +273,7 @@ function MinorReading({
         ) : null}
         <header className="spark-primer-header">
           <p className="spark-primer-crumb">
-            <Link to={MINORS_PATH}>Minors</Link>
+            <Link to={PROJECTS_PATH}>Projects</Link>
             <span aria-hidden> / </span>
             <Link to={minorPath}>{minor.name}</Link>
             <span aria-hidden> / </span>
@@ -355,8 +344,8 @@ export default function MinorsPage(): JSX.Element {
   const minor = getMinor(minorId);
   const [language, setLanguage] = useMinorLanguage(minor);
 
-  if (!minorId) return <MinorsIndex isAdmin={isAdmin} />;
-  if (!minor || !canOpen(minor, isAdmin)) return <Navigate to={MINORS_PATH} replace />;
+  if (!minorId) return <Navigate to={PROJECTS_PATH} replace />;
+  if (!minor || !canOpen(minor, isAdmin)) return <Navigate to={PROJECTS_PATH} replace />;
   const minorPath = `${MINORS_PATH}/${minor.id}`;
 
   if (minor.chapters) {
@@ -380,7 +369,7 @@ export default function MinorsPage(): JSX.Element {
         content={content}
         earlierChapters={earlierChapters(minor, chapter, language)}
         trail={[
-          { to: MINORS_PATH, label: 'Minors' },
+          { to: PROJECTS_PATH, label: 'Projects' },
           { to: `${minorPath}?lang=${language}`, label: minor.name },
         ]}
         title={`${chapter.label} · ${LANGUAGE_LABELS[language]}`}
@@ -399,13 +388,13 @@ export default function MinorsPage(): JSX.Element {
 
   if (chapterId) return <Navigate to={minorPath} replace />;
   const content = getMinorContent(minor.id);
-  if (!content) return <Navigate to={MINORS_PATH} replace />;
+  if (!content) return <Navigate to={PROJECTS_PATH} replace />;
 
   return (
     <ModuleWorkspace
       persistId={`minor.${minor.id}.v2`}
       content={content}
-      trail={[{ to: MINORS_PATH, label: 'Minors' }]}
+      trail={[{ to: PROJECTS_PATH, label: 'Projects' }]}
       title={minor.name}
     />
   );

@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import BrandMark from './BrandMark';
-import { MAJORS_PATH } from '../constants/projects';
-import { MINORS_PATH } from '../constants/minors';
+import { PROJECTS_PATH } from '../constants/projects';
+import { MACHINE_CODING_PATH } from '../constants/machineCoding';
 import { PRICING_PATH } from '../constants/pricing';
 import { MONTHLY_PAPER_PATH } from '../constants/monthlyPaper';
 import { LEADERBOARD_PATH } from '../constants/leaderboard';
@@ -24,8 +24,8 @@ export default function PlatformFooter({ signedIn, onRequestLogin }: PlatformFoo
 
   const learnLinks: FooterLink[] = [
     { label: 'Tracks', to: '/track' },
-    { label: 'Majors', to: MAJORS_PATH },
-    { label: 'Minors', to: MINORS_PATH },
+    { label: 'Projects', to: PROJECTS_PATH },
+    { label: 'Machine coding', to: MACHINE_CODING_PATH },
     { label: 'Paper of the Month', to: MONTHLY_PAPER_PATH },
   ];
 

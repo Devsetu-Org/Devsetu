@@ -6,14 +6,139 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=7" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=7" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet" />
     <title>DevSetu</title>
+    <style>
+      /* Painted before JS/CSS modules load — kills the white flash on every route. */
+      html, body {
+        margin: 0;
+        background: #000;
+        color: #eef0ff;
+      }
+
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        font-family: "Satoshi", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        transition: opacity 0.28s ease;
+      }
+
+      #app-splash.is-hiding {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #app-splash .app-splash-mark {
+        width: 56px;
+        height: 56px;
+        display: block;
+      }
+
+      #app-splash .app-splash-name {
+        margin: 18px 0 0;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: #eef0ff;
+      }
+
+      #app-splash .app-splash-progress {
+        margin-top: 28px;
+        width: 160px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+      }
+
+      #app-splash .app-splash-progress > span {
+        display: block;
+        height: 100%;
+        width: 100%;
+        transform-origin: left center;
+        transform: scaleX(0);
+        border-radius: inherit;
+        background: #10b981;
+        animation: app-splash-fill 3.2s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+      }
+
+      #app-splash.is-hiding .app-splash-progress > span {
+        animation: none;
+        transform: scaleX(1);
+        transition: transform 0.12s ease;
+      }
+
+      #app-splash .app-splash-foot {
+        position: absolute;
+        bottom: max(28px, env(safe-area-inset-bottom, 0px));
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #6c7595;
+      }
+
+      #app-splash .app-splash-foot svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        opacity: 0.85;
+      }
+
+      @keyframes app-splash-fill {
+        0% { transform: scaleX(0); }
+        18% { transform: scaleX(0.22); }
+        42% { transform: scaleX(0.48); }
+        70% { transform: scaleX(0.72); }
+        100% { transform: scaleX(0.86); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash {
+          transition: none;
+        }
+        #app-splash .app-splash-progress > span {
+          animation: none;
+          transform: scaleX(0.55);
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="app-splash" role="status" aria-live="polite" aria-busy="true" aria-label="Loading DevSetu">
+      <svg class="app-splash-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <g stroke="#10b981" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="32" y1="16" x2="14" y2="48" />
+          <line x1="32" y1="16" x2="50" y2="48" />
+          <line x1="14" y1="48" x2="50" y2="48" />
+        </g>
+        <circle cx="32" cy="16" r="6.5" fill="#38bdf8" />
+        <circle cx="14" cy="48" r="6.5" fill="#10b981" />
+        <circle cx="50" cy="48" r="6.5" fill="#10b981" />
+      </svg>
+      <p class="app-splash-name">DevSetu</p>
+      <div class="app-splash-progress" aria-hidden="true"><span></span></div>
+      <div class="app-splash-foot">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="11" width="16" height="10" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        <span>Secure cloud labs</span>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

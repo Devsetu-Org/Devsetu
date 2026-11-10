@@ -61,6 +61,24 @@ In `internal/btree/delete.go`. `delete(no, key)` returns `(found, under bool, er
 
 `underfull` is given in `balance.go`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.1)` — `delete_rec`
+
+In `btreekv/btree/delete.py`. `_delete(no, key)` returns `(found, underfull)`:
+
+1. Load the node.
+2. Leaf: `leaf_index`. Absent → `(False, False)` without writing. Present → `remove_leaf_at`, store, return `(True, underfull())`.
+3. Internal: `child_index`, recurse. If not found or child not underfull, return as-is. Otherwise `rebalance` and return `(True, underfull())`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.1)` — `DeleteRec`
+
+In `src/btree/delete.cc`. `DeleteRec(no, key)` returns `(found, underfull)`:
+
+1. Load the node.
+2. Leaf: `LeafIndex`. Absent → `{false, false}` without writing. Present → `RemoveLeafAt`, `Store`, return `{true, Underfull()}`.
+3. Internal: `ChildIndex`, recurse. If not found or child not underfull, return as-is. Otherwise `Rebalance` and return `{true, Underfull()}`.
+<!-- /lang -->
 
 ## Borrow or merge
 <!-- mode: read-and-implement tasks:5.2 -->
@@ -107,6 +125,16 @@ In `internal/btree/delete.go`. `rebalance(parentNo, parent, i)` repairs child `i
 3. Otherwise `parent.keys[li] = redistribute(left, right, sep)` and store both pages.
 4. In both cases finish with `t.store(parentNo, parent)`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.2)` — `rebalance`
+
+In `btreekv/btree/delete.py`. Prefer the left sibling when `i > 0`. Load both sides. `can_merge` → `merge_nodes`, free the right page, `remove_child`. Else `redistribute` and store both. Always store the parent.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.2)` — `Rebalance`
+
+In `src/btree/delete.cc`. Prefer the left sibling when `i > 0`. Load both sides. `CanMerge` → `MergeNodes`, free the right page, `RemoveChild`. Else `Redistribute` and store both. Always store the parent.
+<!-- /lang -->
 
 ## Shrinking the tree
 <!-- mode: read-and-implement tasks:5.3 -->
@@ -136,6 +164,16 @@ In `internal/btree/delete.go`:
 3. Shrink the root in a loop. Load the root. A leaf with no keys: `t.io.SetRoot(0)`. An internal node with no keys: `t.io.SetRoot(n.children[0])`. Either way `t.io.Free(oldRoot)` **after** `SetRoot`, and loop again. Anything else ends the loop.
 
 Return `true, nil`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.3)` — `Delete`
+
+In `btreekv/btree/delete.py`: empty root or empty key → `False`. Call `_delete`. Then shrink: empty leaf root → root 0; keyless internal root → promote its child. `set_root` before `free`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.3)` — `Delete`
+
+In `src/btree/delete.cc`: empty root or empty key → `false`. Call `DeleteRec`. Then shrink: empty leaf root → root 0; keyless internal root → promote its child. `SetRoot` before `Free`.
 <!-- /lang -->
 
 > [!tip] What a real engine does here
@@ -181,6 +219,16 @@ In `internal/db/scan.go`. `Scan` holds the read lock already, so readers run alo
 > would wait for a lock their own caller holds). The keys and values it receives are
 > private copies, so keeping them is safe.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.4)` — `scan`
+
+In `btreekv/db/scan.py`. `SeekLeaf(start)`, then walk leaves via `next`. Skip keys `< start`; stop when `end` is set and the key is `>= end`, or when `fn` returns false.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.4)` — `Scan`
+
+In `src/db/scan.cc`. `SeekLeaf(start)`, then walk leaves via `next`. Skip keys `< start`; stop when `end` is non-empty and the key is `>= end`, or when `fn` returns false.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -190,6 +238,19 @@ In `internal/db/scan.go`. `Scan` holds the read lock already, so readers run alo
 make test     # every acceptance test
 make race     # the same tests with the race detector
 make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
+make run
 ```
 <!-- /lang -->
 

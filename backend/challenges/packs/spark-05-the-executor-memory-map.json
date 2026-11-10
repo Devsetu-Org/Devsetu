@@ -1,0 +1,41 @@
+{
+  "id": "spark-05-the-executor-memory-map",
+  "number": 814,
+  "finalized": false,
+  "title": "The Executor Memory Map",
+  "description": "**SITUATION:**\n\nBefore the memory bugs in the next labs, you need a mental diagram of a single executor \u2014 the same picture on-call draws on a whiteboard when someone says \"give it 4g.\"\n\n`spark.executor.memory` is the heap Spark asks for. Inside that heap sit reserved memory, user memory, and the unified region that execution and storage share. Outside the heap entirely sit off-heap memory (when enabled) and overhead the OS and JVM still need. Mixing those buckets is how teams OOM an executor while the UI still shows \"free\" storage.\n\nThis lab is orientation only: label the map, then predict how three different knob combinations carve the heap.\n\n**YOUR TASK:**\n\n1. Label a blank executor memory diagram: reserved, user, unified execution/storage, off-heap, and overhead.\n2. For three different `spark.executor.memory` / `spark.memory.fraction` combinations (given in the lab), predict roughly how much room is left for actual task execution.\n3. Keep on-heap unified memory, off-heap, and overhead in separate buckets \u2014 do not collapse them into one \"memory\" number.\n4. Record the labeled map and all three predictions in the Investigation tab.\n\n**SPEC:**\n\n- The labeled diagram matches the unified memory manager model Spark uses on this cluster.\n- The three predictions are in the right ballpark for the given knobs.\n- You can say which of `spark.memory.fraction` and `spark.memory.storageFraction` splits which region.\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "l0",
+    "foundations",
+    "orientation",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Overhead is outside the heap you set with spark.executor.memory.",
+      "memory.fraction takes its cut of the heap first; storageFraction only splits the unified region after that.",
+      "Off-heap is a separate pool when spark.memory.offHeap.enabled is on \u2014 it is not a rename of storage.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "The Executor Memory Map",
+    "brief": "The Executor Memory Map",
+    "solution": "",
+    "idLabel": "05",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "chapter": "foundations",
+    "kind": "orientation"
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

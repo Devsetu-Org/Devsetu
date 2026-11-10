@@ -34,6 +34,12 @@ An expression evaluates against one row:
 <!-- lang: go -->
 `Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `internal/exec/row.go`. `Truth` is in `eval.go` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.go` wires the pipeline and is given. You write `Scan.Next`, `Eval`, `Filter.Next`, and `Project.Next`.
 <!-- /lang -->
+<!-- lang: python -->
+`Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `sqlq/execute/row.py`. `Truth` is in `eval.py` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.py` wires the pipeline and is given. You write `scan_next`, `Eval`, `filter_next`, and `project_next`.
+<!-- /lang -->
+<!-- lang: cpp -->
+`Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `src/execute/row.h`. `Truth` is in `eval.cc` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.cc` wires the pipeline and is given. You write `Scan::Next`, `Eval`, `Filter::Next`, and `Project::Next`.
+<!-- /lang -->
 
 ## The scan
 <!-- mode: read-and-implement tasks:4.1 -->
@@ -48,6 +54,24 @@ In `internal/exec/scan.go`:
 1. When `s.i >= len(s.Rows)`, return `Row{}, false, nil`.
 2. Copy `s.Rows[s.i]` with `append([]catalog.Value(nil), ...)`, then increment `s.i`.
 3. Return `Row{Cols: append([]string(nil), s.Cols...), Vals: vals}, true, nil`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `scan_next`
+
+In `sqlq/execute/scan.py`:
+
+1. When `s.i >= len(s.rows)`, return `(Row(), False, None)`.
+2. Copy `s.rows[s.i]` with `list(...)`, then increment `s.i`.
+3. Return `(Row(cols=list(s.cols), vals=vals), True, None)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `Scan::Next`
+
+In `src/execute/scan.cc`:
+
+1. When `i >= rows.size()`, return `{Row{}, false}`.
+2. Copy `rows[i]` into the result, then increment `i`.
+3. Return a `Row` with copies of `cols` and `vals`, and `true`.
 <!-- /lang -->
 
 ## The filter
@@ -75,6 +99,46 @@ In `internal/exec/filter.go`:
 3. `keep, err := f.Pred(row)`. An error fails the filter.
 4. When `keep` is true, return the row. Otherwise pull again.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.2)` — `Eval`
+
+In `sqlq/execute/eval.py`. Switch on the expression:
+
+- `IntLit` → `Int(e.v)`. `StrLit` → `Text(e.v)`.
+- `Ident` → `row.Get(e.name)`. `Qual` → `row.Get(e.table + "." + e.name)`, then `row.Get(e.name)` if the qualified name misses. Missing is an error.
+- `Binary` with `op == "AND"`: eval the left side. When it is bool and false, return `Bool(False)` without evaluating the right side. Otherwise the result is the right side, which must be bool.
+- `Binary` with `=`, `<`, or `>`: eval both sides. Reject different types. Compare `i` for `INT` and `s` for `TEXT`. Return `Bool`.
+- `Call`: raise an error. Aggregates are not evaluated here.
+
+### `TODO(4.3)` — `filter_next`
+
+In `sqlq/execute/filter.py`:
+
+1. Loop. `row, ok, err = f.child.Next()`.
+2. On an error, or when `ok` is false, return that triple.
+3. Call `f.pred(row)`. An error fails the filter.
+4. When keep is true, return the row. Otherwise pull again.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.2)` — `Eval`
+
+In `src/execute/eval.cc`. Switch on the expression:
+
+- `IntLit` → `Int(n->v)`. `StrLit` → `Text(s->v)`.
+- `Ident` → `row.Get(id->name)`. `Qual` → `row.Get(table + "." + name)`, then bare name if that misses. Missing is an error.
+- `Binary` with `op == "AND"`: eval the left side. When it is bool and false, return `Bool(false)` without evaluating the right side. Otherwise the result is the right side, which must be bool.
+- `Binary` with `=`, `<`, or `>`: eval both sides. Reject different types. Compare `i` for `INT` and `s` for `TEXT`. Return `Bool`.
+- `Call`: throw an error. Aggregates are not evaluated here.
+
+### `TODO(4.3)` — `Filter::Next`
+
+In `src/execute/filter.cc`:
+
+1. Loop. Pull from `child->Next()`.
+2. On a finished child, return finished.
+3. Call `pred(row)`. An error fails the filter.
+4. When keep is true, return the row. Otherwise pull again.
+<!-- /lang -->
 
 ## The projection
 <!-- mode: read-and-implement tasks:4.4 -->
@@ -90,6 +154,23 @@ In `internal/exec/project.go`:
 2. `out, err := p.Pick(row)`. On error return `Row{}, false, err`.
 3. Return `out, true, nil`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.4)` — `project_next`
+
+In `sqlq/execute/project.py`:
+
+1. Pull one child row. Pass through a finished child or an error.
+2. `out = p.pick(row)`. On error return `(Row(), False, err)`.
+3. Return `(out, True, None)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.4)` — `Project::Next`
+
+In `src/execute/project.cc`:
+
+1. Pull one child row. Pass through a finished child.
+2. Return `pick(row)` with `true`.
+<!-- /lang -->
 
 `RunSelect` looks up the table, scans it under the alias (or the table name), wraps a `Filter` when there is a `WHERE`, then projects. `Query` on `sqlq.DB` calls it.
 
@@ -100,6 +181,18 @@ In `internal/exec/project.go`:
 ```bash
 make test
 make race
+make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
 make run
 ```
 <!-- /lang -->

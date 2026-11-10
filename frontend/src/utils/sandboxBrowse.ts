@@ -24,7 +24,7 @@ export function servicesFromPortMap(
   }));
 }
 
-const UI_SERVICE_RE = /ui|dashboard|console|admin|kafka-ui|akhq|grafana|kibana|spark-master/i;
+const UI_SERVICE_RE = /ui|dashboard|console|admin|kafka-ui|akhq|grafana|kibana|spark-master|ds-spark/i;
 
 export function pickDefaultBrowseService(
   portMap: Record<string, string | number> | null | undefined,

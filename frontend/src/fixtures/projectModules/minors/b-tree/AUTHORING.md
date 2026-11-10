@@ -4,10 +4,10 @@ A chaptered minor: `constants/minors.ts` lists the chapters, and each `ready`
 chapter has a fixture per language registered in `MINOR_CHAPTER_CONTENT`
 (`fixtures/projectModules/index.ts`), keyed `minor/chapter/language`. The minor
 stays `planned` (admin preview only) until enough chapters are authored to launch.
-Chapters 1–5 are authored in Go; the benchmark chapter is still planned.
+Chapters 1–5 are authored in Go; Python and C++ ports follow the LSM tree minor’s
+pattern. The benchmark chapter is still planned.
 
-Languages start with Go only (`languages: ['go']` on the minor entry). Python
-and C++ can follow the LSM tree minor’s porting pattern later. The learner
+Languages are Go, Python and C++ (`languages` on the minor entry). The learner
 picks a language inside a chapter; it travels as `?lang=` and is remembered
 per minor.
 
@@ -16,22 +16,23 @@ per minor.
 | # | id | Status | Student focus (task ids) | Author-owned (grows over time) |
 | --- | --- | --- | --- | --- |
 | 0 | `overview` | **ready** | reading only (`bTreeOverview.ts`): storage engines, B-tree vs LSM, where B-trees run, the plan | keep the chapter table in sync with `minors.ts` |
-| 1 | `pager` | **ready** (Go) | 1.1 `WritePage`, 1.2 `ReadPage` (`pager/readwrite.go`); 1.3 `Allocate`, 1.4 `Free` (`pager/alloc.go`) | page size, header and free-page layout, `Open`/`Sync`/`Close`, REPL stub |
-| 2 | `btree` | **ready** (Go) | 2.1 binary search, 2.2 `findLeaf`/`Get` (`btree/search.go`); 2.3 `leafPut`, 2.4 `split`, 2.5 `Insert` (`btree/insert.go`) | `PageIO`, node codec, `Check`, `DB.Get`/`Put` without WAL |
-| 3 | `write-ahead-log` | **ready** (Go) | 3.1 `encode` (`wal/record.go`); 3.2 `Append` (`wal/writer.go`); 3.3 `scan` (`wal/reader.go`); 3.4 `recoverLog`/`commit` (`db/recover.go`) | `txn` overlay, `apply`, meta/commit records, checkpoint on `Close` |
-| 4 | `buffer-pool` | **ready** (Go) | 4.1 `pin`/`Unpin` (`buffer/pin.go`); 4.2 `victim` (`buffer/evict.go`); 4.3 `flushFrame` (`buffer/flush.go`) | frame table, `Pool` as a `PageIO`, `FlushAll`, `db.go` wiring |
-| 5 | `mutations` | **ready** (Go) | 5.1 `delete`, 5.2 `rebalance`, 5.3 `Delete` (`btree/delete.go`); 5.4 `Scan` (`db/scan.go`) | merge/redistribute helpers, `SeekLeaf`/`ReadLeaf`, public API complete |
+| 1 | `pager` | **ready** (go, python, cpp) | 1.1 `WritePage`, 1.2 `ReadPage`; 1.3 `Allocate`, 1.4 `Free` | page size, header and free-page layout, `Open`/`Sync`/`Close`, REPL stub |
+| 2 | `btree` | **ready** (go, python, cpp) | 2.1 binary search, 2.2 `findLeaf`/`Get`; 2.3 `leafPut`, 2.4 `split`, 2.5 `Insert` | `PageIO`, node codec, `Check`, `DB.Get`/`Put` without WAL |
+| 3 | `write-ahead-log` | **ready** (go, python, cpp) | 3.1 `encode`; 3.2 `Append`; 3.3 `scan`; 3.4 `recoverLog`/`commit` | `txn` overlay, `apply`, meta/commit records, checkpoint on `Close` |
+| 4 | `buffer-pool` | **ready** (go, python, cpp) | 4.1 `pin`/`Unpin`; 4.2 `victim`; 4.3 `flushFrame` | frame table, `Pool` as a `PageIO`, `FlushAll`, `db.go` wiring |
+| 5 | `mutations` | **ready** (go, python, cpp) | 5.1 `delete`, 5.2 `rebalance`, 5.3 `Delete`; 5.4 `Scan` | merge/redistribute helpers, `SeekLeaf`/`ReadLeaf`, public API complete |
 | 6 | `benchmark` | planned | hosted runner (see LSM benchmark design) | placeholder until infra lands |
 
-Build chapters are registered as they are authored (same pattern as
-`lsmTreeChaptersGo.ts`). A chapter shows as "Soon" until it has a fixture.
+Build chapters are registered as they are authored (`bTreeChaptersGo.ts`,
+`bTreeChaptersPython.ts`, `bTreeChaptersCpp.ts`). A chapter shows as "Soon"
+until it has a fixture.
 
 ## Product name
 
 The engine is **`btreekv`**: a directory of pages (`data.db`), a WAL
 (`wal.log`), and a small REPL. Public API matches the LSM minor on purpose:
 
-```go
+```
 Open(dir, Options) (*DB, error)
 Put(key, value []byte) error
 Delete(key []byte) error
@@ -49,8 +50,8 @@ protocol.
 <chapter>/
   theory.md            shared by every language
   go/files/            starter repo      go/solution/      edited files only
-  python/files/        (later)
-  cpp/files/           (later)
+  python/files/        starter repo      python/solution/
+  cpp/files/           starter repo      cpp/solution/
 ```
 
 ## Rules
@@ -63,10 +64,14 @@ protocol.
 - Task ids, task count and test cases stay the same across languages when ports
   land. A port changes syntax and idiom, never what the chapter teaches.
 - `theory.md` is shared. Anything that names a function, type, file or command
-  goes inside `<!-- lang: go -->` … `<!-- /lang -->`. Do not hard-wrap theory.
+  goes inside `<!-- lang: go -->` … `<!-- /lang -->` (a block may list several,
+  e.g. `<!-- lang: python, cpp -->`). Text outside lang blocks shows for all.
+- Do not hard-wrap `theory.md`. The theory renderer turns every source line into its
+  own paragraph, so write one line per paragraph or list item.
 - A chapter is done when its tests pass. Tests are given; they must fail with a
-  clear message (or a `TODO` panic) on the starter and pass on `solution/`.
-- No third-party dependencies: Go stdlib only for v1.
+  clear message (or a `TODO` panic / exception) on the starter and pass on `solution/`.
+- No third-party dependencies: Go stdlib, Python stdlib `unittest` (3.9+),
+  C++17 with a plain Makefile and `tests/check.h`.
 - `solution/` holds only the files students edit. It is never imported, so it
   never ships in the bundle. Chapter N+1’s starter contains chapter N solved as
   the reference a learner can opt into.
@@ -86,30 +91,52 @@ Same rules as the LSM minor (`utils/chapterCarry.ts`):
 - Later features go in through given hooks (for example the buffer pool wraps
   the pager; the WAL sits under `commit` the same way the LSM minor did).
 
-## Suggested Go package layout (chapter 5)
+## Package layout (chapter 5)
 
 ```
+# Go
 cmd/btreekv/main.go
 internal/pager/       // ch1
 internal/btree/       // ch2
 internal/wal/         // ch3
 internal/buffer/      // ch4
 internal/db/          // open, commit, scan; grows each chapter
+
+# Python
+btreekv/pager/
+btreekv/btree/
+btreekv/wal/
+btreekv/buffer/
+btreekv/db/
+
+# C++
+src/pager/
+src/btree/
+src/wal/
+src/buffer/
+src/db/
+cmd/btreekv/main.cc
 ```
 
 ## Verifying a chapter
 
-With the chapter’s `solution/` overlaid on `files/`:
-
 ```bash
-gofmt -l .
-go vet ./...
-go test -race -count=1 ./...
+SRC=frontend/src/fixtures/projectModules/minors/b-tree/<chapter>
+T=$(mktemp -d)
+for L in go python cpp; do
+  [ -d $SRC/$L/files ] || continue
+  cp -R $SRC/$L/files $T/$L && cp -R $SRC/$L/solution/. $T/$L/
+done
+(cd $T/go && gofmt -l . && go vet ./... && make test && make race)
+(cd $T/python && make test)
+(cd $T/cpp && make test)
+# AddressSanitizer hangs on recent macOS clang; run it in Linux instead:
+docker run --rm -v "$T/cpp":/src -w /src gcc:13 make asan
 ```
 
-The starter must compile (`go vet` clean) and fail only on its own `TODO`
-panics. Learner-owned files must be byte-identical in every later chapter’s
-`files/` once those chapters exist.
+Also run the starters (`files/` alone) and confirm every task's tests fail.
+Learner-owned files must be byte-identical in every later chapter’s `files/`
+once those chapters exist.
 
 ## Design notes (chapters 1–5)
 
@@ -127,18 +154,8 @@ panics. Learner-owned files must be byte-identical in every later chapter’s
   never had.
 - Learner files are pure-function-ish and stable; wiring (`db.go`, `pool.go`,
   `txn.go`, `apply.go`) is given and changes between chapters.
-
-## Authoring tips
-
-Starters and solutions were generated from one annotated source per learner
-file (`//#TODO N.x name` … `//#BODY` … `//#END`, `//#SOL` for solution-only
-imports). If you edit a solution by hand, keep the starter's `TODO(N.x)`
-markers and hints in step and re-check that later chapters' `files/` still carry
-the solution byte for byte.
-
-## Not built yet
-
-Limits worth knowing: the log is only emptied on `Close`, so a long-running,
-frequently crashing process replays its whole history on every open; pages are
-logged whole (no deltas); a single writer lock serializes all writes; keys are
-at most 128 bytes and values 1024. Python and C++ ports are not started.
+- **Limits:** the log is only emptied on `Close`, so a long-running,
+  frequently crashing process replays its whole history on every open; pages are
+  logged whole (no deltas); a single writer lock serializes all writes; keys are
+  at most 128 bytes and values 1024. Same page size (4 KiB) and WAL after-image
+  framing in every language.

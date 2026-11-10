@@ -457,7 +457,7 @@ export const MINORS: MinorEntry[] = [
       'Git stores every version of every file as a hashed object. Directories are trees of those hashes. A commit points at a tree and at parent commits, so history is a graph of snapshots, not a list of patches.',
       'You build tinygit: init, hash-object, cat-file, add, status, commit, checkout, log, diff, and merge. Loose objects only. No remotes, no packfiles, no rebase. Each chapter ends with tests that prove that piece works.',
     ],
-    language: 'Go',
+    language: 'Go · Python · C++',
     facts: [
       'Objects',
       'Index',
@@ -466,7 +466,7 @@ export const MINORS: MinorEntry[] = [
     ],
     status: 'planned',
     chapters: GIT_CHAPTERS,
-    languages: ['go'],
+    languages: ['go', 'python', 'cpp'],
   },
   {
     id: 'shell',
@@ -478,7 +478,7 @@ export const MINORS: MinorEntry[] = [
       'A shell is a small language that starts processes. Words become argv. Operators open files or connect pipes. The hard part is getting the file descriptors right before the child runs.',
       'You build tinysh: a lexer with quotes, exec with PATH and builtins, redirects, pipelines, and a light jobs chapter. Gold scripts compare stdout, stderr, and exit status to a fixed reference. No job-control TTY full story, no functions, no $(…).',
     ],
-    language: 'Go',
+    language: 'Go · Python · C++',
     facts: [
       'Lexer',
       'Pipes',
@@ -487,7 +487,7 @@ export const MINORS: MinorEntry[] = [
     ],
     status: 'planned',
     chapters: SHELL_CHAPTERS,
-    languages: ['go'],
+    languages: ['go', 'python', 'cpp'],
   },
   {
     id: 'search-index',
@@ -499,7 +499,7 @@ export const MINORS: MinorEntry[] = [
       'Search is not SQL. Documents become tokens; tokens become sorted lists of document ids; a query walks those lists and ranks the survivors.',
       'You build findx: an analyzer, on-disk postings segments, an index that flushes, boolean AND/OR retrieval, and BM25 ranking. No phrase queries, no positional index, no distributed shards. Each chapter ends with tests that prove that piece works.',
     ],
-    language: 'Go',
+    language: 'Go · Python · C++',
     facts: [
       'Postings',
       'BM25',
@@ -508,7 +508,7 @@ export const MINORS: MinorEntry[] = [
     ],
     status: 'planned',
     chapters: SEARCH_CHAPTERS,
-    languages: ['go'],
+    languages: ['go', 'python', 'cpp'],
   },
   {
     id: 'query-engine',
@@ -520,7 +520,7 @@ export const MINORS: MinorEntry[] = [
       'A SQL engine reads text and returns rows. The text is split into tokens, parsed into a tree, checked against a catalog of tables, then executed as a pipeline of scans, filters, joins, and aggregates.',
       'You build a small dialect: CREATE TABLE, INSERT, and SELECT with WHERE, inner JOIN, GROUP BY, ORDER BY, and LIMIT. Tables live in memory. There is no optimizer and no index. Each chapter ends with tests that prove that piece works.',
     ],
-    language: 'Go',
+    language: 'Go · Python · C++',
     facts: [
       'SQL',
       'Parser',
@@ -529,7 +529,7 @@ export const MINORS: MinorEntry[] = [
     ],
     status: 'planned',
     chapters: QUERY_ENGINE_CHAPTERS,
-    languages: ['go'],
+    languages: ['go', 'python', 'cpp'],
   },
   {
     id: 'b-tree',
@@ -541,7 +541,7 @@ export const MINORS: MinorEntry[] = [
       'A B+ tree keeps every key in exactly one place. Leaves hold the data; internal pages hold only separators that guide a lookup down a short path. Pages update in place, so a write is a root-to-leaf walk and a page rewrite.',
       'Around the tree sit the pieces that make it a real engine: a pager that owns the page file and freelist, a write-ahead log so a crash loses nothing, and a buffer pool that keeps hot pages in memory. Each chapter ends with tests that prove that piece works.',
     ],
-    language: 'Go',
+    language: 'Go · Python · C++',
     facts: [
       'Pager',
       'B+ tree',
@@ -549,7 +549,7 @@ export const MINORS: MinorEntry[] = [
     ],
     status: 'planned',
     chapters: B_TREE_CHAPTERS,
-    languages: ['go'],
+    languages: ['go', 'python', 'cpp'],
   },
   {
     id: 'consensus',
@@ -561,7 +561,7 @@ export const MINORS: MinorEntry[] = [
       'Distributed systems that must not disagree use a consensus protocol. Raft elects one leader per term, replicates a log to a majority, and applies committed entries to a state machine in the same order on every node.',
       'You build the pieces in order: election, AppendEntries, commit and apply, durable persistence, then a small client API on top. Network partitions and crashes are part of the tests from the start.',
     ],
-    language: 'Go',
+    language: 'Go · Python · C++',
     facts: [
       'Raft',
       'Election',
@@ -569,7 +569,7 @@ export const MINORS: MinorEntry[] = [
     ],
     status: 'planned',
     chapters: CONSENSUS_CHAPTERS,
-    languages: ['go'],
+    languages: ['go', 'python', 'cpp'],
   },
   {
     id: 'lsm-tree',

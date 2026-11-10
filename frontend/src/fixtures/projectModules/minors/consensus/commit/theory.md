@@ -87,6 +87,16 @@ The leader runs this after every successful reply (`advanceCommit` is already ca
 
 In `internal/raft/commit.go`: do nothing unless `rf.role == Leader`. Loop `n` from `rf.lastLogIndex()` down to `rf.commitIndex+1`; `return` at the first entry whose `Term != rf.currentTerm`; count `1` plus `rf.matchIndex[i] >= n` for `i != rf.me`; at `rf.majority()` set `rf.commitIndex = n`, `rf.applyCond.Broadcast()`, and return.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.1)` — `advance_commit`
+
+In `raftkv/raft/commit.py`: do nothing unless `self.role == Leader`. Loop `n` from `self.lastLogIndex()` down to `self.commitIndex+1`; `return` at the first entry whose `Term != self.currentTerm`; count `1` plus `self.matchIndex[i] >= n` for `i != self.me`; at `self.majority()` set `self.commitIndex = n`, `self.applyCond.Broadcast()`, and return.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.1)` — `advanceCommit`
+
+In `src/raft/commit.cc`: do nothing unless `rf.role == Leader`. Loop `n` from `rf.lastLogIndex()` down to `rf.commitIndex+1`; `return` at the first entry whose `Term != rf.currentTerm`; count `1` plus `rf.matchIndex[i] >= n` for `i != rf.me`; at `rf.majority()` set `rf.commitIndex = n`, `rf.applyCond.Broadcast()`, and return.
+<!-- /lang -->
 
 ## Committing as a follower
 <!-- mode: read-and-implement tasks:3.2 -->
@@ -113,6 +123,16 @@ Every `AppendEntries` carries `LeaderCommit`. A follower moves its own `commitIn
 
 In `internal/raft/commit.go`: compute `min(leaderCommit, lastNew)`; if it is greater than `rf.commitIndex`, set it and `rf.applyCond.Broadcast()`. Your chapter 2 `AppendEntries` already calls this after appending.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.2)` — `follower_advance_commit`
+
+In `raftkv/raft/commit.py`: compute `min(leaderCommit, lastNew)`; if it is greater than `self.commitIndex`, set it and `self.applyCond.Broadcast()`. Your chapter 2 `append_entries` already calls this after appending.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.2)` — `followerAdvanceCommit`
+
+In `src/raft/commit.cc`: compute `min(leaderCommit, lastNew)`; if it is greater than `rf.commitIndex`, set it and `rf.applyCond.Broadcast()`. Your chapter 2 `AppendEntries` already calls this after appending.
+<!-- /lang -->
 
 ## The apply loop
 <!-- mode: read-and-implement tasks:3.3 -->
@@ -123,6 +143,28 @@ Committed entries are only useful once something runs them. Each node hands them
 
 <!-- lang: go -->
 The state machine is the `StateMachine` interface in `raft.go`:
+
+```go
+type StateMachine interface {
+	Apply(index int, command []byte)
+}
+```
+
+The test harness plugs in a recorder that checks every apply: in order, no gaps, no repeats, and the same command at the same index on every server. In chapter 5 the key/value store is the state machine.
+<!-- /lang -->
+<!-- lang: python -->
+The state machine is the `StateMachine` interface in `raft.py`:
+
+```go
+type StateMachine interface {
+	Apply(index int, command []byte)
+}
+```
+
+The test harness plugs in a recorder that checks every apply: in order, no gaps, no repeats, and the same command at the same index on every server. In chapter 5 the key/value store is the state machine.
+<!-- /lang -->
+<!-- lang: cpp -->
+The state machine is the `StateMachine` interface in `raft.cc`:
 
 ```go
 type StateMachine interface {
@@ -151,6 +193,26 @@ In `internal/raft/commit.go`:
 3. Otherwise copy `rf.log[rf.lastApplied+1 : rf.commitIndex+1]`, remember the first index, set `rf.lastApplied = rf.commitIndex`, `rf.mu.Unlock()`.
 4. For each entry in order: stop if `rf.killed()`; skip if `rf.sm == nil`; `rf.sm.Apply(index, command)`. Then `rf.mu.Lock()`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.3)` — `apply_loop`
+
+In `raftkv/raft/commit.py`:
+
+1. `self.mu.Lock()` once, with a deferred `Unlock`. `for !self.killed() { ... }`.
+2. If `self.lastApplied >= self.commitIndex`: `self.applyCond.Wait()` and `continue`.
+3. Otherwise copy `self.log[self.lastApplied+1 : self.commitIndex+1]`, remember the first index, set `self.lastApplied = self.commitIndex`, `self.mu.Unlock()`.
+4. For each entry in order: stop if `self.killed()`; skip if `self.sm == nil`; `self.sm.Apply(index, command)`. Then `self.mu.Lock()`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.3)` — `applyLoop`
+
+In `src/raft/commit.cc`:
+
+1. `rf.mu.Lock()` once, with a deferred `Unlock`. `for !rf.killed() { ... }`.
+2. If `rf.lastApplied >= rf.commitIndex`: `rf.applyCond.Wait()` and `continue`.
+3. Otherwise copy `rf.log[rf.lastApplied+1 : rf.commitIndex+1]`, remember the first index, set `rf.lastApplied = rf.commitIndex`, `rf.mu.Unlock()`.
+4. For each entry in order: stop if `rf.killed()`; skip if `rf.sm == nil`; `rf.sm.Apply(index, command)`. Then `rf.mu.Lock()`.
+<!-- /lang -->
 
 ## Try it
 <!-- mode: read-only -->
@@ -159,6 +221,20 @@ In `internal/raft/commit.go`:
 ```bash
 make test     # chapters 1-3 acceptance tests
 make race     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # chapters 1-3 acceptance tests
+# (no race target)     # the same tests with the race detector
+make run      # a REPL over a 3-node cluster
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # chapters 1-3 acceptance tests
+make asan     # the same tests with the race detector
 make run      # a REPL over a 3-node cluster
 ```
 <!-- /lang -->

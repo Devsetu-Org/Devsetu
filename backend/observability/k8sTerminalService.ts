@@ -23,12 +23,13 @@ const path = require('path');
 const pty = require('node-pty');
 const sessionStore = require('../db/sessionStore');
 const loader = require('../challenges/loader');
-const { boxFlavor, isKafkaLabType } = require('../challenges/labTypes');
+const { boxFlavor, isKafkaLabType, isSparkLabType } = require('../challenges/labTypes');
 const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
 const k8sCluster = require('../workspace/k8sCluster');
 const labShell = require('../workspace/labShell');
 const linuxBox = require('../workspace/linuxBox');
 const kafkaBox = require('../workspace/kafkaBox');
+const sparkBox = require('../workspace/sparkBox');
 const sessionIdle = require('../workspace/sessionIdle');
 const sessionExclusivity = require('../workspace/sessionExclusivity');
 const terminalEventBus = require('./terminalEventBus');
@@ -233,6 +234,7 @@ function handleConnection(ws: ObservabilityWebSocket, req: IncomingMessage): voi
     challengeId,
     cols,
     rows,
+    node: (q.get('node') || '').trim() || null,
     exitNotice: isLinuxBlogPlayground(challengeId)
       ? 'The playground stays. Here is a fresh shell.'
       : undefined,
@@ -240,13 +242,16 @@ function handleConnection(ws: ObservabilityWebSocket, req: IncomingMessage): voi
   const sandboxType = loader.getChallenge(challengeId)?.sandboxType;
   const flavor: BoxFlavor | null = boxFlavor(sandboxType);
   const kafka = isKafkaLabType(sandboxType);
+  const spark = isSparkLabType(sandboxType);
 
   void (async () => {
     const started = flavor
       ? await startBoxShell(ws, target, flavor)
       : kafka
         ? await startKafkaShell(ws, target)
-        : await startKubectlShell(ws, target, session);
+        : spark
+          ? await startSparkShell(ws, target)
+          : await startKubectlShell(ws, target, session);
     if (!started) return;
     if (isLinuxBlogPlayground(challengeId)) {
       started.banner =
@@ -263,6 +268,8 @@ type ShellTarget = {
   challengeId: string;
   cols: number;
   rows: number;
+  /** Spark labs: shell | ds-spark-01 | ds-spark-02 | … */
+  node?: string | null;
   exitNotice?: string;
 };
 
@@ -376,6 +383,14 @@ const KAFKA_SUBTITLE =
   `\x1b[1;36m⚡ This cluster is yours\x1b[0m \x1b[1m— three Kafka brokers.\x1b[0m\r\n`
   + `\x1b[38;5;245mBOOTSTRAP_SERVERS lists the three brokers. The Kafka scripts are on PATH.\x1b[0m\r\n`;
 
+const SPARK_SUBTITLE =
+  `\x1b[1;36m⚡ This cluster is yours\x1b[0m \x1b[1m— a Spark master and its workers.\x1b[0m\r\n`
+  + `\x1b[38;5;245mSPARK_MASTER_URL is set. spark-submit and the Spark scripts are on PATH.\x1b[0m\r\n`;
+
+const SPARK_YARN_SUBTITLE =
+  `\x1b[1;36m⚡ This cluster is yours\x1b[0m \x1b[1m— a YARN ResourceManager and its NodeManagers.\x1b[0m\r\n`
+  + `\x1b[38;5;245mSubmit from shell with spark-submit --master yarn. RM UI is on ds-spark-01:8088.\x1b[0m\r\n`;
+
 /** Kafka labs: bash in the shell pod. No kubeconfig, no learner user. */
 async function startKafkaShell(
   ws: ObservabilityWebSocket,
@@ -395,6 +410,36 @@ async function startKafkaShell(
   }
   console.log(`[k8s-terminal] session=${sessionId} ns=${ns} pod=${kafkaBox.SHELL} challenge=${challengeId}`);
   return { child, cleanup: () => undefined, banner: KAFKA_SUBTITLE };
+}
+
+/** Spark labs: bash on the chosen node (shell / master / worker). No kubeconfig. */
+async function startSparkShell(
+  ws: ObservabilityWebSocket,
+  { sessionId, ns, challengeId, cols, rows, node }: ShellTarget,
+): Promise<StartedShell | null> {
+  let child: IPty;
+  const { pod } = sparkBox.resolveShellPod(node);
+  try {
+    const cmd = await k8sCluster.controllerKubectlCommand(sparkBox.shellExecArgs(ns, node));
+    child = pty.spawn('kubectl', cmd.args, {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      env: { ...cmd.env, TERM: 'xterm-256color' },
+    });
+  } catch (err: unknown) {
+    return spawnFailed(ws, sessionId, err);
+  }
+  console.log(`[k8s-terminal] session=${sessionId} ns=${ns} pod=${pod} challenge=${challengeId}`);
+  const where = pod === sparkBox.SHELL ? 'shell' : pod;
+  const shape = String(
+    (loader.getChallenge(challengeId)?.k8sPlatform as { shape?: string } | null | undefined)?.shape || '',
+  );
+  const yarn = shape === 'yarn-2';
+  const banner =
+    (yarn ? SPARK_YARN_SUBTITLE : SPARK_SUBTITLE)
+    + `\x1b[38;5;245mThis terminal is on \x1b[1m${where}\x1b[0m\x1b[38;5;245m. Switch nodes from the bar above.\x1b[0m\r\n`;
+  return { child, cleanup: () => undefined, banner };
 }
 
 /** Box labs: login shell as `learner` inside the lab's box pod. */

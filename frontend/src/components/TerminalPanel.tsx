@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 
 /** kubectl exec prints these when the API stream dies. They are not shell output. */
@@ -82,6 +83,9 @@ export default function TerminalPanel({
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon((_event, uri) => {
+      window.open(uri, '_blank', 'noopener');
+    }));
     term.open(hostRef.current);
     fitRef.current = fit;
     termRef.current = term;
@@ -117,7 +121,6 @@ export default function TerminalPanel({
     wsRef.current = ws;
     ws.addEventListener('open', () => sendResize());
     let tearingDown = false;
-    let sawTransportFault = false;
     let faultPartial = '';
     const decoder = new TextDecoder();
     const scrub = (chunk: string): string => {
@@ -129,13 +132,11 @@ export default function TerminalPanel({
       const tail = endedWithNl ? '' : (parts.pop() ?? '');
       const kept: string[] = [];
       for (const line of parts) {
-        if (isKubectlTransportFault(line)) sawTransportFault = true;
-        else kept.push(line);
+        if (!isKubectlTransportFault(line)) kept.push(line);
       }
       if (tail) {
-        if (isKubectlTransportFault(tail)) sawTransportFault = true;
-        else if (mightBeTransportFault(tail)) faultPartial = tail;
-        else kept.push(tail);
+        if (mightBeTransportFault(tail) && !isKubectlTransportFault(tail)) faultPartial = tail;
+        else if (!isKubectlTransportFault(tail)) kept.push(tail);
       }
       if (!kept.length) return '';
       const flushedTail = Boolean(tail) && !faultPartial && !isKubectlTransportFault(tail);
@@ -156,7 +157,8 @@ export default function TerminalPanel({
     ws.addEventListener('close', (ev: CloseEvent) => {
       if (!tearingDown) {
         onDisconnectRef.current?.({
-          idle: ev.code === 4001 || ev.reason === 'idle_timeout' || sawTransportFault,
+          // A kubectl blip is not the lab clock. Only the server's idle close is.
+          idle: ev.code === 4001 || ev.reason === 'idle_timeout',
         });
       }
     });
@@ -191,6 +193,7 @@ export default function TerminalPanel({
         fitRef.current && fitRef.current.fit();
         const term = termRef.current;
         const ws = wsRef.current;
+        if (term) term.focus();
         if (resizeProtocol && term && ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
         }

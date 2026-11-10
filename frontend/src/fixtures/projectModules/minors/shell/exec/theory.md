@@ -26,6 +26,20 @@ If the name contains a `/`, it is a path: resolve it against the shell's working
 2. Name with a separator → join with `dir` when relative, then `checkExec`.
 3. Otherwise read `PATH` via `envGet`, `filepath.SplitList`, join each dir with the name, `checkExec` until one works.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `look_path` in `tinysh/exec/path.py`
+
+1. Empty name → `ErrNotFound`.
+2. Name with a separator → join with `directory` when relative, then `check_exec`.
+3. Otherwise read `PATH` via `env_get`, split on `os.pathsep`, join each dir with the name, `check_exec` until one works.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `LookPath` in `src/exec/path.cc`
+
+1. Empty name → `NotFound`.
+2. Name with `/` → join with `dir` when relative, then `CheckExec`.
+3. Otherwise read `PATH` via `EnvGet`, split on `:`, join each dir with the name, `CheckExec` until one works.
+<!-- /lang -->
 
 ## Start and wait
 <!-- mode: read-and-implement tasks:2.2 -->
@@ -39,6 +53,22 @@ If the name contains a `/`, it is a path: resolve it against the shell's working
 2. `Command(path, argv[1:]...)` with `Dir`, `Env`, `Stdin`/`Stdout`/`Stderr` from `io`.
 3. `Start`; return the cmd.
 4. `waitProcess`: `Wait`, then `exitStatus` (already written).
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.2)` — `start_process` and `wait_process` in `tinysh/exec/run.py`
+
+1. `look_path(argv[0], s.dir, s.env)`.
+2. Build `subprocess.Popen` with `cwd`, `env`, and stdio from `io` (use the given `_has_fileno` / PIPE helpers when a stream lacks `fileno`).
+3. Return the process.
+4. `wait_process`: `wait`, join pumps, then `exit_status`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.2)` — `StartProcess` and `WaitProcess` in `src/exec/run.cc`
+
+1. `LookPath(argv[0], s.dir, s.env)`.
+2. `fork`; in the child `dup2` the stdio fds, `chdir`, `execve`.
+3. Return the pid.
+4. `WaitProcess`: `waitpid` and map to an exit status.
 <!-- /lang -->
 
 ## Builtins
@@ -60,6 +90,20 @@ If the name contains a `/`, it is a path: resolve it against the shell's working
 1. Optional integer argument (default 0).
 2. `s.setExit(code)` and return that code.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `builtin_cd` and `builtin_exit` in `tinysh/exec/builtin.py`
+
+`cd`: HOME with no args; resolve relative paths with `os.path.join(s.dir, ...)`; require a directory; set `s.dir`.
+
+`exit`: optional int (default 0); `s.set_exit(code)` and return it.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `BuiltinCd` and `BuiltinExit` in `src/exec/builtin.cc`
+
+`cd`: HOME with no args; resolve relative paths; `stat` must be a directory; set `s.dir`.
+
+`exit`: optional int (default 0); `SetExit(code)` and return it.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -68,6 +112,19 @@ If the name contains a `/`, it is a path: resolve it against the shell's working
 ```bash
 make test
 make race
+printf '%s\n' 'echo hello' 'cd /' 'pwd' | make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' 'echo hello' 'cd /' 'pwd' | make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 printf '%s\n' 'echo hello' 'cd /' 'pwd' | make run
 ```
 <!-- /lang -->

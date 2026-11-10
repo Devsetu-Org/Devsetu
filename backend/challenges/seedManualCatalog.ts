@@ -118,11 +118,8 @@ async function seedManualCatalog(): Promise<void> {
   const byId = new Map<string, CatalogRow>();
   for (const row of loadPackRows()) byId.set(row.id, row);
 
-  for (const row of byId.values()) {
-    await upsertChallenge(row);
-  }
-
-  // Drop catalog rows that are no longer in packs (e.g. retired inline seeds).
+  // Drop retired packs first so reused `number` values do not collide with
+  // rows that are about to be replaced under a new id.
   if (keepIds.size > 0) {
     const result = await pool.query(
       `DELETE FROM challenges WHERE id <> ALL($1::text[]) RETURNING id`,
@@ -131,6 +128,10 @@ async function seedManualCatalog(): Promise<void> {
     for (const row of result.rows || []) {
       console.log(`[challenges] catalog removed "${row.id}"`);
     }
+  }
+
+  for (const row of byId.values()) {
+    await upsertChallenge(row);
   }
 
   // Keep the in-memory Play cache in sync with packs (otherwise Description/Theory

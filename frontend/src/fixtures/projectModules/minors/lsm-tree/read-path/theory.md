@@ -95,6 +95,16 @@ In `internal/bloom/bloom.go`. `nBits` (at least 64) is computed for you.
 4. For each `i` in `[0, k)`: if bit `probe(h, uint32(i), m)` is 0, return false.
 5. Return true.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `finish` / `TODO(4.2)` — `may_contain`
+
+In `lsmkv/bloom/bloom.py`. Size the bit array, store `k` in the last byte, set probes. `may_contain` checks the same probes; a short or invalid filter returns True.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `Finish` / `TODO(4.2)` — `MayContain`
+
+In `src/bloom/bloom.cc`. Size the bit array, store `k` in the last byte, set probes. `MayContain` checks the same probes; a short or invalid filter returns true.
+<!-- /lang -->
 
 ## Merging sorted streams
 <!-- mode: read-and-implement tasks:4.3 -->
@@ -131,6 +141,16 @@ In `internal/iterator/merging.go`. The heap plumbing (`Push`, `Pop`, `Swap`, `re
 
 You will need to import `bytes`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.3)` — `Less` and `next`
+
+In `lsmkv/iterator/merging.py`. Heap order: smaller key first; equal keys prefer lower rank (newer). `next` advances every child holding the current key.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.3)` — `Less` and `Next`
+
+In `src/iterator/merging.cc`. Heap order: smaller key first; equal keys prefer lower rank (newer). `Next` advances every child holding the current key.
+<!-- /lang -->
 
 ## Range scans
 <!-- mode: read-and-implement tasks:4.4 -->
@@ -161,6 +181,16 @@ In `internal/db/scan.go`, with the lock held (given):
 
 You will need to import `bytes` and the `iterator`, `memtable`, and `sstable` packages.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.4)` — `scan`
+
+In `lsmkv/db/scan.py`. Merge memtable + tables newest-first, seek to the range, skip tombstones, stop when `fn` returns False.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.4)` — `Scan`
+
+In `src/db/scan.cc`. Merge memtable + tables newest-first, seek to the range, skip tombstones, stop when `fn` returns false.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -171,6 +201,19 @@ make test     # every acceptance test
 make race     # the same tests with the race detector
 go test -v -run FalsePositive ./internal/bloom   # see the measured rates
 make run      # REPL with scan
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
+make run
 ```
 <!-- /lang -->
 

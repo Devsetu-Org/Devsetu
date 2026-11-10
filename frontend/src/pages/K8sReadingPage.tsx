@@ -427,7 +427,7 @@ export default function K8sReadingPage({
         <p className="spark-primer-crumb">
           <Link to="/track">Tracks</Link>
           <span aria-hidden> / </span>
-          <Link to="/track/devops-engineer">DevOps Engineer</Link>
+          <Link to={track.domainPath}>{track.domainLabel}</Link>
           <span aria-hidden> / </span>
           <Link to={track.labsPath}>{track.label}</Link>
           <span aria-hidden> / </span>

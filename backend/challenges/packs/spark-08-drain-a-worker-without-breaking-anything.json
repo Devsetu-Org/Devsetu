@@ -1,0 +1,41 @@
+{
+  "id": "spark-08-drain-a-worker-without-breaking-anything",
+  "number": 817,
+  "finalized": false,
+  "title": "Drain a Worker Without Breaking Anything",
+  "description": "**SITUATION:**\n\n`ds-spark-03` needs to come out for maintenance. Standalone Spark has no built-in graceful-drain command \u2014 decommissioning safely means designing around that gap: finish or relocate work without task failures, then prove you did not recreate the Lab 1.6 overcommit on the worker that remains.\n\nAfter a naive stop, relocated executors often pile onto `ds-spark-02` \u2014 the same host that was capped under shared-worker pressure in Lab 1.6. A drain that \"succeeds\" with zero failures can still leave the cluster one wave away from the same executor-loss incident.\n\n**YOUR TASK:**\n\n1. Drain `ds-spark-03` so running work finishes or relocates with zero task failures.\n2. Observe where the relocated executors land \u2014 expect concentration on `ds-spark-02`.\n3. Confirm the drain did not quietly recreate the Lab 1.6 overcommit on `ds-spark-02`.\n4. Enforce a per-application executor concentration limit (or equivalent placement rule) if needed so the post-drain shape stays safe.\n5. Record the drain sequence, relocation, overcommit check, and guardrail in the Investigation tab.\n\n**SPEC:**\n\n- Zero task failures during the drain.\n- `ds-spark-03` is out of the live worker set (or equivalently decommissioned for this lab).\n- Post-drain placement does not recreate the Lab 1.6 overcommit on `ds-spark-02`.\n- You can show the concentration limit (or placement check) that keeps a single application from packing unsafely onto one worker.\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "l2",
+    "foundations",
+    "capstone",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Stopping a worker mid-stage is not a drain \u2014 watch for task failures and lost shuffle.",
+      "After relocation, count executors per worker per application against the Lab 1.6 capacity story.",
+      "Standalone has no native drain API; the safe sequence is something you design, then verify.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Drain a Worker Without Breaking Anything",
+    "brief": "Drain a Worker Without Breaking Anything",
+    "solution": "",
+    "idLabel": "08",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "chapter": "foundations",
+    "kind": "drain"
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

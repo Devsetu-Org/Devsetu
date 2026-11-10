@@ -102,6 +102,26 @@ The given `Finish` has already written the last, partly filled block (with your 
 
 You will need to import `bytes` for `add`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.2)` — `finish`
+
+In `lsmkv/sstable/build.py`. Write `w.index` as a block, write `encode_footer(filter_h, index)`, then flush, fsync, and close.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.2)` — `finish`
+
+In `src/sstable/build.cc`. Write `index_` as a block, write `EncodeFooter(filter, index)`, then flush, fsync, and close.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.1)` — `add` and `flush_block`
+
+In `lsmkv/sstable/build.py`. Reject out-of-order keys with `OutOfOrderError`. Append with `append_entry`, copy into `w.last_key`, and call `flush_block` once the block reaches `w.opts.block_size`. `flush_block` writes a non-empty block and records an index entry.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.1)` — `add` and `flushBlock`
+
+In `src/sstable/build.cc`. Reject out-of-order keys with `OutOfOrderError`. Append with `AppendEntry`, copy into `last_key_`, and call `flushBlock` once the block reaches `opts_.block_size`. `flushBlock` writes a non-empty block and records an index entry.
+<!-- /lang -->
 
 ## Reading a table
 <!-- mode: read-and-implement tasks:3.3 -->
@@ -133,6 +153,16 @@ In `internal/sstable/lookup.go`. The public `Open` and `Get` in `reader.go` are 
 - `get`: `i := sort.Search(len(t.index), func(i int) bool { return bytes.Compare(t.index[i].lastKey, key) >= 0 })`. Then `t.readBlock(t.index[i].h)`, `decodeBlock`, and scan. Return the error from either if they fail.
 
 You will need to import `bytes` and `sort`. The iterator in `iterator.go` uses the same index search, if you want a reference.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.3)` — `open_table` and `get`
+
+In `lsmkv/sstable/lookup.py`. Read the footer, load the index with `read_block` / `decode_index`. `get` binary-searches the index and reads exactly one data block.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.3)` — `OpenFile` and `get`
+
+In `src/sstable/lookup.cc`. Read the footer, load the index with `ReadBlock` / `DecodeIndex`. `get` binary-searches the index and reads exactly one data block.
 <!-- /lang -->
 
 ## Flushing the memtable
@@ -178,6 +208,16 @@ In `internal/db/flush.go`. The table number and paths are given. Follow the five
 
 You will need to import `os`, `path/filepath`, and the `memtable`, `sstable`, and `wal` packages. `d.writerOptions()` and `d.addTable` are given in `db.go`; later chapters change them (a Bloom filter, a manifest) without changing your `flush`. `write` already calls `flush` when `ApproximateSize` reaches `MemtableSize`. `Flush` (exported) is there for the REPL and the tests.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.4)` — `flush`
+
+In `lsmkv/db/flush.py`. Write the memtable to a temp table, rename it into place, `add_table`, then reset the log and memtable.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.4)` — `flush`
+
+In `src/db/flush.cc`. Write the memtable to a temp table, rename it into place, `addTable`, then reset the log and memtable.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -187,6 +227,19 @@ You will need to import `os`, `path/filepath`, and the `memtable`, `sstable`, an
 make test     # every acceptance test
 make race     # the same tests with the race detector
 make run      # REPL: put, get, del, flush, stats
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
+make run
 ```
 <!-- /lang -->
 

@@ -1,0 +1,29 @@
+{
+  "id": "spark-ch04-platform-automations",
+  "number": 822,
+  "finalized": false,
+  "title": "Chapter 4 — Platform Automations (placeholder)",
+  "description": "**PLACEHOLDER**\n\nChapter 4 labs are not written yet. Planned:\n\n1. Infra-as-Code for the Cluster Shape\n2. Automated Environment and Dependency Provision\n3. Guardrail: Refuse the Bad Request\n4. Detect Drift, Then Reconcile\n5. Self-Service Job Request API\n\nDescriptions, setup, and graders land after Chapter 1 is locked.\n",
+  "difficulty": "L0",
+  "tags": ["spark", "platform-automations", "placeholder"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [],
+    "overview": "Chapter 4 — Platform Automations (placeholder)",
+    "brief": "Chapter 4 — Platform Automations (placeholder)",
+    "solution": "",
+    "idLabel": "ch04",
+    "theory": ""
+  },
+  "platformSpec": {
+    "chapter": "platform-automations",
+    "kind": "placeholder"
+  },
+  "visibleTo": "users",
+  "tokens": 0
+}

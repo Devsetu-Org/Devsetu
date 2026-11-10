@@ -8,8 +8,9 @@
  *   linux      — one systemd machine (pod `box`) in lx-<user>, shell inside it
  *   docker     — the same machine plus dockerd (pod `box`) in dk-<user>
  *   kafka      — three broker pods plus a shell pod in kf-<user> (workspace/kafkaBox)
- * linux and docker are "box" labs (workspace/linuxBox). Kafka is not: no learner
- * user, no systemd, no saved progress.
+ *   spark      — standalone or YARN cluster + shell in sp-<user> (workspace/sparkBox)
+ * linux and docker are "box" labs (workspace/linuxBox). Kafka and Spark are not:
+ * no learner user, no systemd, no saved progress.
  */
 
 import type { BoxFlavor } from '../types/domain';
@@ -17,7 +18,7 @@ import type { BoxFlavor } from '../types/domain';
 const fs = require('fs');
 const path = require('path');
 
-const CLUSTER_LAB_TYPES = new Set(['kubernetes', 'linux', 'docker', 'kafka']);
+const CLUSTER_LAB_TYPES = new Set(['kubernetes', 'linux', 'docker', 'kafka', 'spark']);
 const BOX_FLAVORS = new Set<string>(['linux', 'docker']);
 
 function isClusterLabType(sandboxType: unknown): boolean {
@@ -26,6 +27,10 @@ function isClusterLabType(sandboxType: unknown): boolean {
 
 function isKafkaLabType(sandboxType: unknown): boolean {
   return String(sandboxType || '') === 'kafka';
+}
+
+function isSparkLabType(sandboxType: unknown): boolean {
+  return String(sandboxType || '') === 'spark';
 }
 
 /** linux / docker: the learner works on one machine, not in a namespace. */
@@ -38,9 +43,9 @@ function boxFlavor(sandboxType: unknown): BoxFlavor | null {
   return BOX_FLAVORS.has(t) ? (t as BoxFlavor) : null;
 }
 
-/** backend/challenges/<linux|docker|kafka|k8s>/<id>: setup.sh, grade.sh, solution/. */
+/** backend/challenges/<linux|docker|kafka|spark|k8s>/<id>: setup.sh, grade.sh, solution/. */
 function labPackDir(challengeId: string): string {
-  for (const track of ['linux', 'docker', 'kafka']) {
+  for (const track of ['linux', 'docker', 'kafka', 'spark']) {
     const dir = path.join(__dirname, track, challengeId);
     if (fs.existsSync(dir)) return dir;
   }
@@ -50,6 +55,7 @@ function labPackDir(challengeId: string): string {
 module.exports = {
   isClusterLabType,
   isKafkaLabType,
+  isSparkLabType,
   isBoxLabType,
   boxFlavor,
   labPackDir,

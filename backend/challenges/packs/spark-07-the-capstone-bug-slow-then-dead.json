@@ -1,0 +1,41 @@
+{
+  "id": "spark-07-the-capstone-bug-slow-then-dead",
+  "number": 816,
+  "finalized": false,
+  "title": "The Capstone Bug: Slow, Then Dead",
+  "description": "**SITUATION:**\n\nA production-shaped job on this cluster runs fine for several minutes, then slows dramatically, then one executor dies. Mentors will ask what you looked at. The Master UI, a worker log, and the executor's own memory breakdown each show a different piece of the story. No single source is enough.\n\nThis capstone combines Labs 1.2\u20131.6: read UIs as instruments, follow stages and tasks, ask where cached data actually lives, keep the executor memory map in your head, and watch for worker-level pressure. The failure is memory-leak-shaped \u2014 growth over a timeline, not a single bad snapshot.\n\n**YOUR TASK:**\n\n1. Watch the job through healthy \u2192 slow \u2192 dead; capture when each phase starts.\n2. Pull signals from the Master UI, at least one worker log, and the executor memory breakdown (and code / prior config if needed).\n3. Synthesize them into one root cause \u2014 a memory-leak-shaped caching (or retention) bug \u2014 before applying a fix.\n4. Apply the fix and show the job no longer dies the same way.\n5. Capture the timeline, three signals, root cause, and fix in the Investigation tab.\n\n**SPEC:**\n\n- Diagnosis cites at least three independent signals that agree on the same root cause.\n- The write-up reads a timeline (when healthy, when slow, when dead), not a single UI screenshot.\n- The fix addresses that cause; simply raising executor count without explaining the leak is not enough.\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "l2",
+    "foundations",
+    "capstone",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "If you only open the Master UI, you will miss the worker-local story.",
+      "Slow-then-dead often means cache or storage growth over time, not an instant OOM on the first stage.",
+      "Compare Storage and Executors tabs across the timeline, not just at failure.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "The Capstone Bug: Slow, Then Dead",
+    "brief": "The Capstone Bug: Slow, Then Dead",
+    "solution": "",
+    "idLabel": "07",
+    "theory": ""
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "chapter": "foundations",
+    "kind": "capstone"
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

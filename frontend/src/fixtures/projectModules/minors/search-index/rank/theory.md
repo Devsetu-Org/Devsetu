@@ -27,6 +27,16 @@ BM25 needs:
 
 Return `Stats{N: src.NumDocs(), AvgDL: src.AvgDL()}` and a map from each distinct term to `src.DF(term)`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.1)` — `collect_stats`
+
+Return `Stats(n=src.num_docs(), avg_dl=src.avg_dl())` and a dict from each distinct term to `src.df(term)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.1)` — `CollectStats`
+
+Return `Stats{src.NumDocs(), src.AvgDL()}` and a map from each distinct term to `src.DF(term)`.
+<!-- /lang -->
 
 ## BM25
 <!-- mode: read-and-implement tasks:5.2 -->
@@ -48,6 +58,20 @@ Sum `score(t, d)` over query terms that appear in `d`.
 
 `Score`: return 0 if `tf <= 0`, `st.N == 0`, or `st.AvgDL == 0`. Otherwise `IDF(st.N, df)` times the tf saturation term with `K1` and `B`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.2)` — `idf` and `score`
+
+`idf`: return 0 if `n == 0` or `df < 0`; otherwise the formula above with `math.log`.
+
+`score`: return 0 if `tf <= 0`, `st.n == 0`, or `st.avg_dl == 0`. Otherwise `idf(st.n, df)` times the tf saturation term with `K1` and `B`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.2)` — `IDF` and `Score`
+
+`IDF`: return 0 if `n == 0` or `df < 0`; otherwise the formula above with `std::log`.
+
+`Score`: return 0 if `tf <= 0`, `st.n == 0`, or `st.avg_dl == 0`. Otherwise `IDF(st.n, df)` times the tf saturation term with `K1` and `B`.
+<!-- /lang -->
 
 ## Top k
 <!-- mode: read-and-implement tasks:5.3 -->
@@ -57,8 +81,18 @@ Sum `score(t, d)` over query terms that appear in `d`.
 
 Copy `hits`. Sort with `sort.SliceStable`: higher `Score` first; on a tie, lower `DocID` first. If `k > 0` and there are more than `k` hits, truncate.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.3)` — `top_k`
 
-`findx.Search` (given) parses the query, retrieves candidates, scores them, and maps internal ids back to external ids.
+Copy `hits`. Sort by score descending, then `doc_id` ascending. If `k > 0` and there are more than `k` hits, truncate.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.3)` — `TopK`
+
+Copy `hits`. Sort with `std::stable_sort`: higher `score` first; on a tie, lower `doc_id` first. If `k > 0` and there are more than `k` hits, truncate.
+<!-- /lang -->
+
+`Search` (given) parses the query, retrieves candidates, scores them, and maps internal ids back to external ids.
 
 ## Prove it
 <!-- mode: read-only -->
@@ -67,6 +101,19 @@ Copy `hits`. Sort with `sort.SliceStable`: higher `Score` first; on a tie, lower
 ```bash
 make test
 make race
+FINDX_DIR=/tmp/fx make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+FINDX_DIR=/tmp/fx make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 FINDX_DIR=/tmp/fx make run
 ```
 <!-- /lang -->

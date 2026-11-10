@@ -43,6 +43,46 @@ type Op struct {
 | `client.go` | `Clerk`: the client. **You write `do`.** |
 | `op.go`, `node.go`, `cluster.go` | encoding, wiring, `StartCluster` (given) |
 <!-- /lang -->
+<!-- lang: python -->
+```go
+type Op struct {
+	Kind     OpKind // OpGet, OpPut, OpDelete
+	Key      []byte
+	Value    []byte
+	ClientID int64
+	Seq      int64
+}
+```
+
+`internal/kv` has four layers:
+
+| File | Role |
+| --- | --- |
+| `state.py` | `State`: the map. Pure data, no Raft. **You write `Apply`.** |
+| `server.py` | `Server`: glues Raft and `State` together. **You write `Apply` and `Execute`.** |
+| `client.py` | `Clerk`: the client. **You write `do`.** |
+| `op.py`, `node.py`, `cluster.py` | encoding, wiring, `StartCluster` (given) |
+<!-- /lang -->
+<!-- lang: cpp -->
+```go
+type Op struct {
+	Kind     OpKind // OpGet, OpPut, OpDelete
+	Key      []byte
+	Value    []byte
+	ClientID int64
+	Seq      int64
+}
+```
+
+`internal/kv` has four layers:
+
+| File | Role |
+| --- | --- |
+| `state.cc` | `State`: the map. Pure data, no Raft. **You write `Apply`.** |
+| `server.cc` | `Server`: glues Raft and `State` together. **You write `Apply` and `Execute`.** |
+| `client.cc` | `Clerk`: the client. **You write `do`.** |
+| `op.cc`, `node.cc`, `cluster.cc` | encoding, wiring, `StartCluster` (given) |
+<!-- /lang -->
 
 ### A request's life
 
@@ -115,6 +155,26 @@ In `internal/kv/state.go`:
 3. `OpPut`: if `fresh`, store a copy of `op.Value`.
 4. `OpDelete`: if `fresh`, `delete(s.data, string(op.Key))`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.1)` — `State.apply`
+
+In `raftkv/kv/state.py`:
+
+1. `fresh := op.Seq > s.lastSeq[op.ClientID]`; if `fresh`, record `s.lastSeq[op.ClientID] = op.Seq`.
+2. `OpGet`: look up `s.data[string(op.Key)]` and return `Result{Value: <copy>, Found: ok}`. An empty stored value is still `Found`.
+3. `OpPut`: if `fresh`, store a copy of `op.Value`.
+4. `OpDelete`: if `fresh`, `delete(s.data, string(op.Key))`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.1)` — `State.Apply`
+
+In `src/kv/state.cc`:
+
+1. `fresh := op.Seq > s.lastSeq[op.ClientID]`; if `fresh`, record `s.lastSeq[op.ClientID] = op.Seq`.
+2. `OpGet`: look up `s.data[string(op.Key)]` and return `Result{Value: <copy>, Found: ok}`. An empty stored value is still `Found`.
+3. `OpPut`: if `fresh`, store a copy of `op.Value`.
+4. `OpDelete`: if `fresh`, `delete(s.data, string(op.Key))`.
+<!-- /lang -->
 
 ## The server
 <!-- mode: read-and-implement tasks:5.2,5.3 -->
@@ -150,6 +210,42 @@ Two traps live here:
 ### `TODO(5.2)` — `Server.Apply`
 
 In `internal/kv/server.go`. Raft calls it from its apply loop, in log order, with no Raft lock held.
+
+- `decodeOp(command)`; return on error.
+- Lock `s.mu`, `result := s.state.Apply(op)`.
+- If `ch, ok := s.waiters[index]`: `delete` it and send `applied{clientID: op.ClientID, seq: op.Seq, result: result}`. The channel has room for one value, so the send does not block.
+
+### `TODO(5.3)` — `Server.Execute`
+
+In the same file. Set `reply.Leader = -1` first.
+
+1. `ch := make(chan applied, 1)`. Lock `s.mu`; `index, _, ok := s.rf.Start(encodeOp(args.Op))`. If `!ok`: unlock, `reply.Err = ErrNotLeader`, `reply.Leader = s.rf.Leader()`, return. Otherwise, if `s.waiters[index]` already exists, `close` it; then `s.waiters[index] = ch` and unlock.
+2. `select` on `ch` and `time.After(s.timeout)`.
+3. From `ch`: if it is closed or the `(clientID, seq)` differ from `args.Op`, reply `ErrNotLeader` with the leader hint. Otherwise copy `Value` and `Found` into the reply.
+4. On timeout: under `s.mu`, delete the waiter if `s.waiters[index] == ch`, and reply `ErrTimeout`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.2)` — `Server.apply`
+
+In `raftkv/kv/server.py`. Raft calls it from its apply loop, in log order, with no Raft lock held.
+
+- `decodeOp(command)`; return on error.
+- Lock `s.mu`, `result := s.state.Apply(op)`.
+- If `ch, ok := s.waiters[index]`: `delete` it and send `applied{clientID: op.ClientID, seq: op.Seq, result: result}`. The channel has room for one value, so the send does not block.
+
+### `TODO(5.3)` — `Server.execute`
+
+In the same file. Set `reply.Leader = -1` first.
+
+1. `ch := make(chan applied, 1)`. Lock `s.mu`; `index, _, ok := s.self.Start(encodeOp(args.Op))`. If `!ok`: unlock, `reply.Err = ErrNotLeader`, `reply.Leader = s.self.Leader()`, return. Otherwise, if `s.waiters[index]` already exists, `close` it; then `s.waiters[index] = ch` and unlock.
+2. `select` on `ch` and `time.After(s.timeout)`.
+3. From `ch`: if it is closed or the `(clientID, seq)` differ from `args.Op`, reply `ErrNotLeader` with the leader hint. Otherwise copy `Value` and `Found` into the reply.
+4. On timeout: under `s.mu`, delete the waiter if `s.waiters[index] == ch`, and reply `ErrTimeout`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.2)` — `Server.Apply`
+
+In `src/kv/server.cc`. Raft calls it from its apply loop, in log order, with no Raft lock held.
 
 - `decodeOp(command)`; return on error.
 - Lock `s.mu`, `result := s.state.Apply(op)`.
@@ -204,6 +300,28 @@ In `internal/kv/client.go`:
 4. After every `len(ck.ends)` failed attempts, `time.Sleep(25 * time.Millisecond)`.
 5. After the deadline, `return Result{}, ErrUnavailable`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.4)` — `Clerk.do`
+
+In `raftkv/kv/client.py`:
+
+1. `ck.seq++`, `op.ClientID = ck.id`, `op.Seq = ck.seq`, `deadline := time.Now().Add(ck.Timeout)`.
+2. Loop until the deadline: `var reply ExecuteReply`; `ok := ck.ends[ck.leader].Call("KV.Execute", &ExecuteArgs{Op: op}, &reply)`. If `ok && reply.Err == ""`, return `Result{Value: reply.Value, Found: reply.Found}, nil`.
+3. Otherwise choose the next server: the hint (`reply.Leader`, when `ok`, `reply.Err == ErrNotLeader`, in range, and that server did not fail in the last lap of attempts), else `(ck.leader + 1) % len(ck.ends)`. Remember which server failed on which attempt in a small map.
+4. After every `len(ck.ends)` failed attempts, `time.Sleep(25 * time.Millisecond)`.
+5. After the deadline, `return Result{}, ErrUnavailable`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.4)` — `Clerk.do`
+
+In `src/kv/client.cc`:
+
+1. `ck.seq++`, `op.ClientID = ck.id`, `op.Seq = ck.seq`, `deadline := time.Now().Add(ck.Timeout)`.
+2. Loop until the deadline: `var reply ExecuteReply`; `ok := ck.ends[ck.leader].Call("KV.Execute", &ExecuteArgs{Op: op}, &reply)`. If `ok && reply.Err == ""`, return `Result{Value: reply.Value, Found: reply.Found}, nil`.
+3. Otherwise choose the next server: the hint (`reply.Leader`, when `ok`, `reply.Err == ErrNotLeader`, in range, and that server did not fail in the last lap of attempts), else `(ck.leader + 1) % len(ck.ends)`. Remember which server failed on which attempt in a small map.
+4. After every `len(ck.ends)` failed attempts, `time.Sleep(25 * time.Millisecond)`.
+5. After the deadline, `return Result{}, ErrUnavailable`.
+<!-- /lang -->
 
 ## Try it, and what is next
 <!-- mode: read-only -->
@@ -212,6 +330,20 @@ In `internal/kv/client.go`:
 ```bash
 make test     # all five chapters, end to end
 make race     # the same tests with the race detector
+make run      # a 5-server store
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # all five chapters, end to end
+# (no race target)     # the same tests with the race detector
+make run      # a 5-server store
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # all five chapters, end to end
+make asan     # the same tests with the race detector
 make run      # a 5-server store
 ```
 <!-- /lang -->

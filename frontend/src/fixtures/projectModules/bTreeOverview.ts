@@ -253,7 +253,7 @@ export const B_TREE_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **btreekv**, a working B+ tree storage engine in Go, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
+        'Over five chapters you build **btreekv**, a working B+ tree storage engine in Go, Python, or C++, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -302,7 +302,7 @@ export const B_TREE_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter adds only the files it needs and starts from your own code for the earlier ones. Stuck on one? You can switch that chapter to our reference solution and keep going.',
       ],
       after: [
-        '**What you need:** comfortable Go (slices, maps, structs, methods, and `go test`). No database or storage background; every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No database or storage background; every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',
@@ -319,6 +319,6 @@ export const B_TREE_OVERVIEW: ChapterReading = {
     'A B+ tree keeps values in the leaves, separators in the internal pages, and links leaves sideways for range scans.',
     'Around the tree sit a pager, a write-ahead log, and a buffer pool: without them it is a data structure, not an engine.',
     'Postgres, InnoDB, SQLite, WiredTiger, LMDB, and bbolt are all built this way, and their classic production problems are B-tree behaviour.',
-    'Across five chapters you build each piece in Go: pager, B+ tree, write-ahead log, buffer pool, and mutations.',
+    'Across five chapters you build each piece in Go, Python, or C++: pager, B+ tree, write-ahead log, buffer pool, and mutations.',
   ],
 };

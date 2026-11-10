@@ -39,6 +39,12 @@ This chapter parses `SELECT` only. `CREATE` and `INSERT` are next. Joins and `GR
 <!-- lang: go -->
 The node types are in `internal/parse/ast.go`. `Parser` (`peek`, `at`, `eat`, `expect`, `errorf`) and `Parse` are in `parser.go`. `parseFromTail` and `finishSelect` are given and return nil. You write `expr.go` and `select.go`. Your lexer from chapter 1 is already in `internal/lex`.
 <!-- /lang -->
+<!-- lang: python -->
+The node types are in `sqlq/parse/ast.py`. `Parser` (`peek`, `at`, `eat`, `expect`, `errorf`) and `Parse` are in `parser.py`. `parse_from_tail` and `finish_select` are given and return None. You write `expr.py` and `select.py`. Your lexer from chapter 1 is already in `sqlq/lex`.
+<!-- /lang -->
+<!-- lang: cpp -->
+The node types are in `src/parse/ast.h`. `Parser` (`Peek`, `At`, `Eat`, `Expect`, `Errorf`) and `Parse` are in `parser.cc`. `ParseFromTail` and `FinishSelect` are given and return without doing work. You write `expr.cc` and `select.cc`. Your lexer from chapter 1 is already in `src/lex`.
+<!-- /lang -->
 
 ## Expressions
 <!-- mode: read-and-implement tasks:2.1,2.2 -->
@@ -92,6 +98,78 @@ In `internal/parse/expr.go`. `parseExpr` is already `return p.parseAnd()`.
 3. When `allowStar` and the next token is `*`, expect `)` and return `&Call{Name: name, Star: true}`.
 4. Otherwise parse an expression, expect `)`, and return `&Call{Name: name, Arg: arg}`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `parse_and` and `parse_cmp`
+
+In `sqlq/parse/expr.py`. `parse_expr` is already `return parse_and(p)`.
+
+`parse_and`:
+
+1. `left = parse_cmp(p)`.
+2. While `p.eat(KwAnd)`, parse another comparison and set `left = Binary(op="AND", left=left, right=right)`.
+3. Return `left`.
+
+`parse_cmp`:
+
+1. Parse a primary.
+2. If the next token is `Eq`, `Lt`, or `Gt`, consume it, parse another primary, and return `Binary(op="=", "<", or ">", left=left, right=right)`.
+3. Otherwise return the primary unchanged.
+
+### `TODO(2.2)` — `parse_primary` and `parse_call`
+
+`parse_primary` switches on the current token:
+
+- `Int`: `parse_int(t.lit)` and return `IntLit(v=n)`. A bad integer is `p.errorf("bad integer")`.
+- `String`: return `StrLit(v=t.lit)`.
+- `KwCount`: `return parse_call(p, "count", True)`.
+- `KwSum`: `return parse_call(p, "sum", False)`.
+- `Ident`: if the next token is `Dot`, expect another ident and return `Qual(table=t.lit, name=col.lit)`. Otherwise return `Ident(name=t.lit)`.
+- `LParen`: parse an expression with `parse_expr`, expect `RParen`, return the inner expression.
+- Anything else: `p.errorf("expected an expression")`.
+
+`parse_call(p, name, allow_star)`:
+
+1. Consume `KwCount` or `KwSum` to match `name`.
+2. Expect `(`.
+3. When `allow_star` and the next token is `*`, expect `)` and return `Call(name=name, star=True)`.
+4. Otherwise parse an expression, expect `)`, and return `Call(name=name, arg=arg)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `ParseAnd` and `ParseCmp`
+
+In `src/parse/expr.cc`. `ParseExpr` is already `return ParseAnd(p)`.
+
+`ParseAnd`:
+
+1. `left = ParseCmp(p)`.
+2. While `p.Eat(kKwAnd)`, parse another comparison and set `left` to a new `Binary{"AND", left, right}`.
+3. Return `left`.
+
+`ParseCmp`:
+
+1. Parse a primary.
+2. If the next token is `kEq`, `kLt`, or `kGt`, consume it, parse another primary, and return a `Binary`.
+3. Otherwise return the primary unchanged.
+
+### `TODO(2.2)` — `ParsePrimary` and `ParseCall`
+
+`ParsePrimary` switches on the current token:
+
+- `kInt`: `ParseInt(t.lit)` and return `IntLit`. A bad integer is `p.Errorf("bad integer")`.
+- `kString`: return `StrLit`.
+- `kKwCount`: `return ParseCall(p, "count", true)`.
+- `kKwSum`: `return ParseCall(p, "sum", false)`.
+- `kIdent`: if the next token is `kDot`, expect another ident and return `Qual`. Otherwise return `Ident`.
+- `kLParen`: parse an expression with `ParseExpr`, expect `kRParen`, return the inner expression.
+- Anything else: `p.Errorf("expected an expression")`.
+
+`ParseCall(p, name, allow_star)`:
+
+1. Consume `kKwCount` or `kKwSum` to match `name`.
+2. Expect `(`.
+3. When `allow_star` and the next token is `*`, expect `)` and return a `Call` with `star` true.
+4. Otherwise parse an expression, expect `)`, and return a `Call` with that argument.
+<!-- /lang -->
 
 ## The SELECT statement
 <!-- mode: read-and-implement tasks:2.3 -->
@@ -125,6 +203,56 @@ In `internal/parse/select.go`.
 2. If the next token is an ident, take it and return its `Lit`.
 3. Otherwise return `""`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `parse_select`, `parse_select_item`, `parse_alias`
+
+In `sqlq/parse/select.py`.
+
+`parse_select`:
+
+1. Expect `KwSelect`.
+2. Parse items with `parse_select_item` until the next token is not a comma.
+3. Expect `KwFrom`, then an ident. That ident's `lit` is `sel.from_table`.
+4. `sel.alias = parse_alias(p)`.
+5. `p.parse_from_tail(sel)`, then if `p.eat(KwWhere)`, `sel.where = parse_expr(p)`.
+6. `p.finish_select(sel)` and return `sel`.
+
+`parse_select_item`:
+
+1. `*` returns `SelectItem(star=True)`.
+2. Otherwise parse an expression. If `p.eat(KwAs)`, expect an ident and set `alias`.
+
+`parse_alias`:
+
+1. If `AS`, expect an ident and return its `lit`.
+2. If the next token is an ident, take it and return its `lit`.
+3. Otherwise return `""`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `ParseSelect`, `ParseSelectItem`, `ParseAlias`
+
+In `src/parse/select.cc`.
+
+`ParseSelect`:
+
+1. Expect `kKwSelect`.
+2. Parse items with `ParseSelectItem` until the next token is not a comma.
+3. Expect `kKwFrom`, then an ident. That ident's `lit` is `sel->from`.
+4. `sel->alias = ParseAlias(p)`.
+5. `p.ParseFromTail(sel.get())`, then if `p.Eat(kKwWhere)`, `sel->where = ParseExpr(p)`.
+6. `p.FinishSelect(sel.get())` and return `sel`.
+
+`ParseSelectItem`:
+
+1. `*` returns a `SelectItem` with `star` true.
+2. Otherwise parse an expression. If `p.Eat(kKwAs)`, expect an ident and set `alias`.
+
+`ParseAlias`:
+
+1. If `AS`, expect an ident and return its `lit`.
+2. If the next token is an ident, take it and return its `lit`.
+3. Otherwise return `""`.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -133,6 +261,18 @@ In `internal/parse/select.go`.
 ```bash
 make test
 make race
+printf '%s\n' "SELECT name FROM users u WHERE id = 1;" | make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' "SELECT name FROM users u WHERE id = 1;" | make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
 printf '%s\n' "SELECT name FROM users u WHERE id = 1;" | make run
 ```
 <!-- /lang -->

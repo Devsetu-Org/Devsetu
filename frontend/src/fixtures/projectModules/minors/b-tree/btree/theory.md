@@ -73,6 +73,36 @@ type node struct {
 
 Keys and values in a decoded node are private copies, so you can keep them. `Tree.load(no)` reads and decodes a page; `Tree.store(no, n)` encodes and writes it. A node that does not fit in a page makes `encode` panic: **split before you store**.
 <!-- /lang -->
+<!-- lang: python -->
+`node.py` (given) decodes a page into a `Node` and encodes it back. You work with the decoded dataclass:
+
+```python
+@dataclass
+class Node:
+    leaf: bool = False
+    keys: list[bytes] = field(default_factory=list)
+    vals: list[bytes] = field(default_factory=list)  # leaf only
+    children: list[int] = field(default_factory=list)  # internal only
+    next: int = 0  # leaf only
+```
+
+Keys and values in a decoded node are private copies, so you can keep them. `Tree.load(no)` reads and decodes a page; `Tree.store(no, n)` encodes and writes it. A node that does not fit in a page makes `encode` raise: **split before you store**.
+<!-- /lang -->
+<!-- lang: cpp -->
+`node.h` / `node.cc` (given) decode a page into a `Node` and encode it back. You work with the decoded struct:
+
+```cpp
+struct Node {
+  bool leaf = false;
+  std::vector<std::string> keys;
+  std::vector<std::string> vals;     // leaf only
+  std::vector<PageNo> children;      // internal only
+  PageNo next = 0;                   // leaf only
+};
+```
+
+Keys and values in a decoded node are private copies, so you can keep them. `Tree::Load(no)` reads and decodes a page; `Tree::Store(no, n)` encodes and writes it. A node that does not fit in a page makes `Encode` throw: **split before you store**.
+<!-- /lang -->
 
 Keys are at most 128 bytes and values at most 1024. The limits are tiny next to a 4 KiB page on purpose: a page that overflows by one entry can always be cut into two halves that both fit.
 
@@ -116,6 +146,40 @@ In the same file:
 
 `TestGetReadsOnePagePerLevel` counts page reads: a lookup that reads more than one page per level fails.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `child_index` and `leaf_index`
+
+In `btreekv/btree/search.py`:
+
+- `child_index(key)` on an internal node: the number of separators `<= key`, which is also the index of the child to follow. `bisect.bisect_right(self.keys, key)`.
+- `leaf_index(key)` on a leaf: `bisect.bisect_left` for the first key `>= key`. Return that index and whether `self.keys[i]` equals `key` (check that `i` is in range first).
+
+### `TODO(2.2)` — `find_leaf` and `get`
+
+In the same file:
+
+- `find_leaf(key)`: start at `self.io.root()`. Root 0 means an empty tree: return `0, None`. Otherwise `self.load(no)`; if it is a leaf, return it; if not, move to `n.children[n.child_index(key)]`. Loop at most `MAX_DEPTH` times and raise `ErrCorrupt` beyond that.
+- `get(key)`: `find_leaf`, then `leaf_index`. An empty tree or an absent key returns `(None, False)`.
+
+`test_get_reads_one_page_per_level` counts page reads: a lookup that reads more than one page per level fails.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `ChildIndex` and `LeafIndex`
+
+In `src/btree/search.cc`:
+
+- `ChildIndex(key)` on an internal node: the number of separators `<= key`. `std::upper_bound` on `n.keys`.
+- `LeafIndex(key)` on a leaf: `std::lower_bound` for the first key `>= key`. Return that index and whether the key equals.
+
+### `TODO(2.2)` — `FindLeaf` and `Get`
+
+In the same file:
+
+- `FindLeaf(key, out_leaf)`: start at `io_->Root()`. Root 0 means an empty tree: return `0`. Otherwise `Load(no)`; if it is a leaf, return it; if not, move to `n.children[ChildIndex(n, key)]`. Loop at most `kMaxDepth` times and throw `CorruptError` beyond that.
+- `Get(key, value)`: `FindLeaf`, then `LeafIndex`. An empty tree or an absent key returns `false`.
+
+`GetReadsOnePagePerLevel` counts page reads: a lookup that reads more than one page per level fails.
+<!-- /lang -->
 
 ## Inserting into a leaf
 <!-- mode: read-and-implement tasks:2.3 -->
@@ -135,6 +199,16 @@ Inserting is search plus a slice insert. The leaf is sorted, so `leafIndex` says
 In `internal/btree/insert.go`. `i, found := n.leafIndex(key)`. If `found`, set `n.vals[i] = val`. Otherwise insert `key` into `n.keys` and `val` into `n.vals` at `i` with `slices.Insert`, so both slices stay sorted and in step.
 
 You will need to import `slices`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `leaf_put`
+
+In `btreekv/btree/insert.py`. `i, found = self.leaf_index(key)`. If `found`, set `self.vals[i] = val`. Otherwise insert `key` into `self.keys` and `val` into `self.vals` at `i`, so both lists stay sorted and in step.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `LeafPut`
+
+In `src/btree/insert.cc`. `auto [i, found] = LeafIndex(n, key)`. If `found`, set `n.vals[i] = val`. Otherwise insert `key` into `n.keys` and `val` into `n.vals` at `i`, so both stay sorted and in step.
 <!-- /lang -->
 
 This may leave the node **overfull**: more bytes than a page holds. `leafPut` does not check. The caller does, and splits.
@@ -177,6 +251,26 @@ In `internal/btree/insert.go`. `n.splitPoint()` (given) returns where to cut: fo
 
 Clone the right half. If both nodes shared one backing array, an append to the left would overwrite the right.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.4)` — `split`
+
+In `btreekv/btree/insert.py`. `self.split_point()` (given) returns where to cut.
+
+- Leaf: `right` gets a copy of `keys[at:]` / `vals[at:]` and `next=self.next`. `self` keeps `[:at]`. The separator is `right.keys[0]`.
+- Internal: the separator is `self.keys[at]`. `right` gets copies of `keys[at+1:]` and `children[at+1:]`. `self` keeps `keys[:at]` and `children[:at+1]`.
+
+Copy the right half. Do not let two nodes share one list.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.4)` — `Split`
+
+In `src/btree/insert.cc`. `n.SplitPoint()` (given) returns where to cut.
+
+- Leaf: `right` gets copies of `keys[at:]` / `vals[at:]` and `next = n.next`. `n` keeps `[:at]`. The separator is `right.keys[0]`.
+- Internal: the separator is `n.keys[at]`. `right` gets copies of `keys[at+1:]` and `children[at+1:]`. `n` keeps `keys[:at]` and `children[:at+1]`.
+
+Copy the right half. Do not let two nodes share one vector.
+<!-- /lang -->
 
 ## Growing the tree
 <!-- mode: read-and-implement tasks:2.5 -->
@@ -218,6 +312,24 @@ In `internal/btree/insert.go`.
 2. Root 0 (empty tree): build a one-entry leaf, `t.newPage(leaf)`, `t.io.SetRoot(no)`.
 3. Otherwise `up, err := t.insert(root, key, val)`. If `up != nil`, the root split: build an internal node `{keys: [up.sep], children: [root, up.right]}`, `newPage` it, and `SetRoot` to it.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.5)` — `insert` / `Insert`
+
+In `btreekv/btree/insert.py`.
+
+`insert_rec(no, key, val)` returns a `Promoted` when page `no` split, and `None` when it did not. Same steps as Go: load, leaf_put or recurse+insert_child, store or split.
+
+`insert_public(key, val)`: `check_entry`, empty-tree leaf, or grow a new root when the old root splits.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.5)` — `Insert` and `InsertRec`
+
+In `src/btree/insert.cc`.
+
+`InsertRec(no, key, val)` returns an optional `Promoted` when page `no` split. Same steps as Go: Load, LeafPut or recurse+InsertChild, Store or Split.
+
+`Insert(key, val)`: `CheckEntry`, empty-tree leaf, or grow a new root when the old root splits.
+<!-- /lang -->
 
 > [!warn] No log yet
 > A split writes two pages and then rewrites the parent: three writes, and nothing makes
@@ -232,6 +344,19 @@ In `internal/btree/insert.go`.
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # every acceptance test (python3 -m unittest)
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # build and run every acceptance test
+make asan     # the same tests under AddressSanitizer + UBSan
 make run      # a REPL that keeps its data in ./data
 ```
 <!-- /lang -->

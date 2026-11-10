@@ -1,0 +1,38 @@
+"""Fixed stopword list shared by every language of this minor."""
+
+from __future__ import annotations
+
+STOPWORDS = {
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "is",
+    "it",
+    "for",
+    "on",
+    "with",
+    "as",
+    "by",
+    "at",
+    "from",
+    "be",
+    "this",
+    "that",
+    "are",
+    "was",
+    "were",
+    "been",
+    "but",
+    "not",
+    "you",
+    "your",
+    "we",
+    "they",
+    "he",
+    "she",
+}

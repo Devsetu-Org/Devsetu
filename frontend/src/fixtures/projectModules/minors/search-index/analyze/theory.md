@@ -41,6 +41,12 @@ Three steps, always in this order:
 <!-- lang: go -->
 `Stopwords` lives in `internal/analyze/stopwords.go` and is given. `Analyze` in `analyze.go` already chains the three functions. You fill in `Tokenize`, `Lower`, and `FilterStop`.
 <!-- /lang -->
+<!-- lang: python -->
+`STOPWORDS` lives in `findx/analyze/stopwords.py` and is given. `analyze` in `analyze.py` already chains the three functions. You fill in `tokenize`, `lower`, and `filter_stop`.
+<!-- /lang -->
+<!-- lang: cpp -->
+`Stopwords()` lives in `src/analyze/stopwords.cc` and is given. `Analyze` in `analyze.cc` already chains the three functions. `NextCodepoint`, `IsLetter`, and `ToLowerUtf8` are given in `letters.cc`. You fill in `Tokenize`, `Lower`, and `FilterStop`.
+<!-- /lang -->
 
 ## Tokenize
 <!-- mode: read-and-implement tasks:1.1 -->
@@ -62,6 +68,24 @@ In `internal/analyze/analyze.go`:
 3. On a non-letter (or at the end), if the builder is non-empty, append `b.String()` to the result and reset.
 4. Return the slice. Empty input may return `nil` or an empty slice.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.1)` — `tokenize`
+
+In `findx/analyze/analyze.py`:
+
+1. Walk characters. When `ch.isalpha()`, append to a buffer.
+2. On a non-letter (or at the end), if the buffer is non-empty, append `"".join(buf)` to the result and clear.
+3. Return the list. Empty input may return `[]`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.1)` — `Tokenize`
+
+In `src/analyze/analyze.cc`:
+
+1. Walk UTF-8 with `NextCodepoint`. When `IsLetter(cp)`, append the raw bytes to a buffer.
+2. On a non-letter (or at the end), if the buffer is non-empty, push it and clear.
+3. Return the vector. Empty input may return an empty vector.
+<!-- /lang -->
 
 ## Lowercase
 <!-- mode: read-and-implement tasks:1.2 -->
@@ -72,6 +96,16 @@ Indexing is case-insensitive. Lowercasing is a separate step so the tokenizer ca
 ### `TODO(1.2)` — `Lower`
 
 Allocate a new slice the same length as `tokens`. Set each element to `strings.ToLower(tokens[i])`. Do not modify the input slice.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.2)` — `lower`
+
+Allocate a new list the same length as `tokens`. Set each element to `tokens[i].lower()`. Do not modify the input list.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.2)` — `Lower`
+
+Allocate a new vector the same size as `tokens`. Set each element to `ToLowerUtf8(tokens[i])`. Do not modify the input vector.
 <!-- /lang -->
 
 ## Stopwords
@@ -84,6 +118,16 @@ Allocate a new slice the same length as `tokens`. Set each element to `strings.T
 
 For each token, if it is a key in `Stopwords`, skip it. Otherwise append it. Preserve order.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(1.3)` — `filter_stop`
+
+For each token, if it is in `STOPWORDS`, skip it. Otherwise append it. Preserve order.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(1.3)` — `FilterStop`
+
+For each token, if it is in `Stopwords()`, skip it. Otherwise append it. Preserve order.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -92,6 +136,19 @@ For each token, if it is a key in `Stopwords`, skip it. Otherwise append it. Pre
 ```bash
 make test
 make race
+printf '%s\n' "The Cat in the Hat." | make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' "The Cat in the Hat." | make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 printf '%s\n' "The Cat in the Hat." | make run
 ```
 <!-- /lang -->

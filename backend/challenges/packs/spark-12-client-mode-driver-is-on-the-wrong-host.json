@@ -1,0 +1,52 @@
+{
+  "id": "spark-12-client-mode-driver-is-on-the-wrong-host",
+  "number": 826,
+  "finalized": true,
+  "title": "Client Mode Driver Is on the Wrong Host",
+  "description": "**SITUATION:**\n\nA client-mode submit left the driver on an edge-shaped host — your **shell**. Mid-job that driver process disappeared. YARN containers were still around for a moment; the application still died, because the driver is the brain of the job.\n\nResubmit in **cluster** deploy mode so the driver is a YARN ApplicationMaster container on a NodeManager. Show that the production shape survives the edge host going away.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Inspect the planted failed client-mode application.\n2. Resubmit the join with `--deploy-mode cluster` and the lab executor shape.\n3. Record where the cluster-mode driver (AM) ran and the successful application id.\n4. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- Successful run uses `--deploy-mode cluster` and finishes (or reaches RUNNING with an AM on a NodeManager).\n- Cluster-mode driver host is `ds-spark-02` or `ds-spark-03`, not `shell`.\n- Do not move production traffic back to client mode on the shell.\n- Investigation tab is complete — every field filled.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "yarn",
+    "l1",
+    "multi-step-bug",
+    "yarn-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide tab for the planted failure and the cluster-mode submit.",
+      "Failed client-mode app id is in ~/lab/failed_app_id.",
+      "Cluster mode: --deploy-mode cluster — driver becomes the AM container.",
+      "yarn application -status and the RM app page show the AM host.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Client Mode Driver Is on the Wrong Host",
+    "brief": "Client Mode Driver Is on the Wrong Host",
+    "solution": "",
+    "idLabel": "12",
+    "theory": "",
+    "guide": "# QuickBite — edge driver disappeared\n\n| Host | Role |\n|------|------|\n| `ds-spark-01` | ResourceManager |\n| `ds-spark-02` / `03` | NodeManagers |\n| `shell` | Edge submit client (unsafe for production drivers) |\n\nSetup started a **client-mode** long job whose driver lived on `shell`, then killed that driver mid-flight. The application failed. Containers alone are not enough without a driver.\n\nFailed app id: `~/lab/failed_app_id`\n\n## Fix — cluster deploy mode\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode cluster \\\n  --name store-rollup-cluster-safe \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\nThe driver is now the **ApplicationMaster** on `ds-spark-02` or `ds-spark-03`. Record that host and the application id.\n\nOptional proof: after cluster mode is RUNNING/FINISHED, killing processes on `shell` does not take down the AM.\n\n## Investigation\n\nRecord the failed client app, why it died, the successful cluster app id, and the AM host.\n"
+  },
+  "platformSpec": {
+    "shape": "yarn-2",
+    "daemonMode": "auto",
+    "chapter": "yarn",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 15
+}

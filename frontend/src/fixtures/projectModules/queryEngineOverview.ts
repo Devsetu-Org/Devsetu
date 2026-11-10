@@ -151,7 +151,7 @@ export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **sqlq**, a SQL engine in Go. You type statements into a small REPL. Tests feed SQL and check the rows that come back.',
+        'Over five chapters you build **sqlq**, a SQL engine in Go, Python, or C++. You type statements into a small REPL. Tests feed SQL and check the rows that come back.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -200,7 +200,7 @@ export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable Go (slices, structs, methods, and `go test`). No database background. Every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No database background. Every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',

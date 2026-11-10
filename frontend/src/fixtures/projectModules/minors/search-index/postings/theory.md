@@ -17,10 +17,16 @@ Chapter 1 gave you tokens. This chapter builds the **inverted index** those toke
 
 A **posting** is one document's use of a term: the internal document id and the term frequency in that document.
 
-Lists stay sorted by `DocID`. Sorted lists are what boolean retrieval intersects and unions in chapter 4.
+Lists stay sorted by doc id. Sorted lists are what boolean retrieval intersects and unions in chapter 4.
 
 <!-- lang: go -->
 `Posting` and `Map` live in `internal/postings`. `NewMap`, `Terms`, `Postings`, and `Clear` are given. You implement `Add`.
+<!-- /lang -->
+<!-- lang: python -->
+`Posting` and `Map` live in `findx/postings`. `terms_sorted`, `postings`, and `clear` are given. You implement `add`.
+<!-- /lang -->
+<!-- lang: cpp -->
+`Posting` and `Map` live in `src/postings`. `Terms`, `Postings`, and `Clear` are given. You implement `Add`.
 <!-- /lang -->
 
 <!-- lang: go -->
@@ -30,6 +36,20 @@ Lists stay sorted by `DocID`. Sorted lists are what boolean retrieval intersects
 2. Find the first index whose `DocID >= docID` with `sort.Search`.
 3. If that slot has the same `DocID`, replace `TF`.
 4. Otherwise insert `Posting{DocID: docID, TF: tf}` so the slice stays ordered.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `Map.add`
+
+1. Find the insertion point with `bisect` on `doc_id`.
+2. If that slot has the same `doc_id`, replace `tf`.
+3. Otherwise insert `Posting(doc_id, tf)` so the list stays ordered.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `Map::Add`
+
+1. Find the insertion point with `std::lower_bound` on `doc_id`.
+2. If that slot has the same `doc_id`, replace `tf`.
+3. Otherwise insert `Posting{doc_id, tf}` so the vector stays ordered.
 <!-- /lang -->
 
 ## Segment layout
@@ -55,6 +75,20 @@ A segment is one flush of the map. The file is little-endian:
 2. Write the 12-byte header (`FNDX`, version `1`, `nTerms`).
 3. Write the directory entries, then the data buffer.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.2)` — `write_segment`
+
+1. For each term in `m.terms_sorted()` order, append `count` postings to a data buffer and record `(data_off, count)` for the directory.
+2. Write the 12-byte header (`FNDX`, version `1`, `nTerms`).
+3. Write the directory entries, then the data buffer. Use `struct.pack("<I", …)` / `struct.pack("<H", …)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.2)` — `WriteSegment`
+
+1. For each term in `m.Terms()` order, append `count` postings to a data buffer and record `(dataOff, count)` for the directory.
+2. Write the 12-byte header (`FNDX`, version `1`, `nTerms`).
+3. Write the directory entries, then the data buffer (little-endian).
+<!-- /lang -->
 
 ## Decode and seek
 <!-- mode: read-and-implement tasks:2.3 -->
@@ -72,6 +106,32 @@ A segment is one flush of the map. The file is little-endian:
 
 `OpenSegment` is given: it reads the file and calls `DecodeSegment`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `decode_segment` and `Segment.postings`
+
+`decode_segment`:
+
+1. Reject a bad magic or version.
+2. Read `nTerms` directory entries into a dict of `_Entry`.
+3. The remainder of the file is `data`.
+
+`postings`: look up the term; if missing, return `([], False)`. Otherwise read `count` little-endian `(doc_id, tf)` pairs starting at `off` in `data`.
+
+`open_segment` is given: it reads the file and calls `decode_segment`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `DecodeSegment` and `Segment::Postings`
+
+`DecodeSegment`:
+
+1. Reject a bad magic or version.
+2. Read `nTerms` directory entries into a map of `Entry`.
+3. The remainder of the file is `data`.
+
+`Postings`: look up the term; if missing, return `{ {}, false }`. Otherwise read `count` little-endian `(doc_id, tf)` pairs starting at `off` in `data`.
+
+`OpenSegment` is given: it reads the file and calls `DecodeSegment`.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -80,6 +140,19 @@ A segment is one flush of the map. The file is little-endian:
 ```bash
 make test
 make race
+printf '%s\n' "cat sat" "cat dog" | make run > /tmp/seg.fx
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+printf '%s\n' "cat sat" "cat dog" | make run > /tmp/seg.fx
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
 printf '%s\n' "cat sat" "cat dog" | make run > /tmp/seg.fx
 ```
 <!-- /lang -->

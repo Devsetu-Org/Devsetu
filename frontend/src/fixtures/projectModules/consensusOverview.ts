@@ -201,7 +201,7 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **raftkv**, a small Raft cluster in Go that serves a replicated key/value API. A test harness drops messages, delays them, and kills nodes. Passing tests means the safety rules hold under those faults.',
+        'Over five chapters you build **raftkv**, a small Raft cluster in Go, Python, or C++ that serves a replicated key/value API. A test harness drops messages, delays them, and kills nodes. Passing tests means the safety rules hold under those faults.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -250,7 +250,7 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable Go (goroutines, channels, mutexes, `go test`). No distributed-systems background; every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No distributed-systems background; every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',
@@ -266,6 +266,6 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
     'Raft uses a single leader per term, a replicated log, and majority votes for elections and commits.',
     'Safety first: a minority must not invent a conflicting committed history; availability needs a majority.',
     'etcd, Consul, TiKV, and CockroachDB all run on Raft (or a close cousin), and their outages often are quorum and election behaviour.',
-    'Across five chapters you build election, replication, commit, persistence, and a replicated KV API in Go.',
+    'Across five chapters you build election, replication, commit, persistence, and a replicated KV API in Go, Python, or C++.',
   ],
 };

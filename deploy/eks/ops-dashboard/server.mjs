@@ -361,6 +361,60 @@ const ACTIONS = {
     argv: [path.join(EKS_ROOT, 'eks-kafka.sh'), 'down'],
     confirm: 'down',
   },
+  'spark-base': {
+    label: 'Spark base',
+    section: 'spark',
+    summary: 'labs-spark Desired=1.',
+    description: [
+      'Creates the labs-spark managed node group and launch template if missing, scales it to Desired=1, and waits for a Ready node labeled pool=spark.',
+      'That node is tainted so only Spark lab pods (and pool DaemonSets) schedule there. Platforms Engineer Spark labs (sandboxType spark) select and tolerate this pool.',
+      'Not in EKS_NODEGROUPS, so a normal cluster sleep leaves it alone — park it with Spark sleep / Spark down. Does not apply the Karpenter overflow pool; run Spark up for that.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'base'],
+  },
+  'spark-up': {
+    label: 'Spark elastic (up)',
+    section: 'spark',
+    summary: 'Apply labs-spark-elastic NodePool only.',
+    description: [
+      'Applies only the Karpenter EC2NodeClass + NodePool labs-spark-elastic. When Spark labs are Pending because the managed base is full, Karpenter buys matching Graviton nodes (same pool label/taint as the base) and removes them once empty.',
+      'Does not scale the managed NG — run Spark base first for that. Prerequisite: Karpenter controller already installed (Install Karpenter).',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'up'],
+  },
+  'spark-wake': {
+    label: 'Spark wake',
+    section: 'spark',
+    summary: 'Wake labs-spark, then elastic.',
+    description: [
+      'Convenience path after Spark sleep: scales labs-spark back to 1, waits for Ready, then applies labs-spark-elastic.',
+      'Use when Spark capacity was parked and you want the always-on base (and overflow) restored. If you only want the single managed node, prefer Spark base.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'wake'],
+  },
+  'spark-sleep': {
+    label: 'Spark sleep',
+    section: 'spark',
+    summary: 'Park elastic and labs-spark → 0.',
+    description: [
+      'Parks Spark capacity without touching system-k8s or the EKS control plane. First patches labs-spark-elastic cpu limit to 0 and deletes its NodeClaims (Karpenter terminates those EC2 instances), then scales the labs-spark managed group to Desired=0.',
+      'Open Spark labs will sit Pending / fail availability until capacity wakes again.',
+      'Bring capacity back with Spark wake (base + elastic) or Spark base alone if you do not need overflow.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'sleep'],
+  },
+  'spark-down': {
+    label: 'Spark down',
+    section: 'spark',
+    summary: 'Delete elastic NodePool; sleep NG.',
+    description: [
+      'Deletes the labs-spark-elastic NodePool/EC2NodeClass (Karpenter terminates those nodes), then sleeps labs-spark to Desired=0.',
+      'After this, Spark labs will not work until you run Spark base again (and up if you want elastic). Stronger than sleep alone because the elastic NodePool is removed from the cluster.',
+      'Confirm by typing down. Prefer Spark sleep when you only want to park capacity and keep the elastic pool definition installed.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'down'],
+    confirm: 'down',
+  },
 };
 
 /**

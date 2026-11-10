@@ -1,0 +1,63 @@
+{
+  "id": "spark-01-stand-up-the-cluster-and-find-everything-on-disk",
+  "number": 810,
+  "finalized": true,
+  "title": "Stand Up the Cluster and Find Everything on Disk",
+  "description": "**SITUATION:**\n\nIt's your first shift on QuickBite's Data Platform team. Before YARN or Spark-on-Kubernetes, you work a **standalone** Spark cluster: one master and two workers.\n\nDevSetu Platform has procured three hosts with Spark installed — `ds-spark-01`, `ds-spark-02`, and `ds-spark-03` — but **nothing is running yet**. Open the **Guide** for bring-up steps. Stand the cluster up, then prove you know what is running and where Spark keeps state on disk.\n\nOn call, the Master UI is useful — and incomplete. When a worker stops registering or logs fill a disk, you need the processes and paths on the nodes themselves. Switch the terminal between hosts from the bar above.\n\n**YOUR TASK:**\n\n1. Open the **Guide** and bring up the cluster: master on `ds-spark-01`, workers on `ds-spark-02` and `ds-spark-03` (use `$SPARK_MASTER_URL`).\n2. Confirm with `ps` that Master / Workers are live and the master lists two ALIVE workers.\n3. Read Guide §3 (start-script flow), then answer the **Start-script flow** dropdowns in Investigation.\n4. Locate each process's log directory, work directory, and `conf/` — without being told the path.\n5. Open `conf/spark-env.sh` and `conf/spark-defaults.conf`. In Investigation, pick what each file configures.\n6. Fill every Investigation field with the paths and choices you found. Do not submit an application job — orientation only.",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "l0",
+    "foundations",
+    "orientation",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide tab for the bring-up steps.",
+      "Use $SPARK_HOME/sbin/start-master.sh on ds-spark-01, then start-worker.sh \"$SPARK_MASTER_URL\" on ds-spark-02 and ds-spark-03.",
+      "Guide §3: start-*.sh → spark-daemon → spark-env.sh → Java Master/Worker → logs/.",
+      "Switch the terminal to ds-spark-01, ds-spark-02, and ds-spark-03 from the node bar.",
+      "SPARK_HOME is /opt/spark. Look under conf/, logs/, and work/ after the daemons are up.",
+      "Investigation: spark-env.sh → daemon/process; spark-defaults.conf → application SparkConf.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Stand Up the Cluster and Find Everything on Disk",
+    "brief": "Stand Up the Cluster and Find Everything on Disk",
+    "solution": "",
+    "idLabel": "01",
+    "theory": "",
+    "guide": "# QuickBite Data Platform — Standalone Spark bring-up\n\nDevSetu Platform has procured three hosts for this lab. Spark is installed under\n`$SPARK_HOME` (`/opt/spark`) on each:\n\n| Host          | Role in this lab                          |\n|---------------|-------------------------------------------|\n| `ds-spark-01` | Start the **Master** here                 |\n| `ds-spark-02` | Start a **Worker** here                   |\n| `ds-spark-03` | Start a **Worker** here                   |\n\nNothing is running yet. Bring up a **standalone** cluster, then learn the on-disk layout.\n\nEnvironment already set on every node:\n\n- `SPARK_HOME=/opt/spark`\n- `SPARK_MASTER_URL` — `spark://ds-spark-01:7077`\n- `SPARK_MASTER_HOST=ds-spark-01` / `SPARK_MASTER_PORT` / `SPARK_MASTER_WEBUI_PORT` (8080)\n- Hostnames `ds-spark-01` … `ds-spark-03` resolve on the cluster\n- Workers: `SPARK_WORKER_CORES=1`, `SPARK_WORKER_MEMORY=768m`, `SPARK_WORKER_WEBUI_PORT`\n\n## 1. Start the master\n\nSwitch the terminal to **ds-spark-01**, then:\n\n```bash\n$SPARK_HOME/sbin/start-master.sh\n```\n\nConfirm with `ps` / `jps` that `Master` is up. UI listens on port 8080.\n\n## 2. Start both workers\n\nOn **ds-spark-02**, then **ds-spark-03**:\n\n```bash\n$SPARK_HOME/sbin/start-worker.sh \"$SPARK_MASTER_URL\"\n```\n\nWait until the master lists **2 ALIVE** workers (registration takes a few seconds):\n\n```bash\n# on ds-spark-01\ncurl -s http://127.0.0.1:8080/json/ | grep -o '\"aliveworkers\"[[:space:]]*:[[:space:]]*[0-9]*'\n# or: ps -ef | grep -i Worker   on each worker host\n```\n\n## 3. What `start-*.sh` does\n\nOn the host where you run the command:\n\n1. `start-master.sh` / `start-worker.sh` → `spark-daemon.sh`\n2. Loads env → sources **`conf/spark-env.sh`**\n3. Starts the Java **Master** or **Worker**\n4. Logs go under **`$SPARK_HOME/logs`**\n\nWorker env is loaded on the **worker host** you started — not only on the master.  \n`spark-defaults.conf` is for jobs later, not daemon start.\n\n## 4. Find everything on disk\n\nWithout being told the paths, locate on master and workers:\n\n- log directory\n- work directory\n- `conf/` (open `spark-env.sh` and `spark-defaults.conf`)\n\nKnow what each of those conf files configures — Investigation has one dropdown per file, plus questions on the start flow above.\n\n## 5. Investigation\n\nRecord PIDs, paths, conf-role dropdowns, and start-flow dropdowns in the **Investigation** tab, then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "daemonMode": "manual",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your nodes",
+      "phases": [
+        "Planning for a Spark cluster",
+        "Procuring the nodes",
+        "Installing Spark on the nodes",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

@@ -68,13 +68,24 @@ sleep_spark() {
 wake_spark() {
   eks_need_aws
   EKS_WAKE_NODEGROUPS=labs-spark "$ROOT/eks-wake.sh"
-  up
+  # Overflow is optional. This cluster may not have Karpenter installed.
+  if kubectl get crd nodepools.karpenter.sh >/dev/null 2>&1; then
+    up
+  else
+    echo "==> Karpenter CRDs not installed; labs-spark base node only"
+  fi
 }
 
 down() {
-  echo "==> delete NodePool $POOL (Karpenter terminates its nodes)"
-  kubectl delete nodepool "$POOL" --ignore-not-found --wait=true --timeout=10m
-  kubectl delete ec2nodeclass "$POOL" --ignore-not-found --wait=true --timeout=10m
+  # --ignore-not-found does not help when Karpenter was never installed: kubectl
+  # exits 1 with "the server doesn't have a resource type".
+  if kubectl get crd nodepools.karpenter.sh >/dev/null 2>&1; then
+    echo "==> delete NodePool $POOL (Karpenter terminates its nodes)"
+    kubectl delete nodepool "$POOL" --ignore-not-found --wait=true --timeout=10m
+    kubectl delete ec2nodeclass "$POOL" --ignore-not-found --wait=true --timeout=10m
+  else
+    echo "==> Karpenter is not installed; no NodePool to delete"
+  fi
   if eks_cluster_exists 2>/dev/null; then
     EKS_NODEGROUPS=labs-spark "$ROOT/eks-sleep.sh"
   fi

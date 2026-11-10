@@ -26,12 +26,21 @@ import {
   getDevopsReading,
   listDevopsIntroItems,
 } from './devopsReadings';
+import {
+  getSparkReading,
+  listSparkTrackItems,
+  SPARK_PLATFORM_LABS_PATH,
+  sparkReadingPath,
+} from './sparkReadings';
 
-export type ReadingTrackId = 'kubernetes' | 'linux' | 'docker' | 'devops';
+export type ReadingTrackId = 'kubernetes' | 'linux' | 'docker' | 'devops' | 'spark';
 
 export interface ReadingTrack {
   id: ReadingTrackId;
   label: string;
+  /** Crumb parent, e.g. /track/platforms-engineer. */
+  domainPath: string;
+  domainLabel: string;
   labsPath: string;
   primer: { path: string; label: string } | null;
   relatedLabsIntro: string;
@@ -44,6 +53,8 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
   kubernetes: {
     id: 'kubernetes',
     label: 'Kubernetes',
+    domainPath: '/track/devops-engineer',
+    domainLabel: 'DevOps Engineer',
     labsPath: K8S_LABS_PATH,
     primer: { path: K8S_PRIMER_PATH, label: 'Kubernetes primer' },
     relatedLabsIntro:
@@ -55,6 +66,8 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
   linux: {
     id: 'linux',
     label: 'Linux',
+    domainPath: '/track/devops-engineer',
+    domainLabel: 'DevOps Engineer',
     labsPath: LINUX_LABS_PATH,
     primer: null,
     relatedLabsIntro:
@@ -66,6 +79,8 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
   docker: {
     id: 'docker',
     label: 'Docker',
+    domainPath: '/track/devops-engineer',
+    domainLabel: 'DevOps Engineer',
     labsPath: DOCKER_LABS_PATH,
     primer: null,
     relatedLabsIntro:
@@ -77,6 +92,8 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
   devops: {
     id: 'devops',
     label: 'Introduction',
+    domainPath: '/track/devops-engineer',
+    domainLabel: 'DevOps Engineer',
     labsPath: DEVOPS_INTRO_PATH,
     primer: null,
     relatedLabsIntro: '',
@@ -84,12 +101,26 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
     readingPath: devopsReadingPath,
     listTrackItems: listDevopsIntroItems,
   },
+  spark: {
+    id: 'spark',
+    label: 'Spark',
+    domainPath: '/track/platforms-engineer',
+    domainLabel: 'Platforms Engineer',
+    labsPath: SPARK_PLATFORM_LABS_PATH,
+    primer: null,
+    relatedLabsIntro:
+      'The chapter labs are where you practice this on a live cluster. Read the blog first, then open the lab and do the shift yourself.',
+    getReading: getSparkReading,
+    readingPath: sparkReadingPath,
+    listTrackItems: listSparkTrackItems,
+  },
 };
 
 export function readingTrackForPanel(
   domainId: string | null | undefined,
   panelId: string | null | undefined,
 ): ReadingTrack | null {
+  if (domainId === 'platforms-engineer' && panelId === 'spark') return READING_TRACKS.spark;
   if (domainId !== 'devops-engineer') return null;
   if (panelId === 'introduction') return READING_TRACKS.devops;
   if (panelId === 'kubernetes') return READING_TRACKS.kubernetes;

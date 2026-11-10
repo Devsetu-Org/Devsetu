@@ -83,6 +83,28 @@ In `internal/wal/record.go`. `appendPayload` (given) writes the payload. Your jo
 
 `encode` **appends**: bytes already in `dst` must survive. The writer relies on that to reuse one buffer for every record.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `encode`
+
+In `lsmkv/wal/record.py`. `append_payload` (given) writes the payload. Your job is the frame around it:
+
+1. Remember `start = len(dst)`, then extend `dst` by `HEADER_SIZE` zero bytes as a placeholder.
+2. `append_payload(dst, r)`; the payload is `dst[start+HEADER_SIZE:]`.
+3. Write `crc32c.checksum(payload)` into `dst[start:start+4]` and `len(payload)` into `dst[start+4:start+8]` with `struct.pack_into('<I', ...)`.
+
+`encode` **appends**: bytes already in `dst` must survive. The writer relies on that to reuse one buffer for every record.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `Encode`
+
+In `src/wal/record.cc`. `AppendPayload` (given) writes the payload. Your job is the frame around it:
+
+1. Remember `start = dst->size()`, then append `kHeaderSize` zero bytes as a placeholder.
+2. `AppendPayload(dst, r)`; the payload is the bytes after the placeholder.
+3. Write `Checksum(payload)` into the first 4 bytes and the payload length into the next 4, both little-endian.
+
+`Encode` **appends**: bytes already in `*dst` must survive. The writer relies on that to reuse one buffer for every record.
+<!-- /lang -->
 
 ## Appending and fsync
 <!-- mode: read-and-implement tasks:2.2 -->
@@ -109,6 +131,28 @@ In `internal/wal/writer.go`:
 1. `w.buf = encode(w.buf[:0], r)` reuses the buffer instead of allocating per record.
 2. `n, err := w.f.Write(w.buf)`; add `n` to `w.size` even on error, then return the error if any.
 3. If `w.mode == SyncAlways`, return `w.f.Sync()`.
+
+`Create`, `OpenAppend`, `Size`, and `Close` are given.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.2)` — `append`
+
+In `lsmkv/wal/writer.py`:
+
+1. Clear `self._buf` and `encode(self._buf, r)` to reuse the buffer.
+2. `n = self._f.write(self._buf)`; add `n` to `self._size`.
+3. If `self._mode is SyncMode.ALWAYS`, `flush` and `os.fsync`.
+
+`create`, `open_append`, `size`, and `close` are given.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.2)` — `Append`
+
+In `src/wal/writer.cc`:
+
+1. Clear `buf_` and `Encode(&buf_, r)` to reuse the buffer.
+2. One `fwrite` of the buffer; add the bytes written to `size_`.
+3. If `mode_ == SyncMode::kAlways`, fsync the file.
 
 `Create`, `OpenAppend`, `Size`, and `Close` are given.
 <!-- /lang -->
@@ -147,6 +191,30 @@ In `internal/wal/reader.go`. Reading the file and the missing-file case are give
 
 You will need to import `encoding/binary` and `hash/crc32`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `replay`
+
+In `lsmkv/wal/reader.py`. Reading the file and the missing-file case are given. Loop over `data`:
+
+1. `rest = data[good:]`. If `len(rest) < HEADER_SIZE`, return `good`.
+2. Read `sum` and `n` from the header (`struct.unpack_from('<II', ...)`). If `n > MAX_RECORD_SIZE` or the payload would run past the end, stop.
+3. Check `crc32c.checksum(payload) == sum`; otherwise stop.
+4. `decode_payload(payload)`; if it fails, stop.
+5. Call `fn(r)` (exceptions propagate).
+6. `good += HEADER_SIZE + n`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `Replay`
+
+In `src/wal/reader.cc`. Reading the file and the missing-file case are given. Loop over `data`:
+
+1. If fewer than `kHeaderSize` bytes remain, return `good`.
+2. Read little-endian `sum` and `n`. If `n > kMaxRecordSize` or the payload would run past the end, stop.
+3. If `Checksum(payload) != sum`, stop.
+4. `DecodePayload`; on `CorruptError`, stop.
+5. Call `fn(r)`.
+6. Advance `good` by `kHeaderSize + n`.
+<!-- /lang -->
 
 ## Recovery in the engine
 <!-- mode: read-and-implement tasks:2.4 -->
@@ -176,6 +244,32 @@ You will need to import `path/filepath`. Later chapters keep this file exactly a
 > [!scope] Locking
 > One mutex covers the log append and the memtable update, so records reach the log in the same order they reach the memtable. Replay then rebuilds exactly the same state.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.4)` — `recover_log` and `commit`
+
+In `lsmkv/db/recover.py`. `open_db` and `_write` in `db.py` are given and call these two:
+
+- `recover_log`: `path = os.path.join(d.dir, WAL_NAME)`, then `replay(path, ...)` applying each record with `apply`. Then `d.log = open_append(path, good, d.opts.sync)`.
+- `commit`: `d.log.append(r)` first; only then `apply(d.mem, r)`.
+
+Later chapters keep this file exactly as you leave it.
+
+> [!scope] Locking
+> One lock covers the log append and the memtable update, so records reach the log in the same order they reach the memtable.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.4)` — `RecoverLog` and `Commit`
+
+In `src/db/recover.cc`. `Open` and `Put`/`Delete` call these two:
+
+- `RecoverLog`: replay `dir_ + "/" + kWalName`, applying each record with `Apply`. Then `log_.reset(OpenAppend(path, good, opts_.sync))`.
+- `Commit`: `log_->Append(r)` first; only then `Apply(&mem_, r)`.
+
+Later chapters keep this file exactly as you leave it.
+
+> [!scope] Locking
+> One mutex covers the log append and the memtable update, so records reach the log in the same order they reach the memtable.
+<!-- /lang -->
 
 ## Prove it
 <!-- mode: read-only -->
@@ -184,6 +278,19 @@ You will need to import `path/filepath`. Later chapters keep this file exactly a
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # every acceptance test
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # every acceptance test
+make asan     # the same tests under AddressSanitizer + UBSan
 make run      # a REPL that keeps its data in ./data
 ```
 <!-- /lang -->

@@ -1,0 +1,52 @@
+{
+  "id": "spark-11-land-in-the-right-capacity-queue",
+  "number": 825,
+  "finalized": true,
+  "title": "Land in the Right Capacity Queue",
+  "description": "**SITUATION:**\n\nQuickBite's YARN cluster has three capacity queues: `default`, `production`, and `adhoc`. Store-rollup was submitted into **default** and sits **Accepted** while **production** has spare capacity.\n\nQueue placement is a platform rule, not a submitter preference. Fix the placement so the job runs. Do **not** raise the default queue's capacity to make it look green.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Confirm the stuck app is Accepted in `default`.\n2. Submit the join into the **production** queue with the lab executor shape.\n3. Record the stuck state/queue and the successful application id in Investigation.\n4. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- Successful run uses `--queue production` (or equivalent) and reaches RUNNING/FINISHED.\n- Do not raise `default` queue capacity / maximum-capacity.\n- Do not disable the capacity scheduler.\n- Investigation tab is complete — every field filled.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "yarn",
+    "l1",
+    "multi-step-bug",
+    "yarn-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide tab for queue names and the submit shape.",
+      "yarn application -list shows queue and state. RM Scheduler panel shows capacities.",
+      "spark-submit --queue production … is the intended fix.",
+      "Raising default capacity is out of spec — production already has spare room.",
+      "Fill the Investigation tab; Submit stays off until every field is filled."
+    ],
+    "overview": "Land in the Right Capacity Queue",
+    "brief": "Land in the Right Capacity Queue",
+    "solution": "",
+    "idLabel": "11",
+    "theory": "",
+    "guide": "# QuickBite — wrong queue, Accepted forever\n\n| Host | Role |\n|------|------|\n| `ds-spark-01` | ResourceManager `:8088` |\n| `ds-spark-02` / `ds-spark-03` | NodeManagers `:8042` |\n| `shell` | Submit client |\n\nQueues on this cluster:\n\n| Queue | Capacity |\n|-------|----------|\n| `default` | small (intentionally tight) |\n| `production` | most of the cluster |\n| `adhoc` | spare lane |\n\nSetup already submitted `store-rollup-stuck` into **default**. It stays **Accepted** because default cannot fit the lab executor shape. Production has room.\n\n## Lab submit shape\n\n- `--master yarn`\n- 2 executors, 1 core, `512m`\n- Job: `local:/opt/lab/jobs/store_join.py`\n\n## Fix\n\nSubmit into **production**:\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode client \\\n  --queue production \\\n  --name store-rollup-fixed \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\nDo **not** edit capacity-scheduler.xml to inflate `default`.\n\n## Investigation\n\nRecord the stuck state/queue, the queue you used for the successful run, and the successful application id.\n"
+  },
+  "platformSpec": {
+    "shape": "yarn-2",
+    "daemonMode": "auto",
+    "chapter": "yarn",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 15
+}

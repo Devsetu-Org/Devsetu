@@ -67,6 +67,12 @@ A write is a **batch**: page images, one meta record, then a commit. A batch wit
 <!-- lang: go -->
 How a `Put` becomes a batch is given: `internal/db/txn.go` runs the tree over an in-memory overlay, so every `WritePage` the tree makes lands in memory only, and `txn.records()` turns the result into log records. `apply.go` writes records back into pages. You write the log itself and the two functions that connect it to the engine.
 <!-- /lang -->
+<!-- lang: python -->
+How a `Put` becomes a batch is given: `btreekv/db/txn.py` runs the tree over an in-memory overlay, so every `write_page` the tree makes lands in memory only, and `txn.records()` turns the result into log records. `apply.py` writes records back into pages. You write the log itself and the two functions that connect it to the engine.
+<!-- /lang -->
+<!-- lang: cpp -->
+How a `Put` becomes a batch is given: `src/db/txn.cc` runs the tree over an in-memory overlay, so every `WritePage` the tree makes lands in memory only, and `Txn::Records()` turns the result into log records. `apply.cc` writes records back into pages. You write the log itself and the two functions that connect it to the engine.
+<!-- /lang -->
 
 ## The record format
 <!-- mode: read-and-implement tasks:3.1 -->
@@ -98,6 +104,28 @@ In `internal/wal/record.go`. `appendPayload` (given) writes the payload. Your jo
 
 `encode` **appends**: bytes already in `dst` must survive. The writer relies on that to put a whole batch into one buffer.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.1)` — `encode`
+
+In `btreekv/wal/record.py`. `append_payload` (given) writes the payload. Your job is the frame around it:
+
+1. Remember `start = len(dst)`, then append `HEADER_SIZE` zero bytes as a placeholder.
+2. `dst = append_payload(dst, r)`; the payload is `dst[start+HEADER_SIZE:]`.
+3. Write `crc32c(bytes(payload))` into `dst[start:start+4]` and `len(payload)` into `dst[start+4:start+8]` with `struct.pack_into`.
+
+`encode` **appends**: bytes already in `dst` must survive. The writer relies on that to put a whole batch into one buffer.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.1)` — `Encode`
+
+In `src/wal/record.cc`. `AppendPayload` (given) writes the payload. Your job is the frame around it:
+
+1. Remember `start = dst->size()`, then append `kWalHeaderSize` zero bytes as a placeholder.
+2. `AppendPayload(dst, r)`; the payload is `(*dst)[start+kWalHeaderSize..]`.
+3. Write `Crc32c(payload)` and `len(payload)` as little-endian `uint32` into the header.
+
+`Encode` **appends**: bytes already in `dst` must survive. The writer relies on that to put a whole batch into one buffer.
+<!-- /lang -->
 
 ## Appending and fsync
 <!-- mode: read-and-implement tasks:3.2 -->
@@ -128,6 +156,28 @@ In `internal/wal/writer.go`:
 3. If `w.mode == SyncAlways`, `return w.Sync()`.
 
 `Sync` (given) calls `f.Sync` and records how much of the log is now durable. Chapter 4 asks the writer that question. `Create`, `OpenAppend`, `Size`, `Durable`, `Rewind`, `Reset`, and `Close` are given.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.2)` — `append`
+
+In `btreekv/wal/writer.py`:
+
+1. Clear `self._buf`, then `encode(self._buf, r)` for every record.
+2. `n = os.write(self._fd, self._buf)`; add `n` to `self._size`.
+3. If `self.mode == SyncMode.ALWAYS`, call `self.sync()`.
+
+`sync` (given) calls `os.fsync` and records how much of the log is now durable. `create`, `open_append`, `size`, `durable`, `rewind`, `reset`, and `close` are given.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.2)` — `Append`
+
+In `src/wal/writer.cc`:
+
+1. Clear `buf_`, then `Encode(&buf_, r)` for every record.
+2. One `fwrite` of the whole buffer; add the bytes written to `size_`.
+3. If `mode_ == SyncMode::kAlways`, call `Sync()`.
+
+`Sync` (given) fsyncs and records how much of the log is now durable. `Create`, `OpenAppend`, `Size`, `Durable`, `Rewind`, `Reset`, and `Close` are given.
 <!-- /lang -->
 
 ## Replay and the torn tail
@@ -169,6 +219,30 @@ In `internal/wal/reader.go`. `Replay` (given) reads the file and handles a missi
 6. `good = end`.
 
 "Stop" means `return good, nil`. You will need to import `encoding/binary` and `hash/crc32`.
+<!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.3)` — `scan`
+
+In `btreekv/wal/reader.py`. `replay` (given) reads the file and handles a missing one; `scan` walks the bytes. Loop over `data`:
+
+1. `rest = data[good:]`. If `len(rest) < HEADER_SIZE`, return `good`.
+2. Read `checksum` and `n` from the header (`struct.unpack_from("<II", ...)`). If `n > MAX_RECORD_SIZE` or the payload would run past the end of `rest`, stop.
+3. `payload = rest[HEADER_SIZE:HEADER_SIZE+n]`. If `crc32c(payload) != checksum`, stop.
+4. `decode_payload`; on `BadPayload`, stop.
+5. `end = good + HEADER_SIZE + n`. Call `fn(r, end)`, then `good = end`.
+
+"Stop" means `return good`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.3)` — `Scan`
+
+In `src/wal/reader.cc`. `Replay` (given) reads the file and handles a missing one; `Scan` walks the bytes. Loop:
+
+1. If fewer than `kWalHeaderSize` bytes remain, return `good`.
+2. Read CRC and length. If length is absurd or the payload does not fit, return.
+3. If `Crc32c(payload) != sum`, return.
+4. `DecodePayload`; on `BadPayloadError`, return.
+5. Call `fn(r, end)` then advance `good`.
 <!-- /lang -->
 
 ## Recovery in the engine
@@ -213,6 +287,26 @@ You will need to import `path/filepath` and the `wal` package. Later chapters ke
 > One mutex covers building the batch, the log append, and the page writes, so batches
 > reach the log in the same order they reach the pages. Readers take the read lock.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.4)` — `recover_log` and `commit`
+
+In `btreekv/db/recover.py`. `Open` and `update` in `db.py` are given and call these two:
+
+- `recover_log` (called by `open`): path is `wal.log` under `self.dir`, then `wal.replay(path, ...)` with a callback that appends each record to `pending`. On `Kind.COMMIT`: `apply_records(self, pending)`, clear `pending`, and remember `end` as the last commit offset. After replay, `self.log = open_append(path, committed, self.opts.sync)`.
+- `commit` (called by `update` with the lock held): `recs = t.records()`, `start = self.log.size()`, `self.log.append(*recs)`. If that fails, `self.log.rewind(start)` and re-raise. Only after it succeeded, `apply_records(self, recs)`.
+
+Later chapters keep this file exactly as you leave it: the buffer pool slots in underneath `self.store`, and `apply` writes to whatever it is.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.4)` — `RecoverLog` and `Commit`
+
+In `src/db/recover.cc`. `Open` and `Update` in `db.cc` are given and call these two:
+
+- `RecoverLog` (called by `Open`): path is `dir() + "/wal.log"`, then `Replay` with a callback that appends each record to `pending`. On `WalKind::kCommit`: `ApplyRecords(d, pending)`, clear `pending`, and remember `end` as the last commit offset. After Replay, `d->set_log(OpenAppend(path, committed, d->opts().sync))`.
+- `Commit` (called by `Update` with the mutex held): `recs = t->Records()`, `start = d->log()->Size()`, `d->log()->Append(recs)`. If that fails, `Rewind(start)` and rethrow. Only after it succeeded, `ApplyRecords(d, recs)`.
+
+Later chapters keep this file exactly as you leave it: the buffer pool slots in underneath `store_`, and `apply` writes to whatever it is.
+<!-- /lang -->
 
 ### Checkpoint on close
 
@@ -225,6 +319,19 @@ The log cannot grow forever. `Close` (given) **checkpoints**: it fsyncs the page
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # every acceptance test
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # every acceptance test
+make asan     # AddressSanitizer (Linux recommended)
 make run      # a REPL that keeps its data in ./data
 ```
 <!-- /lang -->

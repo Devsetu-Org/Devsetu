@@ -1,7 +1,7 @@
 /**
- * Consensus (Raft) chapters 1–5, Go only for now. Each starter repo is loaded
- * whole from its `go/files/` folder; `solution/` folders are never globbed, so
- * they stay out of the bundle.
+ * Consensus (Raft) chapters 1–5, Go. Each starter repo is loaded whole from its
+ * `go/files/` folder; `solution/` folders are never globbed, so they stay out
+ * of the bundle. Python and C++ live in consensusChaptersPython/Cpp.ts.
  *
  * A task's `file` also marks which files the learner owns: the workspace
  * carries those files into later chapters, so they must be byte-identical in

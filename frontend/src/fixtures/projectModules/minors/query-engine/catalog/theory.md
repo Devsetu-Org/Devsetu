@@ -33,6 +33,16 @@ Names are case-sensitive. `Users` and `users` are different tables. Keywords are
 
 The parser grew a `CREATE` and `INSERT` arm. The statement nodes (`CreateTable`, `Insert`, `Column`) were already in `ast.go`. You write `parseCreate` and `parseInsert` in `internal/parse/ddl.go`. `parseInt` is given, on the parser.
 <!-- /lang -->
+<!-- lang: python -->
+`DB`, `Table`, `Col`, and `Value` are in `sqlq/catalog/catalog.py`. `Lookup` is given. You write `Create` and `Insert` in `mutate.py`.
+
+The parser grew a `CREATE` and `INSERT` arm. The statement nodes were already in `ast.py`. You write `parse_create` and `parse_insert` in `sqlq/parse/ddl.py`. `parse_int` is given.
+<!-- /lang -->
+<!-- lang: cpp -->
+`catalog::DB`, `Table`, `Col`, and `Value` are in `src/catalog/catalog.h`. `Lookup` is given. You write `Create` and `Insert` in `mutate.cc`.
+
+The parser grew a `CREATE` and `INSERT` arm. The statement nodes were already in `ast.h`. You write `ParseCreate` and `ParseInsert` in `src/parse/ddl.cc`. `ParseInt` is given.
+<!-- /lang -->
 
 ## Parsing the statements
 <!-- mode: read-and-implement tasks:3.1 -->
@@ -64,6 +74,44 @@ In `internal/parse/ddl.go`.
 2. Repeat a parenthesized row. Each cell is `p.parsePrimary()`. Commas separate cells, and commas between `)` and `(` separate rows.
 3. Append each row to `ins.Rows`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.1)` — `parse_create`, `parse_type`, `parse_insert`
+
+In `sqlq/parse/ddl.py`.
+
+`parse_create`:
+
+1. Expect `CREATE`, `TABLE`, an ident, and `(`.
+2. Repeat: expect an ident, parse a type, append `Column(name=col.lit, type=typ)`. A comma continues the list.
+3. Expect `)`.
+
+`parse_type`: `INT` returns `TypeInt`, `TEXT` returns `TypeText`, anything else is `p.errorf("expected INT or TEXT")`.
+
+`parse_insert`:
+
+1. Expect `INSERT`, `INTO`, an ident, and `VALUES`.
+2. Repeat a parenthesized row. Each cell is `parse_primary(p)`. Commas separate cells, and commas between `)` and `(` separate rows.
+3. Append each row to `ins.rows`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.1)` — `ParseCreate`, `ParseType`, `ParseInsert`
+
+In `src/parse/ddl.cc`.
+
+`ParseCreate`:
+
+1. Expect `CREATE`, `TABLE`, an ident, and `(`.
+2. Repeat: expect an ident, parse a type, append a `Column`. A comma continues the list.
+3. Expect `)`.
+
+`ParseType`: `INT` returns `kInt`, `TEXT` returns `kText`, anything else is `p.Errorf("expected INT or TEXT")`.
+
+`ParseInsert`:
+
+1. Expect `INSERT`, `INTO`, an ident, and `VALUES`.
+2. Repeat a parenthesized row. Each cell is `ParsePrimary(p)`. Commas separate cells and rows.
+3. Append each row to `ins->rows`.
+<!-- /lang -->
 
 ## Storing rows
 <!-- mode: read-and-implement tasks:3.2,3.3 -->
@@ -87,6 +135,40 @@ In `internal/catalog/mutate.go`:
 3. For each column, `row[i].T` must equal `c.Type`. Say which column was wrong.
 4. Append `append([]Value(nil), row...)` to `t.Rows`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.2)` — `Create`
+
+In `sqlq/catalog/mutate.py`:
+
+1. An empty name, or `len(cols) == 0`, is an error.
+2. `name in db.tables` means the table exists.
+3. Walk `cols`. An empty `name`, or a name already seen in this list, is an error.
+4. Store `Table(name=name, cols=list(cols))`.
+
+### `TODO(3.3)` — `Insert`
+
+1. `db.Lookup(name)`. A missing table is that error.
+2. `len(row)` must equal `len(t.cols)`.
+3. For each column, `row[i].t` must equal `c.type`. Say which column was wrong.
+4. Append `list(row)` to `t.rows`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.2)` — `Create`
+
+In `src/catalog/mutate.cc`:
+
+1. An empty name, or an empty column list, is an error.
+2. `tables.count(name)` means the table exists.
+3. Walk `cols`. An empty `name`, or a name already seen in this list, is an error.
+4. Store a `Table` with a copy of `cols`.
+
+### `TODO(3.3)` — `Insert`
+
+1. `Lookup(name)`. A missing table is that error.
+2. `row.size()` must equal `cols.size()`.
+3. For each column, `row[i].t` must equal `c.type`. Say which column was wrong.
+4. Append a copy of `row` to `t->rows`.
+<!-- /lang -->
 
 The public `Exec` path parses, maps `INT` and `TEXT` onto `catalog.TypeInt` and `catalog.TypeText`, and calls `Create` or `Insert`. `Query` returns an error until the executor exists. You do not need to change that wiring.
 
@@ -97,6 +179,18 @@ The public `Exec` path parses, maps `INT` and `TEXT` onto `catalog.TypeInt` and 
 ```bash
 make test
 make race
+make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
 make run
 ```
 <!-- /lang -->
