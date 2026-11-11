@@ -145,12 +145,67 @@ function requireSessionAccess(req: ExpressRequest, res: ExpressResponse, next: E
   res.status(401).json({ error: 'unauthenticated' });
 }
 
+/**
+ * While ACCESS_LOCKED is on, only admins may continue. Unauthenticated and
+ * non-admin callers get 403 ACCESS_LOCKED (auth / waitlist stay public by
+ * mounting this only on product routes).
+ */
+function requireAdminWhenAccessLocked(
+  req: ExpressRequest,
+  res: ExpressResponse,
+  next: ExpressNextFunction,
+): void {
+  const { isAccessLocked, ACCESS_LOCKED_MESSAGE } = require('../accessLock');
+  if (!isAccessLocked()) {
+    next();
+    return;
+  }
+
+  const token = bearer(req);
+  if (!token) {
+    res.status(403).json({ error: ACCESS_LOCKED_MESSAGE, code: 'ACCESS_LOCKED' });
+    return;
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(403).json({ error: ACCESS_LOCKED_MESSAGE, code: 'ACCESS_LOCKED' });
+    return;
+  }
+  req.user = payload;
+
+  if (isAdminUser(req.user)) {
+    next();
+    return;
+  }
+
+  const userId = String(req.user?.sub || req.user?.userId || '');
+  if (!userId) {
+    res.status(403).json({ error: ACCESS_LOCKED_MESSAGE, code: 'ACCESS_LOCKED' });
+    return;
+  }
+
+  const { findUserById } = require('./companyStore');
+  findUserById(userId)
+    .then((dbUser: { isAdmin?: boolean; email?: string; role?: string } | null) => {
+      if (res.headersSent) return;
+      if (dbUser && resolveAdminFlag(dbUser)) {
+        if (req.user) req.user.admin = true;
+        next();
+        return;
+      }
+      res.status(403).json({ error: ACCESS_LOCKED_MESSAGE, code: 'ACCESS_LOCKED' });
+    })
+    .catch((e: unknown) => next(e));
+}
+
 module.exports = {
   requireInterviewer,
   optionalAuth,
   requireAdmin,
   requireReviewStaff,
   requireSessionAccess,
+  requireAdminWhenAccessLocked,
   isAdminUser,
   resolveAdminFlag,
 };

@@ -43,6 +43,7 @@ import type { K8sTrackItem } from '../constants/k8sReadings';
 import { readingTrackForPanel } from '../constants/readingTracks';
 import type { ChallengePublic } from '../types/domain';
 import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi';
+import { ACCESS_LOCKED, ACCESS_LOCKED_OPEN_MSG } from '../constants/accessLock';
 import { visibilityMark } from '../constants/roles';
 
 function panelPrimerPath(panelId: string): string | null {
@@ -459,7 +460,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 <div className="play-hub-title-row">
                   <h2 className="play-hub-title">{panel.label}</h2>
                   <div className="play-hub-title-actions">
-                    {primerPath && (
+                    {primerPath && !(ACCESS_LOCKED && !isAdmin) ? (
                       <Link
                         to={primerPath}
                         className="play-primer-link"
@@ -468,7 +469,16 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       >
                         <PrimerGuideIcon className="play-primer-link-icon" title="" />
                       </Link>
-                    )}
+                    ) : primerPath ? (
+                      <span
+                        className="play-primer-link is-locked"
+                        aria-label="Primer locked"
+                        data-tip={ACCESS_LOCKED_OPEN_MSG}
+                        title={ACCESS_LOCKED_OPEN_MSG}
+                      >
+                        <PrimerGuideIcon className="play-primer-link-icon" title="" />
+                      </span>
+                    ) : null}
                     {panel.id === 'kafka' && (
                       <button
                         type="button"
@@ -606,7 +616,11 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                             type="button"
                             className={`play-problem-row play-problem-row--lab${playable ? '' : ' disabled'}${solved ? ' is-solved' : ''}${locked ? ' is-locked' : ''}`}
                             disabled={!playable}
-                            title={locked ? 'Subscribe to unlock this lab' : undefined}
+                            title={
+                              locked
+                                ? (ACCESS_LOCKED ? ACCESS_LOCKED_OPEN_MSG : 'Subscribe to unlock this lab')
+                                : undefined
+                            }
                             onClick={() => {
                               if (playable) void onSelectChallenge(challenge);
                             }}

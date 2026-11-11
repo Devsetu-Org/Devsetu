@@ -30,6 +30,7 @@ const notifyRoutes = require('./routes/notify');
 const monthlyPaperRoutes = require('./routes/monthlyPaper');
 const profileRoutes = require('./routes/profile');
 const waitlistRoutes = require('./routes/waitlist');
+const { requireAdminWhenAccessLocked } = require('./auth/middleware');
 
 const terminalService = require('./observability/terminalService');
 const k8sTerminalService = require('./observability/k8sTerminalService');
@@ -52,20 +53,25 @@ app.use((req: ExpressRequest, _res: ExpressResponse, next: ExpressNextFunction) 
 
 app.get('/health', (_req: ExpressRequest, res: ExpressResponse) => res.json({ ok: true, ts: Date.now() }));
 
+// Public while access is locked: contact, auth (so admins can sign in), waitlist join.
 app.use('/api/contact', contactRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/challenges', challengeRoutes);
-app.use('/api/session', sessionRoutes);
-app.use('/api/papers', papersRoutes);
-app.use('/api/quizzes', quizzesRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/billing', billingRoutes);
-app.use('/api/notify', notifyRoutes);
-app.use('/api/monthly-paper', monthlyPaperRoutes);
-app.use('/api/profile', profileRoutes);
 app.use('/api/waitlist', waitlistRoutes);
-app.use('/api/dev/db', devDbRoutes);
+
+// Browse catalog while locked; opening labs is refused in labAccess / session.
+app.use('/api/challenges', challengeRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/monthly-paper', monthlyPaperRoutes);
+app.use('/api/papers', papersRoutes);
+
+// Live work / spend / admin — admin-only while ACCESS_LOCKED (set ACCESS_LOCKED=0 to reopen).
+app.use('/api/session', requireAdminWhenAccessLocked, sessionRoutes);
+app.use('/api/quizzes', requireAdminWhenAccessLocked, quizzesRoutes);
+app.use('/api/admin', requireAdminWhenAccessLocked, adminRoutes);
+app.use('/api/billing', requireAdminWhenAccessLocked, billingRoutes);
+app.use('/api/notify', requireAdminWhenAccessLocked, notifyRoutes);
+app.use('/api/profile', requireAdminWhenAccessLocked, profileRoutes);
+app.use('/api/dev/db', requireAdminWhenAccessLocked, devDbRoutes);
 
 app.use((err: Error & { status?: number }, _req: ExpressRequest, res: ExpressResponse, _next: ExpressNextFunction) => {
   console.error('[http] unhandled error', err);
@@ -85,6 +91,8 @@ server.on('upgrade', (req: IncomingMessage, socket: Socket, head: Buffer) => {
     return;
   }
 
+  // Product APIs are admin-only while ACCESS_LOCKED; non-admins cannot start sessions,
+  // so terminal upgrades stay gated by session existence.
   const handlers: Record<string, (ws: unknown, req: IncomingMessage) => void> = {
     '/ws/terminal': terminalService.handleConnection,
     '/ws/k8s-terminal': k8sTerminalService.handleConnection,
