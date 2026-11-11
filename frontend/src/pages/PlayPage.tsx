@@ -120,6 +120,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   const isTracksHub = !domainId;
   const isDomainHub = Boolean(domainId && domain && !panel);
   const readingTrack = readingTrackForPanel(domainId, panel?.id);
+  const contentLocked = ACCESS_LOCKED && !isAdmin;
 
   useEffect(() => {
     if (params.domainId && !domainId) {
@@ -586,13 +587,24 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                           <li key={row.key}>
                             <button
                               type="button"
-                              className="play-problem-row play-problem-row--reading"
-                              onClick={() => navigate(row.href)}
+                              className={`play-problem-row play-problem-row--reading${contentLocked ? ' is-locked' : ''}`}
+                              title={contentLocked ? ACCESS_LOCKED_OPEN_MSG : undefined}
+                              onClick={() => {
+                                if (contentLocked) return;
+                                navigate(row.href);
+                              }}
                             >
                               <span className="play-problem-id" title={row.trackId}>
                                 {row.trackId}
                               </span>
-                              <span className="play-problem-title">{row.title}</span>
+                              <span className="play-problem-title">
+                                {row.title}
+                                {contentLocked ? (
+                                  <span className="play-problem-lock" aria-label="Locked">
+                                    <IconLock size={13} />
+                                  </span>
+                                ) : null}
+                              </span>
                               <span className="play-problem-meta" aria-label="Blog">
                                 <StatusBookIcon className="play-problem-status-icon play-problem-meta-book" />
                               </span>

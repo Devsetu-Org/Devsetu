@@ -38,18 +38,8 @@ export const PLAY_DOMAINS: PlayDomain[] = [
     id: 'devops-engineer',
     label: 'DevOps Engineer',
     blurb:
-      'How companies ship and operate software. One short reading, then practice on Linux, containers, and Kubernetes.',
+      'How companies ship and operate software. Practice on Linux, containers, and Kubernetes.',
     panels: [
-      {
-        id: 'introduction',
-        label: 'Introduction',
-        subtitle: 'One short read, then the labs',
-        tileBlurb:
-          'Why a company needs a DevOps engineer, the skills they carry, and the tools you will hear named.',
-        blurb:
-          'A starter: why a company needs a DevOps engineer, the skills that person carries, and the tools that go with them.',
-        challengeIds: [],
-      },
       {
         id: 'linux',
         label: 'Linux',

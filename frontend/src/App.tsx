@@ -1374,6 +1374,10 @@ export default function App(): React.JSX.Element {
           <Route path="track/data-engineer/spark/intro" element={<ContentOpenRoute><SparkPrimerPage /></ContentOpenRoute>} />
           <Route path="track/devops-engineer/kubernetes/intro" element={<ContentOpenRoute><K8sPrimerPage /></ContentOpenRoute>} />
           <Route
+            path="track/devops-engineer/introduction"
+            element={<Navigate to="/track/devops-engineer" replace />}
+          />
+          <Route
             path="track/devops-engineer/read/:readingSlug"
             element={<ContentOpenRoute><K8sReadingPage trackId="devops" /></ContentOpenRoute>}
           />
