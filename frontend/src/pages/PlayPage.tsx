@@ -43,6 +43,7 @@ import type { K8sTrackItem } from '../constants/k8sReadings';
 import { readingTrackForPanel } from '../constants/readingTracks';
 import type { ChallengePublic } from '../types/domain';
 import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi';
+import { ACCESS_LOCKED, ACCESS_LOCKED_OPEN_MSG } from '../constants/accessLock';
 import { visibilityMark } from '../constants/roles';
 
 function panelPrimerPath(panelId: string): string | null {
@@ -119,6 +120,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   const isTracksHub = !domainId;
   const isDomainHub = Boolean(domainId && domain && !panel);
   const readingTrack = readingTrackForPanel(domainId, panel?.id);
+  const contentLocked = ACCESS_LOCKED && !isAdmin;
 
   useEffect(() => {
     if (params.domainId && !domainId) {
@@ -459,7 +461,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 <div className="play-hub-title-row">
                   <h2 className="play-hub-title">{panel.label}</h2>
                   <div className="play-hub-title-actions">
-                    {primerPath && (
+                    {primerPath && !(ACCESS_LOCKED && !isAdmin) ? (
                       <Link
                         to={primerPath}
                         className="play-primer-link"
@@ -468,7 +470,16 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       >
                         <PrimerGuideIcon className="play-primer-link-icon" title="" />
                       </Link>
-                    )}
+                    ) : primerPath ? (
+                      <span
+                        className="play-primer-link is-locked"
+                        aria-label="Primer locked"
+                        data-tip={ACCESS_LOCKED_OPEN_MSG}
+                        title={ACCESS_LOCKED_OPEN_MSG}
+                      >
+                        <PrimerGuideIcon className="play-primer-link-icon" title="" />
+                      </span>
+                    ) : null}
                     {panel.id === 'kafka' && (
                       <button
                         type="button"
@@ -576,13 +587,24 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                           <li key={row.key}>
                             <button
                               type="button"
-                              className="play-problem-row play-problem-row--reading"
-                              onClick={() => navigate(row.href)}
+                              className={`play-problem-row play-problem-row--reading${contentLocked ? ' is-locked' : ''}`}
+                              title={contentLocked ? ACCESS_LOCKED_OPEN_MSG : undefined}
+                              onClick={() => {
+                                if (contentLocked) return;
+                                navigate(row.href);
+                              }}
                             >
                               <span className="play-problem-id" title={row.trackId}>
                                 {row.trackId}
                               </span>
-                              <span className="play-problem-title">{row.title}</span>
+                              <span className="play-problem-title">
+                                {row.title}
+                                {contentLocked ? (
+                                  <span className="play-problem-lock" aria-label="Locked">
+                                    <IconLock size={13} />
+                                  </span>
+                                ) : null}
+                              </span>
                               <span className="play-problem-meta" aria-label="Blog">
                                 <StatusBookIcon className="play-problem-status-icon play-problem-meta-book" />
                               </span>
@@ -606,7 +628,11 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                             type="button"
                             className={`play-problem-row play-problem-row--lab${playable ? '' : ' disabled'}${solved ? ' is-solved' : ''}${locked ? ' is-locked' : ''}`}
                             disabled={!playable}
-                            title={locked ? 'Subscribe to unlock this lab' : undefined}
+                            title={
+                              locked
+                                ? (ACCESS_LOCKED ? ACCESS_LOCKED_OPEN_MSG : 'Subscribe to unlock this lab')
+                                : undefined
+                            }
                             onClick={() => {
                               if (playable) void onSelectChallenge(challenge);
                             }}

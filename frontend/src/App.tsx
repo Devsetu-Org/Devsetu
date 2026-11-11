@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage';
+import WaitlistPage from './pages/WaitlistPage';
 import { getMinor } from './constants/minors';
 import { getProject } from './constants/projects';
 import PlayPage from './pages/PlayPage';
@@ -16,6 +17,12 @@ import QuizPage from './pages/QuizPage';
 import WhitePapersPage from './pages/WhitePapersPage';
 import WhiteboardPage from './pages/WhiteboardPage';
 import { WHITEBOARD_ENABLED } from './constants/whiteboard';
+import {
+  ACCESS_LOCKED,
+  ACCESS_LOCKED_OPEN_MSG,
+  LEGACY_WAITLIST_PATH,
+  WAITLIST_PATH,
+} from './constants/accessLock';
 import SideQuestsPage from './pages/SideQuestsPage';
 import PlaygroundsPage from './pages/PlaygroundsPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -40,7 +47,7 @@ import PlatformLeaderboardPage from './pages/PlatformLeaderboardPage';
 import LearnerProfilePage from './pages/LearnerProfilePage';
 import AppLayout from './layouts/AppLayout';
 import { AppStateProvider, useAppState } from './context/AppStateContext';
-import { getToken, getCurrentUser, logout, fetchMe, takePostLoginPath } from './services/authApi';
+import { getToken, getCurrentUser, logout, fetchMe, takePostLoginPath, isAdminUser } from './services/authApi';
 import { fetchChallenges, fetchChallenge } from './services/challengeApi';
 import { startSession, startBoardSession, endSession, restoreSession } from './services/sessionApi';
 import { startSparkSession, startK8sSession, cancelInflightK8sStart, fetchK8sAvailability } from './services/workspaceApi';
@@ -112,6 +119,15 @@ const parentPath = (pathname: string): string => pathname.replace(/\/[^/]+\/?$/,
 
 /** Set while signing out, so a signed-in-only page does not prompt for login on its way to the landing page. */
 let signingOut = false;
+
+/** Browse is open while ACCESS_LOCKED; opening labs/readings/modules stays admin-only. */
+function ContentOpenRoute({ children }: { children: React.ReactElement }): React.ReactElement {
+  const { currentUser } = useAppState();
+  if (ACCESS_LOCKED && !isAdminUser(currentUser)) {
+    return <Navigate to="/track" replace />;
+  }
+  return children;
+}
 
 /** Guests are sent to `fallback` with the sign-in modal open, then returned here after signing in. */
 function SignedInOnlyRoute({
@@ -383,7 +399,15 @@ export default function App(): React.JSX.Element {
       requestLogin();
       return;
     }
+    if (ACCESS_LOCKED && !isAdminUser(currentUser)) {
+      setStartError(ACCESS_LOCKED_OPEN_MSG);
+      return;
+    }
     if ((challenge as ChallengePublic).locked) {
+      if (ACCESS_LOCKED) {
+        setStartError(ACCESS_LOCKED_OPEN_MSG);
+        return;
+      }
       navigate(PRICING_PATH);
       return;
     }
@@ -1295,6 +1319,8 @@ export default function App(): React.JSX.Element {
               : <Navigate to="/track" replace />
           }
         />
+        <Route path={WAITLIST_PATH} element={<WaitlistPage />} />
+        <Route path={LEGACY_WAITLIST_PATH} element={<Navigate to={WAITLIST_PATH} replace />} />
         <Route
           path="/auth/google/callback"
           element={<GoogleAuthCallbackPage onLoggedIn={handleLoggedIn} />}
@@ -1302,7 +1328,7 @@ export default function App(): React.JSX.Element {
         <Route path="play/*" element={<LegacyPlayRedirect />} />
         <Route element={<AppLayout />}>
           <Route path="track" element={<PlayPage />} />
-          <Route path="track/quiz/:quizId" element={<SignedInOnlyRoute><QuizPage /></SignedInOnlyRoute>} />
+          <Route path="track/quiz/:quizId" element={<ContentOpenRoute><SignedInOnlyRoute><QuizPage /></SignedInOnlyRoute></ContentOpenRoute>} />
           <Route path="track/papers" element={<AdminOnlyRoute><WhitePapersPage /></AdminOnlyRoute>} />
           <Route path="track/papers/:sectionId" element={<AdminOnlyRoute><WhitePapersPage /></AdminOnlyRoute>} />
           <Route
@@ -1322,46 +1348,50 @@ export default function App(): React.JSX.Element {
             }
           />
           <Route path="track/quests" element={<SideQuestsPage />} />
-          <Route path="track/quests/:topicId" element={<SideQuestsPage />} />
+          <Route path="track/quests/:topicId" element={<ContentOpenRoute><SideQuestsPage /></ContentOpenRoute>} />
           <Route path="track/playgrounds" element={<PlaygroundsPage />} />
           <Route path="majors" element={<ProjectsPage />} />
           <Route path="majors/:projectId" element={<ProjectsPage />} />
           <Route
             path="majors/:projectId/:moduleId"
-            element={<SignedInOnlyRoute fallback={parentPath} unopened={majorUnopened}><ProjectModulePage /></SignedInOnlyRoute>}
+            element={<ContentOpenRoute><SignedInOnlyRoute fallback={parentPath} unopened={majorUnopened}><ProjectModulePage /></SignedInOnlyRoute></ContentOpenRoute>}
           />
           <Route path="minors" element={<MinorsPage />} />
           <Route
             path="minors/:minorId"
-            element={<SignedInOnlyRoute fallback={parentPath} unopened={minorUnopened}><MinorsPage /></SignedInOnlyRoute>}
+            element={<ContentOpenRoute><SignedInOnlyRoute fallback={parentPath} unopened={minorUnopened}><MinorsPage /></SignedInOnlyRoute></ContentOpenRoute>}
           />
           <Route
             path="minors/:minorId/:chapterId"
-            element={<SignedInOnlyRoute fallback={parentPath} unopened={minorUnopened}><MinorsPage /></SignedInOnlyRoute>}
+            element={<ContentOpenRoute><SignedInOnlyRoute fallback={parentPath} unopened={minorUnopened}><MinorsPage /></SignedInOnlyRoute></ContentOpenRoute>}
           />
           <Route path="pricing" element={<PricingPage />} />
           <Route path="monthly-paper" element={<MonthlyPaperPage />} />
           <Route path="leaderboard" element={<PlatformLeaderboardPage />} />
           <Route path="learners/:learnerId" element={<LearnerProfilePage />} />
-          <Route path="track/spark-playground/open" element={<SparkPlaygroundOpenPage />} />
-          <Route path="track/spark-playground" element={<SparkPlaygroundPage />} />
-          <Route path="track/data-engineer/spark/intro" element={<SparkPrimerPage />} />
-          <Route path="track/devops-engineer/kubernetes/intro" element={<K8sPrimerPage />} />
+          <Route path="track/spark-playground/open" element={<ContentOpenRoute><SparkPlaygroundOpenPage /></ContentOpenRoute>} />
+          <Route path="track/spark-playground" element={<ContentOpenRoute><SparkPlaygroundPage /></ContentOpenRoute>} />
+          <Route path="track/data-engineer/spark/intro" element={<ContentOpenRoute><SparkPrimerPage /></ContentOpenRoute>} />
+          <Route path="track/devops-engineer/kubernetes/intro" element={<ContentOpenRoute><K8sPrimerPage /></ContentOpenRoute>} />
+          <Route
+            path="track/devops-engineer/introduction"
+            element={<Navigate to="/track/devops-engineer" replace />}
+          />
           <Route
             path="track/devops-engineer/read/:readingSlug"
-            element={<K8sReadingPage trackId="devops" />}
+            element={<ContentOpenRoute><K8sReadingPage trackId="devops" /></ContentOpenRoute>}
           />
           <Route
             path="track/devops-engineer/kubernetes/read/:readingSlug"
-            element={<K8sReadingPage />}
+            element={<ContentOpenRoute><K8sReadingPage /></ContentOpenRoute>}
           />
           <Route
             path="track/devops-engineer/linux/read/:readingSlug"
-            element={<K8sReadingPage trackId="linux" />}
+            element={<ContentOpenRoute><K8sReadingPage trackId="linux" /></ContentOpenRoute>}
           />
           <Route
             path="track/devops-engineer/docker/read/:readingSlug"
-            element={<K8sReadingPage trackId="docker" />}
+            element={<ContentOpenRoute><K8sReadingPage trackId="docker" /></ContentOpenRoute>}
           />
           <Route path="track/:domainId/:panelId/leaderboard" element={<TrackLeaderboardPage />} />
           <Route path="track/:domainId" element={<PlayPage />} />

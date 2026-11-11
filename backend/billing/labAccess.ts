@@ -49,7 +49,10 @@ async function hasPaidPlan(user: LabUser | null | undefined): Promise<boolean> {
 
 /** Subtracks the user may open past the free labs (staff get all of them). */
 async function unlockedTracks(user: LabUser | null | undefined): Promise<Set<string>> {
+  const { isAccessLocked } = require('../accessLock');
   if (await isStaff(user)) return new Set(PAID_TRACKS);
+  // Paid entitlements do not unlock labs while the site-wide access lock is on.
+  if (isAccessLocked()) return new Set();
   const uid = userIdOf(user);
   if (!uid) return new Set();
   const { getEntitlements } = require('./store');
@@ -60,6 +63,10 @@ function isLabLocked(
   challenge: { id: string; category?: string | null },
   unlocked: Set<string>,
 ): boolean {
+  const { isAccessLocked } = require('../accessLock');
+  // While access is locked, free-lab bypass is off. Staff still get a full
+  // unlocked set from unlockedTracks; everyone else sees every lab as locked.
+  if (isAccessLocked() && unlocked.size === 0) return true;
   const track = paidTrackOf(challenge);
   if (!track || FREE_LAB_IDS.has(challenge.id)) return false;
   return !unlocked.has(track);
@@ -70,6 +77,16 @@ async function assertLabUnlocked(
   user: LabUser | null | undefined,
   challenge: { id: string; category?: string | null },
 ): Promise<void> {
+  const { isAccessLocked, ACCESS_LOCKED_MESSAGE } = require('../accessLock');
+  if (isAccessLocked() && !(await isStaff(user))) {
+    const err = new Error(ACCESS_LOCKED_MESSAGE) as Error & {
+      status?: number;
+      code?: string;
+    };
+    err.status = 403;
+    err.code = 'ACCESS_LOCKED';
+    throw err;
+  }
   if (!isLabLocked(challenge, await unlockedTracks(user))) return;
   const err = new Error('This lab is part of a paid track. Subscribe to unlock it.') as Error & {
     status?: number;
