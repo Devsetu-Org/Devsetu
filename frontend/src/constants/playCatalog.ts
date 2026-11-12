@@ -259,7 +259,7 @@ export const PLAY_DOMAINS: PlayDomain[] = [
             id: 'foundations',
             kicker: 'Chapter 1',
             title: 'Foundations of a Spark Cluster',
-            readingSlug: 'foundations-of-a-spark-cluster',
+            readingSlug: 'what-is-spark',
             labs: [
               { challengeId: 'spark-01-stand-up-the-cluster-and-find-everything-on-disk', free: true },
               { challengeId: 'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments', free: true },

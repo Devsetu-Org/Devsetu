@@ -1,6 +1,9 @@
-/** Platforms Engineer → Spark. One blog per chapter, read before that chapter's labs. */
+/** Platforms Engineer → Spark. Chapter readings (blogs) before the labs that practice them. */
 
 import type { K8sReading, K8sTrackItem } from './k8sReadings';
+import sparkClusterModesImg from '../assets/spark-readings/what-is-spark/spark-cluster-modes.png';
+import sparkStandaloneAnatomyImg from '../assets/spark-readings/what-is-spark/spark-standalone-anatomy.png';
+import sparkHomeLayoutImg from '../assets/spark-readings/what-is-spark/spark-home-layout.png';
 
 export const SPARK_PLATFORM_LABS_PATH = '/track/platforms-engineer/spark';
 export const SPARK_READINGS_BASE = `${SPARK_PLATFORM_LABS_PATH}/read`;
@@ -10,7 +13,9 @@ export function sparkReadingPath(slug: string): string {
 }
 
 const NEXT = {
-  foundations: sparkReadingPath('foundations-of-a-spark-cluster'),
+  whatIsSpark: sparkReadingPath('what-is-spark'),
+  /** @deprecated alias while older chapter cards still point here */
+  foundations: sparkReadingPath('what-is-spark'),
   yarn: sparkReadingPath('spark-on-yarn'),
   kubernetes: sparkReadingPath('spark-on-kubernetes'),
   automations: sparkReadingPath('platform-automations'),
@@ -20,246 +25,265 @@ const NEXT = {
 
 export const SPARK_READINGS: K8sReading[] = [
   {
-    id: 'foundations-of-a-spark-cluster',
-    slug: 'foundations-of-a-spark-cluster',
+    id: 'what-is-spark',
+    slug: 'what-is-spark',
     trackId: 'B1',
-    eyebrow: 'Chapter 1',
-    title: 'Foundations of a Spark cluster',
+    eyebrow: 'Chapter 1 · Blog 1',
+    title: 'What Spark is',
     summary:
-      'Standalone Spark is a master, workers, a driver, and executors. Learn the files, the UIs, the memory map, and how a worker drain can quietly pile every executor onto one host.',
+      'What Apache Spark is, why it existed after MapReduce, how standalone / YARN / Kubernetes host the same engine, and the Master, Workers, scripts, and folders you touch on a standalone cluster.',
     showBlogStamp: true,
     lede:
-      'QuickBite’s first Spark cluster has no YARN and no Kubernetes in the way. One **master**, two **workers**, and whatever job a team submits. Before you touch a queue or a pod, you have to know which process is which, which file it reads, and which screen is allowed to lie to you.',
+      'Before you start a Master or chase a Worker across three hosts, you need a clear picture of **what Spark is**, **why teams adopted it**, and **what a cluster looks like** when Spark runs the machines itself. Chapter 1 labs sit on **standalone**. YARN and Kubernetes come later — same engine, different landlord.',
     relatedLabsIntro:
-      'Chapter 1 is this picture, practiced on a live standalone cluster. The labs ask you to find the paths, read the UIs, and diagnose the memory bugs yourself.',
+      'Lab 1 is the bring-up. Read this first, then stand the Master and Workers up and find every path on disk yourself.',
     relatedLabs: [
-      { challengeId: 'spark-01-stand-up-the-cluster-and-find-everything-on-disk', label: 'Stand up the cluster and find everything on disk' },
-      { challengeId: 'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments', label: 'Stabilize flaky Workers on the Master UI' },
-      { challengeId: 'spark-03-trace-a-job-from-submission-to-last-task', label: 'Trace a job from submission to last task' },
-      { challengeId: 'spark-04-find-where-the-data-actually-lives', label: 'Find where the data actually lives' },
-      { challengeId: 'spark-05-the-executor-memory-map', label: 'The executor memory map' },
-      { challengeId: 'spark-06-diagnose-an-executor-lost-to-memory-pressure', label: 'Diagnose an executor lost to memory pressure' },
-      { challengeId: 'spark-07-the-capstone-bug-slow-then-dead', label: 'The capstone bug: slow, then dead' },
-      { challengeId: 'spark-08-drain-a-worker-without-breaking-anything', label: 'Drain a worker without breaking anything' },
+      {
+        challengeId: 'spark-01-stand-up-the-cluster-and-find-everything-on-disk',
+        label: 'Stand up the cluster and find everything on disk',
+      },
     ],
     followOn: {
-      eyebrow: 'Next chapter',
-      title: 'Spark on YARN',
+      eyebrow: 'Still Chapter 1',
+      title: 'Next blogs in this chapter',
       intro:
-        'The same job, with a resource manager between the driver and the machines. Queues, containers, and the question of which host the driver is allowed to live on.',
-      links: [{ label: 'Read Spark on YARN', href: NEXT.yarn }],
+        'After the cluster is up: the UIs as instruments, tracing a job to a task, where cached data lives, the executor memory map, and how a drain can recreate an outage. Those blogs land beside the labs that practice them.',
+      links: [{ label: 'Open the Spark shelf', href: SPARK_PLATFORM_LABS_PATH }],
     },
     takeaways: [
-      'The master hands out workers. The driver schedules tasks. The worker starts executor JVMs. Those are three different processes.',
-      '**spark-env.sh** is the daemon’s environment. **spark-defaults.conf** is the application’s SparkConf. A default in the wrong file never reaches the process you meant.',
-      'A UI panel is a claim. **ps**, the listen ports, and the tail of the daemon log are the check.',
-      '**cache()** stores blocks in the unified region. A second action that is just as slow means those blocks were never there, or they were evicted.',
-      '**spark.executor.memory** is the heap. Overhead and off-heap sit outside it. The worker must have room for heap plus overhead, or the executor never stays up.',
-      'Stopping a worker relocates its executors onto whoever still has free cores. A drain that piles them onto the capped worker recreates the last outage.',
+      'Spark is a distributed engine: one driver plans the work, executors run tasks on partitions across machines.',
+      'It grew out of MapReduce’s limits — disk between stages, rigid two-step jobs — with in-memory reuse and a richer API.',
+      'Standalone, YARN, and Kubernetes are cluster managers. They decide who starts processes. They do not change what a task is.',
+      'On standalone, the **Master** tracks Workers and applications. A **Worker** daemon offers cores and memory and launches **executor** JVMs. The **driver** schedules tasks.',
+      '**sbin/** starts and stops daemons. **bin/** submits work. **spark-env.sh** is daemon environment on that host. **spark-defaults.conf** is application SparkConf.',
+      '**logs/** is what daemons write. **work/** is what applications leave on a Worker. Find both from the live process, not from memory.',
     ],
     sections: [
       {
-        id: 'four-processes',
-        title: 'Four processes, not one cluster',
+        id: 'what-spark-is',
+        title: 'What Apache Spark is',
         body: [
-          'People say “the Spark cluster” as if it were one service. On standalone it is four kinds of process, and only two of them are daemons you start by hand.',
-          'The **master** listens for workers and applications. Its RPC address looks like `spark://ds-spark-01:7077`. Its web UI is usually port **8080**. It does not run tasks. It does not decide which partition a task reads. It tracks who is alive and how many cores and how much memory each worker is offering.',
-          'A **worker** is a daemon on a host. It registers with the master, sends heartbeats, and starts **executor** JVMs when an application is given room on that host. The worker UI (often **8081**) lists those executors. The worker process itself does not run your map or your join.',
-          'The **driver** is the process that owns the SparkContext. `spark-submit` creates it. In client deploy mode the driver is the submit process, sitting on whatever host ran the command. The driver builds the plan, splits it into stages, and schedules tasks onto executors.',
-          'An **executor** is a JVM the worker launches for one application. Tasks run there. Cached blocks live there. Shuffle files are written under the worker’s local directories, which the executor uses. When the executor dies, its tasks die with it, and so do the shuffle files that were only on that disk.',
+          '**Apache Spark** is an open-source engine for large-scale data processing. You write a program (Scala, Python, Java, R, or SQL). Spark splits the data into **partitions**, turns your work into a plan of **stages** and **tasks**, and runs those tasks across machines in parallel.',
+          'Three words matter early. An **application** is one Spark program with one **driver** process that owns the SparkContext. An **executor** is a JVM on a worker host that runs tasks for that application. A **task** is “one partition of one stage” — the smallest unit of work the scheduler places on a core.',
+          'Spark is not a database and not a message bus. It reads from storage and other systems (files, object stores, warehouses, streams), computes, and writes results. Platform engineers care about the processes underneath that story: who starts them, which host they land on, which files they read, and which logs they leave when something dies.',
         ],
+        callout: {
+          kind: 'idea',
+          title: 'Engine vs cluster manager',
+          body: [
+            'Spark the **engine** plans and runs tasks. A **cluster manager** decides where the driver and executors get CPU and memory. Standalone, YARN, and Kubernetes are cluster managers. Confusing the two is how people “fix Spark” when they actually needed a queue, a namespace, or a Worker process.',
+          ],
+        },
+      },
+      {
+        id: 'why-spark',
+        title: 'Why Spark showed up',
+        body: [
+          'In the late 2000s, **Hadoop MapReduce** was the default for big batch jobs. It scaled, but every stage boundary wrote to disk, iterative algorithms (machine learning, graph) paid that cost over and over, and the programming model was a narrow map-then-reduce shape.',
+          'Spark started at UC Berkeley’s AMPLab around **2009** (Matei Zaharia and colleagues), open-sourced soon after, and entered the Apache incubator in **2013**. The bet was simple: keep working data in memory across steps when you can, support a richer API than two rigid phases, and still run on the same kind of commodity clusters people already had.',
+          'What stuck in production was not a slogan about “100× faster.” It was a **unified engine**: batch, interactive SQL, streaming, and libraries for ML and graphs on one runtime, with the same deployment and ops surface. Teams could stop standing up a separate stack for each workload shape.',
+          'You will still hear MapReduce and HDFS in the room. Spark did not erase them overnight. It became the compute layer many platforms put on top of object storage, warehouses, and — in Chapter 2 — YARN.',
+        ],
+        quote:
+          'Spark won on reuse and flexibility: keep data close when a job needs many passes, and stop rewriting the world for every new API.',
+      },
+      {
+        id: 'cluster-modes',
+        title: 'How a Spark cluster looks',
+        body: [
+          '“A Spark cluster” always means the same roles in spirit: something that accepts applications, hosts that offer resources, and executor processes that run tasks. Who **owns the machines** and who **starts the JVMs** changes by mode.',
+        ],
+        figure: {
+          image: sparkClusterModesImg,
+          imageAlt:
+            'Hand-drawn comparison of Spark on standalone (Master and Workers), YARN (ResourceManager and NodeManagers with containers), and Kubernetes (API server and Nodes with executor Pods)',
+          caption: 'Same Spark job — different who starts the processes.',
+          flush: true,
+        },
         table: {
-          headers: ['Process', 'Who starts it', 'What it owns'],
+          headers: ['Mode', 'Who places resources', 'What you operate day to day'],
           rows: [
-            ['Master', 'start-master.sh on one host', 'Worker registry, application registry, 7077 and the master UI'],
-            ['Worker', 'start-worker.sh on each host', 'Heartbeats, executor launch, worker UI, work directory'],
-            ['Driver', 'spark-submit', 'The plan, stages, task scheduler, application UI on 4040'],
-            ['Executor', 'The worker, for one app', 'Tasks, cached blocks, shuffle files on local disk'],
+            ['**Local**', 'One JVM on one machine', 'Laptop / unit tests. Not a cluster. Fine for learning APIs, useless for platform drills.'],
+            ['**Standalone**', 'Spark’s own Master + Worker daemons', 'start-master / start-worker, spark-env, Master UI. Chapter 1.'],
+            ['**YARN**', 'Hadoop ResourceManager + NodeManagers', 'Queues, containers, client vs cluster deploy. Chapter 2.'],
+            ['**Kubernetes**', 'API server schedules Pods', 'Namespace, quota, image, driver/executor Pods. Chapter 3.'],
+          ],
+        },
+        after: [
+          'Older docs also mention **Apache Mesos**. Treat it as history for this track — production platforms you will meet here are standalone (for learning the bones), YARN, and Kubernetes.',
+          'Chapter 1 stays on **standalone** on purpose. There is no ResourceManager and no kube-scheduler between you and the process list. When a Worker is DEAD, you are looking at a Spark daemon and a host — not a container state machine.',
+        ],
+        callout: {
+          kind: 'scope',
+          title: 'What this blog covers',
+          body: [
+            'From here down we stay in **standalone**: Master, Workers, how executors get launched, the scripts under `$SPARK_HOME`, and the folders that hold conf, logs, and work. Driver UI deep-dives, caching, and memory math are later blogs in this chapter.',
+          ],
+        },
+      },
+      {
+        id: 'standalone-roles',
+        title: 'Standalone: Master and Workers',
+        body: [
+          'In standalone mode Spark ships its own cluster manager. You start a **Master** on one host and a **Worker** on each host that should run tasks. Applications register with the Master. The Master grants cores and memory from the Workers that are alive. The Workers start the executor processes.',
+        ],
+        figure: {
+          image: sparkStandaloneAnatomyImg,
+          imageAlt:
+            'Hand-drawn standalone Spark cluster: Master daemon on ds-spark-01, Worker daemons on ds-spark-02 and ds-spark-03 launching executor JVMs, spark-submit driver registering with the Master',
+          caption: 'Master tracks workers. Worker starts executors. Driver schedules tasks.',
+          flush: true,
+        },
+        table: {
+          headers: ['Role', 'Process', 'Job'],
+          rows: [
+            ['**Master**', 'Long-lived daemon', 'Worker registry, application registry, RPC (often **7077**), Master UI (often **8080**). Does not run your map or join.'],
+            ['**Worker**', 'Long-lived daemon per host', 'Heartbeats to the Master, advertises cores/memory, launches and supervises executor JVMs, Worker UI (often **8081**).'],
+            ['**Driver**', 'Created by spark-submit', 'Owns the SparkContext, builds the plan, schedules tasks onto executors. In client mode it is the submit process.'],
+            ['**Executor**', 'JVM per app on a Worker', 'Runs tasks, holds cached blocks, writes shuffle/spill under the Worker’s work directory.'],
           ],
         },
         callout: {
           kind: 'idea',
-          title: 'The master is not the scheduler',
+          title: 'The Master is not the task scheduler',
           body: [
-            'A task ends up on a core because the **driver** put it there. The master only agreed that this application may use N cores on that worker. When a stage is slow, the master UI can tell you the executor exists. The stage page on the driver UI tells you what the task was doing.',
+            'The Master answers “which Workers are alive, and how many cores may this application use?” The **driver** answers “which task runs on which executor core?” When a stage is slow, the Master UI can show the application and the executors. The driver’s application UI shows the tasks.',
           ],
+        },
+      },
+      {
+        id: 'daemons',
+        title: 'Master and Worker daemons',
+        body: [
+          'A **daemon** here means a long-lived JVM you start with the sbin scripts and leave up across many applications. Drivers and executors come and go with jobs. Master and Worker are the furniture.',
+        ],
+        subsections: [
+          {
+            id: 'master-daemon',
+            title: 'What the Master daemon does',
+            body: [
+              'Listens for Workers and for applications. Keeps the roster: which Workers are ALIVE, how many cores and how much memory each offered, which applications are running or completed. Hands out resource grants so Workers know how large an executor to launch. Serves the Master web UI.',
+              'It does **not** execute your code. A Master with zero ALIVE Workers is a healthy process and a useless cluster.',
+            ],
+          },
+          {
+            id: 'worker-daemon',
+            title: 'What the Worker daemon does',
+            body: [
+              'On startup it contacts the Master URL (for example `spark://ds-spark-01:7077`), registers, and begins heartbeats. It advertises a cores and memory budget from its environment (`SPARK_WORKER_CORES`, `SPARK_WORKER_MEMORY`, and friends in `spark-env.sh`).',
+              'When the Master assigns an application a slice of that budget, the Worker **launches an executor JVM** with the requested heap and cores. The Worker supervises that process: if the executor dies, the Master and driver find out through the same registration/heartbeat path that keeps the Worker itself ALIVE or DEAD.',
+            ],
+          },
+        ],
+        after: [
+          'Heartbeats are why a UI row can lag reality. A killed Worker process can still look ALIVE until the Master’s timeout. A brand-new Worker can look DEAD until the first registration lands. Later in this chapter you will treat every green row as a **claim** to check on the host. For bring-up, know that ALIVE is Master-side state, not a substitute for `ps` on the Worker.',
+        ],
+      },
+      {
+        id: 'executors-resources',
+        title: 'How Workers launch executors (and what “resources” means)',
+        body: [
+          'Resource allocation on standalone is a conversation in three parts.',
+        ],
+        flows: [
+          {
+            title: 'From submit to executor JVM',
+            steps: [
+              'spark-submit starts the driver',
+              'Driver registers the application with the Master',
+              'Master reserves cores/memory on ALIVE Workers',
+              'Each chosen Worker starts an executor JVM',
+              'Driver schedules tasks onto those executors',
+            ],
+          },
+        ],
+        after: [
+          '**Worker budget** — What the Worker daemon advertised: total cores and memory it is willing to give. Set on the Worker host (environment / `spark-env.sh`). A Worker that advertised `1` core and `768m` cannot honestly host two fat executors.',
+          '**Application ask** — What the driver requested: executor memory, cores per executor, number of executors or total executor cores (`spark-submit` flags and `spark-defaults.conf`). The Master tries to place that ask onto Worker budgets that still have room.',
+          '**Executor process** — The JVM the Worker actually forked. Inside it, Spark will later split heap into reserved, user, and unified execution/storage regions. That diagram is its own blog. For bring-up, remember only this: **heap is not the whole bill** — overhead sits outside `spark.executor.memory`, and the Worker must have room for both or the executor will not stay up.',
+          'Multiple applications can share one Worker if the remaining cores and memory allow it. That sharing is useful and dangerous: one neighbor’s executor is how “we only raised our job’s memory” still dies. You will diagnose that later. First you need to see executors appear under a Worker at all.',
+        ],
+        callout: {
+          kind: 'tip',
+          title: 'Client mode on this track',
+          body: [
+            'Chapter 1 labs submit in **client** deploy mode: the driver is the `spark-submit` process on the shell host. The Master still places executors on Workers. Cluster deploy mode (driver inside the cluster) matters more once YARN or Kubernetes owns placement.',
+          ],
+        },
+      },
+      {
+        id: 'scripts',
+        title: 'Scripts that come with the install',
+        body: [
+          'Spark is installed under **`$SPARK_HOME`** (in the labs, `/opt/spark`). You rarely type Java class names by hand. You call scripts, and the scripts load conf and start JVMs.',
+        ],
+        table: {
+          headers: ['Path', 'Examples', 'When you use it'],
+          rows: [
+            ['**bin/**', '`spark-submit`, `spark-shell`, `pyspark`', 'Run applications and REPLs against an already-up cluster (or local).'],
+            ['**sbin/**', '`start-master.sh`, `start-worker.sh`, `stop-master.sh`, `stop-worker.sh`', 'Start and stop standalone daemons on a host.'],
+            ['**sbin/spark-daemon.sh**', 'Called by the start/stop scripts', 'Sources env, launches the JVM, points logs at the log directory.'],
+          ],
+        },
+        bullets: [
+          '`start-master.sh` on the Master host → `spark-daemon.sh` → sources **`conf/spark-env.sh` on that host** → starts the Master JVM → writes under **`logs/`**.',
+          '`start-worker.sh <master-url>` on each Worker host → same chain **on that Worker**. Env from the Master host does not travel with you.',
+          '`spark-submit` reads **`conf/spark-defaults.conf`** (and your flags) into the application’s SparkConf. It does not start the Master.',
+        ],
+        callout: {
+          kind: 'warn',
+          title: 'Two conf files, two audiences',
+          body: [
+            '**spark-env.sh** — shell environment for daemons (and some tooling): `JAVA_HOME`, Master host/port, Worker cores and memory, log and work directories when you override them.',
+            '**spark-defaults.conf** — `spark.*` properties for applications: executor memory, event log, shuffle, speculation, and the rest.',
+            'A default in the wrong file never reaches the process you meant. Lab 1 makes you prove you know which is which.',
+          ],
+        },
+        code: {
+          language: 'bash',
+          filename: 'bring-up sketch',
+          code: `# on ds-spark-01
+$SPARK_HOME/sbin/start-master.sh
+
+# on ds-spark-02 and ds-spark-03
+$SPARK_HOME/sbin/start-worker.sh "$SPARK_MASTER_URL"
+
+# later, from the shell host
+$SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
         },
       },
       {
         id: 'on-disk',
-        title: 'What is on disk before any job runs',
+        title: 'What lives under SPARK_HOME',
         body: [
-          'Spark is installed under **SPARK_HOME**. The start scripts do not embed your settings. They hand off to `spark-daemon.sh`, which sources **conf/spark-env.sh** on the host where you ran the script, then starts the Java master or worker. Logs for that daemon land under the log directory the same script set up, almost always `$SPARK_HOME/logs`.',
-          'That is why a worker setting must be present on the worker host. Sourcing `spark-env.sh` on the master does not change the worker you start five minutes later on another machine.',
-          '**conf/spark-defaults.conf** is a different file with a different audience. Properties in it (`spark.executor.memory`, `spark.eventLog.enabled`, and the rest of the `spark.*` keys) become the application’s SparkConf when a driver starts. They do not decide whether the master process comes up.',
+          'After the scripts, the disk layout is the other half of literacy. You will be asked to find these without a wiki open.',
         ],
+        figure: {
+          image: sparkHomeLayoutImg,
+          imageAlt:
+            'Hand-drawn SPARK_HOME layout showing bin, sbin, conf, logs, and work folders with what each contains',
+          caption: 'Scripts start daemons. conf/ shapes them. logs/ and work/ are what they leave behind.',
+          flush: true,
+        },
         table: {
-          headers: ['Place', 'Who reads it', 'What you use it for'],
+          headers: ['Place', 'Who cares', 'What you use it for'],
           rows: [
-            ['conf/spark-env.sh', 'spark-daemon.sh, on that host', 'JAVA_HOME, master host and port, worker cores, worker memory'],
-            ['conf/spark-defaults.conf', 'Every application’s SparkConf', 'Executor size, event log, shuffle, speculation'],
-            ['logs/', 'You, and the daemon’s stdout', 'Why a process exited, heartbeat errors, failed executor launches'],
-            ['work/', 'The worker, per application', 'Executor directories, copied jars, local shuffle and spill'],
+            ['**conf/spark-env.sh**', 'Daemon start on that host', 'JAVA_HOME, Master address, Worker cores/memory, optional log/work dirs.'],
+            ['**conf/spark-defaults.conf**', 'Every application’s SparkConf', 'Executor size, event log, and other spark.* defaults.'],
+            ['**logs/**', 'You, on-call', 'Why a Master or Worker exited, heartbeat errors, failed executor launches.'],
+            ['**work/**', 'Worker + executors', 'Per-application directories, copied jars, local shuffle and spill.'],
+            ['**bin/** / **sbin/**', 'You', 'Submit work vs start/stop daemons.'],
           ],
         },
-        bullets: [
-          'Find the live process with `ps` or `jps`, then look at its cwd and open files. The log path and the work path are arguments or environment on that process, not a guess from a wiki.',
-          'A master with zero workers is a process that is up and a cluster that cannot run anything. ALIVE is a master-side word. Confirm it in the master UI or its JSON, and confirm the worker process on the worker host.',
-          'Two conf files, two jobs. Daemon environment in `spark-env.sh`. Application defaults in `spark-defaults.conf`.',
-        ],
-        callout: {
-          kind: 'tip',
-          title: 'The start path',
-          body: [
-            '`start-master.sh` and `start-worker.sh` call `spark-daemon.sh`. That script loads `spark-env.sh`, starts the JVM, and writes the logs. If the JVM is missing, you never get as far as a Spark error. If the JVM is up and the worker stays DEAD, you are in the log and on port 7077, not in a missing jar.',
-          ],
-        },
-      },
-      {
-        id: 'uis',
-        title: 'The UIs are instruments',
-        body: [
-          'The master UI has two panels you will live in. **Workers** lists each worker, whether it is ALIVE, the cores and memory it offered, and how much of that is in use. **Applications** lists running and completed apps, with a link to that app’s own UI while the driver is still up.',
-          'The worker UI lists executors on that host: which application, how many cores, how much memory. It is the only screen that answers “is store-rollup’s executor on this box?”',
-          'Both screens are reports from the daemons, refreshed on their own clock. A worker can still say ALIVE for about a heartbeat interval after the process is gone. A worker you just started can still say DEAD until the next registration lands. Treat the panel as a claim.',
-        ],
-        subsections: [
-          {
-            id: 'cross-check',
-            title: 'Check the claim on the host',
-            body: [
-              'On the worker host, the process list shows whether `Worker` is actually running. The master RPC port **7077** has to be reachable from that host; a worker that cannot talk to it will not stay ALIVE. `nproc` and `free` tell you what the machine has, which is the number the UI’s “cores” and “memory” columns are supposed to match.',
-              'The worker log is the third source. Heartbeat failures, “worker lost”, and executor launch errors are written there when the UI has already moved on to a red row.',
-            ],
-          },
-        ],
-        callout: {
-          kind: 'warn',
-          title: 'A green worker row can be a stale heartbeat',
-          body: [
-            'If the worker process is gone and the master still lists it ALIVE, wait out the timeout or read the master log. If the process is up and the row says DEAD, the worker is not reaching 7077, or it was started with the wrong master URL. Restarting a healthy worker because the UI looked old is how a quiet page becomes an incident.',
-          ],
-        },
-      },
-      {
-        id: 'job-trace',
-        title: 'From spark-submit to the last task',
-        body: [
-          'A join is a better first job than a one-line map. A map is one stage. A join shuffles, so you get more than one stage, and you can see the boundary.',
-        ],
-        flows: [
-          {
-            title: 'One application',
-            steps: [
-              'spark-submit starts the driver',
-              'Driver registers an application with the master',
-              'Master assigns cores on workers',
-              'Workers launch executor JVMs',
-              'Driver splits the job into stages at each shuffle',
-              'Each stage is one task per partition',
-              'A task runs on one core of one executor',
-            ],
-          },
-        ],
         after: [
-          'An **action** (`count`, `write`, `collect`) is what submits a job. Transforms are recorded and wait. “Nothing is running” is often a driver that has not hit an action yet.',
-          'The application UI on the driver, port **4040**, is where the DAG becomes concrete. The Jobs tab is one row per action. Open a job and you get stages. Open a stage and you get tasks, with the executor id and the host for each task. That is the chain the master UI cannot show you: master knows the application, the driver knows the task.',
-          'When the driver exits, port 4040 goes with it. The event log is the only record left, which is a Chapter 5 problem. In this chapter, trace the job while the driver is still up.',
-        ],
-        table: {
-          headers: ['Word', 'What it counts'],
-          rows: [
-            ['Application', 'One SparkContext. Lives as long as the driver.'],
-            ['Job', 'One action. A DAG of stages.'],
-            ['Stage', 'Work between shuffles. Narrow transforms stay in the same stage.'],
-            ['Task', 'One partition of one stage, on one core.'],
-            ['Shuffle', 'The stage boundary. Map output is written locally and fetched by the next stage.'],
-          ],
-        },
-      },
-      {
-        id: 'where-data-lives',
-        title: 'Where the data actually lives',
-        body: [
-          '**cache()** and **persist()** are a promise: keep these partitions around so the next action does not recompute them. The promise is lazy. The blocks appear on the first action, in the storage level you asked for (`MEMORY_ONLY`, `MEMORY_AND_DISK`, `DISK_ONLY`, with or without a replica).',
-          'The **Storage** tab is the inventory. For each cached dataset it shows the storage level, how many partitions are cached, the size in memory, and the size on disk. Zero cached partitions means the promise was never kept. A size that is almost all disk means memory refused the blocks and they spilled, or you asked for disk in the first place.',
-          'The **Executors** tab is the budget those blocks are spending. Storage memory used against the storage max tells you whether the unified region is full. A second action that takes as long as the first, with an empty Storage tab, is a cache miss. The same slowness with a Storage tab that used to have rows is eviction: something else needed the unified region, and Spark dropped the blocks and recomputed them from lineage.',
-          'The worker log is where eviction is a sentence rather than a smaller number. “Block evicted” next to a full storage region is the mechanism. The UI alone shows the hole. The log shows who dug it.',
+          'Defaults matter. If you do not override them, logs usually land under `$SPARK_HOME/logs`, and Workers use `$SPARK_HOME/work`. Confirm from the **live process** (`ps`, `jps`, open files, the paths in the daemon log header) — installs and images move directories, and guessing from a blog post is how Investigation fails.',
+          'A Master that is up with zero Workers is only half the story. Confirm the Master process, confirm each Worker process on its host, then confirm the Master agrees they are **ALIVE**. Lab 1 is that loop, end to end.',
         ],
         callout: {
           kind: 'takeaway',
-          title: 'Slow twice is a location problem',
+          title: 'Ready for Lab 1',
           body: [
-            'Find the dataset in the Storage tab, then the executor’s storage memory, then the worker log. Config comes after those three agree. Raising executor memory before you know the blocks were evicted just gives the next dataset a bigger place to hide.',
-          ],
-        },
-      },
-      {
-        id: 'memory-map',
-        title: 'The executor memory map',
-        body: [
-          '**spark.executor.memory** is the JVM heap. It is not the whole bill. Inside the heap, Spark holds back **300 MB** of reserved memory. `spark.memory.fraction` (default **0.6**) takes its cut of what remains. That cut is the **unified region**, shared by execution and storage. The rest of the usable heap is **user memory**: your data structures, UDFs, and Spark metadata the memory manager does not track.',
-          '`spark.memory.storageFraction` (default **0.5**) splits the unified region. It is the slice of storage that execution will not evict. The rest is the room tasks actually use for shuffles, sorts, and aggregations. Storage may borrow unused execution memory. Execution may evict cached blocks down to that storage floor when a task needs the room. A high storage fraction looks like a generous cache and a stage that spills.',
-          'Outside the heap, two more buckets exist. **Overhead** (`spark.executor.memoryOverhead`, default about 10% of the heap with a **384 MB** floor) covers JVM and native cost. **Off-heap** (`spark.memory.offHeap.enabled` and `spark.memory.offHeap.size`) is Tungsten memory, off by default, and it is not subtracted from the heap. The worker and, later, YARN or Kubernetes must fit **heap + overhead + off-heap**. A 512 MB heap plus a 384 MB overhead floor does not fit in a 768 MB worker.',
-        ],
-        table: {
-          headers: ['Bucket', 'Where it sits', 'Knob'],
-          rows: [
-            ['Heap', 'The JVM -Xmx', 'spark.executor.memory'],
-            ['Reserved', 'Inside the heap, 300 MB', 'Fixed'],
-            ['Unified region', '(heap − 300 MB) × fraction', 'spark.memory.fraction'],
-            ['User memory', 'What fraction did not take', 'The complement of fraction'],
-            ['Storage floor', 'storageFraction of the unified region', 'spark.memory.storageFraction'],
-            ['Overhead', 'Outside the heap', 'spark.executor.memoryOverhead'],
-            ['Off-heap', 'Outside the heap, usually off', 'spark.memory.offHeap.size'],
-          ],
-        },
-        after: [
-          'Work a 2 GB heap with the defaults before you trust a whiteboard. Reserved leaves 1748 MB. Fraction 0.6 makes a unified region of about 1049 MB, and user memory about 699 MB. Half of the unified region, about 524 MB, is the storage floor. Overhead is max(384 MB, ~205 MB) = 384 MB. The worker has to offer about 2.4 GB for an executor everyone will describe as “2 GB”.',
-          'Room for actual task execution, roughly, is the unified region outside the storage floor. Execution can borrow above that when storage is empty. It cannot borrow user memory, and it cannot borrow overhead. Those are the mixes that spill while the Storage tab still looks fine.',
-        ],
-        callout: {
-          kind: 'warn',
-          title: 'Free storage is not free heap',
-          body: [
-            'The UI can show storage memory unused while the task is spilling, because the spill is execution memory inside the same unified region. It can also show a calm executor while the OS is about to kill the process for overhead that was never in the heap figure.',
-          ],
-        },
-      },
-      {
-        id: 'executor-lost',
-        title: 'An executor lost to memory pressure',
-        body: [
-          'The driver says **executor lost**, or that the RPC client disassociated. There is often no Java OutOfMemoryError in the driver output. The driver did not run out of memory. The executor process disappeared, and the driver noticed when the connection dropped.',
-          'Two causes show up together on a small standalone worker. The executor’s heap-plus-overhead is large for the worker’s advertised memory, so the worker is already tight. A second application has an executor on the same host, spending the same RAM. The first job’s failure is the visible one. The second job is why a bigger heap on the first job still dies.',
-          'Read it in order. The driver log names the executor id and the host. The master UI shows the executor gone and the worker’s remaining memory. The worker log, or the kernel log, says whether the process was killed. The Executors tab from before the death, or the event history if you have it, shows storage and execution climbing. A fix that only raises one job’s heap, and leaves the neighbor in place, fails again on the next wave.',
-        ],
-      },
-      {
-        id: 'slow-then-dead',
-        title: 'Slow, then dead',
-        body: [
-          'The ugly incident in this chapter is a timeline. The job is fine, then stages stretch, then one executor disappears. Each source has a different frame of that timeline.',
-          'The master UI knows the executor was there and then was not. It does not know that cached data had been growing for twenty minutes. The executor’s memory breakdown knows storage climbed and execution started spilling. It does not know the process was killed a minute later. The worker log knows the kill, or the heartbeat loss, and not which dataset was cached. The code knows someone cached a growing set and never unpersisted it.',
-          'A leak-shaped cache is still a cache. Blocks accumulate in the unified region, GC time rises, tasks slow, eviction starts, and eventually the process or the node runs out of the memory that overhead and the neighbor were also using. You only get the story by putting the four sources on one clock.',
-        ],
-        quote:
-          'No single pane has the incident. The page that looks calm is the one you have not opened yet.',
-      },
-      {
-        id: 'drain',
-        title: 'Draining a worker',
-        body: [
-          'Standalone Spark has no graceful “drain this worker” button in the sense an operator wants: a command that moves work off, waits, and leaves every application at its full executor count with zero failed tasks. `stop-worker.sh` stops the daemon. Executors on that host die. Running tasks fail. The driver retries them if the job is still alive, and it asks for replacement executors.',
-          'Replacements land on workers that still have free cores and free memory. If one of the remaining workers is the only one with room, every relocated executor piles onto it. That is the same overcommit as the memory-pressure lab, created by the repair.',
-          'A drain is finished when three things are true together. The worker you took out is stopped and the master agrees it is gone. Each application still has the executor count it was supposed to have. No surviving worker is holding a pile that exceeds what you already know that host can carry. “The process is stopped” is the first of those, and it is the one that hides the other two.',
-          'Shuffle files and cached blocks that lived only on the drained host are gone with it, unless you have a shuffle service or a decommission path that copied them. A batch job can recompute. A streaming query should keep its checkpoint. The drain does not get to throw away the read position to make the move look clean.',
-        ],
-        callout: {
-          kind: 'scope',
-          title: 'What this chapter is for',
-          body: [
-            'You can stand a cluster up, read it, trace one job, account for memory, and take a worker out without quietly building the next outage. YARN and Kubernetes change who launches the containers. They do not change this picture.',
+            'You know what Spark is, why it exists, which cluster mode you are on, what Master and Worker daemons do, how executors get launched, which scripts to call, and which folders hold conf, logs, and work. Stand the cluster up and find every path on disk.',
           ],
         },
       },
@@ -806,7 +830,7 @@ export const SPARK_READINGS: K8sReading[] = [
       intro:
         'The incident labs assume the earlier chapters. If a step names a queue, a checkpoint, or a memory floor, the chapter that taught it is the reference. The work is still done on the live job.',
       links: [
-        { label: 'Chapter 1 — Foundations', href: NEXT.foundations },
+        { label: 'Chapter 1 — What Spark is', href: NEXT.whatIsSpark },
         { label: 'Spark shelf', href: SPARK_PLATFORM_LABS_PATH },
       ],
     },
@@ -900,6 +924,11 @@ const BY_KEY = new Map<string, K8sReading>();
 for (const reading of SPARK_READINGS) {
   BY_KEY.set(reading.slug, reading);
   BY_KEY.set(reading.id, reading);
+}
+// Old Chapter 1 mega-blog slug → Blog 1
+const whatIsSpark = BY_KEY.get('what-is-spark');
+if (whatIsSpark) {
+  BY_KEY.set('foundations-of-a-spark-cluster', whatIsSpark);
 }
 
 export function getSparkReading(slug: string | null | undefined): K8sReading | null {
