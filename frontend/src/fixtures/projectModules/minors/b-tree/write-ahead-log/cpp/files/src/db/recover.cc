@@ -11,20 +11,16 @@
 namespace btreekv {
 
 void RecoverLog(DB* d) {
-  // TODO(3.4): path = d->dir() + "/wal.log". Replay with a callback that
-  // collects records into pending. On WalKind::kCommit, ApplyRecords(d, pending),
-  // clear pending, remember end as last commit. Then
-  // d->set_log(OpenAppend(path, committed, d->opts().sync)).
+  // TODO(3.4)
   (void)d;
-  throw std::logic_error("TODO(3.4): RecoverLog");
+  throw std::logic_error("TODO(3.4)");
 }
 
 void Commit(DB* d, Txn* t) {
-  // TODO(3.4): recs = t->Records(); start = d->log()->Size(). Append the batch.
-  // On failure, Rewind(start) and rethrow. Only then ApplyRecords(d, recs).
+  // TODO(3.4)
   (void)d;
   (void)t;
-  throw std::logic_error("TODO(3.4): Commit");
+  throw std::logic_error("TODO(3.4)");
 }
 
 }  // namespace btreekv

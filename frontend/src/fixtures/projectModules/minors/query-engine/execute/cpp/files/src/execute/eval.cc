@@ -5,9 +5,8 @@ namespace sqlq {
 namespace execute {
 
 catalog::Value Eval(const parse::Expr* e, const Row& row) {
-  // TODO(4.2): IntLit, StrLit, Ident and Qual via row.Get, Binary for AND and = < >.
-  // AND skips the right side when the left is false. Aggregate Call is an error.
-  throw std::runtime_error("TODO(4.2): Eval");
+  // TODO(4.2) — Eval
+  throw std::runtime_error("TODO(4.2)");
 }
 
 bool Truth(const parse::Expr* e, const Row& row) {

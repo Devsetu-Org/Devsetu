@@ -62,7 +62,7 @@ function repo(globbed: RawFiles): RawFiles {
   return out;
 }
 
-const VERIFY = ['make test', 'make asan', 'make run'];
+const VERIFY = ['make test', 'make asan'];
 
 function chapter(
   moduleId: string,

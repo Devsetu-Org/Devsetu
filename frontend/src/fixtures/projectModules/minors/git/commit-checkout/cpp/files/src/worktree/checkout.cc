@@ -63,7 +63,7 @@ void SafetyCheck(const Repo& r, const Index& idx, const std::map<std::string, Ha
 
 void Checkout(const Repo& r, const Hash& commit) {
   // TODO(4.3): Checkout
-  throw std::runtime_error("TODO(4.3): Checkout");
+  throw std::runtime_error("TODO(4.3)");
 }
 
 void CheckoutBranch(const Repo& r, const std::string& branch) {

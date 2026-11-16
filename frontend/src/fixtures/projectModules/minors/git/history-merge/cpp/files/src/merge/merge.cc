@@ -81,7 +81,7 @@ void WriteConflict(const Repo& r, const std::string& path, const Hash& ours, con
 
 MergeResult Merge(const Repo& r, const std::string& their_branch) {
   // TODO(5.4): Merge
-  throw std::runtime_error("TODO(5.4): Merge");
+  throw std::runtime_error("TODO(5.4)");
 }
 
 }  // namespace tinygit

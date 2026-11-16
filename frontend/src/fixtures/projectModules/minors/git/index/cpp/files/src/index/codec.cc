@@ -28,12 +28,12 @@ void Index::Remove(const std::string& path) {
 
 std::vector<uint8_t> EncodeIndex(Index idx) {
   // TODO(3.1): EncodeIndex
-  throw std::runtime_error("TODO(3.1): EncodeIndex");
+  throw std::runtime_error("TODO(3.1)");
 }
 
 Index DecodeIndex(const std::vector<uint8_t>& data) {
   // TODO(3.1): DecodeIndex
-  throw std::runtime_error("TODO(3.1): DecodeIndex");
+  throw std::runtime_error("TODO(3.1)");
 }
 
 Index LoadIndex(const std::string& path) {

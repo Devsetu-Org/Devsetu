@@ -17,9 +17,8 @@ class DocFreq(Protocol):
 
 def collect_stats(src: DocFreq, terms: List[str]) -> Tuple[Stats, Dict[str, int]]:
     """Build collection Stats and a per-term DF map for terms."""
-    # TODO(5.1): Stats(n=src.num_docs(), avg_dl=src.avg_dl()). For each distinct
-    # term, df[term] = src.df(term). Return stats and the map.
+    # TODO(5.1)
     _ = Stats
     _ = src
     _ = terms
-    raise NotImplementedError("TODO(5.1): collect_stats")
+    raise NotImplementedError("TODO(5.1)")

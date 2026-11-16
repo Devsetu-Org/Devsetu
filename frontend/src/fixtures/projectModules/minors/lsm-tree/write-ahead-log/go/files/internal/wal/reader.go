@@ -23,11 +23,7 @@ func Replay(path string, fn func(Record) error) (good int64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	// TODO(2.3): walk data one record at a time from offset good. Stop and
-	// return (good, nil) when fewer than headerSize bytes remain, the length
-	// is over maxRecordSize or runs past the end, the checksum does not match,
-	// or decodePayload fails. Otherwise call fn (return its error if any) and
-	// advance good past the record.
+	// TODO(2.3)
 	_ = data
-	panic("TODO(2.3): Replay")
+	panic("TODO(2.3)")
 }

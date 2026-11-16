@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Write core-site / yarn-site / capacity-scheduler / mapred-site for this host.
+# Write core-site / hdfs-site / yarn-site / capacity-scheduler / mapred-site for this host.
 # Env: YARN_RM_HOST (default ds-spark-01), NM_MEMORY_MB, NM_VCORES.
+# Chapter 2 labs use a one-NN HDFS so Spark can stage jars/app files to NodeManagers.
 set -euo pipefail
 
 : "${HADOOP_CONF_DIR:=/opt/hadoop/etc/hadoop}"
@@ -15,6 +16,8 @@ mkdir -p "$HADOOP_CONF_DIR" \
   /var/hadoop/yarn/local \
   /var/hadoop/yarn/logs \
   /var/hadoop/yarn/staging \
+  /var/hadoop/hdfs/namenode \
+  /var/hadoop/hdfs/datanode \
   /opt/spark/work/eventlogs
 
 cat > "$HADOOP_CONF_DIR/core-site.xml" <<EOF
@@ -22,11 +25,49 @@ cat > "$HADOOP_CONF_DIR/core-site.xml" <<EOF
 <configuration>
   <property>
     <name>fs.defaultFS</name>
-    <value>file:///</value>
+    <value>hdfs://${RM_HOST}:8020</value>
   </property>
   <property>
     <name>hadoop.tmp.dir</name>
     <value>/var/hadoop/tmp</value>
+  </property>
+</configuration>
+EOF
+
+cat > "$HADOOP_CONF_DIR/hdfs-site.xml" <<EOF
+<?xml version="1.0"?>
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:///var/hadoop/hdfs/namenode</value>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>file:///var/hadoop/hdfs/datanode</value>
+  </property>
+  <property>
+    <name>dfs.namenode.rpc-address</name>
+    <value>${RM_HOST}:8020</value>
+  </property>
+  <property>
+    <name>dfs.namenode.http-address</name>
+    <value>0.0.0.0:9870</value>
+  </property>
+  <property>
+    <name>dfs.client.use.datanode.hostname</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>dfs.datanode.use.datanode.hostname</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>dfs.permissions.enabled</name>
+    <value>false</value>
   </property>
 </configuration>
 EOF
@@ -153,7 +194,7 @@ cat > "$HADOOP_CONF_DIR/capacity-scheduler.xml" <<'EOF'
     <value>1</value>
   </property>
   <property>
-    <name>yarn.scheduler.capacity.root.default.state-locality.disable-switch</name>
+    <name>yarn.scheduler.capacity.root.default.node-locality.disable-switch</name>
     <value>true</value>
   </property>
   <property>
@@ -177,4 +218,4 @@ cat > "$HADOOP_CONF_DIR/mapred-site.xml" <<'EOF'
 </configuration>
 EOF
 
-echo "wrote YARN conf for RM=${RM_HOST} nmMemory=${NM_MEMORY_MB}m nmVcores=${NM_VCORES}"
+echo "wrote YARN+HDFS conf for RM=${RM_HOST} nmMemory=${NM_MEMORY_MB}m nmVcores=${NM_VCORES}"

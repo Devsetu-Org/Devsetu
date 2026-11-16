@@ -21,11 +21,10 @@ class Store:
 
     def put(self, typ: str, content: bytes) -> Hash:
         """Write a zlib-compressed object and return its content hash."""
-        # TODO(1.2): raw = encode_header(typ, content); h = hash_of(raw).
-        # If path_for(h) exists, return h. Else zlib-compress and write via temp+rename.
-        raise NotImplementedError("TODO(1.2): Store.put")
+        # TODO(1.2)
+        raise NotImplementedError("TODO(1.2)")
 
     def get(self, h: Hash) -> tuple[str, bytes]:
         """Read and inflate a loose object. Returns (type, content)."""
-        # TODO(1.2): Read path_for(h), zlib.decompress, split_header, verify hash_of(raw) == h.
-        raise NotImplementedError("TODO(1.2): Store.get")
+        # TODO(1.2)
+        raise NotImplementedError("TODO(1.2)")

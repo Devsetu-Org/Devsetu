@@ -20,15 +20,13 @@ class Builder:
         n_bits = len(self.hashes) * self.bits_per_key
         if n_bits < MIN_BITS:
             n_bits = MIN_BITS
-        # TODO(4.1): round n_bits up to whole bytes (m = 8 * n_bytes). Allocate
-        # n_bytes+1 bytes and store k = num_probes(self.bits_per_key) in the
-        # last one. For every hash, set the k bits probe(h, i, m).
-        raise NotImplementedError("TODO(4.1): finish")
+        # TODO(4.1)
+        raise NotImplementedError("TODO(4.1)")
 
 
 def may_contain(filter_bytes: bytes, key: bytes) -> bool:
-    # TODO(4.2): short/invalid filter => True. Else check k probes.
-    raise NotImplementedError("TODO(4.2): may_contain")
+    # TODO(4.2)
+    raise NotImplementedError("TODO(4.2)")
 
 
 def num_probes(bits_per_key: int) -> int:

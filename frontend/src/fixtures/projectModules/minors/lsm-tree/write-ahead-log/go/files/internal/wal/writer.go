@@ -59,10 +59,8 @@ func OpenAppend(path string, good int64, mode SyncMode) (*Writer, error) {
 // Append writes r to the end of the log. When it returns nil under
 // SyncAlways, the record is on disk.
 func (w *Writer) Append(r Record) error {
-	// TODO(2.2): encode r into w.buf (reuse it: start from w.buf[:0]), write
-	// it with one w.f.Write call, add the bytes written to w.size, and fsync
-	// (w.f.Sync) when w.mode is SyncAlways.
-	panic("TODO(2.2): Append")
+	// TODO(2.2)
+	panic("TODO(2.2)")
 }
 
 // Size is the number of bytes in the log.

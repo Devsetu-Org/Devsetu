@@ -11,10 +11,9 @@ Segment::Segment(std::unordered_map<std::string, Entry> dir, std::vector<uint8_t
     : dir_(std::move(dir)), data_(std::move(data)) {}
 
 std::pair<std::vector<Posting>, bool> Segment::Postings(const std::string& term) const {
-  // TODO(2.3): Look up term in dir_. Read count postings from data_ at off:
-  // each posting is doc_id u32 then tf u32 (little-endian).
+  // TODO(2.3)
   (void)term;
-  throw std::logic_error("TODO(2.3): Segment::Postings");
+  throw std::logic_error("TODO(2.3)");
 }
 
 std::vector<std::string> Segment::Terms() const {
@@ -32,12 +31,10 @@ int Segment::DF(const std::string& term) const {
 }
 
 void WriteSegment(std::vector<uint8_t>* out, const Map& m) {
-  // TODO(2.2): For each term from m.Terms(), append count×(doc_id,tf) to a data
-  // buffer and a directory entry. Write the 12-byte header, then the directory,
-  // then the data.
+  // TODO(2.2)
   (void)out;
   (void)m;
-  throw std::logic_error("TODO(2.2): WriteSegment");
+  throw std::logic_error("TODO(2.2)");
 }
 
 void WriteSegmentToFile(const std::string& path, const Map& m) {
@@ -48,10 +45,9 @@ void WriteSegmentToFile(const std::string& path, const Map& m) {
 }
 
 Segment DecodeSegment(const std::vector<uint8_t>& raw) {
-  // TODO(2.3): Check magic and version. Read nTerms. Parse the directory.
-  // The remaining bytes are data. Return Segment{dir, data}.
+  // TODO(2.3)
   (void)raw;
-  throw std::logic_error("TODO(2.3): DecodeSegment");
+  throw std::logic_error("TODO(2.3)");
 }
 
 Segment OpenSegment(const std::string& path) {

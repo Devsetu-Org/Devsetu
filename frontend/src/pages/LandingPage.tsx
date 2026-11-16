@@ -6,7 +6,7 @@ import {
   WhiteboardAnim,
 } from '../components/LandingFeatureAnims';
 import { Link } from 'react-router-dom';
-import { PRICING_PATH } from '../constants/pricing';
+import { LEADERBOARD_PATH } from '../constants/leaderboard';
 import { useInView } from '../hooks/useInView';
 
 interface LandingPageProps {
@@ -354,19 +354,18 @@ function LandingContent(): JSX.Element {
         </div>
 
         <aside className="landing-tokens" aria-label="Lab tokens">
-          <h3 className="landing-tokens-title">Every lab you solve pays you back.</h3>
+          <h3 className="landing-tokens-title">Tokens rank you on the leaderboard.</h3>
           <p className="landing-tokens-body">
-            Solve labs, earn <strong>tokens</strong>, and turn them into credit. The more you
-            practice, the less you pay.
+            Solve labs, earn <strong>tokens</strong>, and climb the board. Tokens are for ranking
+            only — not for buying access or credits.
           </p>
           <ol className="landing-tokens-steps">
             <li><span>1</span>Solve a lab</li>
             <li><span>2</span>Earn tokens</li>
-            <li><span>3</span>Cash out to credit</li>
-            <li><span>4</span>Unlock more tracks &amp; projects</li>
+            <li><span>3</span>Rise on the leaderboard</li>
           </ol>
-          <Link to={PRICING_PATH} className="landing-tokens-link">
-            View pricing <span aria-hidden>→</span>
+          <Link to={LEADERBOARD_PATH} className="landing-tokens-link">
+            View leaderboard <span aria-hidden>→</span>
           </Link>
         </aside>
       </section>

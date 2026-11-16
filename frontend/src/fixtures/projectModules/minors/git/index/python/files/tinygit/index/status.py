@@ -25,7 +25,7 @@ class StatusBuckets:
 def status(r: Repo) -> StatusBuckets:
     """Compare HEAD tree, index, and worktree."""
     # TODO(3.3): status
-    raise NotImplementedError("TODO(3.3): status")
+    raise NotImplementedError("TODO(3.3)")
 
 
 def unique(in_list: list[str]) -> list[str]:

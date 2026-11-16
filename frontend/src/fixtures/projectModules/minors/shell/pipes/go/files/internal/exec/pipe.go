@@ -48,10 +48,9 @@ func (s *Shell) wirePipes(pl *ast.Pipeline) (procs []proc, errStatus int) {
 		}
 		return []proc{{cmd: c, files: files}}, -1
 	}
-	// TODO(4.2): For n > 1, create os.Pipe between neighbours, startCmd each stage,
-	// close unused pipe ends in the parent, and return the procs.
+	// TODO(4.2)
 	_ = os.Pipe
-	panic("TODO(4.2): wirePipes")
+	panic("TODO(4.2)")
 }
 
 func cleanupPipes(pipes [][2]*os.File) {

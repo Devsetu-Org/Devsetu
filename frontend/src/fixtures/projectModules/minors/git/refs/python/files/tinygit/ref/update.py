@@ -13,5 +13,5 @@ def update_ref(r: Repo, name: str, new_hash: Hash, old_hash: Hash) -> None:
     When name is HEAD and HEAD is symbolic, update the branch tip instead.
     """
     # TODO(2.3): update_ref
-    raise NotImplementedError("TODO(2.3): update_ref")
+    raise NotImplementedError("TODO(2.3)")
 

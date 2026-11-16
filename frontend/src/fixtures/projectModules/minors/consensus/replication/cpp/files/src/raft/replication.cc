@@ -14,14 +14,14 @@ AppendEntriesReply Raft::AppendEntries(const AppendEntriesArgs& args) {
   leader_id_ = args.leader_id;
   ResetElectionTimer();
   reply.term = current_term_;
-  // TODO(2.1): consistency check + AppendToLog + FollowerAdvanceCommit
-  throw std::runtime_error("TODO(2.1): AppendEntries consistency check");
+  // TODO(2.1)
+  throw std::runtime_error("TODO(2.1)");
 }
 
 void Raft::AppendToLog(int prev_index, const std::vector<LogEntry>& entries) {
   (void)prev_index; (void)entries;
   // TODO(2.2)
-  throw std::runtime_error("TODO(2.2): AppendToLog");
+  throw std::runtime_error("TODO(2.2)");
 }
 
 void Raft::BroadcastAppend() {
@@ -37,13 +37,13 @@ void Raft::BroadcastAppend() {
 void Raft::ReplicateTo(int peer) {
   (void)peer;
   // TODO(2.3)
-  throw std::runtime_error("TODO(2.3): ReplicateTo");
+  throw std::runtime_error("TODO(2.3)");
 }
 
 std::tuple<int, int, bool> Raft::Start(const std::string& command) {
   (void)command;
   // TODO(2.4)
-  throw std::runtime_error("TODO(2.4): Start");
+  throw std::runtime_error("TODO(2.4)");
 }
 
 }  // namespace raft

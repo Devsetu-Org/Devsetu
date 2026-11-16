@@ -4,13 +4,16 @@
 
 namespace raft {
 void Raft::AdvanceCommit() {
-  throw std::runtime_error("TODO(3.1): AdvanceCommit");
+  // TODO(3.1)
+  throw std::runtime_error("TODO(3.1)");
 }
 void Raft::FollowerAdvanceCommit(int leader_commit, int last_new) {
   (void)leader_commit; (void)last_new;
-  throw std::runtime_error("TODO(3.2): FollowerAdvanceCommit");
+  // TODO(3.2)
+  throw std::runtime_error("TODO(3.2)");
 }
 void Raft::ApplyLoop() {
-  throw std::runtime_error("TODO(3.3): ApplyLoop");
+  // TODO(3.3)
+  throw std::runtime_error("TODO(3.3)");
 }
 }  // namespace raft

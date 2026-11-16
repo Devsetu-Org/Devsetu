@@ -63,23 +63,17 @@ func (b *Builder) Finish() []byte {
 	if nBits < minBits {
 		nBits = minBits
 	}
-	// TODO(4.1): round nBits up to whole bytes (m = 8 * nBytes). Allocate
-	// nBytes+1 bytes and store k = numProbes(b.bitsPerKey) in the last one.
-	// For every hash, set the k bits probe(h, i, m) for i in [0, k): bit n is
-	// byte n/8, mask 1<<(n%8).
+	// TODO(4.1)
 	_ = nBits
-	panic("TODO(4.1): Finish")
+	panic("TODO(4.1)")
 }
 
 // MayContain reports whether key may have been added to filter. False means
 // it definitely was not. A filter that does not decode answers true: when in
 // doubt, read the table.
 func MayContain(filter, key []byte) bool {
-	// TODO(4.2): a filter shorter than 2 bytes, or whose last byte (k) is not
-	// in [1, maxProbes], answers true. Otherwise m is 8 bits per byte before
-	// k. Hash the key once and check the same k probes Finish set: any clear
-	// bit means false; all set means true.
-	panic("TODO(4.2): MayContain")
+	// TODO(4.2)
+	panic("TODO(4.2)")
 }
 
 // hash is 64-bit FNV-1a followed by a finalizer that spreads similar keys

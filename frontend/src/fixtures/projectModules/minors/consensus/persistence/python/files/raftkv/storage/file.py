@@ -23,20 +23,11 @@ class File:
 
     def save(self, state: bytes) -> None:
         # ── TODO(4.3) — an atomic, durable replace ─────────────────────────────
-        #
-        #  1. Write state to self.temp_path(), then flush and fsync the file.
-        #  2. os.replace the temp file over self.final_path(). Replace is atomic.
-        #  3. Open the directory and fsync it (os.fsync on the dir fd), so the
-        #     rename itself survives a power cut.
         raise NotImplementedError(
             "TODO(4.3): save — temp file, fsync, rename, fsync the directory"
         )
-
     def load(self) -> bytes | None:
         # ── TODO(4.4) — read what was renamed, nothing else ────────────────────
-        #
-        # Read self.final_path(). A missing file means "never saved": return None.
-        # Never read the temp file.
         raise NotImplementedError(
             "TODO(4.4): load — read the final file, missing means empty"
         )

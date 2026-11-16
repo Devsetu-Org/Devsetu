@@ -3,7 +3,7 @@
   "number": 818,
   "finalized": true,
   "title": "Submit the Same Workload on YARN",
-  "description": "**SITUATION:**\n\nLab 1.3 traced a multi-stage join on a **standalone** Master and Workers. QuickBite's production path does not run that way. The machines belong to **YARN**. Spark asks the ResourceManager for containers; NodeManagers launch them.\n\nThis lab gives you a small YARN cluster on the same three hosts you already know \u2014 `ds-spark-01` is the ResourceManager, `ds-spark-02` and `ds-spark-03` are NodeManagers \u2014 plus your shell as the submit client. There is **no** Spark Master or Worker process here. Setup starts the ResourceManager and both NodeManagers for you.\n\nSubmit the **same** store-rollup join twice: once in **client** deploy mode and once in **cluster** deploy mode. Record where the driver lived each time, and which ResourceManager / NodeManager panels show the application, the containers, and the allocated memory.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Confirm the ResourceManager UI lists two active nodes before you submit.\n2. Submit the join in **client** deploy mode with the lab shape (2 executors, 1 core, 512m, event log on). Watch it reach RUNNING, then finish.\n3. Record in Investigation: application id, where the driver lived, which hosts held containers, and the memory the RM showed for the app.\n4. Submit the **same** job again in **cluster** deploy mode. Record the same facts \u2014 the driver host must change.\n5. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- Both submits use `--master yarn` and the lab executor shape from the Guide.\n- Client-mode driver is on the shell host; cluster-mode driver is a YARN ApplicationMaster container on a NodeManager host.\n- Investigation names RM / NM panels (not Master / Worker).\n- Do not edit capacity-scheduler queues or raise NodeManager memory.\n- Investigation tab is complete \u2014 every field filled.\n",
+  "description": "**SITUATION:**\n\nQuickBite has **migrated** the Chapter 1 standalone Spark cluster to **YARN**. Same three hosts — roles differ: `ds-spark-01` is the ResourceManager, `ds-spark-02` / `ds-spark-03` are NodeManagers, and `shell` is the submit client. There is no Spark Master or Worker here.\n\nYou have an Investigation list of **YARN forensics** on this cluster: who owns which host, how many NodeManagers are active, and which RM / NM panels show applications and containers. After that, there is a **fix**: `~/lab/submit-store-rollup.sh` still speaks the old standalone contract and does not work on YARN. Wrap it so the same store-rollup job runs cleanly in both client and cluster deploy mode.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Confirm YARN is healthy (2 active NodeManagers) and walk the Investigation forensics pages first.\n2. Inspect `~/lab/submit-store-rollup.sh` — it still targets `$SPARK_MASTER_URL` / `--total-executor-cores`. Repair the wrapper for YARN (`--master yarn`, MODE-driven deploy mode and name, 2×1×512m).\n3. Run the repaired wrapper for **client**, then **cluster**. Record both application ids and where the driver lived each time.\n4. Finish Investigation (forensics → fix → client → cluster → lesson). Submit stays off until it is complete.\n\n**SPEC:**\n\n- Investigation forensics match this YARN topology (RM / NM — not Master / Worker).\n- `~/lab/submit-store-rollup.sh client` creates FINISHED `store-rollup-client`.\n- `~/lab/submit-store-rollup.sh cluster` creates FINISHED `store-rollup-cluster`.\n- Remove standalone `$SPARK_MASTER_URL` / `--total-executor-cores`.\n- Do not edit queues or NodeManager capacity — later labs.\n",
   "difficulty": "L0",
   "tags": [
     "spark",
@@ -20,18 +20,18 @@
   },
   "problemStatement": {
     "hints": [
-      "Open the Guide tab for the submit shape and the path to the join job.",
-      "ResourceManager UI is on ds-spark-01:8088. NodeManager UIs are on the worker hosts:8042.",
-      "Client mode: --deploy-mode client \u2014 driver stays on the shell. Cluster mode: --deploy-mode cluster \u2014 driver is the AM container.",
-      "Use local:/opt/lab/jobs/store_join.py so YARN does not need HDFS to stage the app.",
-      "Fill the Investigation tab; Submit stays off until every field is filled."
+      "Start with yarn node -list and the RM UI — forensics before editing the wrapper.",
+      "ResourceManager UI: ds-spark-01:8088. NodeManager UIs: ds-spark-02/03:8042.",
+      "Then open ~/lab/submit-store-rollup.sh — replace standalone --master / --total-executor-cores with --master yarn, --num-executors 2, --executor-cores 1.",
+      "Make MODE=${1:-client}; use it in --deploy-mode and --name store-rollup-$MODE.",
+      "Fill the Investigation tab — missing answers fail on Submit."
     ],
     "overview": "Submit the Same Workload on YARN",
     "brief": "Submit the Same Workload on YARN",
     "solution": "",
     "idLabel": "09",
     "theory": "",
-    "guide": "# QuickBite Data Platform \u2014 Spark on YARN (first submit)\n\nSame three hosts as Chapter 1. **Roles changed.**\n\n| Host | Role in this lab |\n|------|------------------|\n| `ds-spark-01` | **ResourceManager** (RM UI `:8088`) |\n| `ds-spark-02` | **NodeManager** (NM UI `:8042`) |\n| `ds-spark-03` | **NodeManager** (NM UI `:8042`) |\n| `shell` | Submit client (driver host in **client** mode) |\n\nThere is no Spark Master and no Spark Worker. YARN owns the machines. Spark asks for containers.\n\nSetup already started the RM and both NMs. Confirm before you submit:\n\n```bash\nyarn node -list\n# or open the RM UI \u2014 you want 2 active nodes\n```\n\n## Lab submit shape\n\nUse this shape for **both** runs (do not invent a larger executor):\n\n- 2 executors\n- 1 core each\n- `512m` executor memory (YARN will also reserve overhead)\n- event log on (cluster default)\n\nThe join job and CSVs are already on every host:\n\n- Job: `local:/opt/lab/jobs/store_join.py`\n- Data: `/opt/lab/data/orders.csv`, `/opt/lab/data/stores.csv`\n\n## 1. Client deploy mode\n\nFrom the **shell**:\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode client \\\n  --name store-rollup-client \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\nWhile it runs (or from the RM UI after):\n\n- Note the **application id** (`application_\u2026`).\n- Driver process is on **shell** (this is client mode).\n- RM Applications panel shows the app; NM UIs / RM nodes show the containers and allocated memory.\n\n## 2. Cluster deploy mode\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode cluster \\\n  --name store-rollup-cluster \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\nNow the **driver is the ApplicationMaster** \u2014 a container on `ds-spark-02` or `ds-spark-03`, not on the shell. Record that host.\n\n## 3. Investigation\n\nFill every field for both runs. The point of the lab is the driver moving, and learning which panels are RM / NM \u2014 not Master / Worker.\n"
+    "guide": "# QuickBite — YARN forensics, then fix the submit wrapper\n\nQuickBite migrated the Chapter 1 standalone cluster to **YARN**. Same three hosts; **roles differ**:\n\n| Host | Role now |\n|------|----------|\n| `ds-spark-01` | **ResourceManager** (UI `:8088`) |\n| `ds-spark-02` | **NodeManager** (UI `:8042`) |\n| `ds-spark-03` | **NodeManager** (UI `:8042`) |\n| `shell` | Submit client |\n\nNo Spark Master / Worker. Setup already started RM + both NMs.\n\n## 1. Forensics first\n\n```bash\nyarn node -list\n# expect 2 active nodes — or open the RM UI\n```\n\nWalk Investigation **Forensics**: who owns `ds-spark-01`, whether Master/Worker still exist, how many NMs are active. Know which RM panel lists applications and which NM view shows containers — you will need those after the fix.\n\n## 2. Fix — `submit-store-rollup.sh`\n\nThe old standalone wrapper is still on disk:\n\n```bash\nsed -n '1,120p' ~/lab/submit-store-rollup.sh\n~/lab/submit-store-rollup.sh client   # expect failure / wrong contract\n```\n\nIt targets `$SPARK_MASTER_URL` and `--total-executor-cores`. That does not work on YARN. Repair it so `$1` selects `client` or `cluster`, master is `yarn`, name is `store-rollup-$MODE`, and resources are 2 executors × 1 core × 512m:\n\n```bash\nMODE=\"${1:-client}\"\nspark-submit \\\n  --master yarn \\\n  --deploy-mode \"$MODE\" \\\n  --name \"store-rollup-$MODE\" \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  /opt/lab/jobs/store_join.py\n```\n\nDrop `--total-executor-cores` — YARN wants instance count and cores per executor.\n\n## 3. Prove both modes\n\n```bash\n~/lab/submit-store-rollup.sh client\n~/lab/submit-store-rollup.sh cluster\n```\n\nClient: driver on **shell**. Cluster: driver is the AM on `ds-spark-02` or `ds-spark-03`. Capture both `application_…` ids from `yarn application -list -appStates ALL` / the RM Applications panel.\n\n## 4. Investigation\n\nForensics → fix → client → cluster → lesson. Submit grades the repaired wrapper and both FINISHED apps — forensics alone is not enough.\n"
   },
   "platformSpec": {
     "shape": "yarn-2",
@@ -39,12 +39,24 @@
     "chapter": "yarn",
     "kind": "orientation",
     "reservePods": 4,
+    "boot": {
+      "heading": "Starting your YARN cluster",
+      "phases": [
+        "Creating your YARN cluster",
+        "Pulling the Spark-on-YARN image",
+        "Using the cached Spark-on-YARN image",
+        "Starting the ResourceManager",
+        "Starting the NodeManagers",
+        "Preparing the lab"
+      ]
+    },
     "setup": {
       "script": "setup.sh"
     },
     "grade": {
       "script": "grade.sh",
-      "timeoutSeconds": 300
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking YARN forensics, the repaired wrapper, and both submits."
     }
   },
   "visibleTo": "users",

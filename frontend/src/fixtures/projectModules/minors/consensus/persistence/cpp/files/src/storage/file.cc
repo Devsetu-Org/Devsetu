@@ -8,9 +8,11 @@ std::string File::TempPath() const { return dir_ + "/" + kFileName + ".tmp"; }
 std::string File::FinalPath() const { return dir_ + "/" + kFileName; }
 void File::Save(const std::string& state) {
   (void)state;
-  throw std::runtime_error("TODO(4.3): File::Save");
+  // TODO(4.3)
+  throw std::runtime_error("TODO(4.3)");
 }
 std::string File::Load() {
-  throw std::runtime_error("TODO(4.4): File::Load");
+  // TODO(4.4)
+  throw std::runtime_error("TODO(4.4)");
 }
 }  // namespace storage

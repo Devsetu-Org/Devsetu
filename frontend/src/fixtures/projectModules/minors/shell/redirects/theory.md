@@ -73,29 +73,41 @@ Paths are relative to the shell's working directory. `>` truncates, `>>` appends
 <!-- lang: go -->
 ### `TODO(3.3)` — `applyRedirsIO` in `internal/exec/apply.go`
 
+Copy the base `stdio` struct, then for each redirect replace the mapped field with the opened file descriptor. Later redirects of the same kind win.
+
 | Kind | Field |
 | --- | --- |
 | `RedirIn` | `in` |
 | `RedirOut`, `RedirApp` | `out` |
 | `RedirErr` | `err` |
+
+Return the updated stdio without mutating the input copy used as the default.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(3.3)` — `apply_redirs_io` in `tinysh/exec/apply.py`
+
+Copy the base stdin/stdout/stderr, then for each redirect replace the mapped field with the opened file. Later redirects of the same kind win.
 
 | Kind | Field |
 | --- | --- |
 | `RedirIn` | `stdin` |
 | `RedirOut`, `RedirApp` | `stdout` |
 | `RedirErr` | `stderr` |
+
+Return the updated triple without mutating the defaults passed in.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(3.3)` — `ApplyRedirsIO` in `src/exec/apply.cc`
+
+Copy the base `Stdio`, then for each redirect replace the mapped field with the opened fd. Later redirects of the same kind win.
 
 | Kind | Field |
 | --- | --- |
 | `kRedirIn` | `in` |
 | `kRedirOut`, `kRedirApp` | `out` |
 | `kRedirErr` | `err` |
+
+Return the updated struct without mutating the input defaults.
 <!-- /lang -->
 
 ## Prove it

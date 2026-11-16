@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { PROJECTS, MAJORS_PATH, PROJECTS_PATH, getProject, type ProjectEntry } from '../constants/projects';
 import { MinorsGrid } from './MinorsPage';
 import { hasModuleContent } from '../fixtures/projectModules';
 import NotifyButton from '../components/NotifyButton';
 import ChapterList from '../components/ChapterList';
+
+type ProjectsTab = 'minors' | 'majors';
 
 function ProjectDetail({ project }: { project: ProjectEntry }): JSX.Element {
   return (
@@ -122,6 +124,8 @@ export function MajorTiles(): JSX.Element {
 }
 
 export function ProjectsHub(): JSX.Element {
+  const [tab, setTab] = useState<ProjectsTab>('minors');
+
   return (
     <div className="app-page play-problems-page app-page--no-scrollbar">
       <header className="play-problems-hero">
@@ -134,21 +138,29 @@ export function ProjectsHub(): JSX.Element {
         </div>
       </header>
 
-      <section className="projects-group" aria-labelledby="projects-majors">
-        <h2 id="projects-majors" className="projects-group-title">Majors</h2>
-        <p className="projects-group-lead">
-          Long builds. Each one starts empty and ends as a system you can run, break, and explain.
-        </p>
-        <MajorTiles />
-      </section>
+      <div className="projects-tab-toggle-wrap">
+        <div className="play-kind-toggle" role="group" aria-label="Project kind">
+          <button
+            type="button"
+            className={`play-kind-toggle-btn${tab === 'minors' ? ' is-active' : ''}`}
+            aria-pressed={tab === 'minors'}
+            onClick={() => setTab('minors')}
+          >
+            Minors
+          </button>
+          <button
+            type="button"
+            className={`play-kind-toggle-btn${tab === 'majors' ? ' is-active' : ''}`}
+            aria-pressed={tab === 'majors'}
+            onClick={() => setTab('majors')}
+          >
+            Majors
+          </button>
+        </div>
+      </div>
 
-      <section className="projects-group" aria-labelledby="projects-minors">
-        <h2 id="projects-minors" className="projects-group-title">Minors</h2>
-        <p className="projects-group-lead">
-          Smaller builds. A listener, a protocol, a storage engine — one program, sometimes a few
-          chapters.
-        </p>
-        <MinorsGrid />
+      <section className="projects-group" aria-label={tab === 'minors' ? 'Minors' : 'Majors'}>
+        {tab === 'minors' ? <MinorsGrid /> : <MajorTiles />}
       </section>
     </div>
   );

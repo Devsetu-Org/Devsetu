@@ -16,10 +16,8 @@ type Query struct {
 // whitespace when between terms) splits OR-groups. Each group is analyzed with
 // the same analyzer as documents; empty groups after analysis are dropped.
 func Parse(q string) Query {
-	// TODO(4.1): Split q on whitespace into fields. Treat a field equal to "OR"
-	// as a group separator (not analyzed). Join each group's fields with spaces,
-	// run analyze.Analyze, skip empty results, and return Query{Groups: ...}.
+	// TODO(4.1)
 	_ = strings.Fields
 	_ = analyze.Analyze
-	panic("TODO(4.1): Parse")
+	panic("TODO(4.1)")
 }

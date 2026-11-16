@@ -75,17 +75,17 @@ If there are no lists, or any list is empty, return `{}`. Convert each list to d
 <!-- lang: go -->
 ### `TODO(4.3)` — `Union`
 
-Fold the lists with `unionTwo`. Equal ids appear once. The result stays sorted.
+In `internal/query/union.go`. If there are no posting lists, return nil. Convert each list to sorted doc ids, then fold left with `unionTwo` so duplicates merge once. Return the sorted id slice. `Docs` calls this once per OR-group after `Intersect` runs inside each AND-group.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(4.3)` — `union`
 
-Fold the lists with `_union_two`. Equal ids appear once. The result stays sorted.
+In `findx/query/union.py`. If there are no posting lists, return `[]`. Convert each list to sorted doc ids, then fold left with `_union_two` so duplicates merge once. Return the sorted id list. `docs` calls this once per OR-group after `intersect` runs inside each AND-group.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.3)` — `Union`
 
-Fold the lists with `UnionTwo`. Equal ids appear once. The result stays sorted.
+In `src/query/union.cc`. If there are no posting lists, return `{}`. Convert each list to sorted doc ids, then fold left with `UnionTwo` so duplicates merge once. Return the sorted id vector. `Docs` calls this once per OR-group after `Intersect` runs inside each AND-group.
 <!-- /lang -->
 
 ## Prove it

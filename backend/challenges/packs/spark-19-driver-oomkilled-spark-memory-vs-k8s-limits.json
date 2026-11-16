@@ -1,0 +1,49 @@
+{
+  "id": "spark-19-driver-oomkilled-spark-memory-vs-k8s-limits",
+  "number": 841,
+  "finalized": true,
+  "title": "Driver OOMKilled — Spark Memory vs K8s Limits",
+  "description": "**SITUATION:**\n\n`store-rollup-driver-mem` starts then the driver pod is **OOMKilled**. The wrapper sets `spark.driver.memory=512m` and `spark.kubernetes.driver.limit.memory=512m` with **no** memoryOverhead. Heap + overhead exceeds the container limit.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Submit and `kubectl describe` the driver — confirm OOMKilled.\n2. Set `spark.driver.memoryOverhead` and raise `spark.kubernetes.driver.limit.memory` so limit ≥ heap + overhead.\n3. Resubmit until **Succeeded**. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Wrapper sets driver memoryOverhead and a raised driver limit.memory.\n- `store-rollup-driver-mem-…` driver Succeeded.\n- Investigation: `oomkilled` / `overhead-and-limit`.\n",
+  "difficulty": "L1",
+  "tags": ["spark", "kubernetes", "l1", "multi-step-bug", "spark-k8s", "memory"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": { "domainId": "platforms-engineer", "panelId": "spark" },
+  "problemStatement": {
+    "hints": [
+      "kubectl describe pod … | grep OOMKilled",
+      "spark.driver.memory is heap only — add memoryOverhead and raise the K8s limit",
+      "Fill Investigation before Submit."
+    ],
+    "overview": "Driver OOMKilled — Spark Memory vs K8s Limits",
+    "brief": "Driver OOMKilled — Spark Memory vs K8s Limits",
+    "solution": "",
+    "idLabel": "19",
+    "theory": "",
+    "guide": "# QuickBite — Driver OOMKilled\n\nRaise limit ≥ heap + overhead; set memoryOverhead explicitly.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-k8s",
+    "daemonMode": "auto",
+    "chapter": "kubernetes",
+    "kind": "multi-step-bug",
+    "reservePods": 3,
+    "boot": {
+      "heading": "Starting your Kubernetes Spark lab",
+      "phases": [
+        "Creating your Kubernetes Spark namespace",
+        "Pulling the Spark-on-K8s image",
+        "Using the cached Spark-on-K8s image",
+        "Preparing the lab"
+      ]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking driver overhead/limit, Succeeded driver, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 15
+}

@@ -17,11 +17,24 @@ boot_phase() {
 : "${LEARNER_NS:?LEARNER_NS is required}"
 SPARK_POD="${SPARK_POD:-shell}"
 SHELL_CONTAINER="${SHELL_CONTAINER:-shell}"
-: "${SPARK_MASTER:?SPARK_MASTER is required}"
-: "${SPARK_MASTER_UI:?SPARK_MASTER_UI is required}"
+SPARK_SHAPE="${SPARK_SHAPE:-}"
+SPARK_K8S_NS="${SPARK_K8S_NS:-$LEARNER_NS}"
+SPARK_K8S_MASTER="${SPARK_K8S_MASTER:-k8s://https://kubernetes.default.svc:443}"
+SPARK_K8S_IMAGE="${SPARK_K8S_IMAGE:-devsetu/spark-k8s-lab:v0.1}"
+SPARK_K8S_SA="${SPARK_K8S_SA:-spark-lab}"
+
+# spark-k8s labs do not use a standalone/YARN master URL; keep placeholders so
+# shared helpers still source cleanly.
+if [[ "$SPARK_SHAPE" == "spark-k8s" ]]; then
+  SPARK_MASTER="${SPARK_MASTER:-$SPARK_K8S_MASTER}"
+  SPARK_MASTER_UI="${SPARK_MASTER_UI:-none}"
+else
+  : "${SPARK_MASTER:?SPARK_MASTER is required}"
+  : "${SPARK_MASTER_UI:?SPARK_MASTER_UI is required}"
+fi
 SPARK_MASTER_POD="${SPARK_MASTER_POD:-ds-spark-01}"
 
-# Shared PATH for standalone and YARN lab images.
+# Shared PATH for standalone, YARN, and spark-k8s lab images.
 _LAB_PATH="/opt/spark/bin:/opt/spark/sbin:/opt/hadoop/bin:/opt/hadoop/sbin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 YARN_RM_HOST="${YARN_RM_HOST:-ds-spark-01}"
 YARN_RM_UI="${YARN_RM_UI:-http://ds-spark-01:8088}"
@@ -43,6 +56,11 @@ _lab_exec_env=(
   SPARK_MASTER_URL="${SPARK_MASTER_URL:-$SPARK_MASTER}"
   YARN_RM_HOST="$YARN_RM_HOST"
   YARN_RM_UI="$YARN_RM_UI"
+  SPARK_SHAPE="$SPARK_SHAPE"
+  SPARK_K8S_NS="$SPARK_K8S_NS"
+  SPARK_K8S_MASTER="$SPARK_K8S_MASTER"
+  SPARK_K8S_IMAGE="$SPARK_K8S_IMAGE"
+  SPARK_K8S_SA="$SPARK_K8S_SA"
 )
 
 # in_pod <pod> '<shell command>' — run inside that pod's main container.
@@ -162,6 +180,58 @@ yarn_seed_host() {
   '
 }
 
+# One NameNode + DataNode on ds-spark-01 so Spark can stage jars to HDFS
+# (file:// staging is invisible to NodeManagers on other pods).
+yarn_start_hdfs() {
+  in_pod ds-spark-01 '
+    set -euo pipefail
+    mkdir -p /var/hadoop/hdfs/namenode /var/hadoop/hdfs/datanode /opt/hadoop/logs
+    if ! jps -l 2>/dev/null | grep -F org.apache.hadoop.hdfs.server.namenode.NameNode >/dev/null; then
+      if [[ ! -d /var/hadoop/hdfs/namenode/current ]]; then
+        hdfs namenode -format -force -nonInteractive >/opt/hadoop/logs/namenode-format.out 2>&1
+      fi
+      if [[ -x "$HADOOP_HOME/sbin/hadoop-daemon.sh" ]]; then
+        "$HADOOP_HOME/sbin/hadoop-daemon.sh" start namenode
+      else
+        hdfs --daemon start namenode
+      fi
+    fi
+    if ! jps -l 2>/dev/null | grep -F org.apache.hadoop.hdfs.server.datanode.DataNode >/dev/null; then
+      if [[ -x "$HADOOP_HOME/sbin/hadoop-daemon.sh" ]]; then
+        "$HADOOP_HOME/sbin/hadoop-daemon.sh" start datanode
+      else
+        hdfs --daemon start datanode
+      fi
+    fi
+    for i in $(seq 1 45); do
+      if hdfs dfsadmin -safemode get 2>/dev/null | grep -qi "OFF"; then
+        echo "HDFS is out of safemode"
+        exit 0
+      fi
+      # First boot: leave safemode as soon as the DN is live.
+      hdfs dfsadmin -safemode leave >/dev/null 2>&1 || true
+      if hdfs dfs -ls / >/dev/null 2>&1; then
+        echo "HDFS is writable"
+        exit 0
+      fi
+      sleep 2
+    done
+    echo "HDFS did not become ready" >&2
+    jps -l 2>/dev/null || true
+    exit 1
+  '
+}
+
+yarn_seed_spark_hdfs() {
+  in_pod ds-spark-01 '
+    set -euo pipefail
+    # Staging home for spark-submit uploads (no yarn.archive — Spark uploads jars).
+    hdfs dfs -mkdir -p /user/spark /spark/eventlogs
+    hdfs dfs -chmod -R 777 /user /spark || true
+    echo "HDFS user dirs ready"
+  '
+}
+
 yarn_start_rm() {
   in_pod ds-spark-01 '
     set -euo pipefail
@@ -222,9 +292,14 @@ yarn_seed_all() {
 }
 
 yarn_start_cluster() {
+  echo "==> start HDFS (NameNode + DataNode on ds-spark-01)"
+  yarn_start_hdfs || { echo "start HDFS failed" >&2; exit 1; }
+  yarn_seed_spark_hdfs || { echo "seed HDFS spark paths failed" >&2; exit 1; }
+  boot_phase "Starting the ResourceManager"
   echo "==> start ResourceManager on ds-spark-01"
   yarn_start_rm || { echo "start ResourceManager failed" >&2; exit 1; }
   wait_yarn_rm || { echo "ResourceManager did not become ready" >&2; exit 1; }
+  boot_phase "Starting the NodeManagers"
   echo "==> start NodeManagers on ds-spark-02 and ds-spark-03"
   yarn_start_nm ds-spark-02 || { echo "start NodeManager failed on ds-spark-02" >&2; exit 1; }
   yarn_start_nm ds-spark-03 || { echo "start NodeManager failed on ds-spark-03" >&2; exit 1; }
@@ -251,6 +326,33 @@ yarn_bootstrap() {
   yarn_seed_all
   yarn_start_cluster
   yarn_seed_shell_helpers
+  boot_phase "Preparing the lab"
+}
+
+# Application state from the RM REST API for a given application_… id.
+yarn_app_state() {
+  local want=$1
+  yarn_apps_json | tr '{' '\n' | awk -v want="$want" '
+    BEGIN { id=""; state="" }
+    /"id"/ { gsub(/[",]/, "", $0); split($0, a, ":"); id=a[2] }
+    /"state"/ {
+      gsub(/[",]/, "", $0); split($0, a, ":"); state=a[2]
+      if (id == want) { print state; exit }
+    }
+  '
+}
+
+# Application name from the RM REST API for a given application_… id.
+yarn_app_name() {
+  local want=$1
+  yarn_apps_json | tr '{' '\n' | awk -v want="$want" '
+    BEGIN { id=""; name="" }
+    /"id"/ { gsub(/[",]/, "", $0); split($0, a, ":"); id=a[2] }
+    /"name"/ {
+      gsub(/[",]/, "", $0); split($0, a, ":"); name=a[2]
+      if (id == want) { print name; exit }
+    }
+  '
 }
 
 # Write a multi-queue capacity-scheduler.xml on every YARN host (call after seed,
@@ -379,6 +481,172 @@ wait_alive_workers() {
   kubectl -n "$LEARNER_NS" exec "$SPARK_MASTER_POD" -c "$SPARK_MASTER_POD" -- \
     bash -c 'echo "== jps =="; jps -l 2>/dev/null || true; echo "== logs =="; ls -lt /opt/spark/logs 2>/dev/null | head -10; tail -n 40 /opt/spark/logs/*master*.out 2>/dev/null || true' >&2 || true
   return 1
+}
+
+# --- Spark-on-Kubernetes helpers (shape spark-k8s) ---
+
+# List Spark driver pods in the lab namespace (spark-role=driver).
+k8s_driver_pods() {
+  kubectl -n "$SPARK_K8S_NS" get pods -l spark-role=driver \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true
+}
+
+k8s_executor_pods() {
+  kubectl -n "$SPARK_K8S_NS" get pods -l spark-role=executor \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true
+}
+
+# True if any driver pod for app name prefix reached Succeeded.
+k8s_app_succeeded() {
+  local name_prefix=$1
+  kubectl -n "$SPARK_K8S_NS" get pods -l spark-role=driver -o json 2>/dev/null \
+    | tr ',' '\n' \
+    | grep -F "\"$name_prefix" >/dev/null 2>&1 || true
+  kubectl -n "$SPARK_K8S_NS" get pods -l spark-role=driver \
+    --field-selector=status.phase=Succeeded \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+    | grep -E "^${name_prefix}" >/dev/null
+}
+
+# Wait until a driver pod whose name starts with prefix is Succeeded (or timeout).
+# Optional 3rd arg: namespace (default SPARK_K8S_NS).
+wait_k8s_driver_succeeded() {
+  local name_prefix=$1
+  local seconds=${2:-180}
+  local ns=${3:-$SPARK_K8S_NS}
+  local i phase
+  for i in $(seq 1 "$seconds"); do
+    phase="$(kubectl -n "$ns" get pods -l spark-role=driver \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"="}{.status.phase}{"\n"}{end}' 2>/dev/null \
+      | awk -F= -v p="$name_prefix" '$1 ~ "^"p { print $2; exit }' || true)"
+    if [[ "$phase" == "Succeeded" ]]; then
+      echo "driver $name_prefix… Succeeded"
+      return 0
+    fi
+    if [[ "$phase" == "Failed" ]]; then
+      echo "driver $name_prefix… Failed" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  echo "timed out waiting for driver $name_prefix… (last phase=${phase:-none})" >&2
+  return 1
+}
+
+# True if any driver whose name starts with prefix is Succeeded in ns (default SPARK_K8S_NS).
+k8s_driver_succeeded() {
+  local name_prefix=$1
+  local ns=${2:-$SPARK_K8S_NS}
+  kubectl -n "$ns" get pods -l spark-role=driver \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.status.phase}{"\n"}{end}' 2>/dev/null \
+    | grep -E "^${name_prefix}.*\|Succeeded" >/dev/null
+}
+
+# Read ~/answers/<key> from the shell pod.
+k8s_read_answer() {
+  local key=$1
+  kubectl -n "$LEARNER_NS" exec "$SPARK_POD" -c "$SHELL_CONTAINER" -- \
+    bash -c "test -f \"\$HOME/answers/$key\" && cat \"\$HOME/answers/$key\"" 2>/dev/null || true
+}
+
+# Shared spark-submit conf fragment for labs-spark pool (printed lines, no trailing \\).
+k8s_pool_submit_confs() {
+  cat <<EOF
+--conf spark.kubernetes.authenticate.driver.serviceAccountName=${SPARK_K8S_SA}
+--conf spark.kubernetes.container.image=${SPARK_K8S_IMAGE}
+--conf spark.kubernetes.node.selector.devlabs.io/pool=spark
+--conf spark.kubernetes.driver.podTemplateFile=/opt/lab/conf/spark-pod-template.yaml
+--conf spark.kubernetes.executor.podTemplateFile=/opt/lab/conf/spark-pod-template.yaml
+EOF
+}
+
+# Ensure a sibling namespace (prod/staging) with spark-lab SA + Role.
+# Also binds the primary shell SA so spark-submit from LEARNER_NS can create
+# driver pods in the sibling (cross-namespace RoleBinding).
+k8s_ensure_sibling() {
+  local suffix=$1
+  local sibling="${LEARNER_NS}-${suffix}"
+  sibling="$(echo "$sibling" | cut -c1-63)"
+  kubectl apply -f - >/dev/null <<EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${sibling}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app.kubernetes.io/component: spark-lab-sibling
+    spark-lab/primary: ${LEARNER_NS}
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ${SPARK_K8S_SA}
+  namespace: ${sibling}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${SPARK_K8S_SA}
+  namespace: ${sibling}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events", "resourcequotas", "limitranges", "serviceaccounts", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${SPARK_K8S_SA}
+  namespace: ${sibling}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${SPARK_K8S_SA}
+subjects:
+  - kind: ServiceAccount
+    name: ${SPARK_K8S_SA}
+    namespace: ${sibling}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${SPARK_K8S_SA}-from-primary
+  namespace: ${sibling}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${SPARK_K8S_SA}
+subjects:
+  - kind: ServiceAccount
+    name: ${SPARK_K8S_SA}
+    namespace: ${LEARNER_NS}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dl-spark-isolation
+  namespace: ${sibling}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {}}]
+  egress:
+    - to: [{podSelector: {}}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - ports: [{protocol: TCP, port: 443}]
+      to: [{ipBlock: {cidr: 0.0.0.0/0}}]
+EOF
+  echo "$sibling"
 }
 
 # Keep going after a miss so the result can list every task, not only the first one.

@@ -33,13 +33,10 @@ type entry struct {
 //	directory: for each term (sorted): nameLen u16 | name | dataOff u32 | count u32
 //	data: for each term in directory order: count × (docID u32 | tf u32)
 func WriteSegment(w io.Writer, m *Map) error {
-	// TODO(2.2): For each term from m.Terms(), append count×(docID,tf) to a data
-	// buffer and a directory entry (nameLen, name, dataOff, count). Write the
-	// 12-byte header, then the directory, then the data. Use
-	// binary.LittleEndian.AppendUint32 / AppendUint16.
+	// TODO(2.2)
 	_ = binary.LittleEndian
 	_ = fmt.Errorf
-	panic("TODO(2.2): WriteSegment")
+	panic("TODO(2.2)")
 }
 
 // OpenSegment loads a segment file from path.
@@ -53,16 +50,14 @@ func OpenSegment(path string) (*Segment, error) {
 
 // DecodeSegment parses a segment from bytes.
 func DecodeSegment(raw []byte) (*Segment, error) {
-	// TODO(2.3): Check magic and version. Read nTerms. Parse the directory into
-	// map[string]entry. The remaining bytes are data. Return &Segment{dir, data}.
-	panic("TODO(2.3): DecodeSegment")
+	// TODO(2.3)
+	panic("TODO(2.3)")
 }
 
 // Postings looks up term. ok is false when the term is absent.
 func (s *Segment) Postings(term string) (list []Posting, ok bool) {
-	// TODO(2.3): Look up term in s.dir. Read count postings from s.data at off:
-	// each posting is docID u32 then tf u32 (little-endian).
-	panic("TODO(2.3): Segment.Postings")
+	// TODO(2.3)
+	panic("TODO(2.3)")
 }
 
 // Terms returns sorted term names in the segment.

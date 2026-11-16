@@ -1,11 +1,13 @@
 import type { ChapterReading } from './types';
+import pipelineImg from '../../assets/project-readings/query-engine/pipeline.jpg';
+import operatorsImg from '../../assets/project-readings/query-engine/operators.jpg';
 
 /** Query engine minor, chapter 00: how SQL becomes rows, and the plan. */
 export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
   eyebrow: 'Query engine · Chapter 00',
   title: 'Query engines: from a SELECT string to rows',
   lede:
-    'Start here before writing any code. We look at **what a SQL engine actually does**, the pipeline from text to rows, where that pipeline runs in real databases, and exactly what you will build across the five chapters of this minor.',
+    'Start here before writing any code. First, what a SQL engine does and the pipeline from text to rows. Then where that pipeline runs in real databases, and what you will build across the five chapters of this minor.',
   showBlogStamp: true,
   sections: [
     {
@@ -50,16 +52,13 @@ export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
         filename: 'users.sql',
         code: "SELECT name FROM users WHERE id = 1;",
       },
-      flows: [
-        {
-          title: 'Front end',
-          steps: ['Characters', 'Lexer → tokens', 'Parser → AST', 'Catalog check'],
-        },
-        {
-          title: 'Back end',
-          steps: ['Scan users', 'Filter id = 1', 'Project name', 'Rows out'],
-        },
-      ],
+      figure: {
+        image: pipelineImg,
+        imageAlt:
+          'Hand-drawn SQL pipeline: SELECT name FROM users WHERE id = 1 flows through the lexer, the parser, the catalog, and the executor, which emits rows',
+        caption: 'Text in, rows out. Four stages, always in this order.',
+        flush: true,
+      },
       after: [
         '**Lexer.** `SELECT`, `name`, `FROM`, `users`, `WHERE`, `id`, `=`, `1` are tokens. Whitespace disappears. A string or a number is one token, not a pile of characters.',
         '**Parser.** The tokens become a tree: a select node, a list of output columns, a table, and a comparison expression. The parser rejects `SELECT FROM` because the grammar says a column list comes first.',
@@ -73,6 +72,13 @@ export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
       body: [
         'A single-table filter is the core. Real queries add three more operators. Each one is a box in the pipeline that consumes rows and emits rows.',
       ],
+      figure: {
+        image: operatorsImg,
+        imageAlt:
+          'Hand-drawn stack of row operators: scan, filter, project, join, aggregate, and sort/limit, each box pulling rows from the child below it, ending in rows',
+        caption: 'Rows in, rows out. Each operator pulls from the one below it.',
+        flush: true,
+      },
       table: {
         headers: ['Operator', 'What it does', 'How this minor builds it'],
         rows: [
@@ -151,7 +157,7 @@ export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **sqlq**, a SQL engine in Go, Python, or C++. You type statements into a small REPL. Tests feed SQL and check the rows that come back.',
+        'Over five chapters you build **sqlq**, a SQL engine in Go or Python. You type statements into a small REPL. Tests feed SQL and check the rows that come back.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -200,7 +206,7 @@ export const QUERY_ENGINE_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No database background. Every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go or Python). No database background. Every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',

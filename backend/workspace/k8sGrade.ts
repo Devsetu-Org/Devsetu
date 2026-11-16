@@ -46,8 +46,12 @@ async function gradeK8sSession(
     (c?.k8sPlatform?.grade?.timeoutSeconds || 60) * 1000,
   );
 
-  if (isSparkLabType(c?.sandboxType) && investigation && typeof investigation === 'object') {
-    await sparkBox.writeInvestigationAnswers(ns, investigation);
+  if (investigation && typeof investigation === 'object') {
+    if (isSparkLabType(c?.sandboxType)) {
+      await sparkBox.writeInvestigationAnswers(ns, investigation);
+    } else if (isKafkaLabType(c?.sandboxType)) {
+      await kafkaBox.writeInvestigationAnswers(ns, investigation);
+    }
   }
 
   const env = isBoxLabType(c?.sandboxType)
@@ -146,7 +150,7 @@ function publicK8sSubmission(row: Record<string, unknown>): K8sSubmissionRecord 
     || (passed ? 'PASS' : 'FAIL');
   return {
     id: String(row.id),
-    sessionId: String(row.session_id),
+    sessionId: row.session_id != null ? String(row.session_id) : '',
     challengeId: row.challenge_id != null ? String(row.challenge_id) : null,
     name: String(row.k8s_name || row.id),
     status: String(row.status || 'succeeded'),
@@ -170,12 +174,16 @@ async function listK8sSubmissionsForSession(sessionId: string): Promise<K8sSubmi
   return (rows as Record<string, unknown>[]).map(publicK8sSubmission);
 }
 
-/** All kubernetes/Spark-box submits for this user on this lab (across sittings). */
+/** All Kubernetes/Spark-box submits for this user on this lab (across sittings). */
 async function listK8sSubmissionsForChallenge(
   challengeId: string,
   userId: string | null | undefined,
 ): Promise<K8sSubmissionRecord[]> {
   if (!challengeId || !userId) return [];
+  // Sessions + submissions store sanitizeOwner(userId); JWT sub may still have
+  // chars like `|` from OAuth. Match both so the Submissions tab is not empty.
+  const { sanitizeOwner } = require('./workspaceStore');
+  const owner = sanitizeOwner(userId);
   const { rows } = await pool.query(
     `SELECT * FROM submissions
        WHERE challenge_id = $1
@@ -183,11 +191,14 @@ async function listK8sSubmissionsForChallenge(
          AND entrypoint = 'kubernetes'
          AND (
            user_id = $2
-           OR session_id IN (SELECT id FROM sessions WHERE user_id = $2)
+           OR user_id = $3
+           OR session_id IN (
+             SELECT id FROM sessions WHERE user_id = $2 OR user_id = $3
+           )
          )
        ORDER BY submitted_at DESC
        LIMIT 50`,
-    [challengeId, userId],
+    [challengeId, owner, userId],
   );
   return (rows as Record<string, unknown>[]).map(publicK8sSubmission);
 }

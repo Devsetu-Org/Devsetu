@@ -6,12 +6,12 @@ namespace tinygit {
 
 std::vector<uint8_t> EncodeCommit(const Commit& c) {
   // TODO(1.5): EncodeCommit
-  throw std::runtime_error("TODO(1.5): EncodeCommit");
+  throw std::runtime_error("TODO(1.5)");
 }
 
 Commit DecodeCommit(const std::vector<uint8_t>& content) {
   // TODO(1.5): DecodeCommit
-  throw std::runtime_error("TODO(1.5): DecodeCommit");
+  throw std::runtime_error("TODO(1.5)");
 }
 
 Hash PutCommit(Store s, const Commit& c) { return s.Put(kTypeCommit, EncodeCommit(c)); }

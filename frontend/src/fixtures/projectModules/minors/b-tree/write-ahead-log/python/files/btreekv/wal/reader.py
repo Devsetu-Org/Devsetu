@@ -23,8 +23,5 @@ def replay(path: str, fn: Callable[[Record, int], None]) -> int:
 
 def scan(data: bytes, fn: Callable[[Record, int], None]) -> int:
     """Walk intact records in data; stop at the first torn/bad one."""
-    # TODO(3.3): Loop. If fewer than HEADER_SIZE bytes remain, return good.
-    # Read crc and length from the header. If length is absurd or the payload
-    # does not fit, return good. If crc32c(payload) != sum, return good. Decode
-    # the payload; on BadPayload return good. Call fn(r, end) then advance.
-    raise NotImplementedError("TODO(3.3): scan")
+    # TODO(3.3)
+    raise NotImplementedError("TODO(3.3)")

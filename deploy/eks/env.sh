@@ -116,6 +116,21 @@ export EKS_KAFKA_POD_PIDS_LIMIT="${EKS_KAFKA_POD_PIDS_LIMIT:-1024}"
 export EKS_KAFKA_DISK_GB="${EKS_KAFKA_DISK_GB:-30}"
 export EKS_KAFKA_LAUNCH_TEMPLATE="${EKS_KAFKA_LAUNCH_TEMPLATE:-${EKS_CLUSTER_NAME:-devlabs}-labs-kafka}"
 
+# Projects (minors/majors) code shells: Go/Python/C++ toolchains in projects-lab.
+# One always-on base node; Karpenter adds the rest (labs-projects-elastic,
+# karpenter/nodepool-projects.yaml). t4g.small (2 GiB): ~5 shells at 256Mi request.
+# maxPods 12 = DaemonSets + headroom; memory is the real cap.
+# Not in EKS_NODEGROUPS: eks-projects.sh base/sleep/wake manage it on its own.
+export EKS_PROJECTS_INSTANCE_TYPE="${EKS_PROJECTS_INSTANCE_TYPE:-t4g.small}"
+export EKS_PROJECTS_AMI_TYPE="${EKS_PROJECTS_AMI_TYPE:-AL2023_ARM_64_STANDARD}"
+export EKS_PROJECTS_DESIRED="${EKS_PROJECTS_DESIRED:-1}"
+export EKS_PROJECTS_MAX="${EKS_PROJECTS_MAX:-1}"
+export EKS_PROJECTS_MAX_PODS="${EKS_PROJECTS_MAX_PODS:-12}"
+export EKS_PROJECTS_KUBE_RESERVED_MEMORY="${EKS_PROJECTS_KUBE_RESERVED_MEMORY:-$(( 11 * EKS_PROJECTS_MAX_PODS + 255 ))Mi}"
+export EKS_PROJECTS_POD_PIDS_LIMIT="${EKS_PROJECTS_POD_PIDS_LIMIT:-512}"
+export EKS_PROJECTS_DISK_GB="${EKS_PROJECTS_DISK_GB:-40}"
+export EKS_PROJECTS_LAUNCH_TEMPLATE="${EKS_PROJECTS_LAUNCH_TEMPLATE:-${EKS_CLUSTER_NAME:-devlabs}-labs-projects}"
+
 # VPC CNI add-on configuration (prefix delegation: /28 per ENI slot).
 # MINIMUM_IP_TARGET=80 keeps 5 prefixes per node: 42 pods plus the IPs of just-deleted pods,
 # which stay unusable for IP_COOLDOWN_PERIOD (30 s). With only one spare prefix, bursts of
@@ -159,6 +174,7 @@ eks_ng() {
     labs-docker) prefix=DOCKER ;;
     labs-spark) prefix=SPARK ;;
     labs-kafka) prefix=KAFKA ;;
+    labs-projects) prefix=PROJECTS ;;
     *) echo "unknown nodegroup: $ng (add it to eks_ng in env.sh)" >&2; return 1 ;;
   esac
   local var
@@ -173,6 +189,7 @@ eks_ng() {
         labs-docker) echo "devlabs.io/pool=docker,devlabs.io/tier=base" ;;
         labs-spark) echo "devlabs.io/pool=spark,devlabs.io/tier=base" ;;
         labs-kafka) echo "devlabs.io/pool=kafka,devlabs.io/tier=base" ;;
+        labs-projects) echo "devlabs.io/pool=projects,devlabs.io/tier=base" ;;
         *) echo "devlabs.io/pool=system" ;;
       esac ;;
     taints)
@@ -185,6 +202,7 @@ eks_ng() {
         labs-docker) echo "key=devlabs.io/pool,value=docker,effect=NO_SCHEDULE" ;;
         labs-spark) echo "key=devlabs.io/pool,value=spark,effect=NO_SCHEDULE" ;;
         labs-kafka) echo "key=devlabs.io/pool,value=kafka,effect=NO_SCHEDULE" ;;
+        labs-projects) echo "key=devlabs.io/pool,value=projects,effect=NO_SCHEDULE" ;;
         *) echo "" ;;
       esac ;;
     desired) var="EKS_${prefix}_DESIRED"; echo "${EKS_WAKE_DESIRED:-${!var}}" ;;

@@ -29,8 +29,8 @@ func openRedirs(dir string, redirs []ast.Redir) (files []*os.File, err error) {
 
 // openOne opens one redirect target.
 func openOne(dir string, r ast.Redir) (*os.File, error) {
-	// TODO(3.2): Resolve r.File against dir. Open with trunc/append/read per Kind.
-	panic("TODO(3.2): openOne")
+	// TODO(3.2)
+	panic("TODO(3.2)")
 }
 
 var _ = fmt.Errorf

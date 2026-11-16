@@ -12,6 +12,5 @@ def split_pipeline(p) -> list[Cmd]:
     cmds = [cmd]
     if p.kind() != Pipe:
         return cmds
-    # TODO(4.1): While the next token is Pipe, bump it and parse another cmd.
-    # A trailing Pipe with no following command is an error.
-    raise NotImplementedError("TODO(4.1): split_pipeline")
+    # TODO(4.1)
+    raise NotImplementedError("TODO(4.1)")

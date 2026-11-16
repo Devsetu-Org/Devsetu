@@ -10,5 +10,5 @@ if TYPE_CHECKING:
 
 def scan(d: "DB", start: Optional[bytes], end: Optional[bytes], fn: Callable[[bytes, bytes], bool]) -> None:
     """Call fn for every live key in [start, end), in key order, until fn returns False."""
-    # TODO(4.4): merge memtable + table iterators newest-first; seek; skip tombstones.
-    raise NotImplementedError("TODO(4.4): scan")
+    # TODO(4.4)
+    raise NotImplementedError("TODO(4.4)")

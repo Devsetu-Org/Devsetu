@@ -11,6 +11,6 @@ btreekv/buffer/flush.py    flush_frame     <- TODO 4.3
 ## Running
 
 ```
-make test
+make test     # buffer pool acceptance tests (not chapters 1–3)
 make run
 ```

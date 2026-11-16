@@ -1,32 +1,14 @@
-## Where you are
+## The write-ahead log
 <!-- mode: read-only -->
 
-Chapter 2 built a B+ tree over the pager. `Put` changes several pages: a leaf, maybe its parent, maybe a new root, and the header. Those are separate writes, and a crash can land between any two of them.
+Chapter 2 built a B+ tree over the pager. `Put` changes several pages: a leaf, maybe its parent, maybe a new root, and the header. Those are separate writes, and a crash can land between any two of them. This chapter adds the **write-ahead log** (WAL): an append-only file that receives every change before any page does. On startup the log is replayed, and the page file comes out consistent.
 
-```plaintext
-            Put / Get
-                │
-       ┌────────▼────────┐
-  ch 2 │    B+ tree       │  done
-       └────────┬────────┘
-       ┌────────▼────────┐        ┌─────────────┐
-  ch 3 │   Log + pages    │ ◀──────│ you are here │
-       └──┬───────────┬──┘        └─────────────┘
-          ▼           ▼
-       wal.log      data.db
-```
-
-This chapter adds the **write-ahead log** (WAL): an append-only file that receives every change before any page does. On startup the log is replayed, and the page file comes out consistent.
+![Write path: Put and Get enter the B+ tree (ch 2, done), which sits on log plus pages (ch 3, you are here), writing wal.log and data.db](/b-tree/write-ahead-log/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> Make every acknowledged `Put` survive a crash, and make a crash in the middle of a
-> `Put` leave no trace. The log grows until `Close` checkpoints it; the buffer pool and
-> delete come later.
+> Make every acknowledged `Put` survive a crash, and make a crash in the middle of a `Put` leave no trace. The log grows until `Close` checkpoints it; the buffer pool and delete come later.
 
-## Why a log
-<!-- mode: read-only -->
-
-### Updating in place is dangerous
+### The rule
 
 A B+ tree overwrites pages where they are. If the process dies halfway through a split, the file holds a mix of old and new pages: a leaf that lost half its keys and no parent that knows where they went. There is no "previous version" to fall back to, because the old page was overwritten.
 
@@ -34,18 +16,23 @@ A log fixes this with one rule:
 
 **Log first, then change the pages, then acknowledge.** If the process dies after the log is durable, replay redoes the change. If it dies before, the change never happened, and since it was never acknowledged, nothing was promised.
 
-```plaintext
-  Put("order:7", "paid")
-     │
-     ├─ 1. run the tree in memory: new page images, new root, new header state
-     ├─ 2. append them to wal.log, then a commit record   ← durable from here (with fsync)
-     ├─ 3. write the page images into data.db              ← the page file catches up
-     └─ 4. return OK
-```
+![Log first: Put runs the tree in memory, appends page images and a commit record to wal.log (durable with fsync), then writes data.db, then returns OK](/b-tree/write-ahead-log/log-first.jpg)
 
-### Why the log is allowed to be slow to read and fast to write
+Reverse the first two steps and there is a window where the page file has a change the log cannot recreate.
 
-The log is written strictly at its end: sequential I/O, one `fsync`. The page file is written at random places and does not even need an `fsync` per write, because the log can always recreate it. Postgres, InnoDB, SQLite (in WAL mode), and etcd all work this way.
+### Why appending is cheap
+
+The log is written strictly at its end: sequential I/O, one `fsync`. The page file is written at random places and does not even need an `fsync` per write, because the log can always recreate it. This is the same durability trick every update-in-place engine uses; the B-tree still pays random I/O for the pages themselves.
+
+### Where else you have seen this
+
+| System | Its write-ahead log |
+| --- | --- |
+| PostgreSQL | `pg_wal/` segments, also used for replication |
+| MySQL InnoDB | the redo log |
+| SQLite (WAL mode) | `-wal` file next to the database |
+| RocksDB / LevelDB | `*.log` files next to the SSTables |
+| etcd | the Raft log, fsynced before a write is committed |
 
 ### What goes in the log
 
@@ -74,24 +61,22 @@ How a `Put` becomes a batch is given: `btreekv/db/txn.py` runs the tree over an 
 How a `Put` becomes a batch is given: `src/db/txn.cc` runs the tree over an in-memory overlay, so every `WritePage` the tree makes lands in memory only, and `Txn::Records()` turns the result into log records. `apply.cc` writes records back into pages. You write the log itself and the two functions that connect it to the engine.
 <!-- /lang -->
 
-## The record format
-<!-- mode: read-and-implement tasks:3.1 -->
+## Records and append
+<!-- mode: read-and-implement tasks:3.1,3.2 -->
 
 ### A crash can stop a write halfway
 
 A log write is not atomic either. A crash can leave the last record half written. Replay has to tell "this is a whole record" from "this is the remains of one", so each record carries its own length and a **checksum**.
 
-```plaintext
-  ┌──────────────┬──────────────┬──────────────────────────────────────────┐
-  │ crc32c  (4)  │ length  (4)  │ payload (length bytes)                    │
-  └──────────────┴──────────────┴──────────────────────────────────────────┘
-                                  kind (1) │ page (4) │ dataLen (uvarint) │ data
-```
+![WAL record frame: a 4-byte crc32c, a 4-byte length, then the payload of kind, page, data length, and data](/b-tree/write-ahead-log/record-frame.jpg)
 
 - **length** says how many payload bytes follow. If the file ends before that, the record was cut short.
 - **crc32c** checksums the payload. If any byte is wrong, the checksum will not match.
 
 It is the same framing as the page trailer from chapter 1, put in front instead of behind.
+
+> [!tip] Why CRC-32C
+> CRC-32C (Castagnoli) is the checksum RocksDB, LevelDB, ext4, and iSCSI use. Modern CPUs compute it in hardware. It is not cryptographic: it catches accidents, not attackers.
 
 <!-- lang: go -->
 ### `TODO(3.1)` — `encode`
@@ -127,9 +112,6 @@ In `src/wal/record.cc`. `AppendPayload` (given) writes the payload. Your job is 
 `Encode` **appends**: bytes already in `dst` must survive. The writer relies on that to put a whole batch into one buffer.
 <!-- /lang -->
 
-## Appending and fsync
-<!-- mode: read-and-implement tasks:3.2 -->
-
 ### Write is not the same as durable
 
 When `write()` returns, the bytes are in the **OS page cache**, not on the disk. A process crash keeps them. A power cut loses them. `fsync` asks the OS to push the file's data to the device and waits until it has.
@@ -139,12 +121,18 @@ When `write()` returns, the bytes are in the **OS page cache**, not on the disk.
 | `SyncAlways` | a process crash **and** a power cut | one fsync per batch |
 | `SyncNever` | a process crash only | almost free |
 
-Because a whole `Put` is one batch, it costs **one** fsync, however many pages it changed. Writing the batch in pieces would cost one per page and would leave a visible gap between the pieces.
+That tradeoff shows up in every durable store, under different names:
+
+| System | Knob | What it means |
+| --- | --- | --- |
+| PostgreSQL | `synchronous_commit` | `on` waits for the WAL flush before returning; `off` returns once the record is in the page cache. |
+| MySQL InnoDB | `innodb_flush_log_at_trx_commit` | `1` fsyncs every commit; `2` flushes once per second. |
+| RocksDB | `WriteOptions.sync` | per-write: sync this batch to the WAL, or don't. |
+
+Because a whole `Put` is one batch, it costs **one** fsync, however many pages it changed. Writing the batch in pieces would cost one per page and would leave a visible gap between the pieces. Production engines often add **group commit** (many writers share one fsync); yours is the simple end of that spectrum.
 
 > [!warn] One write per batch
-> Build every record of the batch in memory and write them with **one** `Write` call.
-> Do not wrap the file in a `bufio.Writer`: a buffered record is not in the file at all
-> until the buffer flushes, so an acknowledged write could vanish with the process.
+> Build every record of the batch in memory and write them with **one** `Write` call. Do not wrap the file in a buffered writer: a buffered record is not in the file at all until the buffer flushes, so an acknowledged write could vanish with the process.
 
 <!-- lang: go -->
 ### `TODO(3.2)` — `Append`
@@ -180,29 +168,19 @@ In `src/wal/writer.cc`:
 `Sync` (given) fsyncs and records how much of the log is now durable. `Create`, `OpenAppend`, `Size`, `Durable`, `Rewind`, `Reset`, and `Close` are given.
 <!-- /lang -->
 
-## Replay and the torn tail
-<!-- mode: read-and-implement tasks:3.3 -->
+## Replay and recovery
+<!-- mode: read-and-implement tasks:3.3,3.4 -->
 
 ### Read until the first bad record
 
-Replay walks the file from offset 0. For each record it checks, in order:
+Replay walks the file from offset 0. For each record it checks, in order: header size, length, checksum, and payload decode. The first failure is the end of the log.
 
-```plaintext
-  offset ─▶ ┌ header? ──── fewer than 8 bytes left ─────────▶ stop (torn tail)
-            ├ length? ──── bigger than the bytes left ───────▶ stop (torn tail)
-            ├ checksum? ── does not match the payload ───────▶ stop (torn tail)
-            ├ payload? ─── does not decode ──────────────────▶ stop (torn tail)
-            └ ok: hand the record to the caller, offset += 8 + length
-```
+![Replay checks header, length, checksum, and payload for each record; any failure stops at the torn tail, otherwise the record is handed to the caller](/b-tree/write-ahead-log/torn-tail.jpg)
 
 The offset where replay stops is the **good** length of the log. Everything after it is a torn tail: the write that was in flight when the process died. It was never acknowledged, so dropping it is correct.
 
 > [!idea] Why stop instead of skipping
-> A bad record could also be a bit flip in the middle of an old, healthy log. Skipping it
-> would silently lose one change and keep the rest, which could apply a page image on top
-> of a missing one. Stopping loses everything after it. This engine always treats the
-> first bad record as the end of the log, which is right for the common case: a crash
-> during the last append.
+> A bad record could also be a bit flip in the middle of an old, healthy log. Skipping it would silently lose one change and keep the rest, which could apply a page image on top of a missing one. Stopping loses everything after it. This engine always treats the first bad record as the end of the log, which is right for the common case: a crash during the last append.
 
 Replay also hands the callback the **end offset** of each record. Recovery needs it for the next section.
 
@@ -245,9 +223,6 @@ In `src/wal/reader.cc`. `Replay` (given) reads the file and handles a missing on
 5. Call `fn(r, end)` then advance `good`.
 <!-- /lang -->
 
-## Recovery in the engine
-<!-- mode: read-and-implement tasks:3.4 -->
-
 ### Only committed batches count
 
 A good record is not a committed one. A crash can cut the log *between* two records of the same batch: both records are intact, but the commit never arrived. Applying the page images of such a batch could write half of a split.
@@ -284,8 +259,7 @@ In `internal/db/recover.go`. `Open` and `update` in `db.go` are given and call t
 You will need to import `path/filepath` and the `wal` package. Later chapters keep this file exactly as you leave it: the buffer pool slots in underneath `d.store`, and `apply` writes to whatever it is.
 
 > [!scope] Locking
-> One mutex covers building the batch, the log append, and the page writes, so batches
-> reach the log in the same order they reach the pages. Readers take the read lock.
+> One mutex covers building the batch, the log append, and the page writes, so batches reach the log in the same order they reach the pages. Readers take the read lock.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(3.4)` — `recover_log` and `commit`
@@ -296,6 +270,9 @@ In `btreekv/db/recover.py`. `Open` and `update` in `db.py` are given and call th
 - `commit` (called by `update` with the lock held): `recs = t.records()`, `start = self.log.size()`, `self.log.append(*recs)`. If that fails, `self.log.rewind(start)` and re-raise. Only after it succeeded, `apply_records(self, recs)`.
 
 Later chapters keep this file exactly as you leave it: the buffer pool slots in underneath `self.store`, and `apply` writes to whatever it is.
+
+> [!scope] Locking
+> One lock covers building the batch, the log append, and the page writes, so batches reach the log in the same order they reach the pages.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(3.4)` — `RecoverLog` and `Commit`
@@ -306,14 +283,16 @@ In `src/db/recover.cc`. `Open` and `Update` in `db.cc` are given and call these 
 - `Commit` (called by `Update` with the mutex held): `recs = t->Records()`, `start = d->log()->Size()`, `d->log()->Append(recs)`. If that fails, `Rewind(start)` and rethrow. Only after it succeeded, `ApplyRecords(d, recs)`.
 
 Later chapters keep this file exactly as you leave it: the buffer pool slots in underneath `store_`, and `apply` writes to whatever it is.
+
+> [!scope] Locking
+> One mutex covers building the batch, the log append, and the page writes, so batches reach the log in the same order they reach the pages.
 <!-- /lang -->
 
 ### Checkpoint on close
 
 The log cannot grow forever. `Close` (given) **checkpoints**: it fsyncs the page file and its header, and only then empties the log. If the process dies between the two steps, the log is replayed over pages that already have those images, which is harmless.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
@@ -359,6 +338,4 @@ The tests go further. They stop using a DB without closing it, trash pages in `d
 > 3. Replay stops at the first bad record, and recovery cuts the log at the last commit.
 > 4. Replaying a page image twice is harmless, which is why a crash during recovery is fine.
 
-### What is missing
-
-Every `Get` and every page write goes straight to the file. A root-to-leaf walk reads the same top pages again and again, and each write hits the page file immediately. Chapter 4 adds a **buffer pool**: a fixed set of in-memory frames that caches hot pages, evicts cold ones, and writes dirty pages back only once the log that describes them is durable.
+Every `Get` and every page write still goes straight to the file. A root-to-leaf walk reads the same top pages again and again, and each write hits the page file immediately. Chapter 4 adds a **buffer pool**: a fixed set of in-memory frames that caches hot pages, evicts cold ones, and writes dirty pages back only once the log that describes them is durable.

@@ -13,17 +13,14 @@ type Commit struct {
 
 // EncodeCommit serializes a commit object body.
 func EncodeCommit(c Commit) ([]byte, error) {
-	// TODO(1.5): Require Tree and Author. Committer defaults to Author.
-	// Write: tree, parent lines, author, committer, blank line, message (ensure trailing newline).
-	// Imports: fmt, strings.
-	panic("TODO(1.5): EncodeCommit")
+	// TODO(1.5)
+	panic("TODO(1.5)")
 }
 
 // DecodeCommit parses a commit object body.
 func DecodeCommit(content []byte) (Commit, error) {
-	// TODO(1.5): Read header lines until a blank line; then the rest is Message.
-	// Parse tree/parent/author/committer. Imports: bytes, fmt, strings.
-	panic("TODO(1.5): DecodeCommit")
+	// TODO(1.5)
+	panic("TODO(1.5)")
 }
 
 // PutCommit encodes and stores a commit.

@@ -25,11 +25,8 @@ type Result struct {
 
 // Merge merges theirBranch into the current HEAD.
 func Merge(r *repo.Repo, theirBranch string) (Result, error) {
-	// TODO(5.4): Resolve ours/theirs, MergeBase.
-	// If base == theirs: already up to date. If base == ours: fast-forward checkout.
-	// Else three-way on flattened trees; writeConflict on both-changed paths using the markers.
-	// On clean merge: WriteTree, PutCommit with two parents, UpdateRef HEAD.
-	panic("TODO(5.4): Merge")
+	// TODO(5.4)
+	panic("TODO(5.4)")
 }
 
 func writeBlobFile(r *repo.Repo, path string, h object.Hash) error {

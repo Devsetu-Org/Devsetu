@@ -11,10 +11,7 @@ from findx.postings import Map, open_segment
 
 def open_index(dir_path: str) -> Engine:
     """Load an index from dir, creating the directory and an empty catalog when missing."""
-    # TODO(3.3): makedirs dir. Build an empty Engine (docs, ext_to_id, mem, buf_lens).
-    # If catalog.json is missing, write_catalog and return. Otherwise load JSON,
-    # restore next_doc / docs / ext_to_id, open_segment each name under dir, and
-    # append to e.seg_names / e.segs.
+    # TODO(3.3)
     _ = json
     _ = os
     _ = Engine
@@ -23,4 +20,4 @@ def open_index(dir_path: str) -> Engine:
     _ = Map
     _ = open_segment
     _ = dir_path
-    raise NotImplementedError("TODO(3.3): open_index")
+    raise NotImplementedError("TODO(3.3)")

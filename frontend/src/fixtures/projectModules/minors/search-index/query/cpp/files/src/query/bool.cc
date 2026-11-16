@@ -49,16 +49,15 @@ std::vector<uint32_t> UnionTwo(const std::vector<uint32_t>& a, const std::vector
 }
 
 std::vector<uint32_t> Intersect(const std::vector<std::vector<postings::Posting>>& lists) {
-  // TODO(4.2): If lists is empty or any list is empty, return {}. Convert each
-  // list to doc ids and pairwise intersect with IntersectTwo.
+  // TODO(4.2)
   (void)lists;
-  throw std::logic_error("TODO(4.2): Intersect");
+  throw std::logic_error("TODO(4.2)");
 }
 
 std::vector<uint32_t> Union(const std::vector<std::vector<postings::Posting>>& lists) {
-  // TODO(4.3): Pairwise union with UnionTwo. On equal ids emit once.
+  // TODO(4.3)
   (void)lists;
-  throw std::logic_error("TODO(4.3): Union");
+  throw std::logic_error("TODO(4.3)");
 }
 
 std::vector<uint32_t> Docs(const PostingSource& src, const Query& q) {

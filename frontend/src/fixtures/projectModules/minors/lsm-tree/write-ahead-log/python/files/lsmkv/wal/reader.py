@@ -23,10 +23,6 @@ def replay(path: str, fn: Callable[[Record], None]) -> int:
             data = f.read()
     except FileNotFoundError:
         return 0
-    # TODO(2.3): walk data one record at a time from offset good. Stop and
-    # return good when fewer than HEADER_SIZE bytes remain, the length is over
-    # MAX_RECORD_SIZE or runs past the end, the checksum does not match, or
-    # decode_payload fails. Otherwise call fn (propagate its exception) and
-    # advance good past the record.
+    # TODO(2.3)
     _ = data
-    raise NotImplementedError("TODO(2.3): replay")
+    raise NotImplementedError("TODO(2.3)")

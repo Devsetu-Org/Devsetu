@@ -7,8 +7,8 @@ import (
 
 // parseRedir reads a redirect operator and the filename word that follows.
 func (p *parser) parseRedir() (ast.Redir, error) {
-	// TODO(3.1): Record Kind from the current token, bump, require a Word, return Redir.
-	panic("TODO(3.1): parseRedir")
+	// TODO(3.1)
+	panic("TODO(3.1)")
 }
 
 var _ = lex.Word

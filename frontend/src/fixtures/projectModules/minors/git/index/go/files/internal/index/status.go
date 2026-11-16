@@ -18,10 +18,8 @@ type StatusBuckets struct {
 
 // Status compares HEAD tree, index, and worktree.
 func Status(r *repo.Repo) (StatusBuckets, error) {
-	// TODO(3.3): Load index. Build HEAD path→hash map via headFileMap (empty if no commit).
-	// Staged: index vs HEAD. Modified: worktree blob hash vs index (HashOf(EncodeHeader(blob, data))).
-	// Untracked: listUntracked. Sort each list. Import sort.
-	panic("TODO(3.3): Status")
+	// TODO(3.3)
+	panic("TODO(3.3)")
 }
 
 func unique(in []string) []string {

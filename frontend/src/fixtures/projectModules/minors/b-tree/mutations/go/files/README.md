@@ -33,7 +33,7 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # delete + scan acceptance tests (not chapters 1–4)
 make race     # same, with the race detector
 make run      # REPL in ./data: put k v | get k | del k | scan [start [end]] | stats | quit
 ```

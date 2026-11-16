@@ -81,9 +81,5 @@ def encode(dst: bytearray, r: Record) -> bytearray:
     │ crc32c  (4)  │ length  (4)  │ payload (length bytes)    │
     └──────────────┴──────────────┴───────────────────────────┘
     """
-    # TODO(3.1): Remember start = len(dst), then append HEADER_SIZE zero bytes
-    # as a placeholder. dst = append_payload(dst, r); the payload is
-    # dst[start+HEADER_SIZE:]. Write crc32c(payload) into dst[start:start+4]
-    # and len(payload) into dst[start+4:start+8] with struct.pack_into.
-    # Return dst. Do not touch anything before start.
-    raise NotImplementedError("TODO(3.1): encode")
+    # TODO(3.1)
+    raise NotImplementedError("TODO(3.1)")

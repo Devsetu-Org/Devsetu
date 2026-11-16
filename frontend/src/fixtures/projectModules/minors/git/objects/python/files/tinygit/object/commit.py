@@ -25,13 +25,13 @@ def _fmt_type(got: str, want: str) -> ValueError:
 def encode_commit(c: Commit) -> bytes:
     """Serialize a commit object body."""
     # TODO(1.5): encode_commit
-    raise NotImplementedError("TODO(1.5): encode_commit")
+    raise NotImplementedError("TODO(1.5)")
 
 
 def decode_commit(content: bytes) -> Commit:
     """Parse a commit object body."""
     # TODO(1.5): decode_commit
-    raise NotImplementedError("TODO(1.5): decode_commit")
+    raise NotImplementedError("TODO(1.5)")
 
 
 def put_commit(s: Store, c: Commit) -> Hash:

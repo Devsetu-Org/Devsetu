@@ -9,6 +9,5 @@ if TYPE_CHECKING:
 
 
 def victim(self: Pool) -> int:
-    # TODO(4.2): Sweep the hand up to 2*len(frames). Unused -> take. Pinned -> skip.
-    # Ref set -> clear and continue. Else return that index. Else ErrPoolFull.
-    raise NotImplementedError("TODO(4.2): victim")
+    # TODO(4.2)
+    raise NotImplementedError("TODO(4.2)")

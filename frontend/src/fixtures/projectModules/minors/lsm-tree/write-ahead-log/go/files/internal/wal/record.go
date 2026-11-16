@@ -83,9 +83,6 @@ func readBytes(p []byte) (field, rest []byte, ok bool) {
 
 // encode appends the full on-disk form of r (header and payload) to dst.
 func encode(dst []byte, r Record) []byte {
-	// TODO(2.1): reserve headerSize bytes, append the payload with
-	// appendPayload, then fill the header: CRC-32C of the payload (crcTable)
-	// in the first 4 bytes, payload length in the next 4, both little-endian.
-	// Append to dst; never overwrite what is already in it.
-	panic("TODO(2.1): encode")
+	// TODO(2.1)
+	panic("TODO(2.1)")
 }

@@ -3,7 +3,7 @@
   "number": 826,
   "finalized": true,
   "title": "Client Mode Driver Is on the Wrong Host",
-  "description": "**SITUATION:**\n\nA client-mode submit left the driver on an edge-shaped host — your **shell**. Mid-job that driver process disappeared. YARN containers were still around for a moment; the application still died, because the driver is the brain of the job.\n\nResubmit in **cluster** deploy mode so the driver is a YARN ApplicationMaster container on a NodeManager. Show that the production shape survives the edge host going away.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Inspect the planted failed client-mode application.\n2. Resubmit the join with `--deploy-mode cluster` and the lab executor shape.\n3. Record where the cluster-mode driver (AM) ran and the successful application id.\n4. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- Successful run uses `--deploy-mode cluster` and finishes (or reaches RUNNING with an AM on a NodeManager).\n- Cluster-mode driver host is `ds-spark-02` or `ds-spark-03`, not `shell`.\n- Do not move production traffic back to client mode on the shell.\n- Investigation tab is complete — every field filled.\n",
+  "description": "**SITUATION:**\n\nSame YARN cluster as the rest of Chapter 2. Overnight an unattended rollup ran in **client** deploy mode — the Spark driver lived on `shell`. Mid-job that edge process disappeared and the application died. The lasting submit path `~/lab/submit-store-rollup.sh` still looks like that overnight shape.\n\nPlatform policy: unattended jobs use **cluster** deploy mode (driver is a YARN ApplicationMaster on a NodeManager), and input data lives on the cluster shared mount **`/mnt/lab-shared`** (same path on shell and every NodeManager). Today the CSVs only exist under `~/lab/edge-data/` on the shell.\n\n**YOUR TASK:**\n\n1. Inspect the failed overnight application and the wrapper / job on disk. Record why the overnight run died.\n2. Move the lasting path to cluster deploy mode. Run it — expect a **second** break once the driver is no longer on shell.\n3. Put the CSVs where every host can see them (`/mnt/lab-shared/...`), point `~/lab/store_rollup.py` at those paths, and re-run until the job finishes.\n4. Record the successful application id and which NodeManager held the AM/driver.\n5. Fill Investigation in story order, then Submit.\n\n**SPEC:**\n\n- `~/lab/submit-store-rollup.sh` uses `--deploy-mode cluster` (not client).\n- `~/lab/store_rollup.py` reads CSVs from `/mnt/lab-shared` (not `~/lab/edge-data`).\n- Shared rollup CSVs exist under `/mnt/lab-shared/rollup/`.\n- A successful application is RUNNING or FINISHED; AM/driver host is `ds-spark-02` or `ds-spark-03`.\n- Investigation matches the overnight failure and the second break.\n",
   "difficulty": "L1",
   "tags": [
     "spark",
@@ -20,18 +20,18 @@
   },
   "problemStatement": {
     "hints": [
-      "Open the Guide tab for the planted failure and the cluster-mode submit.",
-      "Failed client-mode app id is in ~/lab/failed_app_id.",
-      "Cluster mode: --deploy-mode cluster — driver becomes the AM container.",
-      "yarn application -status and the RM app page show the AM host.",
-      "Fill the Investigation tab; Submit stays off until every field is filled."
+      "Failed overnight id is in ~/lab/failed_app_id. Client mode puts the Spark driver on shell — kill that process and the app dies.",
+      "Repair ~/lab/submit-store-rollup.sh to --deploy-mode cluster, then run it. Read yarn logs if the driver is no longer printing to your terminal.",
+      "Cluster-mode driver runs on a NodeManager — it cannot see /home/spark/lab/edge-data on shell.",
+      "Copy the CSVs to /mnt/lab-shared/rollup/ (shared on every host) and point store_rollup.py at file:///mnt/lab-shared/rollup/....",
+      "Fill the Investigation tab — missing answers fail on Submit."
     ],
     "overview": "Client Mode Driver Is on the Wrong Host",
     "brief": "Client Mode Driver Is on the Wrong Host",
     "solution": "",
     "idLabel": "12",
     "theory": "",
-    "guide": "# QuickBite — edge driver disappeared\n\n| Host | Role |\n|------|------|\n| `ds-spark-01` | ResourceManager |\n| `ds-spark-02` / `03` | NodeManagers |\n| `shell` | Edge submit client (unsafe for production drivers) |\n\nSetup started a **client-mode** long job whose driver lived on `shell`, then killed that driver mid-flight. The application failed. Containers alone are not enough without a driver.\n\nFailed app id: `~/lab/failed_app_id`\n\n## Fix — cluster deploy mode\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode cluster \\\n  --name store-rollup-cluster-safe \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\nThe driver is now the **ApplicationMaster** on `ds-spark-02` or `ds-spark-03`. Record that host and the application id.\n\nOptional proof: after cluster mode is RUNNING/FINISHED, killing processes on `shell` does not take down the AM.\n\n## Investigation\n\nRecord the failed client app, why it died, the successful cluster app id, and the AM host.\n"
+    "guide": ""
   },
   "platformSpec": {
     "shape": "yarn-2",
@@ -39,12 +39,24 @@
     "chapter": "yarn",
     "kind": "multi-step-bug",
     "reservePods": 4,
+    "boot": {
+      "heading": "Starting your YARN cluster",
+      "phases": [
+        "Creating your YARN cluster",
+        "Pulling the Spark-on-YARN image",
+        "Using the cached Spark-on-YARN image",
+        "Starting the ResourceManager",
+        "Starting the NodeManagers",
+        "Preparing the lab"
+      ]
+    },
     "setup": {
       "script": "setup.sh"
     },
     "grade": {
       "script": "grade.sh",
-      "timeoutSeconds": 300
+      "timeoutSeconds": 360,
+      "submitMessage": "Checking cluster deploy mode, shared-mount data, and Investigation."
     }
   },
   "visibleTo": "users",

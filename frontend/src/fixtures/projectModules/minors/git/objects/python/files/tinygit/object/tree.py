@@ -25,13 +25,13 @@ def _fmt_type(got: str, want: str) -> ValueError:
 def encode_tree(entries: list[TreeEntry]) -> bytes:
     """Serialize entries in Git tree format, sorted by name."""
     # TODO(1.4): encode_tree
-    raise NotImplementedError("TODO(1.4): encode_tree")
+    raise NotImplementedError("TODO(1.4)")
 
 
 def decode_tree(content: bytes) -> list[TreeEntry]:
     """Parse a tree object body."""
     # TODO(1.4): decode_tree
-    raise NotImplementedError("TODO(1.4): decode_tree")
+    raise NotImplementedError("TODO(1.4)")
 
 
 def put_tree(s: Store, entries: list[TreeEntry]) -> Hash:

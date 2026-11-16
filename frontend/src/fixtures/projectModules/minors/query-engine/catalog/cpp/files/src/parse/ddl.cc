@@ -4,18 +4,18 @@ namespace sqlq {
 namespace parse {
 
 std::unique_ptr<CreateTable> ParseCreate(Parser& p) {
-  // TODO(3.1): CREATE TABLE ident '(' col type {',' col type} ')'.
-  throw p.Errorf("TODO(3.1): ParseCreate");
+  // TODO(3.1) — ParseCreate
+  throw p.Errorf("TODO(3.1)");
 }
 
 TypeName ParseType(Parser& p) {
-  // TODO(3.1): kKwInt -> kInt, kKwText -> kText, else an error.
-  throw p.Errorf("TODO(3.1): ParseType");
+  // TODO(3.1) — ParseType
+  throw p.Errorf("TODO(3.1)");
 }
 
 std::unique_ptr<Insert> ParseInsert(Parser& p) {
-  // TODO(3.1): INSERT INTO ident VALUES, then parenthesized lists of primaries.
-  throw p.Errorf("TODO(3.1): ParseInsert");
+  // TODO(3.1) — ParseInsert
+  throw p.Errorf("TODO(3.1)");
 }
 
 }  // namespace parse

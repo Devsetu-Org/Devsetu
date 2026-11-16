@@ -8,15 +8,16 @@
 namespace tinysh::exe {
 
 pid_t StartProcess(Shell& s, const std::vector<std::string>& argv, Stdio io) {
-  // TODO(2.2): LookPath argv[0], fork, dup2 stdio in the child, execve.
+  // TODO(2.2)
   (void)s; (void)argv; (void)io;
-  throw std::runtime_error("TODO(2.2): StartProcess");
+  // TODO(2.2)
+  throw std::runtime_error("TODO(2.2)");
 }
 
 int WaitProcess(pid_t pid) {
-  // TODO(2.2): waitpid and map to an exit status.
+  // TODO(2.2)
   (void)pid;
-  throw std::runtime_error("TODO(2.2): WaitProcess");
+  throw std::runtime_error("TODO(2.2)");
 }
 
 }  // namespace tinysh::exe

@@ -5,27 +5,24 @@
 namespace btreekv {
 
 std::pair<bool, bool> Tree::DeleteRec(PageNo no, std::string_view key) {
-  // TODO(5.1): Load node. Leaf: LeafIndex; miss -> false,false. Hit: RemoveLeafAt,
-  // Store, return true, Underfull(). Internal: ChildIndex, recurse. If !found or
-  // !child_under return as-is. Else Rebalance and return true, Underfull().
+  // TODO(5.1)
   (void)no;
   (void)key;
-  throw std::logic_error("TODO(5.1): DeleteRec");
+  throw std::logic_error("TODO(5.1)");
 }
 
 void Tree::Rebalance(PageNo parent_no, Node& parent, int i) {
-  // TODO(5.2): Pair with left sibling if i>0 else right. canMerge -> MergeNodes,
-  // Free right, RemoveChild. Else Redistribute and store both. Store parent.
+  // TODO(5.2)
   (void)parent_no;
   (void)parent;
   (void)i;
-  throw std::logic_error("TODO(5.2): Rebalance");
+  throw std::logic_error("TODO(5.2)");
 }
 
 bool Tree::Delete(std::string_view key) {
-  // TODO(5.3): Empty root or empty key -> false. DeleteRec. Shrink empty root.
+  // TODO(5.3)
   (void)key;
-  throw std::logic_error("TODO(5.3): Delete");
+  throw std::logic_error("TODO(5.3)");
 }
 
 }  // namespace btreekv

@@ -2,17 +2,17 @@
 #include <stdexcept>
 namespace lsmkv { namespace sstable {
 void Writer::add(Kind kind, std::string_view key, std::string_view value) {
-  // TODO(3.1): reject out-of-order keys; append_entry; cut at BlockSize.
+  // TODO(3.1)
   (void)kind; (void)key; (void)value;
-  throw std::logic_error("TODO(3.1): add");
+  throw std::logic_error("TODO(3.1)");
 }
 void Writer::flushBlock() {
-  // TODO(3.1): write block + index entry, clear block.
-  throw std::logic_error("TODO(3.1): flushBlock");
+  // TODO(3.1)
+  throw std::logic_error("TODO(3.1)");
 }
 void Writer::finish(Handle filter) {
-  // TODO(3.2): write index block + footer; flush, fsync, close.
+  // TODO(3.2)
   (void)filter;
-  throw std::logic_error("TODO(3.2): finish");
+  throw std::logic_error("TODO(3.2)");
 }
 }}  // namespace

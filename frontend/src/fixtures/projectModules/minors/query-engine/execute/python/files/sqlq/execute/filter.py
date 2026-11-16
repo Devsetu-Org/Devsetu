@@ -6,5 +6,5 @@ from sqlq.execute.row import Row
 
 
 def filter_next(f):
-    # TODO(4.3): Pull from child until pred returns true. Pass through a false ok or an error.
-    raise NotImplementedError("TODO(4.3): Filter.Next")
+    # TODO(4.3) — Filter.Next
+    raise NotImplementedError("TODO(4.3)")

@@ -17,7 +17,7 @@ from btreekv.btree.node import MAX_KEY_SIZE, MAX_VALUE_SIZE, Node, decode
 from btreekv.pager import Pager
 from btreekv.pager.page import PAGE_SIZE
 
-from memio import MemIO
+from tests.memio import MemIO
 
 
 def key(i: int) -> bytes:

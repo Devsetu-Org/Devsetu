@@ -25,6 +25,6 @@ tests/                        acceptance tests (given)
 ## Running
 
 ```
-make test
+make test     # btree + db acceptance tests (not chapter 1's pager suite)
 make run
 ```

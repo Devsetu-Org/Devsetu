@@ -17,30 +17,27 @@ func (s *Scanner) scanWord() (Token, error) {
 		}
 		switch c {
 		case '\\':
-			// TODO(1.2): bump past the backslash; on EOF return trailing-backslash error;
-			// otherwise append the next bumped byte to b and continue.
-			panic("TODO(1.2): backslash escape")
+			// TODO(1.2)
+			panic("TODO(1.2)")
 		case '\'':
-			// TODO(1.1): bump past opening quote; append bytes until closing quote;
-			// EOF returns unterminated single quote.
-			panic("TODO(1.1): single-quoted word")
+			// TODO(1.1)
+			panic("TODO(1.1)")
 		case '"':
-			// TODO(1.1): bump past opening quote; append bytes until closing quote.
-			// Inside, a backslash escapes the next byte (TODO 1.2 shares this path).
-			// EOF returns unterminated double quote.
-			panic("TODO(1.1): double-quoted word")
+			// TODO(1.1)
+			panic("TODO(1.1)")
 		default:
-			// TODO(1.1): append bump() to b.
-			panic("TODO(1.1): unquoted character")
+			// TODO(1.1)
+			panic("TODO(1.1)")
 		}
 	}
 	_ = start
 	_ = b
-	panic("TODO(1.1): return Word token")
+	// TODO(1.1)
+	panic("TODO(1.1)")
 }
 
 // scanOp reads one operator token. The caller has already checked atOp().
 func (s *Scanner) scanOp() (Token, error) {
-	// TODO(1.3): Map | < & > >> and 2> to Pipe, RedirIn, Amp, RedirOut, RedirApp, RedirErr.
-	panic("TODO(1.3): scanOp")
+	// TODO(1.3)
+	panic("TODO(1.3)")
 }

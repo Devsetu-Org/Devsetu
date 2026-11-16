@@ -2,8 +2,8 @@
   "id": "spark-13-someone-elses-job-changed-yesterday",
   "number": 827,
   "finalized": true,
-  "title": "Someone Else's Job Changed Yesterday",
-  "description": "**SITUATION:**\n\nThe same store-rollup submit that worked yesterday now sits **Accepted**. Nothing in a Spark UI explains it — the cluster is up, the job is fine, the queue is not.\n\nOvernight, another team's **backfill** took most of the `production` queue. Your ticket: get a successful run without an unauthorized kill of the backfill ApplicationMaster. Moving to a queue with spare capacity (or freeing capacity the ticket allows) is fine. Editing capacity-scheduler to paper over multi-tenant contention is not.\n\n**YOUR TASK:**\n\n1. Open the **Guide** tab. Identify the backfill that is holding `production` and your stalled Accepted submit.\n2. Get a RUNNING/FINISHED store-rollup — prefer `--queue adhoc` (spare lane) or another ticket-approved path that does not kill the backfill AM.\n3. Record the blocker app, your fix path, and the successful application id in Investigation.\n4. Fill every Investigation field. Submit stays off until it is complete.\n\n**SPEC:**\n\n- Successful application reaches RUNNING or FINISHED.\n- Do not kill the planted backfill AM (`*-backfill*` / recorded blocker id).\n- Do not raise `production` or `default` capacity to fake spare room.\n- Investigation tab is complete — every field filled.\n",
+  "title": "Design a Queue for the Analytics Team",
+  "description": "**SITUATION:**\n\nSame YARN cluster as the rest of Chapter 2 — ResourceManager on `ds-spark-01`, NodeManagers on `ds-spark-02` / `ds-spark-03`, submit from `shell`. Capacity queues today are only `default`, `production`, and `adhoc`.\n\nA new **analytics** team just joined. Platform policy forbids parking their work in `production` or `adhoc`. They need a real leaf queue named `analytics`, sized from a capacity rebalance — not a one-off borrow. Someone already left a draft XML on the shell that adds the queue name but **breaks the math**. The lasting submit path is `~/lab/submit-analytics-probe.sh` (it already targets `--queue analytics`).\n\n**YOUR TASK:**\n\n1. Reproduce the first failure (queue missing). Read `~/lab/notes.txt` and the broken draft at `~/lab/capacity-draft.xml`.\n2. On the ResourceManager host (`ds-spark-01`), design a valid `capacity-scheduler.xml`: add `analytics`, rebalance sibling capacities so they sum to **100**, give analytics at least **20%**, set **maximum-capacity 100** and **user-limit-factor ≥ 2**, and keep production usable (≥ **50%**).\n3. Apply with `yarn rmadmin -refreshQueues` (no unauthorized kill of other teams' apps; do not send analytics into production).\n4. Run the probe wrapper so an application finishes in `analytics`. Record the application id.\n5. Fill Investigation in story order, then Submit.\n\n**SPEC:**\n\n- Live scheduler exposes an `analytics` queue with capacity ≥ 20%, maximum-capacity 100, and user-limit-factor ≥ 2.\n- Root leaf capacities still sum to 100; production stays ≥ 50%; do not inflate `default` to paper over design.\n- `~/lab/submit-analytics-probe.sh` still submits with `--queue analytics`.\n- A successful analytics-probe application is RUNNING or FINISHED in `analytics`.\n- Investigation matches what you designed and proved.\n",
   "difficulty": "L2",
   "tags": [
     "spark",
@@ -20,18 +20,18 @@
   },
   "problemStatement": {
     "hints": [
-      "Open the Guide tab for queue names and the planted backfill.",
-      "yarn application -list shows the backfill in production and your Accepted app.",
-      "adhoc has spare capacity — spark-submit --queue adhoc is the intended path.",
-      "Killing the backfill AM is out of spec for this ticket.",
-      "Fill the Investigation tab; Submit stays off until every field is filled."
+      "yarn application -list / the first_submit log — the probe already points at a queue that does not exist yet.",
+      "Open ~/lab/notes.txt and ~/lab/capacity-draft.xml. Adding a queue name without rebalancing sibling % breaks refreshQueues.",
+      "Edit capacity-scheduler.xml on ds-spark-01: analytics capacity, maximum-capacity 100, user-limit-factor ≥ 2, then yarn rmadmin -refreshQueues.",
+      "yarn queue -status analytics — prove the leaf exists and check Capacity %.",
+      "Run ~/lab/submit-analytics-probe.sh. Fill Investigation; Submit stays off until every field is filled."
     ],
-    "overview": "Someone Else's Job Changed Yesterday",
-    "brief": "Someone Else's Job Changed Yesterday",
+    "overview": "Design a Queue for the Analytics Team",
+    "brief": "Design a Queue for the Analytics Team",
     "solution": "",
     "idLabel": "13",
     "theory": "",
-    "guide": "# QuickBite — it worked yesterday\n\n| Queue | Role today |\n|-------|------------|\n| `production` | Saturated by another team's backfill |\n| `adhoc` | Spare lane — ticket allows you to use it |\n| `default` | Still too small for the lab shape |\n\nSetup started `team-b-backfill` in **production** (long-running) and left your `store-rollup-yesterday` submit **Accepted** in the same queue.\n\nBackfill app id: `~/lab/blocker_app_id`  \nStalled app id: `~/lab/stuck_app_id`\n\n## Ticket rules\n\n- Do **not** kill the backfill ApplicationMaster.\n- Do **not** rewrite capacity-scheduler to inflate production/default.\n- You **may** submit into `adhoc` (spare capacity).\n\n## Fix\n\n```bash\nspark-submit \\\n  --master yarn \\\n  --deploy-mode client \\\n  --queue adhoc \\\n  --name store-rollup-recovered \\\n  --num-executors 2 \\\n  --executor-cores 1 \\\n  --executor-memory 512m \\\n  local:/opt/lab/jobs/store_join.py\n```\n\n## Investigation\n\nRecord the stalled state, the blocker application id, how you recovered, and the successful application id. The lesson is multi-tenant contention — not a Spark code bug.\n"
+    "guide": ""
   },
   "platformSpec": {
     "shape": "yarn-2",
@@ -39,6 +39,17 @@
     "chapter": "yarn",
     "kind": "multi-step-bug",
     "reservePods": 4,
+    "boot": {
+      "heading": "Starting your YARN cluster",
+      "phases": [
+        "Creating your YARN cluster",
+        "Pulling the Spark-on-YARN image",
+        "Using the cached Spark-on-YARN image",
+        "Starting the ResourceManager",
+        "Starting the NodeManagers",
+        "Preparing the lab"
+      ]
+    },
     "setup": {
       "script": "setup.sh"
     },

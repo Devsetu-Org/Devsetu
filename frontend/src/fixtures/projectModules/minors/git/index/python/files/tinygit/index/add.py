@@ -16,5 +16,5 @@ def _has_dot_dot(p: str) -> bool:
 def add(r: Repo, rel: str) -> None:
     """Stage the file at rel (repo-relative) into the index."""
     # TODO(3.2): add
-    raise NotImplementedError("TODO(3.2): add")
+    raise NotImplementedError("TODO(3.2)")
 

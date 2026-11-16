@@ -32,7 +32,7 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # buffer pool acceptance tests (not chapters 1–3)
 make race     # same, with the race detector
 make run      # REPL in ./data: put k v | get k | stats | quit
 ```

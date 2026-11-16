@@ -13,9 +13,8 @@ var ErrNotFound = errors.New("command not found")
 // LookPath finds an executable for name. Absolute or relative names that
 // already contain a slash are checked relative to dir. Otherwise PATH is searched.
 func LookPath(name, dir string, env []string) (string, error) {
-	// TODO(2.1): If name contains a path separator, resolve against dir when relative
-	// and checkExec it. Otherwise split PATH from env and try each directory.
-	panic("TODO(2.1): LookPath")
+	// TODO(2.1)
+	panic("TODO(2.1)")
 }
 
 func checkExec(path string) (string, error) {

@@ -19,14 +19,11 @@ int64_t Replay(const std::string& path,
 
 int64_t Scan(const uint8_t* data, size_t len,
              const std::function<void(const Record&, int64_t)>& fn) {
-  // TODO(3.3): Loop. If fewer than kWalHeaderSize bytes remain, return good.
-  // Read crc and length. If length is absurd or payload does not fit, return.
-  // If Crc32c(payload) != sum, return. DecodePayload; on BadPayload return.
-  // Call fn(r, end) then advance good.
+  // TODO(3.3)
   (void)data;
   (void)len;
   (void)fn;
-  throw std::logic_error("TODO(3.3): Scan");
+  throw std::logic_error("TODO(3.3)");
 }
 
 }  // namespace btreekv

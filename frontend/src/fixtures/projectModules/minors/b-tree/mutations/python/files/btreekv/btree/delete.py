@@ -11,14 +11,14 @@ if TYPE_CHECKING:
 
 def delete_rec(self: Tree, no: int, key: bytes) -> tuple[bool, bool]:
     # TODO(5.1)
-    raise NotImplementedError("TODO(5.1): delete")
+    raise NotImplementedError("TODO(5.1)")
 
 
 def rebalance(self: Tree, parent_no: int, parent: Node, i: int) -> None:
     # TODO(5.2)
-    raise NotImplementedError("TODO(5.2): rebalance")
+    raise NotImplementedError("TODO(5.2)")
 
 
 def delete_public(self: Tree, key: bytes) -> bool:
     # TODO(5.3)
-    raise NotImplementedError("TODO(5.3): Delete")
+    raise NotImplementedError("TODO(5.3)")

@@ -1,0 +1,60 @@
+{
+  "id": "spark-08-post-maintenance-mess",
+  "number": 817,
+  "finalized": true,
+  "title": "Post-Maintenance Mess",
+  "description": "**SITUATION:**\n\nWeekend maintenance left QuickBite's standalone cluster looking \"up\" while nothing runs. The Master is alive. Workers are not useful. `store-rollup-probe` fails. Notes on the shell mention a hostname rotation, tightened permissions on `/opt/spark/work`, and a cleanup of event logs.\n\nThis is a **chained** platform incident — three faults, all live. Fixing only one leaves the next failure.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Read `~/lab/maintenance_notes.txt` and the planted failure.\n2. Find the **stale Master URL** maintenance left (`~/lab/MAINTENANCE_MASTER`) and bring Workers up against the real `$SPARK_MASTER_URL`.\n3. Unlock Worker **work directories** locked by maintenance (`chmod`).\n4. Restore **`spark.eventLog.dir`** — maintenance left a **file** where a directory should be.\n5. Re-run `store-rollup-probe` until `STATUS=ok`. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Master lists **2 ALIVE** Workers on the real Master URL.\n- `$SPARK_HOME/work` is writable on the Workers.\n- `/opt/spark/work/eventlogs` is a **directory** on Master and Workers.\n- `/opt/spark/lab/last_run.txt` → `STATUS=ok`.\n- Investigation complete.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "l2",
+    "foundations",
+    "multi-step-bug",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "Do not start Workers from ~/lab/MAINTENANCE_MASTER — use $SPARK_MASTER_URL.",
+      "ls -ld $SPARK_HOME/work on Workers — expect chmod 000 until you unlock it.",
+      "ls -la $SPARK_HOME/work/eventlogs — if it is a file, remove it and mkdir.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Post-Maintenance Mess",
+    "brief": "Post-Maintenance Mess",
+    "solution": "",
+    "idLabel": "08",
+    "theory": "",
+    "guide": "# QuickBite — post-maintenance mess\n\n| Host | Role |\n|------|------|\n| `ds-spark-01` | Master (should be up) |\n| `ds-spark-02` / `03` | Workers — broken by weekend maintenance |\n| `shell` | Submit client |\n\nWeekend automation left three stacked faults. Fix **all three** before `store-rollup-probe` stays green.\n\n## What maintenance broke\n\n1. **Stale Master URL** — `~/lab/MAINTENANCE_MASTER`. Workers pointed at `old-master.quickbite.internal`. Use `$SPARK_MASTER_URL`.\n2. **Locked work dirs** — `$SPARK_HOME/work` on Workers is `chmod 000`.\n3. **Broken event log path** — `/opt/spark/work/eventlogs` is a **file**, not a directory.\n\n## 1. See the plant\n\n```bash\nless ~/lab/maintenance_notes.txt\ncat ~/lab/MAINTENANCE_MASTER\necho \"$SPARK_MASTER_URL\"\nless ~/lab/failed_probe.out\n```\n\n## 2. Fix (all three)\n\nOn both Workers: `chmod 755 $SPARK_HOME/work`, restore `eventlogs` as a directory, stop Worker, start with `$SPARK_MASTER_URL`. Restore `eventlogs` on the Master too. Re-run `store-rollup-probe` → `STATUS=ok`.\n\n## 3. Investigation\n\nStale Master clue → work-dir fault → event-log fault → fix order → wrong fix.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "daemonMode": "manual",
+    "chapter": "foundations",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your cluster",
+      "phases": [
+        "Pulling the Spark image",
+        "Starting the master",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 240,
+      "submitMessage": "Checking Workers, work dirs, eventlogs, and the probe."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

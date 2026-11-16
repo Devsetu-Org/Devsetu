@@ -43,14 +43,15 @@ inline int RunAll() {
   int failed = 0;
   for (const Case& c : Registry()) {
     try {
+      std::cout << "RUN   " << c.name << "\n" << std::flush;
       c.fn();
-      std::cout << "PASS  " << c.name << "\n";
+      std::cout << "PASS  " << c.name << "\n" << std::flush;
     } catch (const Failure& f) {
       ++failed;
-      std::cout << "FAIL  " << c.name << "\n      " << f.message << "\n";
+      std::cout << "FAIL  " << c.name << "\n      " << f.message << "\n" << std::flush;
     } catch (const std::exception& e) {
       ++failed;
-      std::cout << "FAIL  " << c.name << "\n      exception: " << e.what() << "\n";
+      std::cout << "FAIL  " << c.name << "\n      exception: " << e.what() << "\n" << std::flush;
     }
   }
   std::cout << "\n" << (Registry().size() - failed) << "/" << Registry().size() << " passed\n";

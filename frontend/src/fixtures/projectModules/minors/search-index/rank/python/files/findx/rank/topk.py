@@ -17,8 +17,7 @@ def top_k(hits: List[Hit], k: int) -> List[Hit]:
 
     k <= 0 means all hits.
     """
-    # TODO(5.3): Copy hits. Sort by score descending, then doc_id ascending.
-    # If k > 0 and len > k, truncate to k.
+    # TODO(5.3)
     _ = hits
     _ = k
-    raise NotImplementedError("TODO(5.3): top_k")
+    raise NotImplementedError("TODO(5.3)")

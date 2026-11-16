@@ -1,9 +1,9 @@
 {
   "id": "spark-06-diagnose-an-executor-lost-to-memory-pressure",
   "number": 815,
-  "finalized": false,
+  "finalized": true,
   "title": "Diagnose an Executor Lost to Memory Pressure",
-  "description": "**SITUATION:**\n\nA QuickBite job fails partway through. Executors disappear one at a time. The driver output has no single clear error \u2014 retries, lost executors, then failure. The submitter wants to double `spark.executor.memory` and resubmit.\n\nOn this standalone cluster the true cause is not one knob. An undersized executor and a second job quietly sharing the same worker are both in play. Fix only one and the failure comes back on the next wave. Find both before any change will hold.\n\n**YOUR TASK:**\n\n1. Reproduce or observe the failing job until executors are lost.\n2. Find the undersized-executor side of the story (requested memory vs. what the worker can actually give).\n3. Find the second job (or application) sharing the same worker and competing for the same host.\n4. Confirm both causes before changing memory or killing anything.\n5. Only then size `spark.executor.memory` (and placement) against the worker's real capacity so both causes are addressed.\n6. Record both causes, evidence, and the fix in the Investigation tab.\n\n**SPEC:**\n\n- Both the undersized executor and the co-located second workload are named with evidence (Master UI, worker capacity, and/or logs).\n- A fix that only raises memory without clearing or accounting for the co-tenant is not accepted.\n- After the correct fix, the job can finish without the same executor-loss pattern.\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "description": "**SITUATION:**\n\nQuickBite's `store-rollup-mem` dies with lost tasks / a crashed Python worker on the warm standalone cluster. Someone wants to double executor memory and resubmit.\n\nThe Workers are **not equal**. `ds-spark-02` offers **1 core / 768m**. `ds-spark-03` offers **2 cores / 2048m**. Setup already left **`team-b-debug-hold`** RUNNING with a **1024m** ask \u2014 that request only fits the big Worker, so the hold sits on `ds-spark-03`. Its Application UI Storage footprint is tiny compared with 1024m.\n\nYour job also needs **1024m**: it cannot use the small Worker, and sharing the big Worker with the hold fails. Keep team-B's workload alive (resubmit with a new app id is fine).\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Read the planted failure and the two Worker offers on the Master UI.\n2. Explain why the hold landed on the big Worker (request vs offer) and why its usage does not justify 1024m.\n3. Explain why the victim cannot simply run on the small Worker.\n4. Right-size and **relocate** the hold onto `ds-spark-02`, then re-run `store-rollup-mem` at 1024m so it gets the big Worker alone (`STATUS=ok`).\n5. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- `team-b-debug-hold` remains active and uses the **small** Worker.\n- `store-rollup-mem` finishes with `/opt/spark/lab/last_run.txt` \u2192 `STATUS=ok`.\n- Raising victim memory while the hold still occupies the big Worker is not accepted.\n- Investigation complete \u2014 every field filled.\n",
   "difficulty": "L1",
   "tags": [
     "spark",
@@ -20,21 +20,42 @@
   },
   "problemStatement": {
     "hints": [
-      "Driver stdout alone will not name the second job \u2014 check the Master UI applications list and which worker hosts the executors.",
-      "Compare spark.executor.memory to the worker's offered memory and to what else is already running there.",
-      "Raising memory without clearing the co-tenant just moves the failure later.",
-      "Fill the Investigation tab; Submit stays off until every field is filled."
+      "Master Workers: ds-spark-02 is 768m; ds-spark-03 is 2048m.",
+      "Hold asked for 1024m \u2014 that cannot schedule on 768m, so it sat on the big Worker.",
+      "Storage/Executors on the hold app: used << 1024m \u2014 safe to right-size.",
+      "Briefly stop the big Worker so a \u2264768m hold resubmit must land on ds-spark-02, then bring B back.",
+      "Fill the Investigation tab \u2014 missing answers fail on Submit."
     ],
     "overview": "Diagnose an Executor Lost to Memory Pressure",
     "brief": "Diagnose an Executor Lost to Memory Pressure",
     "solution": "",
     "idLabel": "06",
-    "theory": ""
+    "theory": "",
+    "guide": "# QuickBite \u2014 wrong host for the hold, big job needs the big Worker\n\n| Host | Offer (Spark ad) |\n|------|------------------|\n| `ds-spark-02` (A) | **1 core / 768m** |\n| `ds-spark-03` (B) | **2 cores / 2048m** |\n| `shell` | Submit client |\n\nSetup left **`team-b-debug-hold`** RUNNING with **`--executor-memory 1024m`**. That request **cannot** schedule on A (768m), so Master put it on **B**. Storage/Executors show the hold\u2019s **cached size is tiny** compared with 1024m \u2014 the ask is inflated.\n\n**`store-rollup-mem`** also needs **1024m**. It cannot use A. Sharing B with the hold fails (lost task / crashed Python worker). Raising victim memory while the hold still sits on B does not fix placement.\n\nTicket: **keep team-B\u2019s workload running** (a new app id after resubmit is OK). Do not \u201cclear the runway\u201d by deleting the hold forever.\n\n## 1. See the plant\n\n```bash\nless ~/lab/failed_victim.out\nless ~/lab/failed_victim.err\n```\n\nMaster UI \u2192 Workers (offers) \u2192 Applications (`team-b-debug-hold` memory / which host).\n\nOpen the hold\u2019s Application UI \u2192 **Storage** / **Executors**: used \u226a 1024m.\n\n## 2. Fix \u2014 right-size + place hold on A, victim on B\n\n1. Stop the old hold driver (`~/lab/cotenant.pid` / `team_b_debug_hold.py`).\n2. So the smaller hold **must** land on A, briefly stop Worker B, then:\n\n```bash\n# on ds-spark-03\n$SPARK_HOME/sbin/stop-worker.sh\n```\n\n3. Resubmit the hold with memory that **fits A** (any value \u2264 768m is fine \u2014 e.g. 512m):\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --name team-b-debug-hold \\\n  --total-executor-cores 1 \\\n  --executor-memory 512m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  /opt/spark/lab/jobs/team_b_debug_hold.py\n```\n\n4. Confirm Master: hold memory is on **`ds-spark-02`**. Start Worker B again:\n\n```bash\n# on ds-spark-03\n$SPARK_HOME/sbin/start-worker.sh \"$SPARK_MASTER_URL\" --cores 2 --memory 2048m\n```\n\n5. Run the victim (still 1024m) \u2014 it should take **B** alone and print `Y_OK` / `STATUS=ok`:\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --name store-rollup-mem \\\n  --total-executor-cores 1 \\\n  --executor-memory 1024m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  /opt/spark/lab/jobs/store_rollup_mem.py\n```\n\n## 3. Investigation\n\nFill symptom \u2192 why hold was on B \u2192 usage clue \u2192 why victim needs B \u2192 fix \u2192 raise-only lesson.\n"
   },
   "platformSpec": {
     "shape": "spark-2",
+    "daemonMode": "manual",
     "chapter": "foundations",
-    "kind": "multi-step-bug"
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your cluster",
+      "phases": [
+        "Pulling the Spark image",
+        "Starting the master",
+        "Starting the workers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180,
+      "submitMessage": "Checking the hold is on the small Worker and store-rollup-mem survived."
+    }
   },
   "visibleTo": "users",
   "tokens": 10

@@ -100,7 +100,7 @@ Allocate a new slice the same length as `tokens`. Set each element to `strings.T
 <!-- lang: python -->
 ### `TODO(1.2)` — `lower`
 
-Allocate a new list the same length as `tokens`. Set each element to `tokens[i].lower()`. Do not modify the input list.
+In `findx/analyze/analyze.py`. Allocate a new list the same length as `tokens`. Set each element to `tokens[i].lower()` so indexing is case-insensitive. Do not modify the input list; tests compare against the original when both steps run.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(1.2)` — `Lower`
@@ -116,17 +116,17 @@ Allocate a new vector the same size as `tokens`. Set each element to `ToLowerUtf
 <!-- lang: go -->
 ### `TODO(1.3)` — `FilterStop`
 
-For each token, if it is a key in `Stopwords`, skip it. Otherwise append it. Preserve order.
+In `internal/analyze/analyze.go`. Walk `tokens` in order. If the token is a key in the given `Stopwords` map, skip it. Otherwise append it to a new slice. Do not mutate the input. The result should be shorter but keep content-word order (e.g. `cat`, `hat` from the nursery rhyme fixture).
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(1.3)` — `filter_stop`
 
-For each token, if it is in `STOPWORDS`, skip it. Otherwise append it. Preserve order.
+In `findx/analyze/analyze.py`. Walk `tokens` in order. If the token is in the given `STOPWORDS` set, skip it. Otherwise append it to a new list. Do not mutate the input. The result should be shorter but keep content-word order (e.g. `cat`, `hat` from the nursery rhyme fixture).
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(1.3)` — `FilterStop`
 
-For each token, if it is in `Stopwords()`, skip it. Otherwise append it. Preserve order.
+In `src/analyze/analyze.cc`. Walk `tokens` in order. If the token is in `Stopwords()`, skip it. Otherwise push it onto a new vector. Do not mutate the input. The result should be shorter but keep content-word order (e.g. `cat`, `hat` from the nursery rhyme fixture).
 <!-- /lang -->
 
 ## Prove it

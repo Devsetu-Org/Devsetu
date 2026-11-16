@@ -12,18 +12,17 @@ def analyze(text: str) -> list[str]:
 
 def tokenize(text: str) -> list[str]:
     """Split text into runs of Unicode letters. Digits and punctuation separate tokens."""
-    # TODO(1.1): Walk characters. Append a token whenever a run of str.isalpha
-    # ends. Do not keep digits or punctuation. Case is preserved.
-    raise NotImplementedError("TODO(1.1): tokenize")
+    # TODO(1.1)
+    raise NotImplementedError("TODO(1.1)")
 
 
 def lower(tokens: list[str]) -> list[str]:
     """Return a new list with each token lowercased (Unicode)."""
-    # TODO(1.2): Allocate an output list the same length. Call .lower() on each token.
-    raise NotImplementedError("TODO(1.2): lower")
+    # TODO(1.2)
+    raise NotImplementedError("TODO(1.2)")
 
 
 def filter_stop(tokens: list[str]) -> list[str]:
     """Drop tokens that appear in STOPWORDS. Tokens must already be lowercased."""
-    # TODO(1.3): Keep tokens that are not in STOPWORDS. Preserve order.
-    raise NotImplementedError("TODO(1.3): filter_stop")
+    # TODO(1.3)
+    raise NotImplementedError("TODO(1.3)")

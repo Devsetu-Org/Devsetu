@@ -51,5 +51,5 @@ def load(directory: str) -> State:
 
 def save(directory: str, s: State) -> None:
     tmp = os.path.join(directory, FILE_NAME + ".tmp")
-    # TODO(5.2): write encode(s) to tmp, fsync, close; rename over MANIFEST; sync dir.
-    raise NotImplementedError("TODO(5.2): save")
+    # TODO(5.2)
+    raise NotImplementedError("TODO(5.2)")

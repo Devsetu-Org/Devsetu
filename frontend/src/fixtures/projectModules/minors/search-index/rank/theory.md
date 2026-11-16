@@ -25,17 +25,17 @@ BM25 needs:
 <!-- lang: go -->
 ### `TODO(5.1)` — `CollectStats`
 
-Return `Stats{N: src.NumDocs(), AvgDL: src.AvgDL()}` and a map from each distinct term to `src.DF(term)`.
+In `internal/rank/stats.go`. Build `Stats{N: src.NumDocs(), AvgDL: src.AvgDL()}`. For each distinct query term, set `df[term] = src.DF(term)`. Missing terms get df 0 when scored later. Return both values for `Score` and `Search`.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(5.1)` — `collect_stats`
 
-Return `Stats(n=src.num_docs(), avg_dl=src.avg_dl())` and a dict from each distinct term to `src.df(term)`.
+In `findx/rank/stats.py`. Build `Stats(n=src.num_docs(), avg_dl=src.avg_dl())`. For each distinct query term, set `df[term] = src.df(term)`. Missing terms get df 0 when scored later. Return both values for `score` and `search`.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(5.1)` — `CollectStats`
 
-Return `Stats{src.NumDocs(), src.AvgDL()}` and a map from each distinct term to `src.DF(term)`.
+In `src/rank/stats.cc`. Build `Stats{src.NumDocs(), src.AvgDL()}`. For each distinct query term, set `df[term] = src.DF(term)`. Missing terms get df 0 when scored later. Return both values for `Score` and `Search`.
 <!-- /lang -->
 
 ## BM25
@@ -84,7 +84,7 @@ Copy `hits`. Sort with `sort.SliceStable`: higher `Score` first; on a tie, lower
 <!-- lang: python -->
 ### `TODO(5.3)` — `top_k`
 
-Copy `hits`. Sort by score descending, then `doc_id` ascending. If `k > 0` and there are more than `k` hits, truncate.
+In `findx/rank/topk.py`. Copy `hits` so the caller's slice is untouched. Sort by score descending, then `doc_id` ascending for stable tie-breaking. When `k > 0` and `len(hits) > k`, return only the first `k` entries. When `k <= 0`, return the full sorted list.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(5.3)` — `TopK`

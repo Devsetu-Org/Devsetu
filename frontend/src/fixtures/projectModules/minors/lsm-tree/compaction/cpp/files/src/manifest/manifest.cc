@@ -33,6 +33,6 @@ State Load(const std::string& dir) {
 }
 void Save(const std::string& dir, const State& s) {
   (void)dir; (void)s;
-  throw std::logic_error("TODO(5.2): Save");
+  throw std::logic_error("TODO(5.2)");
 }
 }} 

@@ -1,39 +1,23 @@
-## Where you are
+## The pager
 <!-- mode: read-only -->
 
-Chapter 00 laid out the machine: a B+ tree keeps every key in exactly one place, pages are updated in place, a write-ahead log makes that safe, and a buffer pool keeps hot pages in memory.
+Chapter 00 laid out the machine: a B+ tree keeps every key in exactly one place, pages are updated in place, a write-ahead log makes that safe, and a buffer pool keeps hot pages in memory. This chapter builds the bottom layer: the **pager**. Every layer above it speaks in page numbers. Nobody above the pager ever computes a byte offset.
 
-```plaintext
-            Put / Delete / Get / Scan
-                       │
-              ┌────────▼────────┐
-  ch 2, 5     │    B+ tree       │
-              └────────┬────────┘
-              ┌────────▼────────┐
-  ch 4        │   Buffer pool    │
-              └────────┬────────┘
-              ┌────────▼────────┐        ┌──────────────┐
-  ch 1        │      Pager       │ ◀──────│  you are here │
-              └────────┬────────┘        └──────────────┘
-                       ▼
-                    data.db            wal.log (ch 3)
-```
-
-This chapter builds the bottom layer: the **pager**. Every layer above it speaks in page numbers. Nobody above the pager ever computes a byte offset.
+![Write path: B+ tree (ch 2, 5), Buffer pool (ch 4), Pager (you are here, ch 1), data.db and wal.log (ch 3)](/b-tree/pager/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> Only the pager. No tree, no log, no cache. When you finish, you have a file that is an
-> array of 4 KiB pages: you can allocate one, write it, read it back, detect damage,
-> free it, and get it back from the freelist.
+> Only the pager. No tree, no log, no cache. When you finish, you have a file that is an array of 4 KiB pages: you can allocate one, write it, read it back, detect damage, free it, and get it back from the freelist.
 
-## Why pages
-<!-- mode: read-only -->
+### What a page is
 
-### The disk speaks in blocks
+A **page** is the fixed-size unit of disk I/O. Disks and SSDs read and write whole **blocks** (commonly 4 KiB), and the OS caches the file in blocks of that size too. Asking for 10 bytes costs the same as asking for 4096. A B+ tree takes that seriously: every node is exactly one page, sized to the block. A node is as wide as one block can be, so the tree is short, and one lookup touches one page per level.
 
-A disk or SSD does not read one byte at a time. It reads and writes whole **blocks** (commonly 4 KiB), and the OS caches the file in blocks of that size too. Asking for 10 bytes costs the same as asking for 4096.
-
-A B+ tree takes that seriously. Every node is exactly one **page**, sized to the block. A node is as wide as one block can be, so the tree is short, and one lookup touches one page per level.
+| Piece | Role |
+| --- | --- |
+| Page number | On-disk pointer. Page `n` lives at byte `n × 4096`. |
+| Usable bytes | The first `Usable` bytes of the buffer: what callers read and write. |
+| Trailer | The last 4 bytes: a CRC-32C of the usable region, owned by the pager. |
+| Page 0 | The **header**: root page, page count, freelist head. Never handed to a caller. |
 
 | Engine | Default page size |
 | --- | --- |
@@ -44,18 +28,11 @@ A B+ tree takes that seriously. Every node is exactly one **page**, sized to the
 
 ### Page numbers instead of offsets
 
-The file is an array of pages. Page `n` lives at byte `n × 4096`. A page number is a pointer on disk: an internal tree node stores the numbers of its children, and a leaf stores the number of its right sibling. Rewrite a page in place and every pointer to it stays valid.
+The file is an array of pages. An internal tree node stores the numbers of its children; a leaf stores the number of its right sibling. Rewrite a page in place and every pointer to it stays valid.
 
-```plaintext
-  data.db
-  ┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
-  │ page 0  │ page 1  │ page 2  │ page 3  │ page 4  │ page 5  │ ...
-  │ header  │         │         │         │         │         │
-  └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
-  offset 0   4096      8192      12288     16384     20480
-```
+![data.db as an array of 4 KiB pages: page 0 is the header, then pages 1, 2, 3 at offsets 4096, 8192, 12288](/b-tree/pager/page-file.jpg)
 
-Page 0 is the **header**: it records where the tree's root is, how many pages the file has, and the head of the freelist. It is never handed to a caller, so **page number 0 means "no page"** everywhere else. A leaf with no right sibling stores 0.
+Page number **0 means "no page"** everywhere above the header. A leaf with no right sibling stores 0. That convention matters once the tree starts linking pages.
 
 <!-- lang: go -->
 The header layout, the `Meta` struct that mirrors it, and `Open`, `Sync`, and `Close` are given in `internal/pager/page.go` and `pager.go`. Read them first: they are about 100 lines.
@@ -76,22 +53,12 @@ Disks do not always fail loudly. A power cut can leave a page half old and half 
 
 So every page ends with a **checksum**. The last 4 bytes hold a CRC-32C of the other 4092. On every write the pager computes it; on every read the pager checks it and refuses a page that fails.
 
-```plaintext
-  one page, 4096 bytes
-  ┌──────────────────────────────────────────────┬────────────┐
-  │ usable bytes (4092)                          │ crc32c (4) │
-  │ the tree, the freelist, or the header live   │ of the     │
-  │ here                                         │ left part  │
-  └──────────────────────────────────────────────┴────────────┘
-  0                                           Usable        PageSize
-```
+![One 4096-byte page: 4092 usable bytes followed by a 4-byte CRC-32C trailer](/b-tree/pager/checksum.jpg)
 
 Callers see a `PageSize` buffer but own only the first `Usable` bytes. They never write the trailer. The pager does.
 
 > [!tip] Why not trust the disk
-> Postgres makes checksums optional, MySQL InnoDB does them by default, SQLite offers them
-> as an extension. They all exist for the same reason: the cost of one CRC per page is
-> tiny, and the cost of silently acting on garbage is not.
+> Postgres makes checksums optional, MySQL InnoDB does them by default, SQLite offers them as an extension. They all exist for the same reason: the cost of one CRC per page is tiny, and the cost of silently acting on garbage is not.
 
 <!-- lang: go -->
 ### `TODO(1.1)` — `WritePage`
@@ -116,8 +83,7 @@ In the same file:
 You will need to import `errors`, `fmt`, and `io` as well.
 
 > [!scope] No locking here
-> `ReadAt` and `WriteAt` are safe to call from many goroutines at once, so `ReadPage` and
-> `WritePage` take no lock. Only the header state (`Meta`) needs one.
+> `ReadAt` and `WriteAt` are safe to call from many goroutines at once, so `ReadPage` and `WritePage` take no lock. Only the header state (`Meta`) needs one.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(1.1)` — `write_page`
@@ -140,8 +106,7 @@ In the same file:
 3. Copy `raw` into `buf`, compare `struct.unpack_from("<I", buf, USABLE)[0]` with `crc32c(buf[:USABLE])`, and raise `ErrChecksum` on a mismatch.
 
 > [!scope] No locking here
-> `os.pread` and `os.pwrite` are safe to call from many threads at once, so `read_page` and
-> `write_page` take no lock. Only the header state (`Meta`) needs one.
+> `os.pread` and `os.pwrite` are safe to call from many threads at once, so `read_page` and `write_page` take no lock. Only the header state (`Meta`) needs one.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(1.1)` — `WritePage`
@@ -162,8 +127,7 @@ In the same file:
 3. Compare the little-endian trailer at `buf[kUsable]` with `Crc32c(buf, kUsable)` and throw `ChecksumError` on a mismatch.
 
 > [!scope] No locking here
-> `pread` and `pwrite` are safe to call from many threads at once, so `ReadPage` and
-> `WritePage` take no lock. Only the header state (`Meta`) needs one.
+> `pread` and `pwrite` are safe to call from many threads at once, so `ReadPage` and `WritePage` take no lock. Only the header state (`Meta`) needs one.
 <!-- /lang -->
 
 ### Write is not durable
@@ -182,13 +146,9 @@ The tree needs new pages when it splits, and gives pages back when it merges. So
 
 ### The freelist lives inside the free pages
 
-You do not need a separate structure to remember which pages are free. A free page has bytes to spare, so it stores the number of the *next* free page. The header points at the first. The list is a stack: the last page freed is the first one reused.
+You do not need a separate structure to remember which pages are free. A free page has bytes to spare, so it stores the number of the *next* free page. The header points at the first. The list is a **stack**: the last page freed is the first one reused.
 
-```plaintext
-  header:  FreeHead = 7
-
-  page 7 [FREE | next=3]  ──▶  page 3 [FREE | next=9]  ──▶  page 9 [FREE | next=0]
-```
+![Freelist: header FreeHead points at page 7, which points at page 3, then page 9, then 0](/b-tree/pager/freelist.jpg)
 
 | Call | Freelist empty | Freelist not empty |
 | --- | --- | --- |
@@ -196,9 +156,7 @@ You do not need a separate structure to remember which pages are free. A free pa
 | `Free(n)` | page `n` becomes `[FREE next=0]`, `FreeHead = n` | page `n` becomes `[FREE next=old head]`, `FreeHead = n` |
 
 > [!warn] A freed page is not zeroed for the caller
-> A recycled page keeps its old bytes until somebody writes it. Callers always write a
-> page before they read it. A recycled page costs no I/O at all on `Allocate`: that is
-> deliberate, because chapter 3 will rely on `Allocate` not changing anything on disk.
+> A recycled page keeps its old bytes until somebody writes it. Callers always write a page before they read it. A recycled page costs no I/O at all on `Allocate`: that is deliberate, because chapter 3 will rely on `Allocate` not changing anything on disk.
 
 <!-- lang: go -->
 ### `TODO(1.3)` — `Allocate`
@@ -256,12 +214,9 @@ In the same file, with the mutex already held:
 <!-- /lang -->
 
 > [!warn] Free a page twice and the list loops
-> If page 7 is freed twice, it points at itself and the next two `Allocate` calls both
-> return it. The pager cannot cheaply detect that, so the tree must free each page once.
-> Chapter 5 is careful about it.
+> If page 7 is freed twice, it points at itself and the next two `Allocate` calls both return it. The pager cannot cheaply detect that, so the tree must free each page once. Chapter 5 is careful about it.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
@@ -311,13 +266,9 @@ error: pager: page checksum mismatch: page 1
 ```
 
 > [!check] Before you move on
-> Say these out loud:
->
 > 1. The file is an array of 4 KiB pages; a page number is an on-disk pointer.
 > 2. Page 0 is the header, so page number 0 means "no page".
 > 3. The last 4 bytes of every page are a CRC-32C, written by `WritePage` and checked by `ReadPage`.
-> 4. The freelist is stored in the free pages themselves, and `Allocate` and `Free` are a stack push and pop.
-
-### What is missing
+> 4. The freelist is stored in the free pages themselves, and `Allocate` / `Free` are a stack push and pop.
 
 The pager gives you pages. It has no idea what is in them. Chapter 2 builds a **B+ tree** whose nodes are pages: search walks from the root to a leaf through page numbers, insert fills a leaf, and a full leaf splits in two and pushes a separator up.

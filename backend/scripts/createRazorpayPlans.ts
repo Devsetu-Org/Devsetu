@@ -1,8 +1,8 @@
 #!/usr/bin/env npx tsx
 /**
- * Create the monthly Razorpay plans for every track and print the env lines to
- * paste into .env. Plans are per key (test vs live), so run once per mode.
- * Skips plans whose RAZORPAY_PLAN_* is already set.
+ * Create the monthly Razorpay plans for every sellable membership and print the
+ * env lines to paste into .env. Plans are per key (test vs live), so run once
+ * per mode. Skips plans whose RAZORPAY_PLAN_* is already set.
  *
  *   npx tsx scripts/createRazorpayPlans.ts
  */
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     const created = await razorpay.createPlan({
       name: `DevSetu ${plan.name}`,
       amountPaise: plan.price * 100,
-      description: `${plan.name} track, monthly`,
+      description: `DevSetu ${plan.name} membership, monthly`,
     });
     console.log(`${plan.name}: created ${created.id} (₹${plan.price}/month)`);
     lines.push(`${plan.envKey}=${created.id}`);

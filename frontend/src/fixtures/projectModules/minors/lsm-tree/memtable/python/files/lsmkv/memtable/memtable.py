@@ -50,14 +50,7 @@ class Memtable:
     def delete(self, key: bytes) -> None:
         """Record that key no longer exists."""
         # ── TODO(1.3) — a delete is a write ──────────────────────────────────
-        #
-        # Do not remove the node. Older SSTables on disk may still hold a
-        # value for key, and removing it here would let that old value
-        # reappear.
-        #
-        # Copy key with bytes(key) (like put does), take the lock, and store
-        # a tombstone: self._list.put(k, None, Kind.TOMBSTONE)
-        raise NotImplementedError("TODO(1.3): delete — write a tombstone instead of removing the key")
+        raise NotImplementedError("TODO(1.3)")
 
     def get(self, key: bytes) -> Tuple[Optional[bytes], Result]:
         """Look key up in this memtable only.
@@ -65,16 +58,7 @@ class Memtable:
         The value is returned only when the result is FOUND.
         """
         # ── TODO(1.3) — three answers, not two ───────────────────────────────
-        #
-        # Take the lock and self._list.get(key).
-        #   no node                     -> (None, Result.MISSING)
-        #   node.kind is Kind.TOMBSTONE -> (None, Result.DELETED)
-        #   otherwise                   -> (node.value, Result.FOUND)
-        #
-        # MISSING and DELETED look alike to a user ("no value") but mean
-        # opposite things to the read path in chapter 4: MISSING keeps
-        # searching older tables, DELETED stops.
-        raise NotImplementedError("TODO(1.3): get — report FOUND, DELETED, or MISSING")
+        raise NotImplementedError("TODO(1.3)")
 
     def __len__(self) -> int:
         """Number of entries, tombstones included."""

@@ -21,17 +21,17 @@ Split each index path on `/`. Directories become `040000` tree objects; files ke
 <!-- lang: go -->
 ### `TODO(4.1)` — `WriteTree`
 
-Build a nested map, then recursively `PutTree`.
+In `internal/worktree/write_tree.go`. Load the index. Split each `Path` on `/` into a nested `map[string]any` (leaf values are index entries, interior nodes are maps). Walk each level in sorted name order: files become `TreeEntry` blobs; directories recurse with `PutTree`. Return the root tree hash. An empty index yields an empty tree.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(4.1)` — `write_tree`
 
-Build a nested map, then recursively `put_tree`.
+In `tinygit/worktree/write_tree.py`. Load the index. Split each `path` on `/` into a nested dict (leaf values are index entries, interior nodes are dicts). Walk each level in sorted name order: files become tree blob entries; directories recurse with `put_tree`. Return the root tree hash. An empty index yields an empty tree.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.1)` — `WriteTree`
 
-Build a nested map, then recursively `PutTree`.
+In `src/worktree/write_tree.cc`. Load the index. Split each path on `/` into a nested map (leaf values are index entries, interior nodes are maps). Walk each level in sorted name order: files become tree blob entries; directories recurse with `PutTree`. Return the root tree hash. An empty index yields an empty tree.
 <!-- /lang -->
 
 ## commit
@@ -42,17 +42,17 @@ Parent is the current resolved HEAD when it exists (first commit has none). Auth
 <!-- lang: go -->
 ### `TODO(4.2)` — `Commit`
 
-`PutCommit` then `UpdateRef(r, "HEAD", h, Zero)`.
+In `internal/worktree/commit.go`. Call `WriteTree`, resolve the current HEAD as the parent when it exists (first commit has none), build author/committer lines with unix time and `+0000`, require a non-empty message ending with newline via `PutCommit`, then `UpdateRef(r, "HEAD", h, object.Zero)` so HEAD advances to the new snapshot.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(4.2)` — `commit`
 
-`put_commit` then `update_ref(r, "HEAD", h, ZERO)`.
+In `tinygit/worktree/commit.py`. Call `write_tree`, resolve the current HEAD as the parent when it exists (first commit has none), build author/committer lines with unix time and `+0000`, require a non-empty message ending with newline via `put_commit`, then `update_ref(r, "HEAD", h, ZERO)` so HEAD advances to the new snapshot.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.2)` — `CommitWorktree`
 
-`PutCommit` then `UpdateRef(r, "HEAD", h, kZero)`.
+In `src/worktree/commit.cc`. Call `WriteTree`, resolve the current HEAD as the parent when it exists (first commit has none), build author/committer lines with unix time and `+0000`, require a non-empty message ending with newline via `PutCommit`, then `UpdateRef(r, "HEAD", h, kZero)` so HEAD advances to the new snapshot.
 <!-- /lang -->
 
 ## checkout
@@ -63,17 +63,17 @@ Flatten the target tree, run the given safety check, write blobs, rebuild the in
 <!-- lang: go -->
 ### `TODO(4.3)` — `Checkout`
 
-Remove tracked paths that are absent from the target. Do not skip `safetyCheck`.
+In `internal/worktree/checkout.go`. Flatten the target commit's tree to `path → blob hash`. Run `safetyCheck` before touching files (refuse when a tracked worktree file would be overwritten and differs from both index and target). Delete index paths missing from the target. For each target path, write blob bytes, mkdir parents, rebuild the index, and `WriteDetachedHEAD` at the commit hash.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(4.3)` — `checkout`
 
-Remove tracked paths that are absent from the target. Do not skip `safety_check`.
+In `tinygit/worktree/checkout.py`. Flatten the target commit's tree to `path → blob hash`. Run `safety_check` before touching files (refuse when a tracked worktree file would be overwritten and differs from both index and target). Delete index paths missing from the target. For each target path, write blob bytes, mkdir parents, rebuild the index, and detach HEAD at the commit hash.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.3)` — `Checkout`
 
-Remove tracked paths that are absent from the target. Do not skip `SafetyCheck`.
+In `src/worktree/checkout.cc`. Flatten the target commit's tree to `path → blob hash`. Run `SafetyCheck` before touching files (refuse when a tracked worktree file would be overwritten and differs from both index and target). Delete index paths missing from the target. For each target path, write blob bytes, mkdir parents, rebuild the index, and detach HEAD at the commit hash.
 <!-- /lang -->
 
 ## Prove it

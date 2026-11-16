@@ -26,10 +26,10 @@ def run_builtin(s, argv: list[str]):
 
 
 def builtin_cd(s, args: list[str]) -> int:
-    # TODO(2.3): Resolve the directory (HOME when no args), Stat it, set s.dir.
-    raise NotImplementedError("TODO(2.3): builtin_cd")
+    # TODO(2.3)
+    raise NotImplementedError("TODO(2.3)")
 
 
 def builtin_exit(s, args: list[str]) -> int:
-    # TODO(2.3): Parse an optional numeric code, call s.set_exit, return the code.
-    raise NotImplementedError("TODO(2.3): builtin_exit")
+    # TODO(2.3)
+    raise NotImplementedError("TODO(2.3)")

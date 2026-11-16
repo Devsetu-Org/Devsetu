@@ -70,14 +70,10 @@ Record DecodePayload(std::string_view p) {
 }
 
 void Encode(std::string* dst, const Record& r) {
-  // TODO(2.1): remember start = dst->size(), then append kHeaderSize zero
-  // bytes as a placeholder. AppendPayload(dst, r); the payload is
-  // dst->data()+start+kHeaderSize .. end. Write Checksum(payload) into the
-  // first 4 bytes and payload length into the next 4, both little-endian.
-  // Append to *dst; never overwrite what is already in it.
+  // TODO(2.1)
   (void)dst;
   (void)r;
-  throw std::logic_error("TODO(2.1): Encode");
+  throw std::logic_error("TODO(2.1)");
 }
 
 }  // namespace wal

@@ -6,15 +6,17 @@
 namespace tinysh::exe {
 
 void AddJob(Shell& s, const std::vector<Proc>& procs) {
-  // TODO(5.1): Create a Job, append under s.mu, wait in a thread, notify done.
+  // TODO(5.1)
   (void)s; (void)procs;
-  throw std::runtime_error("TODO(5.1): AddJob");
+  // TODO(5.1)
+  throw std::runtime_error("TODO(5.1)");
 }
 
 int BuiltinWait(Shell& s, const std::vector<std::string>& args) {
-  // TODO(5.2): Reject args. Drain s.jobs, wait for each, return last status.
+  // TODO(5.2)
   (void)s; (void)args;
-  throw std::runtime_error("TODO(5.2): BuiltinWait");
+  // TODO(5.2)
+  throw std::runtime_error("TODO(5.2)");
 }
 
 }  // namespace tinysh::exe

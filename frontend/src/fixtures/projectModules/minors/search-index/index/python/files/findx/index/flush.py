@@ -16,12 +16,9 @@ def flush(e: "Engine") -> None:
 
     Flush with an empty buffer is a no-op success.
     """
-    # TODO(3.2): If e.mem has no terms, return. Otherwise create
-    # segment-%06d.fx under e.dir (len(e.seg_names) as the number), write_segment,
-    # open_segment, append to e.seg_names / e.segs, clear the map, reset e.buf_lens,
-    # and call e.write_catalog().
+    # TODO(3.2)
     _ = os.path.join
     _ = open_segment
     _ = write_segment
     _ = e
-    raise NotImplementedError("TODO(3.2): Engine.flush")
+    raise NotImplementedError("TODO(3.2)")

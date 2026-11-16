@@ -58,10 +58,9 @@ std::pair<std::vector<Proc>, int> WirePipes(Shell& s, const ast::Pipeline& pl) {
       return {{}, 127};
     }
   }
-  // TODO(4.2): For n > 1, create pipe() between neighbours, StartCmd each stage,
-  // close unused ends in the parent, and return the procs.
+  // TODO(4.2)
   (void)CleanupPipes;
-  throw std::runtime_error("TODO(4.2): WirePipes");
+  throw std::runtime_error("TODO(4.2)");
 }
 
 }  // namespace tinysh::exe

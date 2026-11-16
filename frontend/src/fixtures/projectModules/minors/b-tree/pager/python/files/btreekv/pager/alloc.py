@@ -17,15 +17,8 @@ def allocate(self: Pager) -> int:
     exists on disk.
     """
     with self._mu:
-        # TODO(1.3): If self._meta.free_head != 0, pop it: read that page into a
-        # PAGE_SIZE buffer, take the next pointer from decode_free_page, set
-        # self._meta.free_head to it, and return the popped page number. Do not
-        # write to disk: the freelist head only reaches the header on sync (or,
-        # with a log, on replay).
-        #
-        # Otherwise return self._meta.page_count, write a blank page there with
-        # write_page so the file really grows, and increment self._meta.page_count.
-        raise NotImplementedError("TODO(1.3): allocate")
+        # TODO(1.3)
+        raise NotImplementedError("TODO(1.3)")
 
 
 def free(self: Pager, no: int) -> None:
@@ -35,9 +28,5 @@ def free(self: Pager, no: int) -> None:
     Freeing a page twice corrupts the list; the layers above must not.
     """
     with self._mu:
-        # TODO(1.4): Raise ErrBadPage if no is 0 or >= self._meta.page_count.
-        # Build the page with encode_free_page(buf, self._meta.free_head) in a
-        # PAGE_SIZE buffer, write_page it, and only then set
-        # self._meta.free_head = no. The page is the new head; its next pointer
-        # is the old head.
-        raise NotImplementedError("TODO(1.4): free")
+        # TODO(1.4)
+        raise NotImplementedError("TODO(1.4)")

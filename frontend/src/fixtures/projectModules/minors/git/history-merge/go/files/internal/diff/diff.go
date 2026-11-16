@@ -14,9 +14,8 @@ type Change struct {
 
 // TreeDiff compares two trees (by hash) into a sorted change list.
 func TreeDiff(s *object.Store, a, b object.Hash) ([]Change, error) {
-	// TODO(5.2): Flatten both trees to path→hash (use flatten). Emit A/M/D. Sort by Path.
-	// Import sort.
-	panic("TODO(5.2): TreeDiff")
+	// TODO(5.2)
+	panic("TODO(5.2)")
 }
 
 func flatten(s *object.Store, tree object.Hash, prefix string) (map[string]object.Hash, error) {

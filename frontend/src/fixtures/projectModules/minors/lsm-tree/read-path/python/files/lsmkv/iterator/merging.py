@@ -26,8 +26,8 @@ class _Item:
         self.rank = rank
 
     def __lt__(self, other: "_Item") -> bool:
-        # TODO(4.3): smaller key first; equal keys -> lower rank (newer) first.
-        raise NotImplementedError("TODO(4.3): Less")
+        # TODO(4.3)
+        raise NotImplementedError("TODO(4.3)")
 
 
 class Merging:
@@ -62,5 +62,5 @@ class Merging:
         return self.h[0].it.kind()
 
     def next(self) -> None:
-        # TODO(4.3): advance past current key in every child that holds it.
-        raise NotImplementedError("TODO(4.3): Next")
+        # TODO(4.3)
+        raise NotImplementedError("TODO(4.3)")

@@ -1,22 +1,18 @@
-## Where you are
+## The executor
 <!-- mode: read-only -->
 
 The catalog holds tables. This chapter answers a single-table `SELECT` by pulling rows through a short pipeline.
 
-```plaintext
-  SELECT name FROM users WHERE id = 1
+![Query engine pipeline: lexer (ch 1), parser (ch 2), and catalog (ch 3) feed the executor (you are here, ch 4), then joins and aggregates (ch 5)](/query-engine/execute/you-are-here.jpg)
 
-  Scan users  →  Filter (id = 1)  →  Project (name)  →  rows
-```
+![SELECT name FROM users WHERE id = 1 as an iterator pipeline: Scan users, then Filter (id = 1), then Project (name), then rows out](/query-engine/execute/pipeline.jpg)
 
 Each box is an **iterator**. It has one method, `Next`, which returns the next row or says there are no more. The filter's child is the scan. The projection's child is the filter. Nobody builds a slice of the whole table until the end, and a filter drops a row before the projection ever sees it.
 
 > [!scope] This chapter's job
-> `SELECT` of a column list or `*` from one table, with an optional `WHERE` of `=`, `<`, `>`,
-> and `AND`. No join, no aggregate, no sort. Those are the next chapter.
+> `SELECT` of a column list or `*` from one table, with an optional `WHERE` of `=`, `<`, `>`, and `AND`. No join, no aggregate, no sort. Those are the next chapter.
 
-## Rows and expressions
-<!-- mode: read-only -->
+### Rows and expressions
 
 A scan names every column `table.column`, using the alias when the query gave one. `users u` produces `u.id` and `u.name`. `Get` finds a column by that exact name, or by the bare name when only one column has that suffix. `id` works. If a later join made `id` ambiguous, `Get` would refuse the bare name.
 
@@ -41,8 +37,10 @@ An expression evaluates against one row:
 `Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `src/execute/row.h`. `Truth` is in `eval.cc` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.cc` wires the pipeline and is given. You write `Scan::Next`, `Eval`, `Filter::Next`, and `Project::Next`.
 <!-- /lang -->
 
-## The scan
-<!-- mode: read-and-implement tasks:4.1 -->
+## Scan and filter
+<!-- mode: read-and-implement tasks:4.1,4.2,4.3 -->
+
+### The scan
 
 `NewScan` has already copied the table's rows and built the qualified column names. `Next` walks that copy. Return copies of the column slice and of the value slice, so a caller who mutates a row does not change the scan's state.
 
@@ -74,8 +72,7 @@ In `src/execute/scan.cc`:
 3. Return a `Row` with copies of `cols` and `vals`, and `true`.
 <!-- /lang -->
 
-## The filter
-<!-- mode: read-and-implement tasks:4.2,4.3 -->
+### The filter
 
 `Eval` turns an expression and a row into a value. `Filter.Next` asks its child for rows and keeps the ones whose predicate is true. A predicate error fails the query. It is not a false result.
 
@@ -140,8 +137,10 @@ In `src/execute/filter.cc`:
 4. When keep is true, return the row. Otherwise pull again.
 <!-- /lang -->
 
-## The projection
+## Projection
 <!-- mode: read-and-implement tasks:4.4 -->
+
+### One row in, one row out
 
 The projection turns one input row into one output row. The given `project` helper in `build.go` evaluates each select item, uses the alias when there is one, and expands `*`. `Project.Next` only has to pull a child row and call `Pick`.
 
@@ -168,14 +167,14 @@ In `sqlq/execute/project.py`:
 
 In `src/execute/project.cc`:
 
-1. Pull one child row. Pass through a finished child.
-2. Return `pick(row)` with `true`.
+1. Pull one child row via `child->Next()`. When the child is finished or returns an error, pass that through unchanged.
+2. `out = pick(row)`. On error return finished with the error.
+3. Return `out` with `true` so the scan continues with the next projected row.
 <!-- /lang -->
 
 `RunSelect` looks up the table, scans it under the alias (or the table name), wraps a `Filter` when there is a `WHERE`, then projects. `Query` on `sqlq.DB` calls it.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash

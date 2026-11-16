@@ -36,12 +36,12 @@ std::string SafePath(const Repo& r, const std::string& name) {
 
 Hash ReadRef(const Repo& r, const std::string& name) {
   // TODO(2.1): ReadRef
-  throw std::runtime_error("TODO(2.1): ReadRef");
+  throw std::runtime_error("TODO(2.1)");
 }
 
 void WriteRef(const Repo& r, const std::string& name, const Hash& h) {
   // TODO(2.1): WriteRef
-  throw std::runtime_error("TODO(2.1): WriteRef");
+  throw std::runtime_error("TODO(2.1)");
 }
 
 }  // namespace tinygit

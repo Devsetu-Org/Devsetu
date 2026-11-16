@@ -66,7 +66,7 @@ bool Hash::IsZero() const { return *this == kZero; }
 
 Hash HashOf(const uint8_t* data, size_t n) {
   // TODO(1.1): HashOf
-  throw std::runtime_error("TODO(1.1): HashOf");
+  throw std::runtime_error("TODO(1.1)");
 }
 
 Hash HashOf(const std::vector<uint8_t>& data) { return HashOf(data.data(), data.size()); }

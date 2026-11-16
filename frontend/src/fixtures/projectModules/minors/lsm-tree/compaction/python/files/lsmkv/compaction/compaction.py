@@ -11,5 +11,5 @@ class Stats:
     dropped_tombstones: int = 0
 
 def Merge(inputs, w, drop_tombstones: bool) -> Stats:
-    # TODO(5.1): merge inputs; skip tombstones when drop_tombstones; Add others.
-    raise NotImplementedError("TODO(5.1): Merge")
+    # TODO(5.1)
+    raise NotImplementedError("TODO(5.1)")

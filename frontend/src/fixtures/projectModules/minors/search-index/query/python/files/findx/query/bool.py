@@ -10,16 +10,14 @@ from findx.query.parse import Query
 
 def intersect(lists: Sequence[Sequence[Posting]]) -> List[int]:
     """Return doc ids that appear in every list. Lists must be sorted by doc_id."""
-    # TODO(4.2): If lists is empty or any list is empty, return []. Convert each
-    # list to doc ids and pairwise intersect with two pointers (advance the
-    # smaller id; on equal, emit and advance both).
-    raise NotImplementedError("TODO(4.2): intersect")
+    # TODO(4.2)
+    raise NotImplementedError("TODO(4.2)")
 
 
 def union(lists: Sequence[Sequence[Posting]]) -> List[int]:
     """Return doc ids that appear in any list. Lists must be sorted by doc_id."""
-    # TODO(4.3): Pairwise union with two pointers. On equal ids emit once.
-    raise NotImplementedError("TODO(4.3): union")
+    # TODO(4.3)
+    raise NotImplementedError("TODO(4.3)")
 
 
 def _doc_ids(lst: Sequence[Posting]) -> List[int]:

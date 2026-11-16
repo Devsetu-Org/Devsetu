@@ -25,7 +25,7 @@ std::map<std::string, Hash> Flatten(Store s, const Hash& tree, const std::string
 
 std::vector<Change> TreeDiff(Store s, const Hash& a, const Hash& b) {
   // TODO(5.2): TreeDiff
-  throw std::runtime_error("TODO(5.2): TreeDiff");
+  throw std::runtime_error("TODO(5.2)");
 }
 
 }  // namespace tinygit

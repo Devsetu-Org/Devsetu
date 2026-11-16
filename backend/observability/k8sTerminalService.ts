@@ -391,14 +391,15 @@ const SPARK_YARN_SUBTITLE =
   `\x1b[1;36m⚡ This cluster is yours\x1b[0m \x1b[1m— a YARN ResourceManager and its NodeManagers.\x1b[0m\r\n`
   + `\x1b[38;5;245mSubmit from shell with spark-submit --master yarn. RM UI is on ds-spark-01:8088.\x1b[0m\r\n`;
 
-/** Kafka labs: bash in the shell pod. No kubeconfig, no learner user. */
+/** Kafka labs: bash on the chosen node (shell / kafka-0..2). No kubeconfig. */
 async function startKafkaShell(
   ws: ObservabilityWebSocket,
-  { sessionId, ns, challengeId, cols, rows }: ShellTarget,
+  { sessionId, ns, challengeId, cols, rows, node }: ShellTarget,
 ): Promise<StartedShell | null> {
   let child: IPty;
+  const { pod } = kafkaBox.resolveShellPod(node);
   try {
-    const cmd = await k8sCluster.controllerKubectlCommand(kafkaBox.shellExecArgs(ns));
+    const cmd = await k8sCluster.controllerKubectlCommand(kafkaBox.shellExecArgs(ns, node));
     child = pty.spawn('kubectl', cmd.args, {
       name: 'xterm-256color',
       cols,
@@ -408,8 +409,12 @@ async function startKafkaShell(
   } catch (err: unknown) {
     return spawnFailed(ws, sessionId, err);
   }
-  console.log(`[k8s-terminal] session=${sessionId} ns=${ns} pod=${kafkaBox.SHELL} challenge=${challengeId}`);
-  return { child, cleanup: () => undefined, banner: KAFKA_SUBTITLE };
+  console.log(`[k8s-terminal] session=${sessionId} ns=${ns} pod=${pod} challenge=${challengeId}`);
+  const where = pod === kafkaBox.SHELL ? 'shell' : pod;
+  const banner =
+    KAFKA_SUBTITLE
+    + `\x1b[38;5;245mThis terminal is on \x1b[1m${where}\x1b[0m\x1b[38;5;245m. Switch nodes from the bar above.\x1b[0m\r\n`;
+  return { child, cleanup: () => undefined, banner };
 }
 
 /** Spark labs: bash on the chosen node (shell / master / worker). No kubeconfig. */

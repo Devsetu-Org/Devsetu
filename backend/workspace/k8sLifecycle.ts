@@ -372,7 +372,7 @@ async function provisionKafka(
 ): Promise<boolean> {
   const spec = platformSpecOf(challengeId);
   const shape = String(spec.shape || 'kafka-3');
-  if (shape !== 'kafka-3') {
+  if (shape !== 'kafka-3' && shape !== 'kafka-zk-3') {
     throw Object.assign(new Error(`Kafka lab shape ${shape} is not available yet`), { status: 400 });
   }
   await requirePool(ns, challengeId, kafkaBox.POOL);
@@ -387,7 +387,7 @@ async function provisionKafka(
   onPhase?.('Preparing the lab');
   const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
     timeoutMs: 180_000,
-    env: kafkaBox.scriptEnv(ns),
+    env: kafkaBox.scriptEnv(ns, challengeId),
   });
   if (result.code !== 0) {
     const msg = (result.stderr || result.stdout || 'setup failed').trim();
@@ -404,7 +404,7 @@ async function provisionSpark(
 ): Promise<boolean> {
   const spec = platformSpecOf(challengeId);
   const shape = String(spec.shape || 'spark-3');
-  if (shape !== 'spark-3' && shape !== 'spark-2' && shape !== 'yarn-2') {
+  if (shape !== 'spark-3' && shape !== 'spark-2' && shape !== 'yarn-2' && shape !== 'spark-k8s') {
     throw Object.assign(new Error(`Spark lab shape ${shape} is not available yet`), { status: 400 });
   }
   await requirePool(ns, challengeId, sparkBox.POOL);
@@ -412,6 +412,7 @@ async function provisionSpark(
     ? 'manual'
     : 'auto';
   const yarn = shape === 'yarn-2';
+  const onK8s = shape === 'spark-k8s';
   const bootPhases = Array.isArray((spec as { boot?: { phases?: unknown } }).boot?.phases)
     ? ((spec as { boot: { phases: unknown[] } }).boot.phases
       .map((p) => String(p || '').trim())
@@ -423,9 +424,11 @@ async function provisionSpark(
       ? bootPhases[0]
       : daemonMode === 'manual'
         ? 'Planning for a Spark cluster'
-        : yarn
-          ? 'Creating your YARN cluster'
-          : 'Creating your cluster',
+        : onK8s
+          ? 'Creating your Kubernetes Spark namespace'
+          : yarn
+            ? 'Creating your YARN cluster'
+            : 'Creating your cluster',
   );
   // Labs that start Master/Workers inside setup.sh (e.g. spark-02) emit those
   // steps via BOOT_PHASE lines. Others finish the stepper with Preparing the lab.
@@ -470,7 +473,7 @@ async function provisionSpark(
   );
   const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
     timeoutMs: setupTimeoutMs,
-    env: sparkBox.scriptEnv(ns),
+    env: sparkBox.scriptEnv(ns, shape as 'spark-3' | 'spark-2' | 'yarn-2' | 'spark-k8s'),
     onBootPhase: setupDrivenBoot ? onPhase : undefined,
   });
   if (result.code !== 0) {

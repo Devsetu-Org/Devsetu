@@ -15,11 +15,9 @@ func NewMap() *Map {
 // Add records that term appears in docID with frequency tf. If the term already
 // has an entry for docID, TF is replaced (not summed). Lists stay sorted by DocID.
 func (m *Map) Add(term string, docID, tf uint32) {
-	// TODO(2.1): Ensure m.terms is non-nil. Find the insertion point with
-	// sort.Search on DocID. If docID is present, replace TF. Otherwise insert
-	// Posting{DocID: docID, TF: tf} so the slice stays sorted by DocID.
+	// TODO(2.1)
 	_ = sort.Search
-	panic("TODO(2.1): Map.Add")
+	panic("TODO(2.1)")
 }
 
 // Terms returns a sorted list of term strings.

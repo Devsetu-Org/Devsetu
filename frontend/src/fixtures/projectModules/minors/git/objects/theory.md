@@ -27,17 +27,17 @@ The object id is SHA-1 of the **header plus content**, not of the file alone. Th
 <!-- lang: go -->
 ### `TODO(1.1)` — `HashOf`
 
-In `internal/object/hash.go`: compute `sha1.Sum(data)`, copy into a `Hash`, return it. `Hex` and `ParseHex` are already written.
+In `internal/object/hash.go`: compute `sha1.Sum(data)` over the full byte slice (header + content for objects), copy the 20-byte digest into a `Hash`, and return it. Object ids always hash the stored object bytes, never the zlib file on disk. `Hex` and `ParseHex` are already written.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(1.1)` — `hash_of`
 
-In `tinygit/object/hash.py`: return `Hash(hashlib.sha1(data).digest())`. `hex` and `parse_hex` are already written.
+In `tinygit/object/hash.py`: return `Hash(hashlib.sha1(data).digest())` over the full byte slice (header + content for objects). Object ids always hash the stored object bytes, never the zlib file on disk. `hex` and `parse_hex` are already written.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(1.1)` — `HashOf`
 
-In `src/object/hash.cc`: SHA-1 `data` into a `Hash` (20 bytes). `Hex` and `ParseHex` are already written.
+In `src/object/hash.cc`: SHA-1 `data` into a `Hash` (20 bytes) over the full byte slice (header + content for objects). Object ids always hash the stored object bytes, never the zlib file on disk. `Hex` and `ParseHex` are already written.
 <!-- /lang -->
 
 ## Loose object store
@@ -81,11 +81,11 @@ A **blob** body is the file bytes. A **tree** body is sorted entries: `mode name
 <!-- lang: go -->
 ### `TODO(1.3)` — `PutBlob` / `GetBlob`
 
-Thin wrappers around `Put`/`Get` with type `"blob"`. Reject a non-blob on read.
+In `internal/object/blob.go`. `PutBlob` stores bytes with type `"blob"` via `Put`. `GetBlob` calls `Get`, rejects any other type, and returns the content. No extra hashing beyond what `Put` already does.
 
 ### `TODO(1.4)` — `EncodeTree` / `DecodeTree`
 
-Sort by name. Encode and parse the Git tree format. `PutTree` / `GetTree` are given.
+In `internal/object/tree.go`. Sort entries by `Name`. `EncodeTree` writes each entry as `mode name\0` plus 20 raw hash bytes in Git tree order. `DecodeTree` parses that layout and rejects truncated or malformed bodies. `PutTree` / `GetTree` are given.
 
 ### `TODO(1.5)` — `EncodeCommit` / `DecodeCommit`
 
@@ -94,11 +94,11 @@ Require a tree and author. Default committer to author. Ensure the message ends 
 <!-- lang: python -->
 ### `TODO(1.3)` — `put_blob` / `get_blob`
 
-Thin wrappers around `put`/`get` with type `"blob"`. Reject a non-blob on read.
+In `tinygit/object/blob.py`. `put_blob` stores bytes with type `"blob"` via `put`. `get_blob` calls `get`, rejects any other type, and returns the content. No extra hashing beyond what `put` already does.
 
 ### `TODO(1.4)` — `encode_tree` / `decode_tree`
 
-Sort by name. Encode and parse the Git tree format. `put_tree` / `get_tree` are given.
+In `tinygit/object/tree.py`. Sort entries by `name`. `encode_tree` writes each entry as `mode name\0` plus 20 raw hash bytes in Git tree order. `decode_tree` parses that layout and rejects truncated or malformed bodies. `put_tree` / `get_tree` are given.
 
 ### `TODO(1.5)` — `encode_commit` / `decode_commit`
 
@@ -107,11 +107,11 @@ Require a tree and author. Default committer to author. Ensure the message ends 
 <!-- lang: cpp -->
 ### `TODO(1.3)` — `PutBlob` / `GetBlob`
 
-Thin wrappers around `Put`/`Get` with type `"blob"`. Reject a non-blob on read.
+In `src/object/blob.cc`. `PutBlob` stores bytes with type `"blob"` via `Put`. `GetBlob` calls `Get`, rejects any other type, and returns the content. No extra hashing beyond what `Put` already does.
 
 ### `TODO(1.4)` — `EncodeTree` / `DecodeTree`
 
-Sort by name. Encode and parse the Git tree format. `PutTree` / `GetTree` are given.
+In `src/object/tree.cc`. Sort entries by `name`. `EncodeTree` writes each entry as `mode name\0` plus 20 raw hash bytes in Git tree order. `DecodeTree` parses that layout and rejects truncated or malformed bodies. `PutTree` / `GetTree` are given.
 
 ### `TODO(1.5)` — `EncodeCommit` / `DecodeCommit`
 

@@ -1,28 +1,15 @@
-## Where you are
+## Mutations
 <!-- mode: read-only -->
 
-The engine writes durably and caches pages. It can insert and look up. It cannot forget: `Delete` returns "not built yet", pages are never given back, and there is no way to walk the keys in order.
+The engine writes durably and caches pages. It can insert and look up. It cannot forget: `Delete` returns "not built yet", pages are never given back, and there is no way to walk the keys in order. This chapter finishes the public API.
 
-```plaintext
-            Put / Delete / Get / Scan
-                       │
-              ┌────────▼────────┐
-  ch 2, 5     │    B+ tree       │ ◀──── you are here
-              └────────┬────────┘
-              ┌────────▼────────┐
-  ch 4        │   Buffer pool    │  done
-              └──┬───────────┬──┘
-                 ▼           ▼
-             data.db      wal.log   (ch 1, ch 3: done)
-```
+![Write path: Put, Delete, Get, and Scan enter the B+ tree (ch 2 and 5, you are here), over the buffer pool (ch 4, done), data.db and wal.log (ch 1 and 3, done)](/b-tree/mutations/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> Delete with borrow and merge so the tree stays full and freed pages go back to the
-> freelist, and a range scan that follows the leaf links. When the tests pass, the whole
-> public API works and survives a crash.
+> Delete with borrow and merge so the tree stays full and freed pages go back to the freelist, and a range scan that follows the leaf links. When the tests pass, the whole public API works and survives a crash.
 
-## Deleting from a leaf
-<!-- mode: read-and-implement tasks:5.1 -->
+## Delete and rebalance
+<!-- mode: read-and-implement tasks:5.1,5.2 -->
 
 ### Easy at the bottom, complicated on the way back
 
@@ -30,13 +17,7 @@ Removing a key from a leaf is a slice delete. The trouble is what comes after. D
 
 B-trees therefore keep a **minimum fill**: no non-root page may drop below a threshold. (Textbooks say "at least half the keys". This engine's pages hold variable-size entries, so it says "at least a quarter of the page, in bytes".) When a delete pushes a page under it, the page must **borrow** an entry from a sibling or **merge** with it.
 
-```plaintext
-  delete("f"):
-
-  parent  [ ... "g" ... ]
-             │       │
-      leaf [a b ]  leaf [g h i j k]     leaf [a b] is now underfull
-```
+![Underfull leaf: after delete("f") the leaf a b is under the minimum fill while its sibling g h i j k is full, both under one parent with separator g](/b-tree/mutations/underfull.jpg)
 
 The page that became underfull cannot fix itself, because it needs its sibling and its sibling hangs off the parent. So the delete works recursively, like insert did in chapter 2: the leaf removes the key and reports "I am underfull" to its caller, and the parent does the repair.
 
@@ -49,6 +30,9 @@ The page that became underfull cannot fix itself, because it needs its sibling a
 ```
 
 A missing key is the easy case: nothing is written, nothing is reported.
+
+> [!idea] Delete is not a tombstone
+> In a B-tree the key is removed from its leaf. There is no shadowing marker left behind. That is the opposite of an LSM delete, which writes a tombstone because older files may still hold the value.
 
 <!-- lang: go -->
 ### `TODO(5.1)` — `delete`
@@ -80,10 +64,7 @@ In `src/btree/delete.cc`. `DeleteRec(no, key)` returns `(found, underfull)`:
 3. Internal: `ChildIndex`, recurse. If not found or child not underfull, return as-is. Otherwise `Rebalance` and return `{true, Underfull()}`.
 <!-- /lang -->
 
-## Borrow or merge
-<!-- mode: read-and-implement tasks:5.2 -->
-
-### Two adjacent siblings, two outcomes
+### What borrow and merge mean
 
 An underfull child has a neighbor (the parent's other children are next to it in key order). Take the pair: the underfull page and one neighbor, with the parent's separator between them. There are two ways to repair it:
 
@@ -92,13 +73,9 @@ An underfull child has a neighbor (the parent's other children are next to it in
 | The pair fits in one page | **Merge**: move everything into the left page, **free** the right page | the separator and the right child pointer are removed; the parent may become underfull |
 | The pair does not fit | **Borrow**: spread the entries about evenly between the two pages | the separator is **replaced** with the new boundary; the parent keeps its size |
 
-```plaintext
-  merge:    [a b] "g" [g h]            ──▶   [a b g h]          page freed, separator gone
+![Merge combines a b and g h into one page and frees the right page; borrow spreads g h i j k l between two pages and replaces the separator with i](/b-tree/mutations/borrow-merge.jpg)
 
-  borrow:   [a b] "g" [g h i j k l]    ──▶   [a b g h] "i" [i j k l]   separator replaced
-```
-
-Merge is the only operation that **frees pages**, and a merge can underfill the parent, so underflow travels up exactly as splits travel up in insert. Borrow ends the repair: no page count changes.
+That is all rebalancing means here: **either combine two pages into one, or redistribute entries between two pages and fix the separator.** Merge is the only operation that **frees pages**, and a merge can underfill the parent, so underflow travels up exactly as splits travel up in insert. Borrow ends the repair: no page count changes.
 
 The separator is handled differently for the two kinds of page, as in the split:
 
@@ -110,10 +87,7 @@ The separator is handled differently for the two kinds of page, as in the split:
 The helpers in `balance.go` (given) do that arithmetic: `canMerge`, `mergeNodes`, `redistribute`, and `removeChild`. Your job is the orchestration: which pair, which repair, which pages to write and free.
 
 > [!warn] Free the right page, once
-> A merge frees exactly one page: the right one. Free the wrong page, or free it before
-> the merged page is stored, or free it twice (the freelist then loops, as chapter 1
-> warned), and the tree and the freelist share a page. The test file's in-memory store
-> fails loudly on any use of a freed page.
+> A merge frees exactly one page: the right one. Free the wrong page, or free it before the merged page is stored, or free it twice (the freelist then loops, as chapter 1 warned), and the tree and the freelist share a page. The test file's in-memory store fails loudly on any use of a freed page.
 
 <!-- lang: go -->
 ### `TODO(5.2)` — `rebalance`
@@ -136,8 +110,8 @@ In `btreekv/btree/delete.py`. Prefer the left sibling when `i > 0`. Load both si
 In `src/btree/delete.cc`. Prefer the left sibling when `i > 0`. Load both sides. `CanMerge` → `MergeNodes`, free the right page, `RemoveChild`. Else `Redistribute` and store both. Always store the parent.
 <!-- /lang -->
 
-## Shrinking the tree
-<!-- mode: read-and-implement tasks:5.3 -->
+## Shrink and scan
+<!-- mode: read-and-implement tasks:5.3,5.4 -->
 
 ### The root is special
 
@@ -177,28 +151,15 @@ In `src/btree/delete.cc`: empty root or empty key → `false`. Call `DeleteRec`.
 <!-- /lang -->
 
 > [!tip] What a real engine does here
-> Many production B-trees do not merge on delete at all. They leave pages sparse and
-> merge lazily in a background vacuum (Postgres's `VACUUM` removes dead index entries
-> and recycles empty pages; it does not rebalance eagerly), because a merge on the write
-> path costs locking and I/O. Doing it inline keeps this engine small, and the tests
-> can then check that the tree really shrinks.
-
-## Range scans along the leaves
-<!-- mode: read-and-implement tasks:5.4 -->
+> Many production B-trees do not merge on delete at all. They leave pages sparse and merge lazily in a background vacuum (Postgres's `VACUUM` removes dead index entries and recycles empty pages; it does not rebalance eagerly), because a merge on the write path costs locking and I/O. Doing it inline keeps this engine small, and the tests can then check that the tree really shrinks.
 
 ### The reason leaves are linked
 
 A B+ tree keeps all the data in leaves, and every leaf knows its right neighbor. So an ordered scan needs the tree only **once**: to find the leaf where the range starts. From there it never goes back up.
 
-```plaintext
-  Scan("m", "t")
+![Scan("m", "t"): descend from the root to the leaf k m p once, then follow next links through q r s to t v w and stop at the end key](/b-tree/mutations/scan.jpg)
 
-  descend:       root ─▶ internal ─▶ leaf [k m p]        1 read per level, once
-  then follow:   leaf [k m p] ─▶ leaf [q r s] ─▶ leaf [t v w]     1 read per leaf
-                      ▲ skip k            end at "t" ──▶ stop
-```
-
-This is the other half of why databases use B+ trees rather than B-trees (which scatter data across internal nodes): `SELECT ... WHERE id BETWEEN 100 AND 200` is one descent plus a sequential walk. An LSM tree must merge every table to do the same.
+This is the other half of why databases use B+ trees rather than classic B-trees (which scatter data across internal nodes): `SELECT ... WHERE id BETWEEN 100 AND 200` is one descent plus a sequential walk. An LSM tree must merge every table to do the same.
 
 The range is **half-open**: `start` inclusive, `end` exclusive. A nil `start` means from the first key; a nil `end`, to the last.
 
@@ -215,9 +176,7 @@ In `internal/db/scan.go`. `Scan` holds the read lock already, so readers run alo
 `TestScanWalksTheLeafChain` counts page reads: a scan that goes back to the root for every leaf fails it. You will need to import `bytes`, `sort`, and the `btree` package.
 
 > [!scope] Callbacks and locks
-> `fn` runs while `Scan` holds the read lock, so it must not call `Put` or `Delete` (they
-> would wait for a lock their own caller holds). The keys and values it receives are
-> private copies, so keeping them is safe.
+> `fn` runs while `Scan` holds the read lock, so it must not call `Put` or `Delete` (they would wait for a lock their own caller holds). The keys and values it receives are private copies, so keeping them is safe.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(5.4)` — `scan`
@@ -230,8 +189,7 @@ In `btreekv/db/scan.py`. `SeekLeaf(start)`, then walk leaves via `next`. Skip ke
 In `src/db/scan.cc`. `SeekLeaf(start)`, then walk leaves via `next`. Skip keys `< start`; stop when `end` is non-empty and the key is `>= end`, or when `fn` returns false.
 <!-- /lang -->
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
@@ -277,12 +235,10 @@ Load a few thousand keys, then delete most of them and watch `stats`: the height
 
 The tests are strict about this. They run random inserts, overwrites, and deletes against a plain Go map and check the tree's invariants every few hundred operations. They delete everything and require an empty tree with every page freed. They crash and reopen, and they scan while another goroutine writes.
 
-> [!check] Before you finish
+> [!check] Before you move on
 > 1. Delete removes from a leaf and reports "underfull"; the parent repairs it.
-> 2. Merge frees a page and can underfill the parent; borrow only moves entries and replaces the separator.
+> 2. **Merge** frees a page and can underfill the parent; **borrow** only moves entries and replaces the separator.
 > 3. The tree shrinks only at the root, so it stays balanced.
 > 4. A scan descends once and then follows leaf links.
-
-### What you built
 
 A storage engine with the same shape as the one inside Postgres, SQLite, and InnoDB: a pager with a freelist and checksums, a B+ tree of pages, a write-ahead log with crash recovery, and a buffer pool with clock eviction that never writes a page ahead of its log. The next chapter measures it against the LSM tree you built in the other minor, with the same workloads and the same API.

@@ -3,8 +3,9 @@
 #include <stdexcept>
 namespace tinysh::exe {
 int WaitForeground(Shell& s, const std::vector<Proc>& procs) {
-  // TODO(4.3): WaitCmd each proc; return the last status.
+  // TODO(4.3)
   (void)s; (void)procs;
-  throw std::runtime_error("TODO(4.3): WaitForeground");
+  // TODO(4.3)
+  throw std::runtime_error("TODO(4.3)");
 }
 }

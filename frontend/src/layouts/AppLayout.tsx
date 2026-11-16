@@ -7,7 +7,6 @@ import { PlayChromeProvider } from '../context/PlayChromeContext';
 import { PLAYGROUNDS_PATH, SPARK_PLAYGROUND_PATH } from '../constants/playgrounds';
 import { MAJORS_PATH, PROJECTS_PATH } from '../constants/projects';
 import { MINORS_PATH } from '../constants/minors';
-import { MACHINE_CODING_PATH } from '../constants/machineCoding';
 import { PRICING_PATH } from '../constants/pricing';
 import { MONTHLY_PAPER_PATH } from '../constants/monthlyPaper';
 import { LEADERBOARD_PATH } from '../constants/leaderboard';
@@ -39,7 +38,6 @@ const PLAY_SUBROUTES = [
   PROJECTS_PATH,
   MAJORS_PATH,
   MINORS_PATH,
-  MACHINE_CODING_PATH,
   WHITEBOARD_PATH,
   SPARK_PLAYGROUND_PATH,
 ];
@@ -140,7 +138,7 @@ function AppLayoutInner(): React.JSX.Element {
         onClick={() => setNavOpen(false)}
       >
         <NavIcon name="track" />
-        <span>Track</span>
+        <span>Tracks</span>
       </NavLink>
       <NavLink
         to={PROJECTS_PATH}
@@ -149,14 +147,6 @@ function AppLayoutInner(): React.JSX.Element {
       >
         <NavIcon name="majors" />
         <span>Projects</span>
-      </NavLink>
-      <NavLink
-        to={MACHINE_CODING_PATH}
-        className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
-        onClick={() => setNavOpen(false)}
-      >
-        <NavIcon name="machine-coding" />
-        <span>Machine coding</span>
       </NavLink>
       <NavLink
         to={LEADERBOARD_PATH}

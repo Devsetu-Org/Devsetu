@@ -34,10 +34,8 @@ class Writer:
 
         When it returns under SyncMode.ALWAYS, the record is on disk.
         """
-        # TODO(2.2): encode r into self._buf (reuse it: clear then encode),
-        # write it with one self._f.write call, add the bytes written to
-        # self._size, and fsync (os.fsync) when self._mode is SyncMode.ALWAYS.
-        raise NotImplementedError("TODO(2.2): append")
+        # TODO(2.2)
+        raise NotImplementedError("TODO(2.2)")
 
     def size(self) -> int:
         """Number of bytes in the log."""

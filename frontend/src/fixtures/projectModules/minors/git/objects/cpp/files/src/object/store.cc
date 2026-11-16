@@ -66,12 +66,12 @@ std::string Store::PathFor(const Hash& h) const {
 
 Hash Store::Put(const std::string& typ, const std::vector<uint8_t>& content) {
   // TODO(1.2): Store::Put
-  throw std::runtime_error("TODO(1.2): Store::Put");
+  throw std::runtime_error("TODO(1.2)");
 }
 
 std::pair<std::string, std::vector<uint8_t>> Store::Get(const Hash& h) const {
   // TODO(1.2): Store::Get
-  throw std::runtime_error("TODO(1.2): Store::Get");
+  throw std::runtime_error("TODO(1.2)");
 }
 
 }  // namespace tinygit

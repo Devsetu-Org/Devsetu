@@ -1,0 +1,90 @@
+# Phase-0 spike for Projects shells: unprivileged code-lab box on labs-projects.
+# RuntimeDefault seccomp (no custom profile DaemonSet yet). NetworkPolicy: DNS +
+# same-namespace only — no public internet (package mirrors land later).
+#
+# Driven by ./deploy/eks/eks-projects.sh spike.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dl-projects-spike
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app.kubernetes.io/component: projects-lab
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dl-box-isolation
+  namespace: dl-projects-spike
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: box-projects
+  namespace: dl-projects-spike
+  labels: {app: projects-box}
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  hostname: projects-box
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  terminationGracePeriodSeconds: 5
+  nodeSelector:
+    devlabs.io/pool: projects
+  tolerations:
+    - key: devlabs.io/pool
+      value: projects
+      effect: NoSchedule
+  # Prefer the always-on base over elastic overflow (same idea as linuxBox.ts).
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: devlabs.io/tier
+                operator: In
+                values: ["base"]
+  containers:
+    - name: box
+      image: devsetu/projects-lab:v0.1
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+          ephemeral-storage: 1Gi
+        limits:
+          cpu: "1"
+          memory: 768Mi
+          ephemeral-storage: 4Gi
+      workingDir: /home/learner/work
+  restartPolicy: Always

@@ -9,13 +9,12 @@ namespace postings {
 const std::vector<Posting> Map::kEmpty{};
 
 void Map::Add(const std::string& term, uint32_t doc_id, uint32_t tf) {
-  // TODO(2.1): Find the insertion point on doc_id. If doc_id is present, replace
-  // tf. Otherwise insert Posting{doc_id, tf} so the list stays sorted by doc_id.
+  // TODO(2.1)
   (void)term;
   (void)doc_id;
   (void)tf;
   (void)terms_;
-  throw std::logic_error("TODO(2.1): Map::Add");
+  throw std::logic_error("TODO(2.1)");
 }
 
 std::vector<std::string> Map::Terms() const {

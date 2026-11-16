@@ -13,9 +13,8 @@ var Zero Hash
 
 // HashOf returns the SHA-1 of data.
 func HashOf(data []byte) Hash {
-	// TODO(1.1): sha1.Sum(data), copy into Hash, return it.
-	// Import crypto/sha1.
-	panic("TODO(1.1): HashOf")
+	// TODO(1.1)
+	panic("TODO(1.1)")
 }
 
 // Hex returns the 40-character lowercase hex encoding.

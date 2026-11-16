@@ -26,6 +26,6 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # python3 -m unittest
+make test     # pager acceptance tests for this chapter
 make run      # REPL on ./data.db: alloc | write n text | read n | free n | meta | quit
 ```

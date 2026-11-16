@@ -38,7 +38,7 @@ std::string NormPath(std::string rel) {
 
 void Add(const Repo& r, const std::string& rel_in) {
   // TODO(3.2): Add
-  throw std::runtime_error("TODO(3.2): Add");
+  throw std::runtime_error("TODO(3.2)");
 }
 
 }  // namespace tinygit

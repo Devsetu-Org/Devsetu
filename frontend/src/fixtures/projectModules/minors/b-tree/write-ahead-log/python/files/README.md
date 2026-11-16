@@ -12,6 +12,6 @@ btreekv/db/recover.py     recover_log / commit    <- TODO 3.4
 ## Running
 
 ```
-make test
+make test     # wal + recovery acceptance tests (not chapters 1–2)
 make run
 ```

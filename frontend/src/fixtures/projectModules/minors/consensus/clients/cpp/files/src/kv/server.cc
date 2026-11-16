@@ -2,10 +2,12 @@
 #include <stdexcept>
 namespace kv {
 void Server::Apply(int index, const std::string& command) {
-  throw std::runtime_error("TODO(5.2): Server::Apply");
+  // TODO(5.2)
+  throw std::runtime_error("TODO(5.2)");
 }
 ExecuteReply Server::Execute(const ExecuteArgs& args) {
-  throw std::runtime_error("TODO(5.3): Server::Execute");
+  // TODO(5.3)
+  throw std::runtime_error("TODO(5.3)");
 }
 std::string Server::Handle(const std::string& method, const std::string& data) {
   (void)method; (void)data;

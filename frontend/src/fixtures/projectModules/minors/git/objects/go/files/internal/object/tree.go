@@ -21,16 +21,14 @@ type TreeEntry struct {
 
 // EncodeTree serializes entries in Git tree format, sorted by name.
 func EncodeTree(entries []TreeEntry) ([]byte, error) {
-	// TODO(1.4): Copy and sort by Name. For each entry write "mode name\x00" + 20-byte hash.
-	// Reject empty names, names with / or NUL, and modes other than ModeFile/ModeTree.
-	// Imports: bytes, sort.
-	panic("TODO(1.4): EncodeTree")
+	// TODO(1.4)
+	panic("TODO(1.4)")
 }
 
 // DecodeTree parses a tree object body.
 func DecodeTree(content []byte) ([]TreeEntry, error) {
-	// TODO(1.4): Loop: mode until space, name until NUL, then 20 raw hash bytes.
-	panic("TODO(1.4): DecodeTree")
+	// TODO(1.4)
+	panic("TODO(1.4)")
 }
 
 // PutTree encodes and stores a tree.

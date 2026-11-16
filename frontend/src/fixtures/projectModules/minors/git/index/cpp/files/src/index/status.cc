@@ -81,7 +81,7 @@ std::vector<std::string> UniqueSorted(std::vector<std::string> v) {
 
 StatusBuckets Status(const Repo& r) {
   // TODO(3.3): Status
-  throw std::runtime_error("TODO(3.3): Status");
+  throw std::runtime_error("TODO(3.3)");
 }
 
 }  // namespace tinygit

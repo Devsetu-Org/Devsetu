@@ -323,7 +323,7 @@ $SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
       '**Client** mode leaves the driver on the host that ran spark-submit. **Cluster** mode puts the driver in a YARN container. An edge host that can disappear is a client-mode outage waiting to happen.',
       '**ACCEPTED** means the application is waiting for containers. The Spark UI often does not exist yet, so it cannot explain the wait.',
       'Queue placement is a platform rule. Raising the default queue to turn one job green takes that capacity from everyone else.',
-      '“It worked yesterday” is often another tenant’s backfill hitting a user limit. Killing their ApplicationMaster is a last resort the ticket has to allow.',
+      'When a team needs a lane that does not exist, you **design** the leaf — rebalance sibling capacities to 100 and `refreshQueues`. Borrowing production is not design.',
     ],
     sections: [
       {
@@ -409,33 +409,41 @@ $SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
         },
       },
       {
-        id: 'someone-else',
-        title: 'Someone else’s job changed yesterday',
+        id: 'design-queue',
+        title: 'Design a queue — do not borrow one',
         body: [
-          'The same submit, the same queue, the same jar. Yesterday it ran. Today it sits ACCEPTED. Nothing in the Spark UI explains it, because the Spark UI is not where tenant limits live.',
-          'Look at the scheduler page for that queue’s **user limit**, and at the applications already RUNNING in the queue. Another team’s backfill, started overnight, can hold the user or the queue at its cap. Your AM is queued behind a limit that did not exist yesterday afternoon. The cluster can have free nodes in other queues the whole time.',
-          'Free enough capacity, or move your submit to the queue it should have used. The backfill’s ApplicationMaster stays up unless the ticket says to kill it. Killing a neighbor to make your job fit is how a one-team delay becomes a two-team incident, and it does not fix the placement that will fail again tomorrow.',
+          'Placement into an existing leaf is Lab 2.3. This chapter’s capstone is the next step: a team that has **no** leaf yet. Adding the name to `root.queues` without rebalancing sibling percentages is illegal — CapacityScheduler refuses a root whose children sum past 100. `yarn rmadmin -refreshQueues` surfaces that math immediately.',
+          'The edit that matters lives on the ResourceManager host. The client’s copy of `capacity-scheduler.xml` is not what the scheduler reloads. Design the leaf, take capacity from a sibling the ticket allows you to shrink, set **maximum-capacity** and **user-limit-factor** so a single tenant can burst when the cluster is idle, keep production usable, refresh, then prove a submit in the new queue.',
+          'Pointing the new team’s wrapper at `production` “just for today” teaches the wrong lesson. The lasting path is a designed queue with honest capacity, not a borrowed lane.',
         ],
         bullets: [
-          'Compare the queue’s used capacity with the list of running applications and their users.',
-          'A container ask of heap plus overhead can exceed what the queue will still give, even when the queue looks “almost empty” in cores.',
-          'Write down the other application id. The explanation for your wait is their allocation.',
+          'Sibling capacities under root must sum to 100 before refreshQueues will accept the change.',
+          'user-limit-factor defaults to 1 — without raising it, one user is capped at the queue’s absolute share even when maximum-capacity is 100.',
+          'Edit the XML the ResourceManager reads, then refresh — a successful application id in the new leaf is the proof.',
         ],
+        code: {
+          language: 'shell',
+          filename: 'refresh-queues.sh',
+          code:
+            '# On ds-spark-01 after editing capacity-scheduler.xml\n' +
+            'yarn rmadmin -refreshQueues\n' +
+            'yarn queue -status analytics\n',
+        },
       },
       {
         id: 'yarn-close',
         title: 'What you are practicing',
         body: [
-          'This chapter’s labs take the Chapter 1 workload onto YARN and then break placement in the ways production breaks it. Same join, two deploy modes, and a written record of where the driver lived. Five questions that only the RM and NM can answer, checked against `yarn logs` and the node. A job stuck in the default queue while production has room. A client-mode driver on an edge host that disappears. A queue that filled up overnight because of somebody else’s backfill.',
+          'This chapter’s labs take the Chapter 1 workload onto YARN and then break placement in the ways production breaks it. Same join, two deploy modes, and a written record of where the driver lived. An UNHEALTHY NodeManager you verify on the host. A job stuck in the default queue while production has room. A client-mode driver on an edge host that disappears, then data that must live on a shared mount. Finally, designing a new capacity leaf instead of borrowing another team’s queue.',
         ],
         table: {
           headers: ['Lab', 'The shift'],
           rows: [
             ['Submit the same workload on YARN', 'Client mode and cluster mode, and which panels show containers and memory'],
-            ['Read the RM and NM as instruments', 'Five UI questions, two of them checked from logs and the node'],
-            ['Land in the right capacity queue', 'Leave the default queue. Leave its capacity alone'],
-            ['Client mode driver is on the wrong host', 'Cluster mode, then the edge host goes away and the job stays'],
-            ["Someone else's job changed yesterday", 'User limit and a backfill. Their AM stays unless the ticket allows it'],
+            ['Read the RM and NM as instruments', 'UNHEALTHY NodeManager, starved probe, verify the health report on the node'],
+            ['Land in the right capacity queue', 'Accepted in default: capacity math, then repair the lasting wrapper'],
+            ['Client mode driver is on the wrong host', 'Edge driver dies; cluster mode then needs shared-mount data'],
+            ['Design a queue for the analytics team', 'Add a leaf, rebalance to 100, refreshQueues, prove the run'],
           ],
         },
       },

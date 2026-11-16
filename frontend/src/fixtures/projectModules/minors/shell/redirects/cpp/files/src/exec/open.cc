@@ -10,9 +10,10 @@ void CloseAll(const std::vector<int>& files) {
 }
 
 int OpenOne(const std::string& dir, const ast::Redir& r) {
-  // TODO(3.2): Resolve r.file against dir. Open with trunc/append/read per Kind.
+  // TODO(3.2)
   (void)dir; (void)r;
-  throw std::runtime_error("TODO(3.2): OpenOne");
+  // TODO(3.2)
+  throw std::runtime_error("TODO(3.2)");
 }
 
 std::vector<int> OpenRedirs(const std::string& dir, const std::vector<ast::Redir>& redirs) {

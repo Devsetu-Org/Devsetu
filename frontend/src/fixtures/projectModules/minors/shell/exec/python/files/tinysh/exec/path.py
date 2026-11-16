@@ -17,9 +17,8 @@ def look_path(name: str, directory: str, env: list[str]) -> str:
     """LookPath finds an executable for name. Absolute or relative names that
     already contain a slash are checked relative to dir. Otherwise PATH is searched.
     """
-    # TODO(2.1): If name contains a path separator, resolve against dir when relative
-    # and check_exec it. Otherwise split PATH from env and try each directory.
-    raise NotImplementedError("TODO(2.1): look_path")
+    # TODO(2.1)
+    raise NotImplementedError("TODO(2.1)")
 
 
 def check_exec(path: str) -> str:

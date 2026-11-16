@@ -31,11 +31,9 @@ Writer::~Writer() {
 }
 
 void Writer::Append(const Record& r) {
-  // TODO(2.2): Encode r into buf_ (reuse it: clear then Encode), write it
-  // with one fwrite call, add the bytes written to size_, and fsync when
-  // mode_ is SyncMode::kAlways.
+  // TODO(2.2)
   (void)r;
-  throw std::logic_error("TODO(2.2): Append");
+  throw std::logic_error("TODO(2.2)");
 }
 
 void Writer::Close() {

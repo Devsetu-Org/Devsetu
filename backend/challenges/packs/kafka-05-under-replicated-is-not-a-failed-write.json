@@ -1,0 +1,39 @@
+{
+  "id": "kafka-05-under-replicated-is-not-a-failed-write",
+  "number": 834,
+  "finalized": true,
+  "title": "Under-Replicated Is Not a Failed Write",
+  "description": "**SITUATION:**\n\n`rider.dispatch` still accepts produces, but UnderReplicatedPartitions is non-zero — `kafka-2` is stopped. A panicked note says to elect a new leader by hand or drop min.ISR. Do not.\n\n**YOUR TASK:**\n\n1. Confirm produces to `rider.dispatch` still succeed and ISR is short while `kafka-2` is down.\n2. Switch the terminal to **kafka-2** and start the broker (`qb-broker start`).\n3. Wait until every `rider.dispatch` partition has ISR size 3.\n4. Leave `min.insync.replicas` and unclean leader election alone. Fill Investigation, then Submit.\n\n**SPEC:**\n\n- All three brokers accept clients.\n- Every `rider.dispatch` partition ISR size is 3.\n- `min.insync.replicas` is still 2; unclean election stays off.",
+  "difficulty": "L1",
+  "tags": ["kafka", "l1", "foundations", "multi-step-bug", "kafka-3", "kraft"],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": { "domainId": "platforms-engineer", "panelId": "kafka" },
+  "problemStatement": {
+    "hints": [
+      "On kafka-2: qb-broker start (or printf run > /var/lib/kafka/data/.lab-broker-wanted).",
+      "Do not lower min.insync.replicas. Do not enable unclean.leader.election.enable.",
+      "Wait for ISR=3 on every partition before Submit."
+    ],
+    "overview": "Under-Replicated Is Not a Failed Write",
+    "brief": "Under-Replicated Is Not a Failed Write",
+    "solution": "",
+    "idLabel": "05",
+    "theory": "",
+    "guide": "# QuickBite — URP ≠ failed produce\n\n`kafka-2` is stopped. Produces with `acks=all` can still succeed while min.ISR=2 and two replicas remain.\n\n## 1. See the plant\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --describe --topic rider.dispatch\nprintf 'k:v\\n' | kafka-console-producer.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --topic rider.dispatch --property parse.key=true --property key.separator=: \\\n  --producer-property acks=all\n```\n\n## 2. Bring kafka-2 back\n\nSwitch the terminal to **kafka-2**:\n\n```bash\nqb-broker start\nqb-broker status   # expect: run\n```\n\n## 3. Wait for full ISR\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --describe --topic rider.dispatch\n```\n\nEvery partition should show three ids in `Isr`. Do not run a manual preferred election. Do not change min.ISR.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": ["Planning for a Kafka cluster", "Procuring the brokers", "Starting the KRaft quorum", "Preparing the lab"]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": { "script": "grade.sh", "timeoutSeconds": 240 }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

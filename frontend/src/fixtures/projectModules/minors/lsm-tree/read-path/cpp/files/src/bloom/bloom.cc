@@ -15,6 +15,6 @@ uint64_t Hash(std::string_view key) {
   h ^= h >> 33; h *= 0xff51afd7ed558ccdull; h ^= h >> 33; h *= 0xc4ceb9fe1a85ec53ull; h ^= h >> 33;
   return h;
 }
-std::string Builder::Finish() { throw std::logic_error("TODO(4.1): Finish"); }
-bool MayContain(std::string_view, std::string_view) { throw std::logic_error("TODO(4.2): MayContain"); }
+std::string Builder::Finish() { throw std::logic_error("TODO(4.1)"); }
+bool MayContain(std::string_view, std::string_view) { throw std::logic_error("TODO(4.2)"); }
 }} 

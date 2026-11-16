@@ -19,7 +19,7 @@ from tinygit.repo import Repo
 def checkout(r: Repo, commit: Hash) -> None:
     """Materialize commit's tree into the worktree and update HEAD/index."""
     # TODO(4.3): checkout
-    raise NotImplementedError("TODO(4.3): checkout")
+    raise NotImplementedError("TODO(4.3)")
 
 
 def checkout_branch(r: Repo, branch: str) -> None:

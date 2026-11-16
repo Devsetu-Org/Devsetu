@@ -19,7 +19,7 @@ class Change:
 def tree_diff(s: Store, a: Hash, b: Hash) -> list[Change]:
     """Compare two trees into a sorted change list."""
     # TODO(5.2): tree_diff
-    raise NotImplementedError("TODO(5.2): tree_diff")
+    raise NotImplementedError("TODO(5.2)")
 
 
 def flatten(s: Store, tree: Hash, prefix: str) -> dict[str, Hash]:

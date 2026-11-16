@@ -34,13 +34,13 @@ func (s *Shell) runBuiltin(argv []string) (status int, ok bool) {
 }
 
 func (s *Shell) builtinCd(args []string) int {
-	// TODO(2.3): Resolve the directory (HOME when no args), Stat it, set s.Dir.
-	panic("TODO(2.3): builtinCd")
+	// TODO(2.3)
+	panic("TODO(2.3)")
 }
 
 func (s *Shell) builtinExit(args []string) int {
-	// TODO(2.3): Parse an optional numeric code, call s.setExit, return the code.
-	panic("TODO(2.3): builtinExit")
+	// TODO(2.3)
+	panic("TODO(2.3)")
 }
 
 var _ = os.ErrNotExist

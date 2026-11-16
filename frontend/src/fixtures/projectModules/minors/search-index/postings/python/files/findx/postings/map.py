@@ -18,12 +18,10 @@ class Map:
         If the term already has an entry for doc_id, TF is replaced (not summed).
         Lists stay sorted by doc_id.
         """
-        # TODO(2.1): Find the insertion point with bisect on doc_id. If doc_id is
-        # present, replace tf. Otherwise insert Posting(doc_id, tf) so the list
-        # stays sorted by doc_id.
+        # TODO(2.1)
         _ = bisect.bisect_left
         _ = Posting
-        raise NotImplementedError("TODO(2.1): Map.add")
+        raise NotImplementedError("TODO(2.1)")
 
     def terms_sorted(self) -> List[str]:
         return sorted(self.terms.keys())

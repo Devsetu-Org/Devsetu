@@ -24,10 +24,10 @@ std::string EnvGet(const std::vector<std::string>& env, const std::string& key) 
 
 std::string LookPath(const std::string& name, const std::string& dir,
                      const std::vector<std::string>& env) {
-  // TODO(2.1): If name contains '/', resolve against dir when relative and CheckExec.
-  // Otherwise split PATH from env and try each directory.
+  // TODO(2.1)
   (void)name; (void)dir; (void)env; (void)CheckExec;
-  throw std::runtime_error("TODO(2.1): LookPath");
+  // TODO(2.1)
+  throw std::runtime_error("TODO(2.1)");
 }
 
 }  // namespace tinysh::exe

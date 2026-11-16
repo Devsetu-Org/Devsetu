@@ -25,16 +25,6 @@ func Replay(path string, fn func(r Record, end int64) error) (good int64, err er
 
 // scan walks the records in data, the whole log, in order.
 func scan(data []byte, fn func(r Record, end int64) error) (good int64, err error) {
-	// TODO(3.3): Loop forever over data. rest := data[good:]. If len(rest) < headerSize,
-	// return good, nil.
-	// Read sum from rest[0:4] and n from rest[4:8] (binary.LittleEndian.Uint32).
-	// If n > maxRecordSize, or headerSize+n runs past the end of rest, stop.
-	// payload := rest[headerSize:headerSize+n]. If crc32.Checksum(payload,
-	// crcTable) != sum, stop. r, err := decodePayload(payload); if it fails,
-	// stop. "Stop" always means return good, nil.
-	// Call fn(r, end) with end := good + headerSize + n; if it errors, return
-	// good, err. Then good = end.
-	//
-	// You will need to import encoding/binary and hash/crc32.
-	panic("TODO(3.3): scan")
+	// TODO(3.3)
+	panic("TODO(3.3)")
 }

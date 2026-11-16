@@ -24,10 +24,8 @@ class Writer:
 
     def append(self, *recs: Record) -> None:
         """Write recs to the end of the log as one batch."""
-        # TODO(3.2): Clear self._buf, encode each record into it, write the
-        # whole buffer once with os.write(self._fd, ...), add the bytes written
-        # to self._size. Under SyncMode.ALWAYS, call self.sync().
-        raise NotImplementedError("TODO(3.2): append")
+        # TODO(3.2)
+        raise NotImplementedError("TODO(3.2)")
 
     def sync(self) -> None:
         os.fsync(self._fd)

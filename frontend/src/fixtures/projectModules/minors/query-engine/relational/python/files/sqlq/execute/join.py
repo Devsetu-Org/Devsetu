@@ -29,6 +29,5 @@ def NewNestedLoop(left, right, on_l, on_r) -> NestedLoop:
 
 
 def nested_loop_next(n: NestedLoop):
-    # TODO(5.2): For each left row, try every right row. Concatenate the columns.
-    # Keep the pair when Eval(on_l) and Eval(on_r) have the same type and the same value.
-    raise NotImplementedError("TODO(5.2): NestedLoop.Next")
+    # TODO(5.2) — NestedLoop.Next
+    raise NotImplementedError("TODO(5.2)")

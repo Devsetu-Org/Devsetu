@@ -20,7 +20,6 @@ func NewNestedLoop(left Iter, right []Row, onL, onR parse.Expr) *NestedLoop {
 
 // Next returns the next joined row.
 func (n *NestedLoop) Next() (Row, bool, error) {
-	// TODO(5.2): For each left row, try every right row. Concatenate the columns.
-	// Keep the pair when Eval(OnL) and Eval(OnR) have the same type and the same value.
-	panic("TODO(5.2): NestedLoop.Next")
+	// TODO(5.2) — NestedLoop.Next
+	panic("TODO(5.2)")
 }

@@ -55,10 +55,9 @@ def wire_pipes(s, pl: Pipeline):
             s.printf_err("%s: %s\n", cmd.argv[0], e)
             return None, 127
         return [Proc(cmd=c, files=files)], -1
-    # TODO(4.2): For n > 1, create os.pipe between neighbours, start_cmd each stage,
-    # close unused pipe ends in the parent, and return the procs.
+    # TODO(4.2)
     _ = os.pipe
-    raise NotImplementedError("TODO(4.2): wire_pipes")
+    raise NotImplementedError("TODO(4.2)")
 
 
 def cleanup_pipes(pipes) -> None:

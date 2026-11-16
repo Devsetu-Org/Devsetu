@@ -16,6 +16,7 @@ std::pair<std::string, bool> Clerk::Get(const std::string& key) {
   return {r.value, r.found};
 }
 Result Clerk::Do(Op op) {
-  throw std::runtime_error("TODO(5.4): Clerk::Do");
+  // TODO(5.4)
+  throw std::runtime_error("TODO(5.4)");
 }
 }  // namespace kv

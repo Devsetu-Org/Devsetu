@@ -1,0 +1,61 @@
+{
+  "id": "spark-15-driver-and-executor-pods-on-kubernetes",
+  "number": 829,
+  "finalized": true,
+  "title": "Driver and Executor Pods on Kubernetes",
+  "description": "**SITUATION:**\n\nQuickBite moved store-rollup onto **Spark on Kubernetes**. Same join job as Chapters 1–2 — the resource manager is now the cluster API. Your submit client is `shell`. Driver and executors are **pods** in `$SPARK_K8S_NS` (the team namespace).\n\nSetup planted `~/lab/submit-store-rollup-k8s.sh` with executor resources still commented out. Finish the wrapper, submit in **cluster** mode, watch the driver and executor pods, kill one executor and wait for a replacement, and prove the driver reaches **Succeeded**.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Confirm kubectl can create pods in `$SPARK_K8S_NS`.\n2. Change `spark.executor.instances` from `0` to `2` in `~/lab/submit-store-rollup-k8s.sh` (keep 512m / 1 core).\n3. Run the wrapper. Use `kubectl get pods -n $SPARK_K8S_NS -o wide` to map driver and executors.\n4. Delete one running executor pod; wait for a replacement; wait for Succeeded.\n5. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Wrapper sets `spark.executor.instances=2`, cores `1`, memory `512m`.\n- A `store-rollup-k8s-…` driver pod reaches **Succeeded**.\n- Investigation: resource manager is Kubernetes, deploy mode cluster, killed executor was replaced.\n",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "kubernetes",
+    "l0",
+    "orientation",
+    "spark-k8s"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "kubectl get pods -n $SPARK_K8S_NS -o wide — node name is on the pod row (no kubectl get nodes in this lab).",
+      "Uncomment the executor TODO block in ~/lab/submit-store-rollup-k8s.sh.",
+      "kubectl delete pod <exec> -n $SPARK_K8S_NS — Spark should replace it without a resubmit.",
+      "Fill Investigation before Submit."
+    ],
+    "overview": "Driver and Executor Pods on Kubernetes",
+    "brief": "Driver and Executor Pods on Kubernetes",
+    "solution": "",
+    "idLabel": "15",
+    "theory": "",
+    "guide": "# QuickBite — Driver and executor pods on Kubernetes\n\nKubernetes schedules the driver and executor pods. `shell` is only the submit client.\n\n1. Finish `~/lab/submit-store-rollup-k8s.sh` (2×1×256m).\n2. Submit; watch pods with `kubectl get pods -n $SPARK_K8S_NS -o wide`.\n3. Delete one executor; wait for replacement and Succeeded.\n4. Investigation, then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-k8s",
+    "daemonMode": "auto",
+    "chapter": "kubernetes",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your Kubernetes Spark lab",
+      "phases": [
+        "Creating your Kubernetes Spark namespace",
+        "Pulling the Spark-on-K8s image",
+        "Using the cached Spark-on-K8s image",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking the K8s submit wrapper, Succeeded driver, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

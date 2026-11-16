@@ -22,9 +22,7 @@ def parse(q: str) -> Query:
     splits OR-groups. Each group is analyzed with the same analyzer as documents;
     empty groups after analysis are dropped.
     """
-    # TODO(4.1): Split q on whitespace into fields. Treat a field equal to "OR"
-    # as a group separator (not analyzed). Join each group's fields with spaces,
-    # run analyze, skip empty results, and return Query(groups=...).
+    # TODO(4.1)
     _ = analyze
     _ = q
-    raise NotImplementedError("TODO(4.1): parse")
+    raise NotImplementedError("TODO(4.1)")

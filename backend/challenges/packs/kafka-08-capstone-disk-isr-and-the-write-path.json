@@ -1,0 +1,39 @@
+{
+  "id": "kafka-08-capstone-disk-isr-and-the-write-path",
+  "number": 837,
+  "finalized": true,
+  "title": "Capstone: Disk, ISR, and the Write Path",
+  "description": "**SITUATION:**\n\nSome `rider.dispatch` partitions reject writes. The dispatch-desk consumer group is behind on those same partitions. `kafka-1`'s log directory is full (leftover `debug.dump`). Ticket shortcuts say: min.ISR=1, unclean election, or reset the group to latest. All wrong.\n\n**YOUR TASK:**\n\n1. Free disk on **kafka-1** (delete `debug.dump`) so leaders there can accept writes again — or let caught-up replicas take over after the broker recovers.\n2. Let the `dispatch-desk` group drain lag by **reading** — do not reset offsets to latest.\n3. Leave min.ISR at 2; unclean election off. Fill Investigation, then Submit.\n\n**SPEC:**\n\n- `debug.dump` gone; brokers up; produces to `rider.dispatch` succeed.\n- `dispatch-desk` lag is 0 (or near-zero) without a reset-to-latest.\n- min.ISR still 2; unclean election off.",
+  "difficulty": "L2",
+  "tags": ["kafka", "l2", "foundations", "capstone", "kafka-3", "kraft"],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": { "domainId": "platforms-engineer", "panelId": "kafka" },
+  "problemStatement": {
+    "hints": [
+      "Delete debug.dump; wait for kafka-1 disk and ISR to recover.",
+      "Start or resume the dispatch-desk consumer so lag falls by reading.",
+      "Do not --reset-offsets --to-latest. Do not drop min.ISR."
+    ],
+    "overview": "Capstone: Disk, ISR, and the Write Path",
+    "brief": "Capstone: Disk, ISR, and the Write Path",
+    "solution": "",
+    "idLabel": "08",
+    "theory": "",
+    "guide": "# Capstone — disk + ISR + stuck consume\n\n## 1. Free the leader disk\n\nOn **kafka-1** / from the shell:\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --delete --topic debug.dump\n```\n\nWait until produces to `rider.dispatch` succeed again.\n\n## 2. Drain lag by reading\n\nA helper consumer is available:\n\n```bash\n~/bin/drain-dispatch-desk.sh\n```\n\nOr consume as group `dispatch-desk` until lag is 0. Do **not** reset to latest.\n\n## 3. Refuse the shortcuts\n\nNo min.ISR=1. No unclean election. No `--to-latest`.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "capstone",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": ["Planning for a Kafka cluster", "Procuring the brokers", "Starting the KRaft quorum", "Preparing the lab"]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": { "script": "grade.sh", "timeoutSeconds": 360 }
+  },
+  "visibleTo": "users",
+  "tokens": 20
+}

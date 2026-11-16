@@ -68,13 +68,10 @@ Record DecodePayload(const uint8_t* p, size_t len) {
 }
 
 void Encode(std::vector<uint8_t>* dst, const Record& r) {
-  // TODO(3.1): Remember start = dst->size(), append kWalHeaderSize zero bytes,
-  // AppendPayload(dst, r). Payload is (*dst)[start+kWalHeaderSize..]. Write
-  // Crc32c(payload) and len(payload) as little-endian uint32 into the header.
-  // Do not touch bytes before start.
+  // TODO(3.1)
   (void)dst;
   (void)r;
-  throw std::logic_error("TODO(3.1): Encode");
+  throw std::logic_error("TODO(3.1)");
 }
 
 Record MetaRecord(uint32_t root, uint32_t page_count, uint32_t free_head) {

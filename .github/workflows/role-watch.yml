@@ -1,0 +1,39 @@
+# Recheck data-platform career boards once a day and commit status changes.
+# Pushes only data/platform-roles.json. Deploy ignores that path, so this
+# does not ship a new app release.
+
+name: Role watch
+
+on:
+  schedule:
+    # 08:00 IST
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: role-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+      - run: node scripts/role-watch/run.mjs --self-check
+      - run: node scripts/role-watch/run.mjs
+      - name: Commit snapshot
+        run: |
+          git add data/platform-roles.json
+          if git diff --cached --quiet; then
+            echo "No role changes"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Update the data platform role snapshot"
+          git push

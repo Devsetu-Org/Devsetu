@@ -95,11 +95,36 @@ const SPARK_2_TRACE = [
     clusterUi: 'http://shell:4040',
   },
 ];
+/** Kafka Lab 1: ZooKeeper era — ZK + three classic brokers + shell. */
+const KAFKA_ZK_3 = [
+  { id: 'shell', label: 'shell', role: 'shell' as const, ui: '', clusterUi: '' },
+  { id: 'zookeeper', label: 'zookeeper', role: 'zookeeper' as const, ui: '', clusterUi: '' },
+  { id: 'kafka-0', label: 'kafka-0', role: 'broker' as const, ui: '', clusterUi: '' },
+  { id: 'kafka-1', label: 'kafka-1', role: 'broker' as const, ui: '', clusterUi: '' },
+  { id: 'kafka-2', label: 'kafka-2', role: 'broker' as const, ui: '', clusterUi: '' },
+];
+/** Kafka KRaft foundations (Lab 2+): shell + three combined brokers. */
+const KAFKA_3 = [
+  { id: 'shell', label: 'shell', role: 'shell' as const, ui: '', clusterUi: '' },
+  { id: 'kafka-0', label: 'kafka-0', role: 'broker' as const, ui: '', clusterUi: '' },
+  { id: 'kafka-1', label: 'kafka-1', role: 'broker' as const, ui: '', clusterUi: '' },
+  { id: 'kafka-2', label: 'kafka-2', role: 'broker' as const, ui: '', clusterUi: '' },
+];
 type SparkLabNode =
   | (typeof SPARK_NODES)[number]
   | (typeof YARN_2)[number]
-  | (typeof SPARK_2_TRACE)[number];
+  | (typeof SPARK_2_TRACE)[number]
+  | (typeof KAFKA_ZK_3)[number]
+  | (typeof KAFKA_3)[number];
 const SPARK_LAB_NODES: Record<string, SparkLabNode[]> = {
+  'kafka-01-stand-up-the-cluster-and-find-everything-on-disk': KAFKA_ZK_3,
+  'kafka-02-open-a-topic-the-platform-way': KAFKA_3,
+  'kafka-03-trace-a-produce-from-client-to-last-replica': KAFKA_3,
+  'kafka-04-the-partition-and-replica-map': KAFKA_3,
+  'kafka-05-under-replicated-is-not-a-failed-write': KAFKA_3,
+  'kafka-06-min-isr-is-why-produces-fail': KAFKA_3,
+  'kafka-07-segments-retention-and-why-disk-fills': KAFKA_3,
+  'kafka-08-capstone-disk-isr-and-the-write-path': KAFKA_3,
   'spark-01-stand-up-the-cluster-and-find-everything-on-disk': SPARK_2,
   'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments': SPARK_2,
   'spark-03-trace-a-job-from-submission-to-last-task': SPARK_2_TRACE,
@@ -107,7 +132,8 @@ const SPARK_LAB_NODES: Record<string, SparkLabNode[]> = {
   'spark-05-the-executor-memory-map': SPARK_2,
   'spark-06-diagnose-an-executor-lost-to-memory-pressure': SPARK_2,
   'spark-07-the-capstone-bug-slow-then-dead': SPARK_2,
-  'spark-08-drain-a-worker-without-breaking-anything': SPARK_2,
+  'spark-08-post-maintenance-mess': SPARK_2,
+  'spark-14-dns-memory-and-disk-triple': SPARK_2,
   'spark-09-submit-the-same-workload-on-yarn': YARN_2,
 };
 
@@ -117,6 +143,8 @@ function sparkUiKindLabel(role: SparkLabNode['role']): string {
   if (role === 'shell') return 'Submit client';
   if (role === 'driver') return 'Application UI';
   if (role === 'master') return 'Master UI';
+  if (role === 'broker') return 'Broker';
+  if (role === 'zookeeper') return 'ZooKeeper';
   return 'Worker UI';
 }
 
@@ -134,9 +162,17 @@ function sparkShellNodes(nodes: SparkLabNode[]): SparkLabNode[] {
   return nodes.filter((node) => node.role !== 'driver');
 }
 
-/** Pulse map — Master + Workers only (shell is a submit client, not a cluster node). */
+/** Pulse map — cluster daemons only (shell is a submit client, not a cluster node). */
 function sparkDiagramNodes(nodes: SparkLabNode[]): SparkLabNode[] {
-  return nodes.filter((node) => node.role === 'master' || node.role === 'worker' || node.role === 'rm' || node.role === 'nm');
+  return nodes.filter(
+    (node) =>
+      node.role === 'master'
+      || node.role === 'worker'
+      || node.role === 'rm'
+      || node.role === 'nm'
+      || node.role === 'broker'
+      || node.role === 'zookeeper',
+  );
 }
 
 function SparkUiChoice({
@@ -1745,14 +1781,16 @@ export default function K8sLabWorkspace({
                           selected={sparkNode}
                           onPick={openSparkShell}
                         />
-                        <button
-                          type="button"
-                          className="spark-node-ui"
-                          disabled={!session.id || session.id.startsWith('pending-')}
-                          onClick={() => setSparkUiAsk(true)}
-                        >
-                          Open the UI
-                        </button>
+                        {sparkUiNodes(sparkNodes).length > 0 ? (
+                          <button
+                            type="button"
+                            className="spark-node-ui"
+                            disabled={!session.id || session.id.startsWith('pending-')}
+                            onClick={() => setSparkUiAsk(true)}
+                          >
+                            Open the UI
+                          </button>
+                        ) : null}
                       </div>
                       <div className="k8s-lab-term-stack">
                         {shellNodes.map((id) => (

@@ -18,13 +18,13 @@ class HEAD:
 def read_head(r: Repo) -> HEAD:
     """Read .tinygit/HEAD."""
     # TODO(2.2): read_head
-    raise NotImplementedError("TODO(2.2): read_head")
+    raise NotImplementedError("TODO(2.2)")
 
 
 def resolve_head(r: Repo) -> Hash:
     """Return the commit hash HEAD currently names."""
     # TODO(2.2): resolve_head
-    raise NotImplementedError("TODO(2.2): resolve_head")
+    raise NotImplementedError("TODO(2.2)")
 
 
 def write_symbolic_head(r: Repo, name: str) -> None:

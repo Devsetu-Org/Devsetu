@@ -5,17 +5,15 @@ import "github.com/devlabs/findx/internal/postings"
 // Intersect returns doc ids that appear in every list. Lists must be sorted by
 // DocID. The result is sorted and deduplicated.
 func Intersect(lists [][]postings.Posting) []uint32 {
-	// TODO(4.2): If lists is empty or any list is empty, return nil. Convert each
-	// list to doc ids and pairwise intersect with two pointers (advance the
-	// smaller id; on equal, emit and advance both).
-	panic("TODO(4.2): Intersect")
+	// TODO(4.2)
+	panic("TODO(4.2)")
 }
 
 // Union returns doc ids that appear in any list. Lists must be sorted by DocID.
 // The result is sorted and deduplicated.
 func Union(lists [][]postings.Posting) []uint32 {
-	// TODO(4.3): Pairwise union with two pointers. On equal ids emit once.
-	panic("TODO(4.3): Union")
+	// TODO(4.3)
+	panic("TODO(4.3)")
 }
 
 func docIDs(list []postings.Posting) []uint32 {

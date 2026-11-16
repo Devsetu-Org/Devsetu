@@ -24,8 +24,6 @@ type Stats struct {
 // Merge does not call w.Finish; the caller does, after checking the inputs
 // for read errors.
 func Merge(inputs []iterator.Iterator, w *sstable.Writer, dropTombstones bool) (Stats, error) {
-	// TODO(5.1): merge inputs with iterator.NewMerging and walk it from the
-	// first key. Skip (and count) tombstones when dropTombstones is set; Add
-	// every other entry to w and count it. Return the first Add error.
-	panic("TODO(5.1): Merge")
+	// TODO(5.1)
+	panic("TODO(5.1)")
 }

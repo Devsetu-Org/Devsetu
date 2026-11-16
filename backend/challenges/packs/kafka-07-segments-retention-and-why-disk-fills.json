@@ -1,0 +1,39 @@
+{
+  "id": "kafka-07-segments-retention-and-why-disk-fills",
+  "number": 836,
+  "finalized": true,
+  "title": "Segments, Retention, and Why Disk Fills",
+  "description": "**SITUATION:**\n\n`kafka-1` keeps leaving the ISR. Its log directory is full: leftover `debug.dump` with retention off, plus `order.status` left on keep-forever. The hot path `rider.dispatch` is fine — leave it alone unless a ticket says otherwise.\n\n**YOUR TASK:**\n\n1. Find what is filling `/var/lib/kafka/data` on **kafka-1**.\n2. Free disk the platform way: delete `debug.dump`, put `order.status` on a finite retention with cleanup.policy=delete (or compact only if it is a status changelog — here use delete + 7d for this lab's plant).\n3. Wait until `kafka-1` rejoins ISR for live topics. Fill Investigation, then Submit.\n\n**SPEC:**\n\n- `debug.dump` is gone.\n- `order.status` has finite retention (7d) and is not keep-forever.\n- `rider.dispatch` unchanged (6 parts, RF 3, min.ISR 2, retention 7d).\n- Disk pressure relieved; brokers accept clients.",
+  "difficulty": "L1",
+  "tags": ["kafka", "l1", "foundations", "multi-step-bug", "kafka-3", "kraft"],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": { "domainId": "platforms-engineer", "panelId": "kafka" },
+  "problemStatement": {
+    "hints": [
+      "On kafka-1: df -h /var/lib/kafka/data; du -sh /var/lib/kafka/data/*",
+      "kafka-topics.sh --delete --topic debug.dump",
+      "kafka-configs.sh --alter --entity-type topics --entity-name order.status --add-config retention.ms=604800000,cleanup.policy=delete"
+    ],
+    "overview": "Segments, Retention, and Why Disk Fills",
+    "brief": "Segments, Retention, and Why Disk Fills",
+    "solution": "",
+    "idLabel": "07",
+    "theory": "",
+    "guide": "# QuickBite — segments and retention\n\n`kafka-1` log dir is tiny and full.\n\n## 1. Inspect on kafka-1\n\n```bash\ndf -h /var/lib/kafka/data\ndu -sh /var/lib/kafka/data/* | sort -h\n```\n\n## 2. Free disk\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --delete --topic debug.dump\n\nkafka-configs.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --alter --entity-type topics --entity-name order.status \\\n  --add-config retention.ms=604800000,cleanup.policy=delete\n```\n\nLeave `rider.dispatch` alone.\n\n## 3. delete vs compact\n\n- **delete** — drops old segments by time/size; history goes away on purpose.\n- **compact** — keeps latest per key (status changelogs). You cannot un-delete what compaction removed.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": ["Planning for a Kafka cluster", "Procuring the brokers", "Starting the KRaft quorum", "Preparing the lab"]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": { "script": "grade.sh", "timeoutSeconds": 300 }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

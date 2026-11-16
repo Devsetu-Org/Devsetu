@@ -36,20 +36,6 @@ class Clerk:
 
     def do(self, op: Op) -> Result:
         # ── TODO(5.4) — find the leader and keep asking ────────────────────────
-        #
-        # Stamp the op once: self.seq += 1; op.client_id = self.id; op.seq = self.seq.
-        # Every retry sends THIS op unchanged.
-        #
-        # Until timeout: call self.ends[self.leader].call("KV.Execute",
-        # ExecuteArgs(op=op)) with a fresh reply.
-        #
-        #  - Call returned True and reply.err == "": done.
-        #  - Anything else: pick the next server. Follow reply.leader when the
-        #    server gave a valid hint, unless that server just failed. Otherwise
-        #    move round-robin.
-        #  - After a full lap of failures, sleep ~0.025s.
-        #
-        # When the deadline passes, raise ErrUnavailable.
         raise NotImplementedError(
             "TODO(5.4): Clerk.do — retry the same (client_id, seq) across servers"
         )

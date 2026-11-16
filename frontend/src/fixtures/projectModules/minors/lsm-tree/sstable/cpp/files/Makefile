@@ -13,18 +13,6 @@ HDRS := $(wildcard src/*/*.h) tests/check.h
 
 .PHONY: test asan run clean
 
-build/memtable_test: tests/memtable_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/memtable_test.cc $(LIB_SRCS)
-
-build/wal_test: tests/wal_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/wal_test.cc $(LIB_SRCS)
-
-build/db_test: tests/db_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/db_test.cc $(LIB_SRCS)
-
 build/sstable_test: tests/sstable_test.cc $(LIB_SRCS) $(HDRS)
 	@mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/sstable_test.cc $(LIB_SRCS)
@@ -37,10 +25,8 @@ build/lsmkv: cmd/lsmkv/main.cc $(LIB_SRCS) $(HDRS)
 	@mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ cmd/lsmkv/main.cc $(LIB_SRCS)
 
-test: build/memtable_test build/wal_test build/db_test build/sstable_test build/flush_test
-	./build/memtable_test
-	./build/wal_test
-	./build/db_test
+# This chapter: SSTable + flush only.
+test: build/sstable_test build/flush_test
 	./build/sstable_test
 	./build/flush_test
 

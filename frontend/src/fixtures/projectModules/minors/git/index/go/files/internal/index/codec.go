@@ -24,17 +24,14 @@ type Index struct {
 
 // Encode serializes the index to the custom text format.
 func Encode(idx Index) ([]byte, error) {
-	// TODO(3.1): Header "TINYIDX 1\n". Sort entries by Path.
-	// Each line: path\tmode\thash\n. Reject paths with newline or tab.
-	// Imports: fmt, sort, strings.
-	panic("TODO(3.1): Encode")
+	// TODO(3.1)
+	panic("TODO(3.1)")
 }
 
 // Decode parses an index file body.
 func Decode(data []byte) (Index, error) {
-	// TODO(3.1): Parse header, then tab-separated lines into Entries.
-	// Imports: bufio, fmt, strings.
-	panic("TODO(3.1): Decode")
+	// TODO(3.1)
+	panic("TODO(3.1)")
 }
 
 // Load reads the index from disk; missing file yields an empty index.

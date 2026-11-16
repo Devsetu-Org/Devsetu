@@ -13,16 +13,15 @@ import K8sLabWorkspace, {
 } from '../components/K8sLabWorkspace';
 import {
   LeaderboardIcon,
-  PrimerGuideIcon,
   RoadmapIcon,
   StatusBookIcon,
 } from '../components/TrackStatusIcons';
 import TrackLeaderboardModal from '../components/TrackLeaderboardModal';
 import MonthlyPaperCard, { MonthlyPaperBanner } from '../components/MonthlyPaperCard';
 import PlatformLeaderboardCard from '../components/PlatformLeaderboardCard';
-import TrackIntroModal from '../components/TrackIntroModal';
 import TrackRoadmapModal from '../components/TrackRoadmapModal';
 import PlayChapterShelf from '../components/PlayChapterShelf';
+import DevsetuLoader from '../components/DevsetuLoader';
 import { buildPanelRoadmapNodes } from '../lib/trackRoadmapNodes';
 import { IconCoins, IconLock } from '../components/ChromeIcons';
 import {
@@ -38,19 +37,11 @@ import {
   type PlayPanel,
 } from '../constants/playCatalog';
 import { WHITEBOARD_ENABLED, WHITEBOARD_PATH } from '../constants/whiteboard';
-import { SPARK_PRIMER_PATH } from '../constants/sparkPrimer';
-import { K8S_PRIMER_PATH } from '../constants/k8sPrimer';
 import type { K8sTrackItem } from '../constants/k8sReadings';
 import { readingTrackForPanel } from '../constants/readingTracks';
 import type { ChallengePublic } from '../types/domain';
 import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi';
 import { visibilityMark } from '../constants/roles';
-
-function panelPrimerPath(domainId: string, panelId: string): string | null {
-  if (domainId === 'data-engineer' && panelId === 'spark') return SPARK_PRIMER_PATH;
-  if (domainId === 'devops-engineer' && panelId === 'kubernetes') return K8S_PRIMER_PATH;
-  return null;
-}
 
 function panelLabCount(panel: PlayPanel): number {
   return panel.challengeIds.length;
@@ -129,12 +120,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   const params = useParams<{ domainId?: string; panelId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [kindFilter, setKindFilter] = useState<KindFilter>(
-    params.panelId === 'introduction' ? 'blog' : 'lab',
-  );
+  const [kindFilter, setKindFilter] = useState<KindFilter>('lab');
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
-  const [introOpen, setIntroOpen] = useState(false);
 
   const domainId =
     isPlayDomainId(params.domainId) && !getPlayDomain(params.domainId)?.comingSoon
@@ -162,7 +150,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
     const readingsOnly =
       panel.challengeIds.length === 0 && Boolean(readingTrackForPanel(domainId, panel.id));
     setKindFilter(readingsOnly ? 'blog' : 'lab');
-    setIntroOpen(false);
   }, [panel, domainId]);
 
   const byId = useMemo(() => {
@@ -197,9 +184,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
 
   const activeTopicId = panel?.id || null;
   const showLabList = Boolean(domainId && panel);
-  const labsToggleDisabled = panel?.id === 'introduction';
-  const primerPath = panel && domainId ? panelPrimerPath(domainId, panel.id) : null;
-
   const roadmapNodes = useMemo(() => {
     if (!panel) return [];
     return buildPanelRoadmapNodes(panel, readingTrack, byId);
@@ -450,7 +434,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         {p.subtitle && <p className="project-tile-subtitle">{p.subtitle}</p>}
                         <p className="playground-tile-blurb">{p.tileBlurb ?? p.blurb}</p>
                         <span className="playground-tile-cta">
-                          {p.label === 'Introduction' ? 'Start here' : `Start ${p.label} here`}
+                          Start {p.label} here
                           <span aria-hidden>→</span>
                         </span>
                       </Link>
@@ -470,7 +454,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       <strong className="play-paper-section-title">{p.label}</strong>
                       <p className="play-paper-section-blurb">{p.blurb}</p>
                       <span className="play-paper-section-cta">
-                        {p.label === 'Introduction' ? 'Start here' : `Start ${p.label} here`}
+                        Start {p.label} here
                         <span aria-hidden>→</span>
                       </span>
                     </Link>
@@ -487,25 +471,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 <div className="play-hub-title-row">
                   <h2 className="play-hub-title">{panel.label}</h2>
                   <div className="play-hub-title-actions">
-                    {primerPath && (
-                      <Link
-                        to={primerPath}
-                        className="play-primer-link"
-                        aria-label="Read the primer"
-                        data-tip="Primer"
-                      >
-                        <PrimerGuideIcon className="play-primer-link-icon" title="" />
-                      </Link>
-                    )}
-                    {panel.id === 'kafka' && (
-                      <button
-                        type="button"
-                        className="play-intro-link"
-                        onClick={() => setIntroOpen(true)}
-                      >
-                        Intro
-                      </button>
-                    )}
                     {!panel.chapters?.length && roadmapNodes.length > 0 && (
                       <button
                         type="button"
@@ -542,9 +507,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 fullPath={`${playCatalogPath(domain.id, panel.id)}/leaderboard`}
                 onClose={() => setLeaderboardOpen(false)}
               />
-              {panel.id === 'kafka' && (
-                <TrackIntroModal open={introOpen} onClose={() => setIntroOpen(false)} />
-              )}
               <TrackRoadmapModal
                 open={roadmapOpen}
                 trackLabel={panel.label}
@@ -569,11 +531,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       type="button"
                       className={`play-kind-toggle-btn${kindFilter === 'lab' ? ' is-active' : ''}`}
                       aria-pressed={kindFilter === 'lab'}
-                      disabled={labsToggleDisabled}
-                      title={labsToggleDisabled ? 'Labs are not available on Introduction yet' : undefined}
-                      onClick={() => {
-                        if (!labsToggleDisabled) setKindFilter('lab');
-                      }}
+                      onClick={() => setKindFilter('lab')}
                     >
                       Lab
                     </button>
@@ -713,6 +671,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
 
 export default function PlayPage(): JSX.Element {
   const {
+    authMode,
     playState,
     challenges,
     challengesError,
@@ -724,82 +683,79 @@ export default function PlayPage(): JSX.Element {
     onBackToLibrary,
     onEnd,
     ending,
+    onRequestLogin,
   } = useAppState();
   const params = useParams<{ domainId?: string; panelId?: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const labId = searchParams.get('lab');
   const restoringSession =
     playState === 'library' &&
     Boolean(params.domainId) &&
     !params.panelId &&
     looksLikePlaySessionId(params.domainId);
-  // Refresh with ?lab= — keep a spinner instead of flashing the shelf or a blank outlet.
+
+  // Guest deep-link (?lab=): never park on a forever "Reopening" spinner — ask to sign in.
+  useEffect(() => {
+    if (!labId || authMode !== 'unauthenticated') return;
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    onRequestLogin(returnTo, {
+      title: 'Sign in to open this lab',
+      body: 'Your problem statement will restore right after you sign in.',
+    });
+  }, [labId, authMode, onRequestLogin]);
+
+  // Signed-in but lab missing / not finalized: drop ?lab= so we do not spin forever.
+  useEffect(() => {
+    if (!labId || authMode !== 'interviewer') return;
+    if (playState !== 'library') return;
+    if (challenges.length === 0 && !challengesError) return; // still fetching
+    const challenge = challenges.find((c) => c.id === labId);
+    if (challenge && (challenge as { finalized?: boolean }).finalized !== false) return;
+    navigate(`${window.location.pathname}`, { replace: true });
+  }, [labId, authMode, playState, challenges, challengesError, navigate]);
+
+  const challengesReady = challenges.length > 0 || Boolean(challengesError);
+  const labInCatalog = Boolean(labId && challenges.some((c) => c.id === labId));
+  // Only show the reopen splash while signed in and restore can actually run.
   const reopeningLab =
-    Boolean(labId)
-    && (playState === 'library' || (playState === 'active' && !activeSession));
+    authMode === 'interviewer'
+    && Boolean(labId)
+    && (playState === 'library' || (playState === 'active' && !activeSession))
+    && (!challengesReady || labInCatalog);
 
   if (reopeningLab || restoringSession || playState === 'loading') {
     const spark = isSparkPlatformChallenge(activeChallenge);
     const board = isBoardChallenge(activeChallenge);
     const k8s = isKubernetesChallenge(activeChallenge);
-    return (
-      <div className="app-page app-page-centered">
-        <div className="loading-card app-surface-card">
-          <span className="spinner" />
-          <div>
-            {reopeningLab ? (
-              <>
-                Reopening lab{activeChallenge?.title ? <> for <strong>{activeChallenge.title}</strong></> : null}…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Restoring the problem statement.
-                </div>
-              </>
-            ) : board ? (
-              <>
-                Opening board for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  No cluster — fill the empty blocks from Unused.
-                </div>
-              </>
-            ) : isBoxChallenge(activeChallenge) ? (
-              <>
-                Opening {boxMachineLabel(activeChallenge)} lab for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Booting a fresh machine for you (up to two minutes on a cold start).
-                </div>
-              </>
-            ) : k8s ? (
-              <>
-                Opening Kubernetes lab for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Preparing your namespace on the shared cluster.
-                </div>
-              </>
-            ) : spark ? (
-              <>
-                Opening Spark workspace for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Shared cluster session — no Docker sandbox to build.
-                </div>
-              </>
-            ) : (
-              <>
-                {restoringSession ? (
-                  <>Restoring session…</>
-                ) : (
-                  <>
-                    Spinning up sandbox for <strong>{activeChallenge?.title}</strong>…
-                    <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                      This can take 30–60 seconds the first time while Docker images build.
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    let message = 'Loading…';
+    let detail: string | undefined;
+    if (reopeningLab) {
+      message = activeChallenge?.title
+        ? `Opening ${activeChallenge.title}`
+        : 'Reopening lab';
+      detail = 'Restoring the problem statement.';
+    } else if (board) {
+      message = `Opening ${activeChallenge?.title || 'board'}`;
+      detail = 'No cluster — fill the empty blocks from Unused.';
+    } else if (isBoxChallenge(activeChallenge)) {
+      message = `Opening ${boxMachineLabel(activeChallenge)} lab`;
+      detail = 'Booting a fresh machine for you.';
+    } else if (k8s) {
+      message = `Opening ${activeChallenge?.title || 'Kubernetes lab'}`;
+      detail = 'Preparing your namespace on the shared cluster.';
+    } else if (spark) {
+      message = `Opening ${activeChallenge?.title || 'Spark workspace'}`;
+      detail = 'Shared cluster session — no Docker sandbox to build.';
+    } else if (restoringSession) {
+      message = 'Restoring session';
+    } else {
+      message = activeChallenge?.title
+        ? `Spinning up ${activeChallenge.title}`
+        : 'Spinning up sandbox';
+      detail = 'This can take 30–60 seconds the first time while Docker images build.';
+    }
+    return <DevsetuLoader message={message} detail={detail} />;
   }
 
   if (playState === 'library') {
@@ -873,12 +829,5 @@ export default function PlayPage(): JSX.Element {
     );
   }
 
-  return (
-    <div className="app-page app-page-centered">
-      <div className="loading-card app-surface-card">
-        <span className="spinner" />
-        <div>Loading…</div>
-      </div>
-    </div>
-  );
+  return <DevsetuLoader message="Loading…" />;
 }

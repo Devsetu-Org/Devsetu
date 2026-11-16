@@ -1,119 +1,128 @@
 #!/usr/bin/env bash
-# Spark-13: fill production with a backfill; leave store-rollup Accepted in production.
+# Spark-13: no analytics queue yet; plant broken draft + probe wrapper that targets it.
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib/lab.sh"
 
 yarn_seed_all
-# Tight default, fat production (then filled), spare adhoc lane for the fix.
+# Existing tenants only — analytics must be designed by the learner.
 yarn_write_capacity_queues 10 70 20
 yarn_start_cluster
 yarn_seed_shell_helpers
-yarn_install_sleep_job
 
-echo "==> plant team-b backfill in production (holds capacity)"
+echo "==> plant ticket notes, broken capacity draft, and analytics probe wrapper"
 in_shell '
   set -euo pipefail
-  nohup spark-submit \
-    --master yarn \
-    --deploy-mode client \
-    --queue production \
-    --name team-b-backfill \
-    --num-executors 2 \
-    --executor-cores 1 \
-    --executor-memory 512m \
-    "$HOME/lab/sleep_backfill.py" \
-    >/tmp/backfill.log 2>&1 &
-  echo $! > /tmp/backfill.pid
+  mkdir -p "$HOME/lab"
+
+  cat > "$HOME/lab/notes.txt" <<'"'"'EOF'"'"'
+QuickBite — analytics onboarding ticket
+=======================================
+A new analytics team needs a dedicated YARN leaf queue named: analytics
+
+Policy:
+  - Do NOT submit analytics work into production or adhoc.
+  - Do NOT inflate default capacity to paper over a missing leaf.
+  - Give analytics at least 20% absolute capacity.
+  - Set analytics maximum-capacity to 100 so it can burst when the
+    cluster is idle.
+  - Set analytics user-limit-factor to at least 2 (default is 1 — a single
+    user is otherwise capped at the queue absolute share and the AM alone
+    eats the lane).
+  - Keep production at least 50% — other teams still run there.
+  - Sibling capacities under root must sum to 100.
+  - Apply with yarn rmadmin -refreshQueues on the ResourceManager
+    (edit /opt/hadoop/etc/hadoop/capacity-scheduler.xml on ds-spark-01).
+
+Someone left a draft at ~/lab/capacity-draft.xml. It names analytics but
+the percentages are wrong — fix the math before you refresh. It also
+omits user-limit-factor.
+
+Lasting submit path: ~/lab/submit-analytics-probe.sh
+EOF
+
+  # Broken draft: adds analytics without rebalancing → sum 120. Teaching trap.
+  cat > "$HOME/lab/capacity-draft.xml" <<'"'"'EOF'"'"'
+<?xml version="1.0"?>
+<configuration>
+  <property>
+    <name>yarn.scheduler.capacity.root.queues</name>
+    <value>default,production,adhoc,analytics</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.default.capacity</name>
+    <value>10</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.default.maximum-capacity</name>
+    <value>10</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.production.capacity</name>
+    <value>70</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.production.maximum-capacity</name>
+    <value>100</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.adhoc.capacity</name>
+    <value>20</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.adhoc.maximum-capacity</name>
+    <value>100</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.analytics.capacity</name>
+    <value>20</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.analytics.maximum-capacity</name>
+    <value>100</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.maximum-am-resource-percent</name>
+    <value>0.5</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.resource-calculator</name>
+    <value>org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator</value>
+  </property>
+</configuration>
+EOF
+
+  cat > "$HOME/lab/submit-analytics-probe.sh" <<'"'"'EOF'"'"'
+#!/usr/bin/env bash
+set -euo pipefail
+exec spark-submit \
+  --master yarn \
+  --deploy-mode client \
+  --queue analytics \
+  --name analytics-probe \
+  --num-executors 1 \
+  --executor-cores 1 \
+  --executor-memory 512m \
+  /opt/lab/jobs/store_join.py
+EOF
+  chmod +x "$HOME/lab/submit-analytics-probe.sh"
 '
 
-blocker_id=""
-for i in $(seq 1 60); do
-  blocker_id="$(
-    yarn_apps_json | tr '{' '\n' | awk '
-      BEGIN { id=""; name=""; state="" }
-      /"id"/ { gsub(/[",]/, "", $0); split($0, a, ":"); id=a[2] }
-      /"name"/ { gsub(/[",]/, "", $0); split($0, a, ":"); name=a[2] }
-      /"state"/ {
-        gsub(/[",]/, "", $0); split($0, a, ":"); state=a[2]
-        if (name == "team-b-backfill" && (state == "RUNNING" || state == "ACCEPTED")) {
-          print id; exit
-        }
-      }
-    '
-  )"
-  if [[ -n "$blocker_id" ]]; then
-    # Prefer waiting until RUNNING so it actually holds containers.
-    st="$(
-      yarn_apps_json | tr '{' '\n' | awk -v want="$blocker_id" '
-        BEGIN { id=""; state="" }
-        /"id"/ { gsub(/[",]/, "", $0); split($0, a, ":"); id=a[2] }
-        /"state"/ {
-          gsub(/[",]/, "", $0); split($0, a, ":"); state=a[2]
-          if (id == want) { print state; exit }
-        }
-      '
-    )"
-    if [[ "$st" == "RUNNING" ]]; then
-      break
-    fi
-  fi
-  sleep 2
-done
-
-if [[ -z "$blocker_id" ]]; then
-  echo "backfill never appeared" >&2
-  in_shell 'tail -n 40 /tmp/backfill.log 2>/dev/null || true' >&2 || true
-  exit 1
-fi
-echo "blocker application id: $blocker_id"
-
-echo "==> plant Accepted store-rollup-yesterday in production (behind the backfill)"
+echo "==> first submit (expect queue-missing failure; keep the log)"
 in_shell '
   set -euo pipefail
-  nohup spark-submit \
-    --master yarn \
-    --deploy-mode client \
-    --queue production \
-    --name store-rollup-yesterday \
-    --num-executors 2 \
-    --executor-cores 1 \
-    --executor-memory 512m \
-    local:/opt/lab/jobs/store_join.py \
-    >/tmp/yesterday-stuck.log 2>&1 &
-  echo $! > /tmp/yesterday-stuck.pid
+  set +e
+  "$HOME/lab/submit-analytics-probe.sh" >"$HOME/lab/first_submit.out" 2>&1
+  rc=$?
+  set -e
+  echo "first submit exit=$rc" >> "$HOME/lab/first_submit.out"
+  # Queue should still be missing on the live scheduler.
+  if yarn queue -status analytics >/dev/null 2>&1; then
+    echo "analytics queue unexpectedly exists after first submit" >&2
+    exit 1
+  fi
+  echo "analytics queue absent as expected"
 '
 
-stuck_id=""
-for i in $(seq 1 45); do
-  stuck_id="$(
-    yarn_apps_json | tr '{' '\n' | awk '
-      BEGIN { id=""; name=""; state="" }
-      /"id"/ { gsub(/[",]/, "", $0); split($0, a, ":"); id=a[2] }
-      /"name"/ { gsub(/[",]/, "", $0); split($0, a, ":"); name=a[2] }
-      /"state"/ {
-        gsub(/[",]/, "", $0); split($0, a, ":"); state=a[2]
-        if (name == "store-rollup-yesterday" && (state == "ACCEPTED" || state == "NEW" || state == "SUBMITTED")) {
-          print id; exit
-        }
-      }
-    '
-  )"
-  if [[ -n "$stuck_id" ]]; then
-    break
-  fi
-  sleep 2
-done
+in_pod ds-spark-01 "mkdir -p /opt/lab/state && printf 'missing\\n' > /opt/lab/state/analytics_queue_at_start"
+in_shell "printf 'missing\\n' > \"\$HOME/lab/analytics_queue_at_start\""
 
-if [[ -z "$stuck_id" ]]; then
-  echo "yesterday stuck app did not appear (production may still have room — check sizing)" >&2
-  yarn_apps_json >&2 || true
-  in_shell 'tail -n 40 /tmp/yesterday-stuck.log 2>/dev/null || true' >&2 || true
-  # Still record blocker so the lab is debuggable.
-  in_pod ds-spark-01 "mkdir -p /opt/lab/state && printf '%s\\n' '$blocker_id' > /opt/lab/state/blocker_app_id"
-  exit 1
-fi
-
-echo "stuck application id: $stuck_id"
-in_pod ds-spark-01 "mkdir -p /opt/lab/state && printf '%s\\n' '$blocker_id' > /opt/lab/state/blocker_app_id && printf '%s\\n' '$stuck_id' > /opt/lab/state/stuck_app_id"
-in_shell "printf '%s\\n' '$blocker_id' > \"\$HOME/lab/blocker_app_id\"; printf '%s\\n' '$stuck_id' > \"\$HOME/lab/stuck_app_id\""
-
-ok "production saturated by $blocker_id; store-rollup-yesterday Accepted as $stuck_id"
+ok "planted missing analytics queue + broken draft + probe wrapper (first submit logged)"

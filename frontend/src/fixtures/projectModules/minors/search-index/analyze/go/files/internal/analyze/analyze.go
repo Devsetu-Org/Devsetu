@@ -14,22 +14,21 @@ func Analyze(text string) []string {
 // Tokenize splits text into runs of Unicode letters. Digits, punctuation, and
 // whitespace separate tokens and are discarded. Case is preserved.
 func Tokenize(text string) []string {
-	// TODO(1.1): Walk runes. Append a token whenever a run of unicode.IsLetter
-	// ends. Use a strings.Builder. Do not keep digits or punctuation.
+	// TODO(1.1)
 	_ = unicode.IsLetter
 	_ = strings.Builder{}
-	panic("TODO(1.1): Tokenize")
+	panic("TODO(1.1)")
 }
 
 // Lower returns a new slice with each token lowercased (Unicode).
 func Lower(tokens []string) []string {
-	// TODO(1.2): Allocate an output slice the same length. strings.ToLower each token.
+	// TODO(1.2)
 	_ = strings.ToLower
-	panic("TODO(1.2): Lower")
+	panic("TODO(1.2)")
 }
 
 // FilterStop drops tokens that appear in Stopwords. Tokens must already be lowercased.
 func FilterStop(tokens []string) []string {
-	// TODO(1.3): Keep tokens that are not keys in Stopwords. Preserve order.
-	panic("TODO(1.3): FilterStop")
+	// TODO(1.3)
+	panic("TODO(1.3)")
 }

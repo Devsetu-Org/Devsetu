@@ -15,38 +15,6 @@ HDRS := $(wildcard src/*/*.h) tests/check.h
 
 .PHONY: test asan run clean
 
-build/memtable_test: tests/memtable_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/memtable_test.cc $(LIB_SRCS)
-
-build/wal_test: tests/wal_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/wal_test.cc $(LIB_SRCS)
-
-build/db_test: tests/db_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/db_test.cc $(LIB_SRCS)
-
-build/sstable_test: tests/sstable_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/sstable_test.cc $(LIB_SRCS)
-
-build/flush_test: tests/flush_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/flush_test.cc $(LIB_SRCS)
-
-build/bloom_test: tests/bloom_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/bloom_test.cc $(LIB_SRCS)
-
-build/merging_test: tests/merging_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/merging_test.cc $(LIB_SRCS)
-
-build/scan_test: tests/scan_test.cc $(LIB_SRCS) $(HDRS)
-	@mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/scan_test.cc $(LIB_SRCS)
-
 build/manifest_test: tests/manifest_test.cc $(LIB_SRCS) $(HDRS)
 	@mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ tests/manifest_test.cc $(LIB_SRCS)
@@ -59,15 +27,8 @@ build/lsmkv: cmd/lsmkv/main.cc $(LIB_SRCS) $(HDRS)
 	@mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ cmd/lsmkv/main.cc $(LIB_SRCS)
 
-test: build/memtable_test build/wal_test build/db_test build/sstable_test build/flush_test build/bloom_test build/merging_test build/scan_test build/manifest_test build/compact_test
-	./build/memtable_test
-	./build/wal_test
-	./build/db_test
-	./build/sstable_test
-	./build/flush_test
-	./build/bloom_test
-	./build/merging_test
-	./build/scan_test
+# This chapter: compaction merge, manifest, compact.
+test: build/manifest_test build/compact_test
 	./build/manifest_test
 	./build/compact_test
 
@@ -77,14 +38,8 @@ asan:
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=undefined -fno-omit-frame-pointer \
 		-o build/manifest_test_asan tests/manifest_test.cc $(LIB_SRCS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=undefined -fno-omit-frame-pointer \
-		-o build/merging_test_asan tests/merging_test.cc $(LIB_SRCS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=undefined -fno-omit-frame-pointer \
-		-o build/scan_test_asan tests/scan_test.cc $(LIB_SRCS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=undefined -fno-omit-frame-pointer \
 		-o build/compact_test_asan tests/compact_test.cc $(LIB_SRCS)
 	./build/manifest_test_asan
-	./build/merging_test_asan
-	./build/scan_test_asan
 	./build/compact_test_asan
 
 run: build/lsmkv

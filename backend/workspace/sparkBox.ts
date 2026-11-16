@@ -7,6 +7,7 @@
  * Shapes:
  *   spark-2 / spark-3 — standalone Master + Workers (Chapter 1)
  *   yarn-2            — YARN ResourceManager + 2 NodeManagers (Chapter 2)
+ *   spark-k8s         — Spark-on-Kubernetes: shell + in-cluster API (Chapter 3)
  *
  * Role is only in the guide / UI labels — never in the hostname.
  * Pods select and tolerate devlabs.io/pool=spark (labs-spark / labs-spark-elastic).
@@ -19,6 +20,9 @@ const SHELL = 'shell';
 const MASTER = 'ds-spark-01';
 const IMAGE = process.env.SPARK_LAB_IMAGE || 'apache/spark:3.5.3';
 const YARN_IMAGE = process.env.SPARK_YARN_LAB_IMAGE || 'devsetu/spark-yarn-lab:v0.1';
+const K8S_IMAGE = process.env.SPARK_K8S_LAB_IMAGE || 'devsetu/spark-k8s-lab:v0.1';
+/** SA used by the submit shell and by Spark driver/executor pods. */
+const K8S_SA = 'spark-lab';
 const POOL = 'spark';
 const LAB_LABEL = 'app=spark-lab';
 const READY_TIMEOUT_S = 360;
@@ -44,7 +48,7 @@ const YARN_NMS = [
   { name: 'ds-spark-03', uiPort: YARN_NM_UI_PORT },
 ];
 
-type SparkShape = 'spark-3' | 'spark-2' | 'yarn-2';
+type SparkShape = 'spark-3' | 'spark-2' | 'yarn-2' | 'spark-k8s';
 /** auto = Master/Worker already running. manual = nodes only; learner brings Spark up. */
 type DaemonMode = 'auto' | 'manual';
 
@@ -52,11 +56,18 @@ function isYarnShape(shape: SparkShape): boolean {
   return shape === 'yarn-2';
 }
 
+function isK8sShape(shape: SparkShape): boolean {
+  return shape === 'spark-k8s';
+}
+
 function imageFor(shape: SparkShape): string {
-  return isYarnShape(shape) ? YARN_IMAGE : IMAGE;
+  if (isYarnShape(shape)) return YARN_IMAGE;
+  if (isK8sShape(shape)) return K8S_IMAGE;
+  return IMAGE;
 }
 
 function workersFor(shape: SparkShape): typeof WORKERS_SPARK_3 {
+  if (shape === 'spark-k8s') return [] as unknown as typeof WORKERS_SPARK_3;
   if (shape === 'yarn-2') return YARN_NMS as typeof WORKERS_SPARK_3;
   return shape === 'spark-2' ? WORKERS_SPARK_2 : WORKERS_SPARK_3;
 }
@@ -85,9 +96,9 @@ function yarnRmUi(_ns?: string): string {
   return `http://${MASTER}:${YARN_RM_UI_PORT}`;
 }
 
-function scriptEnv(ns: string): Record<string, string> {
+function scriptEnv(ns: string, shape?: SparkShape): Record<string, string> {
   if (!ns) throw new Error('spark scriptEnv requires the learner namespace');
-  return {
+  const base: Record<string, string> = {
     SPARK_POD: SHELL,
     SHELL_CONTAINER: SHELL,
     SPARK_MASTER: masterUrl(ns),
@@ -96,7 +107,16 @@ function scriptEnv(ns: string): Record<string, string> {
     YARN_RM_HOST: MASTER,
     YARN_RM_UI: yarnRmUi(ns),
     YARN_RM_POD: MASTER,
+    SPARK_SHAPE: shape || '',
   };
+  if (shape && isK8sShape(shape)) {
+    base.SPARK_K8S_NS = ns;
+    base.SPARK_K8S_MASTER = 'k8s://https://kubernetes.default.svc:443';
+    base.SPARK_K8S_IMAGE = K8S_IMAGE;
+    base.SPARK_K8S_SA = K8S_SA;
+    // Keep SPARK_MASTER set so shared lab.sh sourcing does not fail; unused on k8s.
+  }
+  return base;
 }
 
 const EXIT_NOTICE = 'This cluster stays. Submit to solve the lab. Here is a fresh shell.';
@@ -123,18 +143,41 @@ function shellExecArgs(ns: string, node?: string | null): string[] {
   return ['exec', '-it', '-n', ns, pod, '-c', container, '--', 'bash', '-c', relaunch];
 }
 
-function namespaceYaml(ns: string): string {
-  return `
-apiVersion: v1
-kind: Namespace
+function namespaceYaml(ns: string, shape: SparkShape = 'spark-3'): string {
+  const netPol = isK8sShape(shape)
+    ? `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
 metadata:
-  name: ${ns}
+  name: dl-spark-isolation
+  namespace: ${ns}
   labels:
     app.kubernetes.io/managed-by: devlabs
-    app.kubernetes.io/component: spark-lab
-    pod-security.kubernetes.io/enforce: baseline
----
-apiVersion: networking.k8s.io/v1
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # Spark driver + kubectl need the API (in-cluster Service and/or public EKS endpoint).
+    - ports:
+        - {protocol: TCP, port: 443}
+      to:
+        - ipBlock: {cidr: 0.0.0.0/0}
+`
+    : `apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: dl-spark-isolation
@@ -161,6 +204,149 @@ spec:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
 `;
+
+  const rbac = isK8sShape(shape)
+    ? `---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ${K8S_SA}
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${K8S_SA}
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events", "resourcequotas", "limitranges", "serviceaccounts", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${K8S_SA}
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${K8S_SA}
+subjects:
+  - kind: ServiceAccount
+    name: ${K8S_SA}
+    namespace: ${ns}
+`
+    : '';
+
+  return `
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app.kubernetes.io/component: spark-lab
+    pod-security.kubernetes.io/enforce: baseline
+---
+${netPol}
+${rbac}`;
+}
+
+/** Optional sibling namespace for labs that need prod/staging (controller kubectl only). */
+function siblingNamespaceYaml(primaryNs: string, suffix: string): string {
+  const ns = `${primaryNs}-${suffix}`.slice(0, 63);
+  return `
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app.kubernetes.io/component: spark-lab-sibling
+    spark-lab/primary: ${primaryNs}
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ${K8S_SA}
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${K8S_SA}
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events", "resourcequotas", "limitranges", "serviceaccounts", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${K8S_SA}
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${K8S_SA}
+subjects:
+  - kind: ServiceAccount
+    name: ${K8S_SA}
+    namespace: ${ns}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${K8S_SA}-from-primary
+  namespace: ${ns}
+  labels:
+    app.kubernetes.io/managed-by: devlabs
+    app: spark-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${K8S_SA}
+subjects:
+  - kind: ServiceAccount
+    name: ${K8S_SA}
+    namespace: ${primaryNs}
+`;
+}
+
+async function ensureSiblingNamespace(primaryNs: string, suffix: string): Promise<string> {
+  const ns = `${primaryNs}-${suffix}`.slice(0, 63);
+  await k8s.kubectlOk(['apply', '-f', '-'], {
+    input: siblingNamespaceYaml(primaryNs, suffix),
+    timeoutMs: 30_000,
+  });
+  return ns;
 }
 
 function podScheduling(): string {
@@ -342,6 +528,49 @@ function yarnIdleProbe(): string {
         failureThreshold: 36`;
 }
 
+/** Shared path visible on every YARN host (shell + RM + NMs). hostPath is unique per lab ns. */
+const YARN_SHARED_MOUNT = '/mnt/lab-shared';
+
+function yarnSharedVolumes(ns: string): string {
+  return `  securityContext:
+    fsGroup: 185
+  volumes:
+    - name: lab-shared
+      hostPath:
+        path: /var/devlabs/spark-lab-shared/${ns}
+        type: DirectoryOrCreate`;
+}
+
+function yarnSharedVolumeMount(): string {
+  return `      volumeMounts:
+        - {name: lab-shared, mountPath: ${YARN_SHARED_MOUNT}}`;
+}
+
+/**
+ * NM + shell must land on the same node as the RM so the hostPath shared mount
+ * is the same directory. RM itself has no required affinity (first to schedule).
+ */
+function yarnColocateWithRm(): string {
+  return `  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - {key: devlabs.io/tier, operator: In, values: [base]}
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app: spark-lab
+              component: rm
+  tolerations:
+    - key: devlabs.io/pool
+      value: ${POOL}
+      effect: NoSchedule`;
+}
+
 function yarnRmPod(ns: string, challengeId: string, shape: SparkShape): string {
   return `
 apiVersion: v1
@@ -357,11 +586,13 @@ ${podLabels(challengeId, 'rm', shape)}
 spec:
   hostname: ${MASTER}
 ${podScheduling()}
+${yarnSharedVolumes(ns)}
   containers:
     - name: ${MASTER}
       image: ${imageFor(shape)}
       imagePullPolicy: IfNotPresent
 ${yarnIdleProbe()}
+${yarnSharedVolumeMount()}
       env:
 ${yarnNodeEnv(MASTER)}
       ports:
@@ -394,12 +625,20 @@ ${podLabels(challengeId, 'nm', shape)}
     karpenter.sh/do-not-disrupt: "true"
 spec:
   hostname: ${node.name}
-${podScheduling()}
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  terminationGracePeriodSeconds: 15
+  activeDeadlineSeconds: ${ACTIVE_DEADLINE_S}
+  nodeSelector:
+    devlabs.io/pool: ${POOL}
+${yarnColocateWithRm()}
+${yarnSharedVolumes(ns)}
   containers:
     - name: ${node.name}
       image: ${imageFor(shape)}
       imagePullPolicy: IfNotPresent
 ${yarnIdleProbe()}
+${yarnSharedVolumeMount()}
       env:
 ${yarnNodeEnv(node.name)}
       ports:
@@ -425,13 +664,21 @@ ${podLabels(challengeId, 'shell', shape)}
     karpenter.sh/do-not-disrupt: "true"
 spec:
   hostname: ${SHELL}
-${podScheduling()}
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  terminationGracePeriodSeconds: 15
+  activeDeadlineSeconds: ${ACTIVE_DEADLINE_S}
+  nodeSelector:
+    devlabs.io/pool: ${POOL}
+${yarnColocateWithRm()}
+${yarnSharedVolumes(ns)}
   containers:
     - name: ${SHELL}
       image: ${imageFor(shape)}
       imagePullPolicy: IfNotPresent
       command: ["/bin/sleep", "infinity"]
       workingDir: /opt/spark
+${yarnSharedVolumeMount()}
       env:
         - {name: PATH, value: "/opt/spark/bin:/opt/spark/sbin:/opt/hadoop/bin:/opt/hadoop/sbin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
         - {name: HOME, value: "/home/spark"}
@@ -448,6 +695,55 @@ ${podScheduling()}
       resources:
         requests: {cpu: 50m, memory: 256Mi}
         limits: {cpu: 500m, memory: 1Gi}
+`;
+}
+
+/** Chapter 3: submit client with in-cluster kubectl + spark-submit. */
+function k8sShellPod(ns: string, challengeId: string, shape: SparkShape): string {
+  return `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${SHELL}
+  namespace: ${ns}
+  labels:
+${podLabels(challengeId, 'shell', shape)}
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  hostname: ${SHELL}
+  serviceAccountName: ${K8S_SA}
+  automountServiceAccountToken: true
+  enableServiceLinks: false
+  terminationGracePeriodSeconds: 15
+  activeDeadlineSeconds: ${ACTIVE_DEADLINE_S}
+  nodeSelector:
+    devlabs.io/pool: ${POOL}
+  tolerations:
+    - key: devlabs.io/pool
+      value: ${POOL}
+      effect: NoSchedule
+  containers:
+    - name: ${SHELL}
+      image: ${imageFor(shape)}
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sleep", "infinity"]
+      workingDir: /opt/spark
+      env:
+        - {name: PATH, value: "/opt/spark/bin:/opt/spark/sbin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+        - {name: HOME, value: "/opt/spark"}
+        - {name: JAVA_HOME, value: "/opt/java/openjdk"}
+        - {name: SPARK_HOME, value: "/opt/spark"}
+        - {name: SPARK_CONF_DIR, value: "/opt/spark/conf"}
+        - {name: SPARK_LOCAL_HOSTNAME, value: "${SHELL}"}
+        - {name: SPARK_K8S_NS, value: "${ns}"}
+        - {name: SPARK_K8S_MASTER, value: "k8s://https://kubernetes.default.svc:443"}
+        - {name: SPARK_K8S_IMAGE, value: "${imageFor(shape)}"}
+        - {name: SPARK_K8S_SA, value: "${K8S_SA}"}
+        - {name: PS1, value: "spark $ "}
+      resources:
+        requests: {cpu: 50m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 512Mi}
 `;
 }
 
@@ -642,6 +938,9 @@ function clusterYaml(
   shape: SparkShape,
   daemonMode: DaemonMode = 'auto',
 ): string {
+  if (isK8sShape(shape)) {
+    return [shellServiceYaml(ns), k8sShellPod(ns, challengeId, shape)].join('---\n');
+  }
   if (isYarnShape(shape)) {
     const nms = workersFor(shape);
     return [
@@ -666,9 +965,9 @@ function clusterYaml(
 
 const ensuredNamespaces = new Set<string>();
 
-async function ensureNamespace(ns: string): Promise<void> {
-  if (ensuredNamespaces.has(ns)) return;
-  await k8s.kubectlOk(['apply', '-f', '-'], { input: namespaceYaml(ns), timeoutMs: 30_000 });
+async function ensureNamespace(ns: string, shape: SparkShape = 'spark-3'): Promise<void> {
+  // Always re-apply so spark-k8s RBAC/NetPol land even if the ns was created by an older shape.
+  await k8s.kubectlOk(['apply', '-f', '-'], { input: namespaceYaml(ns, shape), timeoutMs: 30_000 });
   ensuredNamespaces.add(ns);
 }
 
@@ -687,6 +986,16 @@ async function deleteCluster(ns: string, wait: boolean): Promise<void> {
     /* proxy module optional during early boot */
   }
   const timeout = wait ? '90s' : '30s';
+  // Spark-on-K8s driver/executor pods do not carry app=spark-lab — wipe them first.
+  await k8s.kubectlOk(
+    ['delete', 'pod', '-n', ns, '-l', 'spark-role in (driver,executor)', '--ignore-not-found',
+      `--grace-period=${DELETE_GRACE_S}`, '--wait=false'],
+    { timeoutMs: 30_000 },
+  ).catch(() => {});
+  await k8s.kubectlOk(
+    ['delete', 'svc,cm', '-n', ns, '-l', 'spark-app-selector', '--ignore-not-found', '--wait=false'],
+    { timeoutMs: 15_000 },
+  ).catch(() => {});
   await k8s.kubectlOk(
     ['delete', 'pod', '-n', ns, '-l', LAB_LABEL, '--ignore-not-found',
       `--grace-period=${DELETE_GRACE_S}`, `--wait=${wait}`, `--timeout=${timeout}`],
@@ -755,16 +1064,21 @@ async function recreate(
     );
   }
   const yarn = isYarnShape(shape);
-  if (yarn) {
+  const onK8s = isK8sShape(shape);
+  if (onK8s) {
+    onPhase?.('Creating your Kubernetes Spark namespace');
+  } else if (yarn) {
     onPhase?.('Creating your YARN cluster');
   } else if (daemonMode === 'manual') {
     onPhase?.('Procuring the nodes');
   } else {
     onPhase?.('Creating your cluster');
   }
-  await ensureNamespace(ns);
+  await ensureNamespace(ns, shape);
   await deleteCluster(ns, true);
-  if (yarn) {
+  if (onK8s) {
+    onPhase?.('Pulling the Spark-on-K8s image');
+  } else if (yarn) {
     onPhase?.('Pulling the Spark-on-YARN image');
   } else if (daemonMode === 'manual') {
     onPhase?.('Installing Spark on the nodes');
@@ -775,6 +1089,22 @@ async function recreate(
     input: clusterYaml(ns, challengeId, shape, daemonMode),
     timeoutMs: 30_000,
   });
+
+  if (onK8s) {
+    const shellReady = await k8s.runKubectl(
+      ['wait', '--for=condition=Ready', `pod/${SHELL}`, '-n', ns, `--timeout=${READY_TIMEOUT_S}s`],
+      { timeoutMs: (READY_TIMEOUT_S + 20) * 1000 },
+    );
+    if (shellReady.code !== 0) {
+      throw new Error(
+        `spark-k8s shell not ready after ${READY_TIMEOUT_S}s: ${await describeNotReady(ns)}`,
+      );
+    }
+    await ensureEditorsOnPods(ns, [SHELL]);
+    onPhase?.('Using the cached Spark-on-K8s image');
+    return;
+  }
+
   if (yarn) {
     onPhase?.('Starting the ResourceManager');
   } else if (daemonMode !== 'manual') {
@@ -849,6 +1179,8 @@ module.exports = {
   POOL,
   IMAGE,
   YARN_IMAGE,
+  K8S_IMAGE,
+  K8S_SA,
   WORKER_UI_BASE,
   YARN_RM_UI_PORT,
   YARN_NM_UI_PORT,
@@ -864,6 +1196,8 @@ module.exports = {
   yarnRmUi,
   workersFor,
   isYarnShape,
+  isK8sShape,
   imageFor,
+  ensureSiblingNamespace,
   writeInvestigationAnswers,
 };

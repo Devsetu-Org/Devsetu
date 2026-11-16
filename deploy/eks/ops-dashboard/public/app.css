@@ -196,6 +196,10 @@ body.drawer-open .page {
   color: #67e8f9;
 }
 
+.widget[data-section="projects"] .widget-kicker {
+  color: #86efac;
+}
+
 .widget-title {
   margin: 0;
   font-family: var(--display);

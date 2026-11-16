@@ -68,6 +68,16 @@ protocol.
   e.g. `<!-- lang: python, cpp -->`). Text outside lang blocks shows for all.
 - Do not hard-wrap `theory.md`. The theory renderer turns every source line into its
   own paragraph, so write one line per paragraph or list item.
+- Theory voice matches the LSM minor (engineer teaching engineer). Prefer enriching
+  existing `##` pages over adding new ones. Each chapter should carry:
+  - an early `> [!scope] This chapter's job`
+  - a "you are here" path figure where one exists
+  - precise definitions woven into the first read-only page (what a page / node /
+    frame / borrow / merge is), then mechanics, then lang-scoped `TODO` blocks
+  - callouts: tip / warn / idea / check / takeaway / scope
+  - a closing `> [!check] Before you move on` with numbered takeaways
+  - a forward pointer to the next chapter
+  - `<!-- mode: read-only -->` / `<!-- mode: read-and-implement tasks:… -->` on each `##`
 - A chapter is done when its tests pass. Tests are given; they must fail with a
   clear message (or a `TODO` panic / exception) on the starter and pass on `solution/`.
 - No third-party dependencies: Go stdlib, Python stdlib `unittest` (3.9+),

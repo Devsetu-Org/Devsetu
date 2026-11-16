@@ -41,13 +41,13 @@ class Index:
 def encode(idx: Index) -> bytes:
     """Serialize the index to the custom text format."""
     # TODO(3.1): encode
-    raise NotImplementedError("TODO(3.1): encode")
+    raise NotImplementedError("TODO(3.1)")
 
 
 def decode(data: bytes) -> Index:
     """Parse an index file body."""
     # TODO(3.1): decode
-    raise NotImplementedError("TODO(3.1): decode")
+    raise NotImplementedError("TODO(3.1)")
 
 
 def load(path: str) -> Index:

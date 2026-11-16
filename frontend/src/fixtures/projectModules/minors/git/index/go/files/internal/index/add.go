@@ -8,10 +8,8 @@ import (
 
 // Add stages the file at rel (repo-relative) into the index.
 func Add(r *repo.Repo, rel string) error {
-	// TODO(3.2): Clean to slash path; reject "..".
-	// Read worktree file, object.PutBlob, Load index, Set Entry{Path, ModeFile, Hash}, Save.
-	// Imports: fmt, os, object.
-	panic("TODO(3.2): Add")
+	// TODO(3.2)
+	panic("TODO(3.2)")
 }
 
 func stringsHasDotDot(p string) bool {

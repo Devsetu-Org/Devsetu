@@ -1,9 +1,9 @@
 {
   "id": "spark-07-the-capstone-bug-slow-then-dead",
   "number": 816,
-  "finalized": false,
-  "title": "The Capstone Bug: Slow, Then Dead",
-  "description": "**SITUATION:**\n\nA production-shaped job on this cluster runs fine for several minutes, then slows dramatically, then one executor dies. Mentors will ask what you looked at. The Master UI, a worker log, and the executor's own memory breakdown each show a different piece of the story. No single source is enough.\n\nThis capstone combines Labs 1.2\u20131.6: read UIs as instruments, follow stages and tasks, ask where cached data actually lives, keep the executor memory map in your head, and watch for worker-level pressure. The failure is memory-leak-shaped \u2014 growth over a timeline, not a single bad snapshot.\n\n**YOUR TASK:**\n\n1. Watch the job through healthy \u2192 slow \u2192 dead; capture when each phase starts.\n2. Pull signals from the Master UI, at least one worker log, and the executor memory breakdown (and code / prior config if needed).\n3. Synthesize them into one root cause \u2014 a memory-leak-shaped caching (or retention) bug \u2014 before applying a fix.\n4. Apply the fix and show the job no longer dies the same way.\n5. Capture the timeline, three signals, root cause, and fix in the Investigation tab.\n\n**SPEC:**\n\n- Diagnosis cites at least three independent signals that agree on the same root cause.\n- The write-up reads a timeline (when healthy, when slow, when dead), not a single UI screenshot.\n- The fix addresses that cause; simply raising executor count without explaining the leak is not enough.\n- Investigation tab is complete \u2014 every field filled. Submit stays off until it is.\n",
+  "finalized": true,
+  "title": "FetchFailed Under Local Disk Pressure",
+  "description": "**SITUATION:**\n\n`store-rollup-shuffle` starts fine on the warm cluster, then the **shuffle** boundary falls apart \u2014 retries, stragglers, then **FetchFailed** / stage failure. Mentors will ask what you looked at. The driver error, Worker **local/work** paths, and executor/worker logs each show a piece. No single pane is enough.\n\nSetup planted **pressure on shuffle locals**: `SPARK_LOCAL_DIRS` under `$SPARK_HOME/work/spark-local`, a `DISK_FILLER`, and a janitor wiping `blockmgr` / shuffle files (cleanup under disk pressure). This is a **platform** local-dir incident \u2014 not Lab 6 placement, not editing application `cache()`.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Read the planted failure; note healthy \u2192 shuffle trouble \u2192 dead.\n2. Gather signals from the driver/Application UI, Worker `spark-local` / work paths (`df`, filler, missing blocks), and Worker/executor logs.\n3. Name the cause: shuffle locals destroyed or unusable under local-disk pressure.\n4. Stop the janitor, remove the filler, free local space, re-run until `STATUS=ok`.\n5. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Timeline + at least three agreeing signals.\n- Janitor stopped; `DISK_FILLER` gone; shuffle re-run succeeds.\n- Bumping executor count/memory alone without protecting local dirs is not accepted.\n- Investigation complete.\n",
   "difficulty": "L2",
   "tags": [
     "spark",
@@ -20,21 +20,41 @@
   },
   "problemStatement": {
     "hints": [
-      "If you only open the Master UI, you will miss the worker-local story.",
-      "Slow-then-dead often means cache or storage growth over time, not an instant OOM on the first stage.",
-      "Compare Storage and Executors tabs across the timeline, not just at failure.",
-      "Fill the Investigation tab; Submit stays off until every field is filled."
+      "Failed plant logs: ~/lab/failed_shuffle.out and .err \u2014 look for FetchFailed / stage failure.",
+      "On Workers: df and ls under $SPARK_HOME/work/spark-local; ps for shuffle_janitor.",
+      "Stop the janitor and remove DISK_FILLER on both Workers before re-running.",
+      "Fill the Investigation tab \u2014 missing answers fail on Submit."
     ],
-    "overview": "The Capstone Bug: Slow, Then Dead",
-    "brief": "The Capstone Bug: Slow, Then Dead",
+    "overview": "FetchFailed Under Local Disk Pressure",
+    "brief": "FetchFailed Under Local Disk Pressure",
     "solution": "",
     "idLabel": "07",
-    "theory": ""
+    "theory": "",
+    "guide": "# QuickBite \u2014 FetchFailed under local disk pressure\n\n| Host | Role |\n|------|------|\n| `ds-spark-01` | Master |\n| `ds-spark-02` / `03` | Workers \u2014 `SPARK_LOCAL_DIRS=$SPARK_HOME/work/spark-local` |\n| `shell` | Submit client |\n\nSetup warmed the cluster and planted **disk pressure on shuffle locals**: a `DISK_FILLER` under `spark-local`, and a **janitor** that deletes `blockmgr` / `shuffle_*` files under `$SPARK_HOME/work` (cleanup gone wrong under pressure). Early work can look fine; the **shuffle** boundary dies with **FetchFailed** / stage failure.\n\nThis is a **platform** incident \u2014 local dirs / disk \u2014 not Lab 6 placement and not editing `cache()` in the job.\n\n## 1. See the failure\n\n```bash\nless ~/lab/failed_shuffle.out\nless ~/lab/failed_shuffle.err\n```\n\nReproduce:\n\n```bash\nspark-submit \\\n  --master \"$SPARK_MASTER_URL\" \\\n  --deploy-mode client \\\n  --name store-rollup-shuffle \\\n  --total-executor-cores 2 \\\n  --executor-memory 512m \\\n  --conf spark.executor.memoryOverhead=128m \\\n  /opt/spark/lab/jobs/store_rollup_shuffle.py\n```\n\nOn each Worker:\n\n```bash\ndf -h $SPARK_HOME/work/spark-local\nls -la $SPARK_HOME/work/spark-local\nps -ef | grep shuffle_janitor\n```\n\n## 2. Fix\n\nOn **both** Workers:\n\n1. Stop the janitor (`~/lab/shuffle_janitor.pid` / `shuffle_janitor.sh`).\n2. Remove `$SPARK_HOME/work/spark-local/DISK_FILLER`.\n3. Confirm free space under `spark-local`.\n\nRe-run the same `spark-submit`. Expect `SHUFFLE_OK` and `/opt/spark/lab/last_run.txt` \u2192 `STATUS=ok`.\n\n## 3. Investigation\n\nTimeline \u2192 three signals \u2192 cause \u2192 fix. Submit when every field is filled.\n"
   },
   "platformSpec": {
     "shape": "spark-2",
+    "daemonMode": "manual",
     "chapter": "foundations",
-    "kind": "capstone"
+    "kind": "capstone",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your cluster",
+      "phases": [
+        "Pulling the Spark image",
+        "Starting the master",
+        "Starting the workers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 240,
+      "submitMessage": "Checking shuffle locals are protected and the job survived."
+    }
   },
   "visibleTo": "users",
   "tokens": 10

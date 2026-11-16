@@ -31,11 +31,10 @@ Writer::~Writer() {
 }
 
 void Writer::Append(const std::vector<Record>& recs) {
-  // TODO(3.2): Clear buf_, Encode each record into it, fwrite once, add bytes
-  // written to size_ (even on short write). Under SyncMode::kAlways, Sync().
+  // TODO(3.2)
   (void)recs;
   (void)mode_;
-  throw std::logic_error("TODO(3.2): Writer::Append");
+  throw std::logic_error("TODO(3.2)");
 }
 
 void Writer::Sync() {

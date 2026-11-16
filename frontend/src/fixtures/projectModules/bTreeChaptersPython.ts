@@ -57,7 +57,7 @@ function repo(globbed: RawFiles): RawFiles {
   return out;
 }
 
-const VERIFY = ['make test', 'make run'];
+const VERIFY = ['make test'];
 
 function chapter(
   moduleId: string,

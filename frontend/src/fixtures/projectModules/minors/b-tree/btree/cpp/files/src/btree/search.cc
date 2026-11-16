@@ -5,32 +5,31 @@
 namespace btreekv {
 
 int ChildIndex(const Node& n, std::string_view key) {
-  // TODO(2.1): Binary search n.keys for the first separator that is greater
-  // than key. That index is the child to follow.
+  // TODO(2.1)
   (void)n;
   (void)key;
-  throw std::logic_error("TODO(2.1): ChildIndex");
+  throw std::logic_error("TODO(2.1)");
 }
 
 std::pair<int, bool> LeafIndex(const Node& n, std::string_view key) {
-  // TODO(2.1): Binary search for the first key >= key; hit when equal.
+  // TODO(2.1)
   (void)n;
   (void)key;
-  throw std::logic_error("TODO(2.1): LeafIndex");
+  throw std::logic_error("TODO(2.1)");
 }
 
 PageNo Tree::FindLeaf(std::string_view key, Node* out_leaf) {
-  // TODO(2.2): Walk from Root(); empty tree returns 0. Loop at most kMaxDepth.
+  // TODO(2.2)
   (void)key;
   (void)out_leaf;
-  throw std::logic_error("TODO(2.2): FindLeaf");
+  throw std::logic_error("TODO(2.2)");
 }
 
 bool Tree::Get(std::string_view key, std::string* value) {
-  // TODO(2.2): FindLeaf then LeafIndex.
+  // TODO(2.2)
   (void)key;
   (void)value;
-  throw std::logic_error("TODO(2.2): Get");
+  throw std::logic_error("TODO(2.2)");
 }
 
 }  // namespace btreekv

@@ -46,8 +46,8 @@ ZERO = Hash()
 
 def hash_of(data: bytes) -> Hash:
     """Return the SHA-1 of data."""
-    # TODO(1.1): hashlib.sha1(data).digest() into a Hash.
-    raise NotImplementedError("TODO(1.1): hash_of")
+    # TODO(1.1)
+    raise NotImplementedError("TODO(1.1)")
 
 
 def parse_hex(s: str) -> Hash:

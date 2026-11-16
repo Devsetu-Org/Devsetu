@@ -13,12 +13,12 @@ std::string Trim(std::string s) {
 
 HEAD ReadHEAD(const Repo& r) {
   // TODO(2.2): ReadHEAD
-  throw std::runtime_error("TODO(2.2): ReadHEAD");
+  throw std::runtime_error("TODO(2.2)");
 }
 
 Hash ResolveHEAD(const Repo& r) {
   // TODO(2.2): ResolveHEAD
-  throw std::runtime_error("TODO(2.2): ResolveHEAD");
+  throw std::runtime_error("TODO(2.2)");
 }
 
 void WriteSymbolicHEAD(const Repo& r, const std::string& name) {

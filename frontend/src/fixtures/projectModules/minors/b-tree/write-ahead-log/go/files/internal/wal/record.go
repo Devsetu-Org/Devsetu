@@ -74,11 +74,6 @@ func decodePayload(p []byte) (Record, error) {
 //	│ crc32c  (4)  │ length  (4)  │ payload (length bytes)    │
 //	└──────────────┴──────────────┴───────────────────────────┘
 func encode(dst []byte, r Record) []byte {
-	// TODO(3.1): Remember start := len(dst), then append headerSize zero bytes as a
-	// placeholder. dst = appendPayload(dst, r); the payload is
-	// dst[start+headerSize:].
-	// Write crc32.Checksum(payload, crcTable) into dst[start:start+4] and
-	// len(payload) into dst[start+4:start+8] with binary.LittleEndian.PutUint32.
-	// Return dst. Do not touch anything before start.
-	panic("TODO(3.1): encode")
+	// TODO(3.1)
+	panic("TODO(3.1)")
 }

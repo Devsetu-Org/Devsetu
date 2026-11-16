@@ -5,6 +5,9 @@ export const PROJECTS_PATH = '/projects';
 /** A single major, and its chapters. */
 export const MAJORS_PATH = '/majors';
 
+/** Free-tier majors; Builder+ unlocks the rest (matches backend FREE_PROJECT_IDS). */
+export const FREE_PROJECT_IDS = new Set<string>(['cinder']);
+
 /**
  * A module is one chapter: theory on the left, a scratch repo on the right that
  * grows file-by-file across chapters. `ready` chapters have authored content in

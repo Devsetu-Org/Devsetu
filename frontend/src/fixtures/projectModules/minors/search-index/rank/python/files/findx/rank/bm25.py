@@ -17,20 +17,18 @@ class Stats:
 
 def idf(n: int, df: int) -> float:
     """BM25+ style idf: ln(1 + (N - df + 0.5) / (df + 0.5))."""
-    # TODO(5.2): Return 0 when n == 0 or df < 0. Otherwise
-    # math.log(1 + (N - df + 0.5) / (df + 0.5)).
+    # TODO(5.2)
     _ = math.log
     _ = n
     _ = df
-    raise NotImplementedError("TODO(5.2): idf")
+    raise NotImplementedError("TODO(5.2)")
 
 
 def score(tf: int, dl: int, df: int, st: Stats) -> float:
     """BM25 contribution of one term for one document."""
-    # TODO(5.2): Return 0 when tf <= 0, st.n == 0, or st.avg_dl == 0.
-    # score = idf(st.n, df) * (tf * (K1+1)) / (tf + K1*(1 - B + B*dl/avg_dl)).
+    # TODO(5.2)
     _ = tf
     _ = dl
     _ = df
     _ = st
-    raise NotImplementedError("TODO(5.2): score")
+    raise NotImplementedError("TODO(5.2)")

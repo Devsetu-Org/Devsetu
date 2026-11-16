@@ -9,6 +9,5 @@ if TYPE_CHECKING:
 
 
 def flush_frame(self: Pool, f: Frame) -> None:
-    # TODO(4.3): If not dirty, return. If log and f.lsn > log.durable(), sync log.
-    # Write page, clear dirty.
-    raise NotImplementedError("TODO(4.3): flush_frame")
+    # TODO(4.3)
+    raise NotImplementedError("TODO(4.3)")

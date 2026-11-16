@@ -86,6 +86,26 @@ blocks, no hard wrapping, starters compile, `solution/` never globbed into the
 bundle, learner-owned files stable across later chapters (carry-forward via
 `utils/chapterCarry.ts`).
 
+- Do not hard-wrap `theory.md`. The theory renderer turns every source line into its
+  own paragraph, so write one line per paragraph or list item.
+- Theory voice matches the LSM / B-tree minors (engineer teaching engineer). Prefer
+  enriching existing `##` pages over adding new ones. Each chapter should carry:
+  - an early `> [!scope] This chapter's job`
+  - a "you are here" path figure under `frontend/public/consensus/<chapter>/…`, referenced as `![…](/consensus/<chapter>/…)` (same chalk style as LSM)
+  - precise definitions woven into the first read-only page (term / role / log entry /
+    commit / quorum), then mechanics, then lang-scoped `TODO` blocks
+  - callouts: tip / warn / idea / check / takeaway / scope
+  - a closing `> [!check] Before you move on` with numbered takeaways
+  - a forward pointer to the next chapter
+  - `<!-- mode: read-only -->` / `<!-- mode: read-and-implement tasks:… -->` on each `##`
+  - opening bridges like "previous chapter was abstract / now dig in" where appropriate
+    (especially chapter 1 after the overview)
+- Anything that names a function, type, file or command goes inside
+  `<!-- lang: go -->` … `<!-- /lang -->` (a block may list several, e.g.
+  `<!-- lang: python, cpp -->`). Text outside lang blocks shows for all. Keep Go,
+  Python and C++ blocks accurate to each language's starter (snake_case / PascalCase /
+  pickle vs gob vs hand framing) — do not copy-paste Go idioms into other langs.
+
 ## Package layout (as built)
 
 ### Go

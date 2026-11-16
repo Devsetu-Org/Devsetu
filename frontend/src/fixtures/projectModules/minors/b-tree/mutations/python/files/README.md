@@ -10,6 +10,6 @@ btreekv/db/scan.py        Scan                          <- TODO 5.4
 ## Running
 
 ```
-make test
+make test     # delete + scan acceptance tests (not chapters 1–4)
 make run
 ```

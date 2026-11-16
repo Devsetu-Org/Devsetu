@@ -1,0 +1,39 @@
+{
+  "id": "kafka-06-min-isr-is-why-produces-fail",
+  "number": 835,
+  "finalized": true,
+  "title": "min.ISR Is Why Produces Fail",
+  "description": "**SITUATION:**\n\nProduces to `desk.alerts` are failing. RF was left at 2 with `min.insync.replicas=2`, and `kafka-2` is down — ISR cannot satisfy the write gate. A note says to set min.ISR=1 so the page goes green. Do not.\n\n**YOUR TASK:**\n\n1. Confirm the produce failure and the RF / min.ISR / broker-down combination.\n2. Start `kafka-2`. Bring `desk.alerts` to RF 3 (recreate or reassign) with min.ISR still 2.\n3. Prove produces succeed. Leave unclean election off. Fill Investigation, then Submit.\n\n**SPEC:**\n\n- `desk.alerts`: RF 3, min.ISR 2, ISR size 3 on every partition.\n- All brokers up; produces with acks=all succeed.\n- min.ISR was never left at 1.",
+  "difficulty": "L1",
+  "tags": ["kafka", "l1", "foundations", "multi-step-bug", "kafka-3", "kraft"],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": { "domainId": "platforms-engineer", "panelId": "kafka" },
+  "problemStatement": {
+    "hints": [
+      "qb-broker start on kafka-2.",
+      "Easiest durable fix: delete desk.alerts and recreate with --replication-factor 3 --config min.insync.replicas=2 once all brokers are up.",
+      "Do not set min.insync.replicas=1."
+    ],
+    "overview": "min.ISR Is Why Produces Fail",
+    "brief": "min.ISR Is Why Produces Fail",
+    "solution": "",
+    "idLabel": "06",
+    "theory": "",
+    "guide": "# QuickBite — min.ISR is the write gate\n\n`desk.alerts` is RF=2 / min.ISR=2 and `kafka-2` is down. `acks=all` produces fail.\n\n## Fix\n\n1. On **kafka-2**: `qb-broker start`\n2. Recreate the topic at RF 3 / min.ISR 2 (delete + create is fine on this lab):\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --delete --topic desk.alerts\n# wait until gone, then:\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --create --topic desk.alerts \\\n  --partitions 3 --replication-factor 3 \\\n  --config min.insync.replicas=2 --config retention.ms=604800000\n```\n\n3. Do **not** set min.ISR=1. Prove a produce succeeds.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": ["Planning for a Kafka cluster", "Procuring the brokers", "Starting the KRaft quorum", "Preparing the lab"]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": { "script": "grade.sh", "timeoutSeconds": 240 }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

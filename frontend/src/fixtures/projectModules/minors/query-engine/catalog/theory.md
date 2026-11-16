@@ -1,28 +1,18 @@
-## Where you are
+## The catalog
 <!-- mode: read-only -->
 
 A query names tables. The **catalog** is the list of those tables: each has a name, an ordered list of columns, and the rows inserted so far. This engine keeps that list in memory. There is no file and no index.
 
-```plaintext
-  CREATE TABLE users (id INT, name TEXT);
-  INSERT INTO users VALUES (1, 'ada'), (2, 'bea');
-
-  users
-  ┌────┬──────┐
-  │ id │ name │
-  │ 1  │ ada  │
-  │ 2  │ bea  │
-  └────┴──────┘
-```
+![Query engine pipeline: lexer (ch 1) and parser (ch 2) feed the catalog (you are here, ch 3), then the executor (ch 4) and joins and aggregates (ch 5)](/query-engine/catalog/you-are-here.jpg)
 
 Creating the same table twice is an error. Inserting a string into an `INT` column is an error. Inserting three values into a two-column table is an error. The catalog is where those mistakes stop, before any query runs.
 
-> [!scope] This chapter's job
-> Parse `CREATE TABLE` and `INSERT`, and store rows that match the schema. `SELECT` still
-> does not return rows. That is the next chapter.
+![CREATE TABLE users (id INT, name TEXT) and INSERT INTO users VALUES (1, 'ada'), (2, 'bea') produce a users table with columns id and name and two rows](/query-engine/catalog/table.jpg)
 
-## A table is a schema plus rows
-<!-- mode: read-only -->
+> [!scope] This chapter's job
+> Parse `CREATE TABLE` and `INSERT`, and store rows that match the schema. `SELECT` still does not return rows. That is the next chapter.
+
+### A table is a schema plus rows
 
 Every column is `INT` or `TEXT`. There are no nulls, so every cell of an inserted row has a value, and the value's type is the column's type. Column order is the order written in `CREATE TABLE`. `INSERT` does not take a column list; values line up left to right.
 
@@ -46,6 +36,8 @@ The parser grew a `CREATE` and `INSERT` arm. The statement nodes were already in
 
 ## Parsing the statements
 <!-- mode: read-and-implement tasks:3.1 -->
+
+The parser grows two new statements. Their grammar is small enough to read in three lines.
 
 ```plaintext
   create = CREATE TABLE name '(' name type {',' name type} ')'
@@ -116,6 +108,8 @@ In `src/parse/ddl.cc`.
 ## Storing rows
 <!-- mode: read-and-implement tasks:3.2,3.3 -->
 
+### The schema is the contract
+
 `Create` records the schema and zero rows. `Insert` appends one row after checking the shape. Copy the slices you store. Callers reuse the slices they pass in, and a later mutation of the input must not change the table.
 
 <!-- lang: go -->
@@ -172,8 +166,7 @@ In `src/catalog/mutate.cc`:
 
 The public `Exec` path parses, maps `INT` and `TEXT` onto `catalog.TypeInt` and `catalog.TypeText`, and calls `Create` or `Insert`. `Query` returns an error until the executor exists. You do not need to change that wiring.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash

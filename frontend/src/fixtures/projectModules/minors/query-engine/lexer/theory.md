@@ -1,23 +1,16 @@
-## Where you are
+## The lexer
 <!-- mode: read-only -->
 
 A query engine never works on raw characters. The first stage, the **lexer**, walks the SQL string once and emits **tokens**: a keyword, a name, a number, a string, or one piece of punctuation.
 
-```plaintext
-  SELECT name FROM users WHERE id = 1;
-        │
-        ▼
-  select · ident(name) · from · ident(users) · where · ident(id) · eq · int(1) · semicolon
-```
+![Query engine pipeline: the lexer (you are here, ch 1) turns SQL text into tokens for the parser (ch 2), catalog (ch 3), executor (ch 4), and joins and aggregates (ch 5)](/query-engine/lexer/you-are-here.jpg)
 
-Whitespace disappears. The parser in the next chapter only sees this list.
+A statement goes in as one string and comes out as a flat list. Whitespace disappears. The parser in the next chapter only sees this list.
+
+![SELECT name FROM users WHERE id = 1; scanned into the tokens select, ident(name), from, ident(users), where, ident(id), eq, int(1), semicolon](/query-engine/lexer/tokens.jpg)
 
 > [!scope] This chapter's job
-> Only the scanner. No grammar, no tables, no rows. When you finish, `Scan` turns a statement
-> into tokens and rejects a character the dialect does not use.
-
-## Tokens
-<!-- mode: read-only -->
+> Only the scanner. No grammar, no tables, no rows. When you finish, `Scan` turns a statement into tokens and rejects a character the dialect does not use.
 
 ### One token is one meaningful piece
 
@@ -25,12 +18,9 @@ Whitespace disappears. The parser in the next chapter only sees this list.
 
 Keywords are case-insensitive. Identifiers are not: `Name` and `name` are different columns. The token keeps the original spelling in `Lit`, and the kind says whether that spelling is a keyword.
 
-```plaintext
-  SeLeCt     kind = select,  lit = "SeLeCt"
-  name       kind = ident,   lit = "name"
-  'a''b'     kind = string,  lit = "a'b"      two quotes in a row are one quote
-  10         kind = int,     lit = "10"
-```
+![Token kinds and literals: SeLeCt is kind select with lit "SeLeCt", name is ident, 'a''b' is a string with lit a'b, 10 is an int](/query-engine/lexer/kinds.jpg)
+
+Two quotes in a row inside a string are one quote character.
 
 A string that never closes, or a character such as `@`, is an error. The error points at the byte offset where the scan went wrong.
 
@@ -88,8 +78,10 @@ In `src/lex/scan.cc`:
 `Keyword` lower-cases the word for the lookup and returns `kIdent` when it is not a keyword. Leave `lit` in the original case.
 <!-- /lang -->
 
-## Numbers and strings
-<!-- mode: read-and-implement tasks:1.2 -->
+## Numbers, strings, and punctuation
+<!-- mode: read-and-implement tasks:1.2,1.3 -->
+
+### Numbers and strings
 
 Integers are a run of digits. There is no sign and no decimal point. `-1` is not one token in this dialect; you will not need it.
 
@@ -151,8 +143,7 @@ Strings use single quotes. The opening quote is already under the cursor. Two qu
 5. Reaching EOF before the closing quote is the same unterminated-string error.
 <!-- /lang -->
 
-## Punctuation
-<!-- mode: read-and-implement tasks:1.3 -->
+### Punctuation
 
 Everything else is one character. The dialect uses `* , ( ) = < > ; .` and nothing more. `<=` is not an operator here; `<` and `=` would be two tokens, and the parser will reject that combination later.
 
@@ -214,8 +205,7 @@ Anything else raises `LexError(pos, "unexpected character")`. Set `lit` to the c
 Anything else throws `Error(pos, "unexpected character")`. Set `lit` to a one-character string and `pos` to the index from before the bump.
 <!-- /lang -->
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash

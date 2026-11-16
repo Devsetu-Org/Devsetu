@@ -31,7 +31,7 @@ needs `Finish`.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # bloom + merge + scan acceptance tests for this chapter
 make race     # same, with the race detector
 make run      # REPL in ./data: put | get | del | scan [from] [to] | flush | stats
 ```

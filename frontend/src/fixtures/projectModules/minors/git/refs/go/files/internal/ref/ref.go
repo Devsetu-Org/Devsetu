@@ -11,14 +11,14 @@ import (
 
 // Read reads a ref file relative to the git dir (e.g. "refs/heads/main").
 func Read(r *repo.Repo, name string) (object.Hash, error) {
-	// TODO(2.1): safePath, os.ReadFile, TrimSpace, object.ParseHex.
-	panic("TODO(2.1): Read")
+	// TODO(2.1)
+	panic("TODO(2.1)")
 }
 
 // Write writes a direct ref (hash only).
 func Write(r *repo.Repo, name string, h object.Hash) error {
-	// TODO(2.1): safePath, MkdirAll parent, write hex+"\n" via temp+rename. Import os.
-	panic("TODO(2.1): Write")
+	// TODO(2.1)
+	panic("TODO(2.1)")
 }
 
 func safePath(r *repo.Repo, name string) (string, error) {

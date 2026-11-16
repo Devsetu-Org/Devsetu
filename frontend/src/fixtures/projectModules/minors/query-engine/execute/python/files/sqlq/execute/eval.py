@@ -7,9 +7,8 @@ from sqlq.parse.ast import Binary, Call, Ident, IntLit, Qual, StrLit
 
 
 def Eval(e, row) -> Value:
-    # TODO(4.2): IntLit, StrLit, Ident and Qual via row.Get, Binary for AND and = < >.
-    # AND skips the right side when the left is false. Aggregate Call is an error.
-    raise NotImplementedError("TODO(4.2): Eval")
+    # TODO(4.2) — Eval
+    raise NotImplementedError("TODO(4.2)")
 
 
 def Truth(e, row) -> bool:

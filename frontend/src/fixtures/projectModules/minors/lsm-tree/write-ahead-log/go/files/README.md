@@ -30,7 +30,7 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # wal + db acceptance tests (not chapter 1's memtable suite)
 make race     # same, with the race detector
 make run      # REPL in ./data: put k v | get k | del k | stats | quit
 ```

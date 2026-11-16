@@ -69,17 +69,17 @@ Wait for every process. The status that matters is the last one's.
 <!-- lang: go -->
 ### `TODO(4.3)` — `waitForeground` in `internal/exec/wait.go`
 
-Loop over `procs`, `waitCmd` each, keep the last status, return it.
+Wait every process in `procs` in order with `waitCmd` so zombies are reaped. Remember the last status code; that is the pipeline's exit status (`true | false` is non-zero). Return the first wait error if any, otherwise the last status.
 <!-- /lang -->
 <!-- lang: python -->
 ### `TODO(4.3)` — `wait_foreground` in `tinysh/exec/wait.py`
 
-Loop over `procs`, `wait_cmd` each, keep the last status, return it.
+Wait every process in `procs` in order with `wait_cmd` so zombies are reaped. Remember the last status code; that is the pipeline's exit status (`true | false` is non-zero). Return the first wait error if any, otherwise the last status.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.3)` — `WaitForeground` in `src/exec/wait.cc`
 
-Loop over `procs`, `WaitCmd` each, keep the last status, return it.
+Wait every process in `procs` in order with `WaitCmd` so zombies are reaped. Remember the last status code; that is the pipeline's exit status (`true | false` is non-zero). Return the first wait error if any, otherwise the last status.
 <!-- /lang -->
 
 ## Prove it

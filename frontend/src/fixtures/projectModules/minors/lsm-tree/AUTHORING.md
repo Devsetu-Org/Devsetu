@@ -48,8 +48,12 @@ languages that exist for that chapter.
   e.g. `<!-- lang: python, cpp -->`). Text outside lang blocks shows for all.
 - Do not hard-wrap `theory.md`. The theory renderer turns every source line into its
   own paragraph, so write one line per paragraph or list item.
-- A chapter is done when its tests pass. Tests are given; they must fail with a
-  clear message (or a `TODO` panic / exception) on the starter and pass on `solution/`.
+- A chapter is done when its tests pass. Each chapter ships **only its own**
+  acceptance tests (like chapter 1's memtable suite) — not a re-run of earlier
+  chapters. Tests are given; they must fail with a clear message (or a `TODO`
+  panic / exception) on the starter and pass on `solution/`.
+  `make test` / `make race` / `make asan` must target that chapter's packages
+  or test binaries only.
 - No third-party dependencies: Go stdlib, Python stdlib `unittest` (3.9+),
   C++17 with a plain Makefile and `tests/check.h`.
 - `solution/` holds only the files students edit. It is never imported, so it

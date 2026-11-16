@@ -30,6 +30,421 @@ export type SparkInvestigationSpec = {
  * Graders later read these keys via ~/answers on the shell pod.
  */
 const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
+  'kafka-05-under-replicated-is-not-a-failed-write': {
+    intro: 'Restore the missing broker and wait for ISR — do not lower min.ISR.',
+    steps: [
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'How you cleared URP, and which shortcut you refused.',
+        fieldKeys: ['howFixed', 'refusedShortcut'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Fix',
+        key: 'howFixed',
+        label: 'How did you clear under-replicated partitions?',
+        options: [
+          { id: 'start-broker-wait-isr', label: 'Started kafka-2 and waited for ISR=3' },
+          { id: 'force-election', label: 'Forced a preferred leader election' },
+          { id: 'drop-minisr', label: 'Set min.insync.replicas=1' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'refusedShortcut',
+        label: 'Which shortcut did you refuse?',
+        options: [
+          { id: 'left-minisr', label: 'Left min.insync.replicas at 2' },
+          { id: 'used-minisr-1', label: 'Dropped min.ISR to 1' },
+          { id: 'enabled-unclean', label: 'Enabled unclean leader election' },
+        ],
+      },
+    ],
+  },
+  'kafka-06-min-isr-is-why-produces-fail': {
+    intro: 'Restore RF and the broker. Do not drop min.ISR to make the page green.',
+    steps: [
+      {
+        id: 'fix',
+        title: 'Fix',
+        fieldKeys: ['howFixed', 'refusedShortcut'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Fix',
+        key: 'howFixed',
+        label: 'How did you fix produces?',
+        options: [
+          { id: 'restore-rf-and-broker', label: 'Started the broker and restored RF=3 with min.ISR=2' },
+          { id: 'drop-minisr', label: 'Set min.insync.replicas=1' },
+          { id: 'unclean', label: 'Enabled unclean leader election' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'refusedShortcut',
+        label: 'Which shortcut did you refuse?',
+        options: [
+          { id: 'left-minisr', label: 'Refused min.ISR=1; left durability intact' },
+          { id: 'used-minisr-1', label: 'Set min.ISR=1' },
+          { id: 'enabled-unclean', label: 'Enabled unclean election' },
+        ],
+      },
+    ],
+  },
+  'kafka-07-segments-retention-and-why-disk-fills': {
+    intro: 'Free disk without touching the hot path. Know delete vs compact.',
+    steps: [
+      {
+        id: 'lesson',
+        title: 'Retention lesson',
+        fieldKeys: ['cleanupLesson'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Retention lesson',
+        key: 'cleanupLesson',
+        label: 'delete vs compact — which is true?',
+        options: [
+          {
+            id: 'delete-vs-compact',
+            label: 'delete drops old segments by time/size; compact keeps latest per key — you cannot un-delete compaction',
+          },
+          { id: 'same-thing', label: 'delete and compact are the same' },
+          { id: 'compact-restores', label: 'compaction can restore deleted history' },
+        ],
+      },
+    ],
+  },
+  'kafka-08-capstone-disk-isr-and-the-write-path': {
+    intro: 'Free disk, drain lag by reading, refuse the ticket shortcuts.',
+    steps: [
+      {
+        id: 'fix',
+        title: 'Fix',
+        fieldKeys: ['howFixed', 'refusedShortcut'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Fix',
+        key: 'howFixed',
+        label: 'How did you clear the page?',
+        options: [
+          { id: 'free-disk-read-forward', label: 'Freed disk and let dispatch-desk read forward' },
+          { id: 'reset-latest', label: 'Reset the group to latest' },
+          { id: 'drop-minisr', label: 'Set min.ISR=1' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'refusedShortcut',
+        label: 'Which shortcut did you refuse?',
+        options: [
+          { id: 'no-reset-latest', label: 'Refused reset-offsets --to-latest' },
+          { id: 'used-latest', label: 'Reset to latest' },
+          { id: 'unclean', label: 'Enabled unclean election' },
+        ],
+      },
+    ],
+  },
+  'kafka-04-the-partition-and-replica-map': {
+    intro:
+      'Study rider.dispatch as a diagram — no brokers down. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'shape',
+        title: 'Topic shape',
+        blurb: 'Partitions, RF, min.ISR, unclean election.',
+        fieldKeys: ['partitions', 'rf', 'minIsr', 'uncleanElection'],
+      },
+      {
+        id: 'p0',
+        title: 'Partition 0',
+        blurb: 'Leader, preferred replica, and ISR.',
+        fieldKeys: ['p0Leader', 'p0Preferred', 'p0Isr'],
+      },
+      {
+        id: 'predict',
+        title: 'Predictions',
+        blurb: 'One broker dies — do acks=all produces still succeed?',
+        fieldKeys: ['predictRf3Min2', 'predictRf3Min3', 'predictRf2Min2'],
+      },
+    ],
+    fields: [
+      { section: 'Topic shape', key: 'partitions', label: 'Partition count' },
+      { section: 'Topic shape', key: 'rf', label: 'Replication factor' },
+      { section: 'Topic shape', key: 'minIsr', label: 'min.insync.replicas' },
+      {
+        section: 'Topic shape',
+        key: 'uncleanElection',
+        label: 'unclean.leader.election.enable',
+        options: [
+          { id: 'false', label: 'false (default / durable)' },
+          { id: 'true', label: 'true (out-of-ISR leaders allowed)' },
+        ],
+      },
+      { section: 'Partition 0', key: 'p0Leader', label: 'Leader broker id' },
+      {
+        section: 'Partition 0',
+        key: 'p0Preferred',
+        label: 'Preferred leader (first Replicas id)',
+      },
+      {
+        section: 'Partition 0',
+        key: 'p0Isr',
+        label: 'ISR (comma-separated)',
+        hint: 'Order does not matter.',
+      },
+      {
+        section: 'Predictions',
+        key: 'predictRf3Min2',
+        label: 'RF=3, min.ISR=2 — one broker dies',
+        options: [
+          { id: 'still-ok', label: 'Produces still succeed (ISR can stay ≥ 2)' },
+          { id: 'produces-fail', label: 'Produces fail' },
+          { id: 'need-unclean', label: 'Must enable unclean election' },
+        ],
+      },
+      {
+        section: 'Predictions',
+        key: 'predictRf3Min3',
+        label: 'RF=3, min.ISR=3 — one broker dies',
+        options: [
+          { id: 'still-ok', label: 'Produces still succeed' },
+          { id: 'produces-fail', label: 'Produces fail (ISR cannot stay at 3)' },
+          { id: 'need-unclean', label: 'Must enable unclean election' },
+        ],
+      },
+      {
+        section: 'Predictions',
+        key: 'predictRf2Min2',
+        label: 'RF=2, min.ISR=2 — one broker dies',
+        options: [
+          { id: 'still-ok', label: 'Produces still succeed' },
+          { id: 'produces-fail', label: 'Produces fail (ISR cannot stay at 2)' },
+          { id: 'need-unclean', label: 'Must enable unclean election' },
+        ],
+      },
+    ],
+  },
+  'kafka-03-trace-a-produce-from-client-to-last-replica': {
+    intro:
+      'Produce one keyed record into rider.dispatch, then walk these pages. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'client',
+        title: 'Client',
+        blurb: 'What bootstrap list did you use, and which key did you produce?',
+        fieldKeys: ['bootstrapSource', 'produceKey'],
+      },
+      {
+        id: 'map',
+        title: 'Partition map',
+        blurb: 'Partition, leader broker id, and ISR for that record.',
+        fieldKeys: ['partition', 'leaderId', 'isr'],
+      },
+      {
+        id: 'end',
+        title: 'Log end',
+        blurb: 'Log-end offset for that partition after acks=all.',
+        fieldKeys: ['logEndOffset'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Client',
+        key: 'bootstrapSource',
+        label: 'Which bootstrap list did the producer use?',
+        options: [
+          { id: 'env-bootstrap', label: '$BOOTSTRAP_SERVERS from the shell environment' },
+          { id: 'localhost', label: 'localhost:9092 only' },
+          { id: 'zk', label: 'ZooKeeper connect string' },
+          { id: 'hardcoded-one', label: 'A single broker hostname typed from memory' },
+        ],
+      },
+      {
+        section: 'Client',
+        key: 'produceKey',
+        label: 'Record key',
+        hint: 'From ~/ticket/PRODUCE.md',
+      },
+      {
+        section: 'Partition map',
+        key: 'partition',
+        label: 'Partition id',
+        hint: 'Which partition the key hashed to.',
+      },
+      {
+        section: 'Partition map',
+        key: 'leaderId',
+        label: 'Leader broker id',
+        hint: 'Numeric broker id from --describe (1 / 2 / 3).',
+      },
+      {
+        section: 'Partition map',
+        key: 'isr',
+        label: 'ISR (broker ids)',
+        hint: 'Comma-separated, e.g. 1,2,3 — order does not matter.',
+      },
+      {
+        section: 'Log end',
+        key: 'logEndOffset',
+        label: 'Log-end offset',
+        hint: 'From kafka-get-offsets.sh --time -1 for that partition.',
+      },
+    ],
+  },
+  'kafka-02-open-a-topic-the-platform-way': {
+    intro:
+      'This lab is KRaft. Create order.status to the platform shape, then walk these pages. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'plane',
+        title: 'Control plane',
+        blurb: 'What elects the controller on this cluster?',
+        fieldKeys: ['controlPlane'],
+      },
+      {
+        id: 'source',
+        title: 'Shape source',
+        blurb: 'Ticket vs platform note — which one did you follow?',
+        fieldKeys: ['shapeSource'],
+      },
+      {
+        id: 'shape',
+        title: 'order.status shape',
+        blurb: 'The numbers you applied from the platform note.',
+        fieldKeys: [
+          'orderStatusPartitions',
+          'orderStatusRf',
+          'orderStatusRetention',
+          'orderStatusMinIsr',
+        ],
+      },
+    ],
+    fields: [
+      {
+        section: 'Control plane',
+        key: 'controlPlane',
+        label: 'What is the control plane on this lab?',
+        options: [
+          { id: 'kraft', label: 'KRaft — combined broker + controller, no ZooKeeper' },
+          { id: 'zookeeper', label: 'ZooKeeper — elects the controller; brokers are separate' },
+          { id: 'etcd', label: 'etcd — same as Kubernetes' },
+          { id: 'raft-only', label: 'A standalone Raft library with no ZK and no KRaft' },
+        ],
+      },
+      {
+        section: 'Shape source',
+        key: 'shapeSource',
+        label: 'Which file did you use for the order.status shape?',
+        options: [
+          { id: 'ticket', label: 'Trusted ~/ticket/TICKET.md (3 parts / RF 2 / min.ISR 1)' },
+          { id: 'platform-note', label: 'Followed ~/ticket/PLATFORM.md (6 / 3 / 3-day / min.ISR 2)' },
+          { id: 'guess', label: 'Guessed from another topic without reading either file' },
+          { id: 'ui-only', label: 'Copied settings from a Kafka UI that is not on this lab' },
+        ],
+      },
+      {
+        section: 'order.status shape',
+        key: 'orderStatusPartitions',
+        label: 'Partitions',
+        hint: 'From PLATFORM.md — not the ticket.',
+      },
+      {
+        section: 'order.status shape',
+        key: 'orderStatusRf',
+        label: 'Replication factor',
+      },
+      {
+        section: 'order.status shape',
+        key: 'orderStatusRetention',
+        label: 'retention.ms',
+        hint: 'Exact millisecond value from the platform note.',
+      },
+      {
+        section: 'order.status shape',
+        key: 'orderStatusMinIsr',
+        label: 'min.insync.replicas',
+      },
+    ],
+  },
+  'kafka-01-stand-up-the-cluster-and-find-everything-on-disk': {
+    intro:
+      'This lab is the ZooKeeper-era cluster. Confirm ZK + brokers, then walk these pages. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'processes',
+        title: 'Processes',
+        blurb: 'PIDs from ps / jps on zookeeper and each broker.',
+        fieldKeys: ['zkPid', 'broker0Pid', 'broker1Pid', 'broker2Pid'],
+      },
+      {
+        id: 'on-disk',
+        title: 'On disk',
+        blurb: 'Real ZK dataDir and Kafka log.dirs — not the handoff decoys. Controller from /controller.',
+        fieldKeys: ['zkDataDir', 'logDirs', 'controller'],
+      },
+      {
+        id: 'how',
+        title: 'How you found it',
+        blurb: 'Source of truth for log.dirs, and which control plane this lab uses.',
+        fieldKeys: ['logDirsSource', 'controlPlane'],
+      },
+    ],
+    fields: [
+      { section: 'Processes', key: 'zkPid', label: 'ZooKeeper PID', hint: 'PID of the ZooKeeper process on zookeeper.' },
+      { section: 'Processes', key: 'broker0Pid', label: 'kafka-0 PID', hint: 'PID of the Kafka broker on kafka-0.' },
+      { section: 'Processes', key: 'broker1Pid', label: 'kafka-1 PID', hint: 'PID of the Kafka broker on kafka-1.' },
+      { section: 'Processes', key: 'broker2Pid', label: 'kafka-2 PID', hint: 'PID of the Kafka broker on kafka-2.' },
+      {
+        section: 'On disk',
+        key: 'zkDataDir',
+        label: 'ZooKeeper dataDir',
+        hint: 'Live ZooKeeper data directory (look for myid) — not the handoff decoy.',
+      },
+      {
+        section: 'On disk',
+        key: 'logDirs',
+        label: 'Broker log directory',
+        hint: 'log.dirs used by the live broker process.',
+      },
+      {
+        section: 'On disk',
+        key: 'controller',
+        label: 'Controller broker id',
+        hint: 'brokerid from zookeeper-shell get /controller on the shell. Not kafka-metadata-quorum.',
+      },
+      {
+        section: 'How you found it',
+        key: 'logDirsSource',
+        label: 'How did you find the real Kafka log directory?',
+        hint: 'The handoff note is a claim. What confirmed the path?',
+        options: [
+          { id: 'handoff', label: 'Trusted ~/ticket/HANDOFF.md and used /opt/kafka/kafka-logs' },
+          { id: 'guess-tmp', label: 'Guessed /tmp/kafka or /var/log/kafka' },
+          { id: 'process-env', label: 'Read KAFKA_LOG_DIRS (or log.dirs) from the live process environment' },
+          { id: 'ui-only', label: 'Read it from a Kafka UI that is not on this lab' },
+        ],
+      },
+      {
+        section: 'How you found it',
+        key: 'controlPlane',
+        label: 'What is the control plane on this lab?',
+        options: [
+          { id: 'kraft', label: 'KRaft — combined broker + controller, no ZooKeeper' },
+          { id: 'zookeeper', label: 'ZooKeeper — elects the controller; brokers are separate' },
+          { id: 'etcd', label: 'etcd — same as Kubernetes' },
+          { id: 'raft-only', label: 'A standalone Raft library with no ZK and no KRaft' },
+        ],
+      },
+    ],
+  },
   'spark-01-stand-up-the-cluster-and-find-everything-on-disk': {
     intro:
       'Bring the cluster up from the Guide, then walk these pages. Answers save as you go — Incomplete Investigation still fails on Submit.',
@@ -522,84 +937,548 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
   },
   'spark-06-diagnose-an-executor-lost-to-memory-pressure': {
     intro:
-      'Find both causes before any fix. Incomplete Investigation fails on Submit. Raising memory alone is not enough.',
+      'Misplaced oversized hold on the big Worker; victim needs that host alone. Keep the hold running. Incomplete Investigation fails on Submit.',
+    steps: [
+      {
+        id: 'symptom',
+        title: 'Symptom',
+        blurb: 'What store-rollup-mem showed when it failed beside the hold.',
+        fieldKeys: ['lossPattern'],
+      },
+      {
+        id: 'placement',
+        title: 'Why the hold is on B',
+        blurb: 'Request vs Worker offers, and whether usage justifies the ask.',
+        fieldKeys: ['holdWhyOnBig', 'holdUsageClue'],
+      },
+      {
+        id: 'victim',
+        title: 'Why the victim needs B',
+        blurb: 'Why the small Worker cannot run store-rollup-mem.',
+        fieldKeys: ['victimNeedsBig'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'Right-size + relocate the hold; do not only raise victim memory.',
+        fieldKeys: ['fixApplied', 'raiseOnlyLesson'],
+      },
+    ],
     fields: [
-      { section: 'Symptom', key: 'lossPattern', label: 'What you saw when executors were lost', hint: 'Driver / UI wording.' },
       {
-        section: 'Cause A — sizing',
-        key: 'undersizedEvidence',
-        label: 'Undersized executor — evidence',
-        hint: 'Requested memory vs worker capacity.',
+        section: 'Symptom',
+        key: 'lossPattern',
+        label: 'What did you see when store-rollup-mem failed?',
+        options: [
+          { id: 'driver-oom', label: 'Clean OutOfMemoryError on the driver with a full stack' },
+          {
+            id: 'executor-lost-task',
+            label: 'Lost task / Python worker crashed — driver stayed up',
+          },
+          { id: 'accepted-forever', label: 'Application stayed Accepted forever with zero executors' },
+          { id: 'master-down', label: 'Master process exited' },
+        ],
       },
       {
-        section: 'Cause B — colocation',
-        key: 'cotenantApp',
-        label: 'Second job / app sharing the worker',
-        hint: 'Application name or id.',
+        section: 'Hold on B',
+        key: 'holdWhyOnBig',
+        label: 'Why was team-b-debug-hold on the big Worker?',
+        options: [
+          { id: 'random', label: 'Master always prefers ds-spark-03 for every app' },
+          {
+            id: 'request-exceeds-small',
+            label: 'Its 1024m request exceeds ds-spark-02’s 768m offer — only B can take it',
+          },
+          { id: 'needs-2-cores', label: 'The hold requires 2 cores and A only has 1' },
+          { id: 'disk', label: 'A’s disk was full so Master skipped it' },
+        ],
       },
-      { section: 'Cause B — colocation', key: 'sharedWorker', label: 'Worker host they shared' },
+      {
+        section: 'Hold on B',
+        key: 'holdUsageClue',
+        label: 'What did Storage / Executors show for the hold’s real footprint?',
+        options: [
+          { id: 'fully-used', label: 'Storage near 1024m — the ask was fully justified' },
+          {
+            id: 'used-much-less',
+            label: 'Cached/used size much smaller than 1024m — safe to right-size',
+          },
+          { id: 'empty-never', label: 'Storage empty because cache() was never reached' },
+          { id: 'disk-only', label: 'Everything was on disk only from the start' },
+        ],
+      },
+      {
+        section: 'Victim',
+        key: 'victimNeedsBig',
+        label: 'Why can store-rollup-mem not simply run on the small Worker?',
+        options: [
+          { id: 'victim-request-gt-small', label: 'Its 1024m ask is larger than ds-spark-02’s 768m offer' },
+          { id: 'name-blacklist', label: 'Master blacklists store-rollup-mem on ds-spark-02' },
+          { id: 'needs-python3', label: 'A does not have Python installed' },
+          { id: 'can-run-a', label: 'It can — A is large enough for 1024m' },
+        ],
+      },
       {
         section: 'Fix',
-        key: 'fixSummary',
-        label: 'What you changed so both causes are addressed',
+        key: 'fixApplied',
+        label: 'What fix made both workloads healthy?',
+        options: [
+          { id: 'raise-only', label: 'Only raised store-rollup-mem memory and left the hold on B' },
+          {
+            id: 'rightsize-hold-to-small',
+            label: 'Right-sized the hold so it sits on ds-spark-02, then ran the victim on B',
+          },
+          { id: 'kill-hold-forever', label: 'Deleted team-b-debug-hold permanently and only ran the victim' },
+          { id: 'local-mode', label: 'Switched both jobs to local[*]' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'raiseOnlyLesson',
+        label: 'Why is raising victim memory alone the wrong fix?',
+        options: [
+          {
+            id: 'raise-alone-fails',
+            label: 'The hold still occupies the big Worker — victim still shares that host',
+          },
+          { id: 'memory-never', label: 'Executor memory never matters on standalone' },
+          { id: 'must-raise', label: 'You must always raise memory first' },
+          { id: 'ui-blocks', label: 'The Master UI forbids memory changes' },
+        ],
       },
     ],
   },
   'spark-07-the-capstone-bug-slow-then-dead': {
     intro:
-      'Read a timeline, not a snapshot. Cite at least three signals. Incomplete Investigation fails on Submit.',
+      'Healthy → shuffle trouble → FetchFailed. Local shuffle dirs / disk pressure — platform fix. Incomplete Investigation fails on Submit.',
+    steps: [
+      {
+        id: 'timeline',
+        title: 'Timeline',
+        blurb: 'When it was healthy, when shuffle hurt, when it died.',
+        fieldKeys: ['whenHealthy', 'whenSlow', 'whenDead'],
+      },
+      {
+        id: 'signals',
+        title: 'Signals',
+        blurb: 'Driver/UI, worker local disk or work path, executor/worker log.',
+        fieldKeys: ['signalDriverUi', 'signalLocalDisk', 'signalWorkerLog'],
+      },
+      {
+        id: 'cause',
+        title: 'Cause',
+        blurb: 'Lost shuffle locals under disk pressure — not an app cache() edit.',
+        fieldKeys: ['rootCause'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'Protect local shuffle dirs / free space; re-run green.',
+        fieldKeys: ['fixApplied', 'wrongFixLesson'],
+      },
+    ],
     fields: [
-      { section: 'Timeline', key: 'whenHealthy', label: 'When it was still healthy', hint: 'Rough clock or stage.' },
-      { section: 'Timeline', key: 'whenSlow', label: 'When it slowed' },
-      { section: 'Timeline', key: 'whenDead', label: 'When the executor died' },
-      { section: 'Signals', key: 'signalMasterUi', label: 'Signal from the Master UI' },
-      { section: 'Signals', key: 'signalWorkerLog', label: 'Signal from a worker log' },
-      { section: 'Signals', key: 'signalExecutorMem', label: 'Signal from executor memory breakdown' },
+      {
+        section: 'Timeline',
+        key: 'whenHealthy',
+        label: 'What still looked healthy early?',
+        options: [
+          { id: 'never', label: 'Nothing — the job failed before any stage ran' },
+          {
+            id: 'pre-shuffle',
+            label: 'Early / pre-shuffle work — then the shuffle boundary hurt',
+          },
+          { id: 'always-slow', label: 'It was slow from the first task with no clear boundary' },
+          { id: 'master-only', label: 'Only the Master UI was healthy; no job ran' },
+        ],
+      },
+      {
+        section: 'Timeline',
+        key: 'whenSlow',
+        label: 'What marked the slow phase?',
+        options: [
+          { id: 'ui-refresh', label: 'The Master UI refresh rate changed' },
+          {
+            id: 'shuffle-retries',
+            label: 'Shuffle stage retries / stragglers / fetch trouble',
+          },
+          { id: 'dns', label: 'DNS lookups for ds-spark-01 started failing' },
+          { id: 'idle', label: 'All executors sat idle with no tasks' },
+        ],
+      },
+      {
+        section: 'Timeline',
+        key: 'whenDead',
+        label: 'How did the job die?',
+        options: [
+          { id: 'fetch-failed', label: 'FetchFailed / stage failure reading shuffle output' },
+          { id: 'driver-oom', label: 'Driver OutOfMemoryError only' },
+          { id: 'accepted', label: 'Stayed Accepted with no executors forever' },
+          { id: 'kill-shell', label: 'Someone killed the shell pod' },
+        ],
+      },
+      {
+        section: 'Signals',
+        key: 'signalDriverUi',
+        label: 'Driver / Application UI signal',
+        options: [
+          { id: 'fetch-or-stage', label: 'FetchFailed or failed shuffle stage / task errors' },
+          { id: 'green-storage', label: 'Storage tab 100% cached and idle' },
+          { id: 'no-jobs', label: 'Jobs tab empty the whole time' },
+          { id: 'yarn-rm', label: 'ResourceManager queue Accepted' },
+        ],
+      },
+      {
+        section: 'Signals',
+        key: 'signalLocalDisk',
+        label: 'Local disk / work path signal',
+        options: [
+          {
+            id: 'local-full-or-missing',
+            label: 'Worker spark-local / work path full, tiny, or shuffle blocks missing',
+          },
+          { id: 'root-empty', label: 'Root filesystem completely empty' },
+          { id: 'nfs-fast', label: 'Local dirs on a fast empty SSD with no pressure' },
+          { id: 'no-work', label: 'No SPARK_HOME/work directory exists on any Worker' },
+        ],
+      },
+      {
+        section: 'Signals',
+        key: 'signalWorkerLog',
+        label: 'Worker / executor log signal',
+        options: [
+          {
+            id: 'disk-or-io',
+            label: 'Disk / IO / block manager errors around shuffle locals',
+          },
+          { id: 'timeout-only', label: 'Only spark.worker.timeout heartbeat messages' },
+          { id: 'silent', label: 'Logs completely empty' },
+          { id: 'auth', label: 'Kerberos ticket expired' },
+        ],
+      },
       {
         section: 'Cause',
         key: 'rootCause',
-        label: 'Root cause (one sentence)',
-        hint: 'Memory-leak-shaped caching / retention — be specific.',
+        label: 'Root cause',
+        options: [
+          {
+            id: 'shuffle-local-disk',
+            label: 'Shuffle locals under Worker local/work dirs hit disk pressure / were wiped',
+          },
+          { id: 'app-cache-leak', label: 'Unbounded cache() in the job code — fix by editing persist' },
+          { id: 'cotenant-pack', label: 'A second app packed onto the same Worker (Lab 6 style)' },
+          { id: 'wrong-master', label: 'Jobs pointed at the wrong Master URL' },
+        ],
       },
-      { section: 'Fix', key: 'fixSummary', label: 'What you changed' },
+      {
+        section: 'Fix',
+        key: 'fixApplied',
+        label: 'What platform fix made the shuffle survive?',
+        options: [
+          {
+            id: 'protect-local-rerun',
+            label: 'Stopped the wipe/filler, freed local shuffle space, re-ran the job',
+          },
+          { id: 'edit-cache', label: 'Removed cache() from the application and left disk full' },
+          { id: 'raise-executors', label: 'Only raised executor count with no disk change' },
+          { id: 'kill-master', label: 'Restarted only the Master' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'wrongFixLesson',
+        label: 'What is the wrong “fix” here?',
+        options: [
+          {
+            id: 'ignore-disk',
+            label: 'Ignore Worker local disk and only bump executor memory/count',
+          },
+          { id: 'always-disk-first', label: 'Always reformat every Worker disk before any submit' },
+          { id: 'no-shuffle', label: 'Disable all shuffles in spark-defaults forever' },
+          { id: 'yarn-only', label: 'Move every job to YARN without checking local dirs' },
+        ],
+      },
     ],
   },
-  'spark-08-drain-a-worker-without-breaking-anything': {
+  'spark-08-post-maintenance-mess': {
     intro:
-      'Drain ds-spark-03 without task failures, then prove you did not recreate the Lab 1.6 overcommit on ds-spark-02. Incomplete Investigation fails on Submit.',
+      'Three maintenance faults stacked: stale Master URL, locked work dirs, broken eventlogs path. Incomplete Investigation fails on Submit.',
+    steps: [
+      {
+        id: 'faults',
+        title: 'Faults',
+        blurb: 'What maintenance broke — URL, work dir, event logs.',
+        fieldKeys: ['staleMasterClue', 'workDirFault', 'eventLogFault'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'Order of repair and what not to do.',
+        fieldKeys: ['fixOrderLesson', 'wrongFixLesson'],
+      },
+    ],
     fields: [
       {
-        section: 'Drain',
-        key: 'drainSteps',
-        label: 'How you drained ds-spark-03',
-      },
-      { section: 'Drain', key: 'taskFailures', label: 'Task failures during the drain' },
-      {
-        section: 'After',
-        key: 'relocationHosts',
-        label: 'Where relocated executors landed',
-      },
-      {
-        section: 'Overcommit check',
-        key: 'overcommitCheck',
-        label: 'Did this recreate the Lab 1.6 overcommit on ds-spark-02?',
+        section: 'Faults',
+        key: 'staleMasterClue',
+        label: 'Where did you find the wrong Master URL?',
+        options: [
+          {
+            id: 'maintenance-url-file',
+            label: '~/lab/MAINTENANCE_MASTER (and notes) — not $SPARK_MASTER_URL',
+          },
+          { id: 'yarn-rm', label: 'YARN ResourceManager UI on :8088' },
+          { id: 'history', label: 'History Server only' },
+          { id: 'no-url', label: 'There was no Master URL problem' },
+        ],
       },
       {
-        section: 'Guardrail',
-        key: 'concentrationLimit',
-        label: 'Concentration limit or placement rule you enforced',
+        section: 'Faults',
+        key: 'workDirFault',
+        label: 'What was wrong with $SPARK_HOME/work on the Workers?',
+        options: [
+          { id: 'chmod-locked', label: 'Permissions locked (chmod 000) — executors could not write' },
+          { id: 'nfs-only', label: 'It was an NFS mount that was fine' },
+          { id: 'missing-spark', label: 'SPARK_HOME itself was deleted' },
+          { id: 'full-root', label: 'Root filesystem was 100% full with no other clue' },
+        ],
+      },
+      {
+        section: 'Faults',
+        key: 'eventLogFault',
+        label: 'What was wrong with the event log path?',
+        options: [
+          {
+            id: 'file-not-dir',
+            label: 'eventlogs was a file where a directory should be',
+          },
+          { id: 'disabled-ok', label: 'Event logging was correctly disabled forever' },
+          { id: 's3-only', label: 'It only worked on S3' },
+          { id: 'no-event', label: 'Nothing was wrong with event logs' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'fixOrderLesson',
+        label: 'Sensible repair order?',
+        options: [
+          {
+            id: 'url-then-perms-then-eventlogs',
+            label: 'Real Master URL + Workers up → unlock work → restore eventlogs dir → re-run',
+          },
+          { id: 'eventlogs-only', label: 'Only fix eventlogs and ignore Workers' },
+          { id: 'kill-master-first', label: 'Kill the Master first every time' },
+          { id: 'raise-memory', label: 'Only raise executor memory' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'wrongFixLesson',
+        label: 'What is the wrong approach?',
+        options: [
+          {
+            id: 'ignore-maintenance-notes',
+            label: 'Ignore maintenance notes and keep using the stale Master URL',
+          },
+          { id: 'must-read-notes', label: 'You must always read maintenance notes first' },
+          { id: 'chmod-forever', label: 'Leave work at chmod 000 for security' },
+          { id: 'file-eventlogs', label: 'Keep eventlogs as a file so nothing is logged' },
+        ],
+      },
+    ],
+  },
+  'spark-14-dns-memory-and-disk-triple': {
+    intro:
+      'Three layers: bad driver host → tiny memoryOverhead → DISK_FILLER. Peel in order. Incomplete Investigation fails on Submit.',
+    steps: [
+      {
+        id: 'layers',
+        title: 'Layers',
+        blurb: 'Which fault is first, second, third.',
+        fieldKeys: ['firstLayer', 'secondLayer', 'thirdLayer'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'Peel order and the wrong shortcut.',
+        fieldKeys: ['peelOrder', 'wrongFixLesson'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Layers',
+        key: 'firstLayer',
+        label: 'What blocks the job first?',
+        options: [
+          {
+            id: 'driver-host',
+            label: 'Bad spark.driver.host — executors cannot reach the client driver',
+          },
+          { id: 'local-disk-filler', label: 'DISK_FILLER only — nothing else wrong' },
+          { id: 'memory-overhead', label: 'Tiny memoryOverhead only — host is fine' },
+          { id: 'yarn-queue', label: 'Wrong YARN queue' },
+        ],
+      },
+      {
+        section: 'Layers',
+        key: 'secondLayer',
+        label: 'What shows up after the host is fixed?',
+        options: [
+          {
+            id: 'memory-overhead',
+            label: 'Tiny spark.executor.memoryOverhead — lost task / Python worker pressure',
+          },
+          { id: 'driver-host', label: 'Driver host is still the only problem' },
+          { id: 'master-down', label: 'Master process exits' },
+          { id: 'dns-ok', label: 'Nothing — the job is green after host only' },
+        ],
+      },
+      {
+        section: 'Layers',
+        key: 'thirdLayer',
+        label: 'What remains after host + overhead are fixed?',
+        options: [
+          {
+            id: 'local-disk-filler',
+            label: 'DISK_FILLER / pressure under Worker spark-local',
+          },
+          { id: 'driver-host', label: 'Driver host again' },
+          { id: 'no-third', label: 'There is no third fault' },
+          { id: 'kerberos', label: 'Kerberos ticket expired' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'peelOrder',
+        label: 'Correct peel order?',
+        options: [
+          {
+            id: 'host-then-overhead-then-disk',
+            label: 'Driver host → memoryOverhead → remove DISK_FILLER → re-run',
+          },
+          { id: 'disk-first', label: 'Always delete DISK_FILLER first and ignore host' },
+          { id: 'overhead-only', label: 'Only raise overhead forever' },
+          { id: 'random', label: 'Order does not matter' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'wrongFixLesson',
+        label: 'What is the wrong shortcut?',
+        options: [
+          {
+            id: 'bump-cores-only',
+            label: 'Only bump executor cores/count and leave host, overhead, and disk alone',
+          },
+          { id: 'must-peel', label: 'You must peel every layer' },
+          { id: 'host-required', label: 'Fixing the driver host is required' },
+          { id: 'disk-required', label: 'Removing DISK_FILLER is required' },
+        ],
       },
     ],
   },
   'spark-09-submit-the-same-workload-on-yarn': {
     intro:
-      'Submit the same join once in client mode and once in cluster mode. Record where the driver lived and which RM / NM panels showed the app. Incomplete Investigation fails on Submit.',
+      'Start with YARN forensics on this migrated cluster, then fix ~/lab/submit-store-rollup.sh and prove client + cluster. Submit checks forensics, the wrapper, and both apps.',
+    steps: [
+      {
+        id: 'forensics',
+        title: 'Forensics',
+        blurb: 'Same hosts as Chapter 1 — roles changed. Map RM / NM before you touch the wrapper.',
+        fieldKeys: ['rmHostRole', 'noMaster', 'activeNodesExpect'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'The planted submit-store-rollup.sh still speaks standalone. Translate it to YARN.',
+        fieldKeys: ['oldSubmitContract', 'yarnResourceContract'],
+      },
+      {
+        id: 'client',
+        title: 'Client mode',
+        blurb: 'store-rollup-client — driver stays on the shell.',
+        fieldKeys: ['clientAppId', 'clientDriverHost', 'clientRmPanel', 'clientNmPanel'],
+      },
+      {
+        id: 'cluster',
+        title: 'Cluster mode',
+        blurb: 'store-rollup-cluster — driver is the ApplicationMaster container.',
+        fieldKeys: ['clusterAppId', 'clusterDriverHost', 'clusterAmIsContainer'],
+      },
+      {
+        id: 'lesson',
+        title: 'Lesson',
+        blurb: 'What the forensics and the two submits were meant to teach.',
+        fieldKeys: ['deployModeDelta', 'whyBothModes'],
+      },
+    ],
     fields: [
+      {
+        section: 'Topology',
+        key: 'rmHostRole',
+        label: 'What process owns ds-spark-01 in this lab?',
+        options: [
+          { id: 'spark-master', label: 'Spark Master (standalone)' },
+          { id: 'resourcemanager', label: 'YARN ResourceManager' },
+          { id: 'nodemanager', label: 'YARN NodeManager only' },
+          { id: 'history', label: 'Spark History Server only' },
+        ],
+      },
+      {
+        section: 'Topology',
+        key: 'noMaster',
+        label: 'Is there a Spark Master / Worker on this cluster?',
+        options: [
+          { id: 'yarn-only', label: 'No — YARN owns the hosts; Spark asks for containers' },
+          { id: 'master-too', label: 'Yes — Master on 01, Workers on 02/03, plus YARN' },
+          { id: 'workers-only', label: 'Workers only — Master is optional on YARN' },
+          { id: 'k8s', label: 'No — this lab is Spark on Kubernetes' },
+        ],
+      },
+      {
+        section: 'Topology',
+        key: 'activeNodesExpect',
+        label: 'How many active NodeManagers should the RM list before you submit?',
+        options: [
+          { id: '0', label: '0' },
+          { id: '1', label: '1' },
+          { id: '2', label: '2' },
+          { id: '3', label: '3' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'oldSubmitContract',
+        label: 'Why does submit-store-rollup.sh fail on this YARN cluster?',
+        options: [
+          {
+            id: 'standalone-contract',
+            label: 'It targeted a standalone Master and used a standalone total-core request',
+          },
+          { id: 'missing-queue', label: 'Every YARN submit must name a non-default queue' },
+          { id: 'python', label: 'YARN cannot run Python applications' },
+          { id: 'too-small', label: '512m executors are always invalid on YARN' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'yarnResourceContract',
+        label: 'How should the standalone total-core request translate on YARN?',
+        options: [
+          {
+            id: 'instances-and-cores',
+            label: '2 executor instances × 1 core each',
+          },
+          { id: 'one-am', label: '1 ApplicationMaster × 2 cores; no executors' },
+          { id: 'worker-cores', label: 'Set SPARK_WORKER_CORES=2 on the NodeManagers' },
+          { id: 'rm-cores', label: 'Give 2 cores directly to the ResourceManager JVM' },
+        ],
+      },
       {
         section: 'Client mode',
         key: 'clientAppId',
         label: 'Client-mode application id',
-        hint: 'application_… from yarn application -list or the RM UI.',
+        hint: 'application_… for store-rollup-client — from yarn application -list or the RM UI.',
       },
       {
         section: 'Client mode',
@@ -611,18 +1490,6 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
           { id: 'ds-spark-02', label: 'ds-spark-02 (a NodeManager)' },
           { id: 'ds-spark-03', label: 'ds-spark-03 (a NodeManager)' },
         ],
-      },
-      {
-        section: 'Client mode',
-        key: 'clientContainerHosts',
-        label: 'Hosts that held client-mode containers',
-        hint: 'e.g. ds-spark-02, ds-spark-03 — from RM or NM panels.',
-      },
-      {
-        section: 'Client mode',
-        key: 'clientAllocMemory',
-        label: 'Allocated memory the RM showed for that app',
-        hint: 'MB or the UI string — include units if the panel shows them.',
       },
       {
         section: 'Client mode',
@@ -650,7 +1517,7 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
         section: 'Cluster mode',
         key: 'clusterAppId',
         label: 'Cluster-mode application id',
-        hint: 'A second application_… — not the client-mode id.',
+        hint: 'A second application_… for store-rollup-cluster — not the client-mode id.',
       },
       {
         section: 'Cluster mode',
@@ -665,17 +1532,17 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
       },
       {
         section: 'Cluster mode',
-        key: 'clusterContainerHosts',
-        label: 'Hosts that held cluster-mode containers',
-        hint: 'Include the AM host if you can see it.',
+        key: 'clusterAmIsContainer',
+        label: 'In cluster mode, what is the driver?',
+        options: [
+          { id: 'am-container', label: 'A YARN ApplicationMaster container on a NodeManager' },
+          { id: 'shell-process', label: 'Still the spark-submit JVM on the shell' },
+          { id: 'rm-jvm', label: 'Inside the ResourceManager JVM' },
+          { id: 'history', label: 'Only the History Server process' },
+        ],
       },
       {
-        section: 'Cluster mode',
-        key: 'clusterAllocMemory',
-        label: 'Allocated memory the RM showed for that app',
-      },
-      {
-        section: 'Compare',
+        section: 'Lesson',
         key: 'deployModeDelta',
         label: 'What changed between client and cluster mode?',
         options: [
@@ -685,16 +1552,56 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
           { id: 'master-back', label: 'Cluster mode starts a Spark Master again' },
         ],
       },
+      {
+        section: 'Lesson',
+        key: 'whyBothModes',
+        label: 'Why submit the same join twice in this lab?',
+        options: [
+          {
+            id: 'driver-placement',
+            label: 'To see that deploy mode changes where the driver lives — not the join itself',
+          },
+          { id: 'faster-cluster', label: 'Cluster mode always finishes faster' },
+          { id: 'need-hdfs', label: 'Client mode requires HDFS; cluster mode does not' },
+          { id: 'queue-only', label: 'Only to pick a different YARN queue' },
+        ],
+      },
     ],
   },
   'spark-10-read-the-rm-and-nm-as-instruments': {
     intro:
-      'Read the planted probe app from the RM / NM UIs, then verify two claims on a node. Incomplete Investigation fails on Submit.',
+      'Walk the incident in story order. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'symptom',
+        title: 'Symptom on the RM',
+        blurb: 'What the ResourceManager claimed when you opened the incident.',
+        fieldKeys: ['incidentActiveNodes', 'unhealthyHost', 'nodeState'],
+      },
+      {
+        id: 'probe',
+        title: 'Stuck probe',
+        blurb: 'The morning store-rollup-probe that is RUNNING but produces nothing.',
+        fieldKeys: ['probeAppId', 'probeAppState', 'probeSymptom', 'whyNoExecutor'],
+      },
+      {
+        id: 'on-node',
+        title: 'On the flagged host',
+        blurb: 'Verify the health report on the node before you trust it.',
+        fieldKeys: ['nmJvm', 'diskTruth', 'rootCause'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix and lesson',
+        blurb: 'The lasting fix, and what the RM / NM UI is until you check the node.',
+        fieldKeys: ['lastingFix', 'uiIsClaim'],
+      },
+    ],
     fields: [
       {
-        section: 'RM cluster',
-        key: 'activeNodes',
-        label: 'Active NodeManagers the RM shows',
+        section: 'Symptom on the RM',
+        key: 'incidentActiveNodes',
+        label: 'How many active NodeManagers did the RM list at the start of the incident?',
         options: [
           { id: '0', label: '0' },
           { id: '1', label: '1' },
@@ -703,21 +1610,37 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
         ],
       },
       {
-        section: 'RM cluster',
-        key: 'availableMb',
-        label: 'Available MB the RM reports for the cluster',
-        hint: 'Integer from cluster metrics / scheduler overview — no units suffix.',
+        section: 'Symptom on the RM',
+        key: 'unhealthyHost',
+        label: 'Which host did the RM not list as active?',
+        options: [
+          { id: 'ds-spark-02', label: 'ds-spark-02' },
+          { id: 'ds-spark-03', label: 'ds-spark-03' },
+          { id: 'ds-spark-01', label: 'ds-spark-01' },
+          { id: 'shell', label: 'shell' },
+        ],
       },
       {
-        section: 'Probe app',
+        section: 'Symptom on the RM',
+        key: 'nodeState',
+        label: 'What state did the RM give that node?',
+        options: [
+          { id: 'RUNNING', label: 'RUNNING' },
+          { id: 'UNHEALTHY', label: 'UNHEALTHY' },
+          { id: 'LOST', label: 'LOST' },
+          { id: 'SHUTDOWN', label: 'SHUTDOWN' },
+        ],
+      },
+      {
+        section: 'Stuck probe',
         key: 'probeAppId',
-        label: 'Probe application id',
-        hint: 'application_… for store-rollup-probe.',
+        label: 'Stuck probe application id',
+        hint: 'application_… for the store-rollup-probe that was RUNNING when you arrived.',
       },
       {
-        section: 'Probe app',
+        section: 'Stuck probe',
         key: 'probeAppState',
-        label: 'Probe application final state on the RM',
+        label: 'State of that stuck probe on the RM when you arrived',
         options: [
           { id: 'FINISHED', label: 'FINISHED' },
           { id: 'RUNNING', label: 'RUNNING' },
@@ -726,31 +1649,84 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
         ],
       },
       {
-        section: 'Containers',
-        key: 'containerNmHost',
-        label: 'A NodeManager host that held a container for the probe',
+        section: 'Stuck probe',
+        key: 'probeSymptom',
+        label: 'What did the stuck probe actually hold?',
         options: [
-          { id: 'ds-spark-02', label: 'ds-spark-02' },
-          { id: 'ds-spark-03', label: 'ds-spark-03' },
-          { id: 'ds-spark-01', label: 'ds-spark-01 (ResourceManager host)' },
-          { id: 'shell', label: 'shell' },
+          { id: 'am-only', label: 'An ApplicationMaster container, and no executors' },
+          { id: 'am-and-executors', label: 'An AM and both executors already allocated' },
+          { id: 'no-containers', label: 'No containers at all — still waiting for an AM' },
+          { id: 'finished-quietly', label: 'It had already finished — nothing was stuck' },
         ],
       },
       {
-        section: 'Cross-check',
-        key: 'crossCheck',
-        label: 'How did you verify two UI claims on a node?',
+        section: 'Stuck probe',
+        key: 'whyNoExecutor',
+        label: 'Why could that single healthy NodeManager not place an executor?',
         options: [
-          { id: 'yarn-logs-or-nm-local', label: 'yarn logs / yarn application -status and/or NM local log dirs' },
-          { id: 'history-only', label: 'Spark History Server on 18080 only' },
-          { id: 'master-ui', label: 'Standalone Master UI on 8080' },
-          { id: 'guessed', label: 'Trusted the browser — no node check' },
+          {
+            id: 'no-room-after-am',
+            label: 'The AM already used most of its 1536 MB — no room left for another 1024 MB container',
+          },
+          { id: 'queue-full', label: 'The default queue capacity was exhausted' },
+          { id: 'wrong-deploy-mode', label: 'Client mode cannot place executors on YARN' },
+          { id: 'hdfs-down', label: 'HDFS was down, so Spark could not stage jars' },
         ],
       },
       {
-        section: 'Cross-check',
+        section: 'On the flagged host',
+        key: 'nmJvm',
+        label: 'What was true of the NodeManager process on the flagged host?',
+        options: [
+          { id: 'alive-but-unhealthy', label: 'JVM was still up — RM just marked the node UNHEALTHY' },
+          { id: 'jvm-dead', label: 'NodeManager JVM was gone — jps showed nothing' },
+          { id: 'rm-down', label: 'ResourceManager was down — NM could not heart beat' },
+          { id: 'ui-only-down', label: 'Only the NM HTTP UI on 8042 was down' },
+        ],
+      },
+      {
+        section: 'On the flagged host',
+        key: 'diskTruth',
+        label: 'What did the disk look like on that host (df on the yarn local/log dirs)?',
+        options: [
+          { id: 'not-full', label: 'Not full — plenty of free space' },
+          { id: 'really-full', label: 'Actually full — df matched the health report' },
+          { id: 'no-dirs', label: 'The yarn local/log dirs did not exist' },
+          { id: 'read-only', label: 'The filesystem was mounted read-only' },
+        ],
+      },
+      {
+        section: 'On the flagged host',
+        key: 'rootCause',
+        label: 'What was the root cause on that host?',
+        options: [
+          {
+            id: 'threshold-too-low',
+            label: 'yarn.nodemanager.disk-health-checker.max-disk-utilization-per-disk-percentage was set far too low',
+          },
+          { id: 'disk-full', label: 'The disk was genuinely full' },
+          { id: 'nm-memory', label: 'NM_MEMORY_MB was set to zero' },
+          { id: 'wrong-rm-host', label: 'The NodeManager pointed at the wrong ResourceManager' },
+        ],
+      },
+      {
+        section: 'Fix and lesson',
+        key: 'lastingFix',
+        label: 'What lasting fix brought the node back and let the probe finish?',
+        options: [
+          {
+            id: 'restore-threshold-restart-nm',
+            label: 'Restored a sane disk-utilization threshold and restarted that NodeManager',
+          },
+          { id: 'disable-checker', label: 'Set yarn.nodemanager.disk-health-checker.enable to false' },
+          { id: 'threshold-100', label: 'Set the utilization threshold to 100% so nothing ever flags' },
+          { id: 'resubmit-only', label: 'Only killed and resubmitted the probe — left the node UNHEALTHY' },
+        ],
+      },
+      {
+        section: 'Fix and lesson',
         key: 'uiIsClaim',
-        label: 'What is the RM/NM UI until you check the node?',
+        label: 'What is the RM / NM UI until you check the node?',
         options: [
           { id: 'verify-on-node', label: 'A claim — verify it with yarn / the node before you trust it' },
           { id: 'source-of-truth', label: 'Source of truth — the node can never disagree' },
@@ -762,88 +1738,202 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
   },
   'spark-11-land-in-the-right-capacity-queue': {
     intro:
-      'store-rollup sits Accepted in the wrong queue. Place it in production without raising default capacity. Incomplete Investigation fails on Submit.',
+      'Walk the incident in story order. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'symptom',
+        title: 'Morning job',
+        blurb: 'What the ResourceManager showed when you opened the incident.',
+        fieldKeys: ['stuckState', 'stuckQueue'],
+      },
+      {
+        id: 'capacity',
+        title: 'Capacity math',
+        blurb: 'Why an app can sit Accepted forever even though the cluster is up.',
+        fieldKeys: ['whyAccepted', 'productionSpare'],
+      },
+      {
+        id: 'path',
+        title: 'Lasting path',
+        blurb: 'Where the wrong queue was baked in — and the lasting fix.',
+        fieldKeys: ['wrongPath', 'lastingFix'],
+      },
+      {
+        id: 'proof',
+        title: 'Proof and lesson',
+        blurb: 'The successful production run, and what queue placement is here.',
+        fieldKeys: ['fixAppId', 'placementRule'],
+      },
+    ],
     fields: [
       {
-        section: 'Symptom',
+        section: 'Morning job',
         key: 'stuckState',
-        label: 'State of the stuck submit on the RM',
+        label: 'State of the morning store-rollup on the RM',
         options: [
           { id: 'ACCEPTED', label: 'ACCEPTED' },
           { id: 'RUNNING', label: 'RUNNING' },
           { id: 'FAILED', label: 'FAILED' },
-          { id: 'NEW', label: 'NEW' },
+          { id: 'FINISHED', label: 'FINISHED' },
         ],
       },
       {
-        section: 'Symptom',
-        key: 'wrongQueue',
-        label: 'Queue the stuck app was in',
+        section: 'Morning job',
+        key: 'stuckQueue',
+        label: 'Queue that morning job was in',
         options: [
           { id: 'default', label: 'default' },
           { id: 'production', label: 'production' },
-          { id: 'root', label: 'root' },
-          { id: 'spark', label: 'spark' },
-        ],
-      },
-      {
-        section: 'Fix',
-        key: 'fixQueue',
-        label: 'Queue you used for the successful run',
-        options: [
-          { id: 'production', label: 'production' },
-          { id: 'default', label: 'default (raised its capacity)' },
           { id: 'adhoc', label: 'adhoc' },
-          { id: 'none', label: 'No queue — bypassed YARN' },
+          { id: 'root', label: 'root (no leaf queue)' },
         ],
       },
       {
-        section: 'Fix',
-        key: 'fixAppId',
-        label: 'Successful application id',
-        hint: 'application_… that reached RUNNING/FINISHED in production.',
+        section: 'Capacity math',
+        key: 'whyAccepted',
+        label: 'Why did that job stay Accepted instead of getting an ApplicationMaster?',
+        options: [
+          {
+            id: 'ask-exceeds-default-share',
+            label: 'Its resource ask did not fit default’s absolute share of the cluster',
+          },
+          { id: 'rm-down', label: 'The ResourceManager was down' },
+          { id: 'no-nms', label: 'No NodeManagers were registered' },
+          { id: 'bad-jar', label: 'The store_join.py job was missing from the image' },
+        ],
       },
       {
-        section: 'Lesson',
-        key: 'placementRule',
-        label: 'What fixed the Accepted stall?',
+        section: 'Capacity math',
+        key: 'productionSpare',
+        label: 'What did the production queue look like at the start of the incident?',
         options: [
-          { id: 'queue-placement', label: 'Queue placement — submit into the queue with spare capacity' },
-          { id: 'raise-default', label: 'Raising default queue capacity until it looked green' },
-          { id: 'more-executors', label: 'Asking for more executors so YARN takes it seriously' },
-          { id: 'kill-rm', label: 'Restarting the ResourceManager' },
+          { id: 'has-room', label: 'Had spare capacity — room for this store-rollup shape' },
+          { id: 'full', label: 'Completely full — another tenant owned every MB' },
+          { id: 'stopped', label: 'Queue state was STOPPED' },
+          { id: 'missing', label: 'The production queue did not exist' },
+        ],
+      },
+      {
+        section: 'Lasting path',
+        key: 'wrongPath',
+        label: 'Where was the wrong queue baked into the lasting submit path?',
+        options: [
+          { id: 'wrapper-queue-default', label: '~/lab/submit-store-rollup.sh still used --queue default' },
+          { id: 'spark-defaults-only', label: 'Only spark-defaults.conf — the wrapper was already correct' },
+          { id: 'rm-mapping', label: 'A queue-mappings rule forced every user into adhoc' },
+          { id: 'no-wrong-path', label: 'Nothing on disk was wrong — only the one-off submit' },
+        ],
+      },
+      {
+        section: 'Lasting path',
+        key: 'lastingFix',
+        label: 'What lasting fix matched platform policy?',
+        options: [
+          {
+            id: 'repair-wrapper-to-production',
+            label: 'Repaired the wrapper to --queue production and re-ran it',
+          },
+          { id: 'raise-default', label: 'Raised default capacity in capacity-scheduler.xml until Accepted cleared' },
+          { id: 'disable-cs', label: 'Switched off the CapacityScheduler' },
+          { id: 'adhoc-once', label: 'One-off submit to adhoc — left the wrapper on default' },
+        ],
+      },
+      {
+        section: 'Proof and lesson',
+        key: 'fixAppId',
+        label: 'Successful application id in production',
+        hint: 'application_… for the new run — not the morning Accepted id.',
+      },
+      {
+        section: 'Proof and lesson',
+        key: 'placementRule',
+        label: 'What is queue placement on this platform?',
+        options: [
+          {
+            id: 'platform-rule',
+            label: 'A platform rule — the lasting submit path must match the queue policy',
+          },
+          { id: 'submitter-preference', label: 'A submitter preference — any queue is fine if the job finishes' },
+          { id: 'raise-until-green', label: 'Whatever capacity edit makes the Scheduler look green' },
+          { id: 'spark-ui-only', label: 'Something you only fix from the Spark History Server' },
         ],
       },
     ],
   },
   'spark-12-client-mode-driver-is-on-the-wrong-host': {
     intro:
-      'Client-mode driver on the edge (shell) dies mid-job. Resubmit in cluster mode so the driver is a YARN AM. Incomplete Investigation fails on Submit.',
-    fields: [
+      'Walk the stacked failure in story order. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
       {
-        section: 'Failure',
-        key: 'failedAppId',
-        label: 'Failed client-mode application id',
-        hint: 'The planted edge-driver run that died when the shell driver was killed.',
+        id: 'overnight',
+        title: 'Overnight failure',
+        blurb: 'What died first, and why client mode made the edge host a single point of failure.',
+        fieldKeys: ['failedAppId', 'failureMode'],
       },
       {
-        section: 'Failure',
+        id: 'second',
+        title: 'Second break',
+        blurb: 'After you move to cluster mode, what fails next — and where production data must live.',
+        fieldKeys: ['secondBreak', 'dataPlacement'],
+      },
+      {
+        id: 'proof',
+        title: 'Proof',
+        blurb: 'Successful cluster run and where the driver (AM) actually lived.',
+        fieldKeys: ['clusterAppId', 'clusterDriverHost', 'productionShape'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Overnight failure',
+        key: 'failedAppId',
+        label: 'Failed overnight application id',
+        hint: 'application_… from ~/lab/failed_app_id.',
+      },
+      {
+        section: 'Overnight failure',
         key: 'failureMode',
-        label: 'Why the client-mode app died',
+        label: 'Why that overnight app died',
         options: [
-          { id: 'driver-on-edge', label: 'Driver lived on the shell/edge host and that process went away' },
+          { id: 'driver-on-edge', label: 'Spark driver lived on shell (client mode) and that process went away' },
           { id: 'nm-crash', label: 'Both NodeManagers crashed together' },
           { id: 'bad-jar', label: 'The join job jar was missing' },
           { id: 'queue-full', label: 'The production queue was full' },
         ],
       },
       {
-        section: 'Fix',
-        key: 'clusterAppId',
-        label: 'Successful cluster-mode application id',
+        section: 'Second break',
+        key: 'secondBreak',
+        label: 'After switching to cluster deploy mode alone, what broke next?',
+        options: [
+          {
+            id: 'edge-path-on-nm',
+            label: 'Driver on a NodeManager could not read shell-only ~/lab/edge-data paths',
+          },
+          { id: 'nothing', label: 'Nothing — cluster mode alone made the job finish' },
+          { id: 'rm-down', label: 'The ResourceManager stopped accepting applications' },
+          { id: 'queue-mapping', label: 'Queue mappings forced every submit into default' },
+        ],
       },
       {
-        section: 'Fix',
+        section: 'Second break',
+        key: 'dataPlacement',
+        label: 'Where must production CSVs live so any NodeManager can open them?',
+        options: [
+          { id: 'shared-mount', label: '/mnt/lab-shared (cluster shared mount on every host)' },
+          { id: 'shell-home', label: 'Only under /home/spark on shell' },
+          { id: 'rm-only', label: 'Only on ds-spark-01 next to the ResourceManager' },
+          { id: 'guess-nm', label: 'Copy to one NodeManager and hope the AM lands there' },
+        ],
+      },
+      {
+        section: 'Proof',
+        key: 'clusterAppId',
+        label: 'Successful cluster-mode application id',
+        hint: 'New application_… — not the overnight failure.',
+      },
+      {
+        section: 'Proof',
         key: 'clusterDriverHost',
         label: 'Where the cluster-mode driver (AM) ran',
         options: [
@@ -854,11 +1944,14 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
         ],
       },
       {
-        section: 'Lesson',
+        section: 'Proof',
         key: 'productionShape',
-        label: 'Production shape for the driver',
+        label: 'Production shape for unattended store-rollup',
         options: [
-          { id: 'cluster-am', label: 'Cluster deploy mode — driver is a YARN ApplicationMaster container' },
+          {
+            id: 'cluster-am',
+            label: 'Cluster deploy mode — driver is a YARN ApplicationMaster container',
+          },
           { id: 'client-shell', label: 'Client mode on the laptop/shell is fine for production' },
           { id: 'rm-host', label: 'Always pin the driver to the ResourceManager host' },
           { id: 'no-yarn', label: 'Skip YARN and use local[*]' },
@@ -868,50 +1961,395 @@ const SPARK_INVESTIGATIONS: Record<string, SparkInvestigationSpec> = {
   },
   'spark-13-someone-elses-job-changed-yesterday': {
     intro:
-      'Your submit sits Accepted because another team’s backfill took the queue. Free capacity or move queues without an unauthorized AM kill. Incomplete Investigation fails on Submit.',
+      'Walk the design in story order: missing leaf → capacity math → refresh → proof. Answers save as you go — Incomplete Investigation still fails on Submit.',
+    steps: [
+      {
+        id: 'failure',
+        title: 'First failure',
+        blurb: 'Why the analytics probe could not start on the cluster you inherited.',
+        fieldKeys: ['firstFailure'],
+      },
+      {
+        id: 'design',
+        title: 'Design',
+        blurb: 'What you changed in capacity-scheduler — and where the percent came from.',
+        fieldKeys: ['designAction', 'capacitySource'],
+      },
+      {
+        id: 'apply',
+        title: 'Apply',
+        blurb: 'How the live scheduler picked up the new leaf without borrowing another queue.',
+        fieldKeys: ['applyMethod'],
+      },
+      {
+        id: 'proof',
+        title: 'Proof and lesson',
+        blurb: 'Successful analytics run, and what platform engineering means here.',
+        fieldKeys: ['fixedAppId', 'platformLesson'],
+      },
+    ],
+    fields: [
+      {
+        section: 'First failure',
+        key: 'firstFailure',
+        label: 'Why did the first analytics-probe submit fail?',
+        options: [
+          {
+            id: 'queue-missing',
+            label: 'The analytics leaf queue did not exist on the CapacityScheduler',
+          },
+          { id: 'production-full', label: 'production was saturated by a backfill' },
+          { id: 'rm-down', label: 'The ResourceManager was down' },
+          { id: 'bad-jar', label: 'store_join.py was missing from the image' },
+        ],
+      },
+      {
+        section: 'Design',
+        key: 'designAction',
+        label: 'What lasting scheduler change did you make?',
+        options: [
+          {
+            id: 'add-analytics-rebalance',
+            label:
+              'Added an analytics leaf, rebalanced siblings to 100, and set user-limit-factor ≥ 2 with max-capacity 100',
+          },
+          { id: 'point-production', label: 'Pointed the probe at production and left the scheduler alone' },
+          { id: 'raise-default', label: 'Raised default capacity until any submit looked green' },
+          { id: 'delete-production', label: 'Deleted production so analytics could take 70%' },
+        ],
+      },
+      {
+        section: 'Design',
+        key: 'capacitySource',
+        label: 'Where did analytics capacity come from?',
+        options: [
+          {
+            id: 'rebalance-siblings',
+            label: 'Rebalanced existing sibling queues (for example trimmed adhoc) so the root still sums to 100',
+          },
+          { id: 'print-extra', label: 'Printed extra percent on top of 10+70+20 without rebalancing' },
+          { id: 'steal-prod-job', label: 'Stole capacity by killing someone else’s ApplicationMaster' },
+          { id: 'no-capacity', label: 'Gave analytics 0% capacity — name only' },
+        ],
+      },
+      {
+        section: 'Apply',
+        key: 'applyMethod',
+        label: 'How did you apply the new queue on the live cluster?',
+        options: [
+          {
+            id: 'refresh-queues',
+            label: 'Edited capacity-scheduler.xml on the RM host and ran yarn rmadmin -refreshQueues',
+          },
+          { id: 'shell-only-xml', label: 'Edited XML only on shell — ResourceManager never saw it' },
+          { id: 'spark-defaults', label: 'Only changed spark-defaults.conf on the client' },
+          { id: 'kill-rm', label: 'Deleted the ResourceManager process and hoped pods respawned the queue' },
+        ],
+      },
+      {
+        section: 'Proof and lesson',
+        key: 'fixedAppId',
+        label: 'Successful analytics-probe application id',
+        hint: 'application_… that ran in the analytics queue.',
+      },
+      {
+        section: 'Proof and lesson',
+        key: 'platformLesson',
+        label: 'What is the platform lesson in this lab?',
+        options: [
+          {
+            id: 'design-not-borrow',
+            label: 'Design the queue the team needs — do not borrow another tenant’s lane',
+          },
+          { id: 'any-queue', label: 'Any queue is fine if the job eventually finishes' },
+          { id: 'ui-only', label: 'Queue design is only a Spark UI checkbox' },
+          { id: 'raise-until-green', label: 'Always raise default capacity until Accepted clears' },
+        ],
+      },
+    ],
+  },
+  'spark-15-driver-and-executor-pods-on-kubernetes': {
+    intro:
+      'Map Kubernetes as the resource manager, finish the submit wrapper, watch driver/executor pods, and record what happens when you kill an executor.',
+    steps: [
+      {
+        id: 'forensics',
+        title: 'Forensics',
+        blurb: 'Same job as Chapters 1–2 — the resource manager changed again.',
+        fieldKeys: ['resourceManager', 'deployMode'],
+      },
+      {
+        id: 'pods',
+        title: 'Pods',
+        blurb: 'After a successful run (and optional executor kill), what did you observe?',
+        fieldKeys: ['killExecutor'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Forensics',
+        key: 'resourceManager',
+        label: 'What schedules the driver and executor processes in this lab?',
+        options: [
+          { id: 'k8s', label: 'The Kubernetes API (pods in the team namespace)' },
+          { id: 'yarn', label: 'YARN ResourceManager / NodeManagers' },
+          { id: 'master', label: 'A Spark Master on ds-spark-01' },
+          { id: 'shell', label: 'Only the shell process — no cluster scheduler' },
+        ],
+      },
+      {
+        section: 'Forensics',
+        key: 'deployMode',
+        label: 'Which deploy mode does the planted wrapper use?',
+        options: [
+          { id: 'cluster', label: 'cluster — driver runs as a pod in the namespace' },
+          { id: 'client', label: 'client — driver stays on the shell' },
+          { id: 'local', label: 'local[*] — no Kubernetes' },
+          { id: 'yarn', label: 'yarn — YARN ApplicationMaster' },
+        ],
+      },
+      {
+        section: 'Pods',
+        key: 'killExecutor',
+        label: 'After you delete one running executor pod, what should happen?',
+        options: [
+          {
+            id: 'replaced',
+            label: 'Spark schedules a replacement executor pod without a resubmit',
+          },
+          { id: 'must-resubmit', label: 'You must spark-submit again or the job is stuck forever' },
+          { id: 'driver-dies', label: 'The driver pod is always deleted with the executor' },
+          { id: 'namespace-wiped', label: 'Kubernetes deletes the whole namespace' },
+        ],
+      },
+    ],
+  },
+  'spark-16-namespace-quota-blocks-the-submit': {
+    intro:
+      'A ResourceQuota plus leftover debug-memory-hog block the driver. Free the quota without deleting the quota object.',
+    steps: [
+      {
+        id: 'blocker',
+        title: 'Blocker',
+        blurb: 'What is preventing the driver from starting?',
+        fieldKeys: ['blocker'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'Which operational fix did you apply?',
+        fieldKeys: ['fix'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Blocker',
+        key: 'blocker',
+        label: 'What is blocking store-rollup-quota?',
+        options: [
+          { id: 'quota-hog', label: 'Namespace ResourceQuota + leftover debug-memory-hog' },
+          { id: 'no-nodes', label: 'No spark pool nodes exist' },
+          { id: 'bad-jar', label: 'Missing JAR on the image' },
+          { id: 'yarn-queue', label: 'YARN capacity queue is full' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'fix',
+        label: 'How did you free capacity for the submit?',
+        options: [
+          { id: 'delete-hog', label: 'Deleted debug-memory-hog and kept team-spark-quota' },
+          { id: 'use-prod', label: 'Retargeted the submit at the prod namespace' },
+          { id: 'delete-quota', label: 'Deleted the ResourceQuota object' },
+          { id: 'raise-cluster', label: 'Raised a cluster-wide memory limit' },
+        ],
+      },
+    ],
+  },
+  'spark-17-wrong-image-missing-dependency': {
+    intro:
+      'On Kubernetes the image is the environment. Base apache/spark is missing the team module; platform policy requires a pull secret on the team image.',
+    steps: [
+      {
+        id: 'failure',
+        title: 'Failure',
+        blurb: 'What failed in the driver/executor logs?',
+        fieldKeys: ['failure'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'What did you change in the wrapper?',
+        fieldKeys: ['fix'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Failure',
+        key: 'failure',
+        label: 'Why did the job fail on the base image?',
+        options: [
+          {
+            id: 'missing-module',
+            label: 'Team job/module missing from the base image (image is the environment)',
+          },
+          { id: 'quota', label: 'ResourceQuota blocked the driver' },
+          { id: 'dns', label: 'CoreDNS was down' },
+          { id: 'yarn', label: 'YARN ApplicationMaster crashed' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'fix',
+        label: 'What fixed the submit?',
+        options: [
+          {
+            id: 'team-image-pullsecret',
+            label: 'Team lab image + spark.kubernetes.container.image.pullSecrets',
+          },
+          { id: 'hostpath-jars', label: 'Mounted $SPARK_HOME/jars from the node hostPath' },
+          { id: 'delete-quota', label: 'Deleted the ResourceQuota' },
+          { id: 'client-mode', label: 'Switched to client deploy mode only' },
+        ],
+      },
+    ],
+  },
+  'spark-18-dynamic-allocation-without-the-shuffle-service': {
+    intro:
+      'Dynamic Allocation without an External Shuffle Service loses shuffle blocks when executors scale down.',
+    steps: [
+      {
+        id: 'cause',
+        title: 'Root cause',
+        blurb: 'Why did shuffle fetch fail?',
+        fieldKeys: ['rootCause'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'Which app-level workaround did you apply?',
+        fieldKeys: ['fix'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Root cause',
+        key: 'rootCause',
+        label: 'What caused the shuffle fetch failure?',
+        options: [
+          {
+            id: 'dyn-alloc-no-ess',
+            label: 'Dynamic Allocation enabled without an External Shuffle Service',
+          },
+          { id: 'wrong-image', label: 'Wrong container image' },
+          { id: 'quota', label: 'ResourceQuota blocked executors' },
+          { id: 'oom', label: 'Driver OOMKilled only' },
+        ],
+      },
+      {
+        section: 'Fix',
+        key: 'fix',
+        label: 'What did you change for this lab’s graded path?',
+        options: [
+          {
+            id: 'disable-dyn-alloc',
+            label: 'Disabled dynamic allocation and set static executor instances',
+          },
+          { id: 'privileged-ds', label: 'Installed a privileged ESS DaemonSet on every node' },
+          { id: 'delete-ns', label: 'Deleted the team namespace' },
+          { id: 'raise-quota', label: 'Raised ResourceQuota only' },
+        ],
+      },
+    ],
+  },
+  'spark-19-driver-oomkilled-spark-memory-vs-k8s-limits': {
+    intro:
+      'Spark driver heap is only part of the container. Align memoryOverhead with the Kubernetes memory limit.',
+    steps: [
+      {
+        id: 'symptom',
+        title: 'Symptom',
+        blurb: 'What did kubectl show on the driver pod?',
+        fieldKeys: ['symptom'],
+      },
+      {
+        id: 'fix',
+        title: 'Fix',
+        blurb: 'How did you align Spark and K8s memory?',
+        fieldKeys: ['fix'],
+      },
+    ],
     fields: [
       {
         section: 'Symptom',
-        key: 'stuckState',
-        label: 'State of your stalled submit',
+        key: 'symptom',
+        label: 'How was the driver terminated?',
         options: [
-          { id: 'ACCEPTED', label: 'ACCEPTED' },
-          { id: 'RUNNING', label: 'RUNNING' },
-          { id: 'FAILED', label: 'FAILED' },
-          { id: 'KILLED', label: 'KILLED' },
-        ],
-      },
-      {
-        section: 'Cause',
-        key: 'blockerApp',
-        label: 'Application that was holding the queue',
-        hint: 'application_… for the planted backfill (name contains backfill).',
-      },
-      {
-        section: 'Fix',
-        key: 'fixPath',
-        label: 'How you got a RUNNING/FINISHED run',
-        options: [
-          { id: 'other-queue', label: 'Submitted into a queue with spare capacity' },
-          { id: 'freed-capacity', label: 'Freed capacity from the backfill without an unauthorized AM kill' },
-          { id: 'killed-am', label: 'Killed the backfill AM even though the ticket forbade it' },
-          { id: 'raised-cap', label: 'Raised the saturated queue’s capacity in capacity-scheduler.xml' },
+          { id: 'oomkilled', label: 'OOMKilled — container exceeded its memory limit' },
+          { id: 'evicted', label: 'Evicted for disk pressure only' },
+          { id: 'imagepull', label: 'ImagePullBackOff' },
+          { id: 'quota', label: 'ResourceQuota Forbidden only' },
         ],
       },
       {
         section: 'Fix',
-        key: 'fixedAppId',
-        label: 'Your successful application id',
+        key: 'fix',
+        label: 'What fixed the OOMKilled driver?',
+        options: [
+          {
+            id: 'overhead-and-limit',
+            label: 'Set driver memoryOverhead and raised kubernetes.kubernetes.driver.limit.memory',
+          },
+          { id: 'disable-dyn', label: 'Disabled dynamic allocation only' },
+          { id: 'wrong-ns', label: 'Switched namespaces only' },
+          { id: 'more-executors', label: 'Added more executor instances only' },
+        ],
+      },
+    ],
+  },
+  'spark-20-multi-fault-k8s-submit': {
+    intro:
+      'Three faults after maintenance. Record the order you peeled: namespace, then image, then memory.',
+    steps: [
+      {
+        id: 'layers',
+        title: 'Layers',
+        blurb: 'Which fault appeared first, second, and third?',
+        fieldKeys: ['layer1', 'layer2', 'layer3'],
+      },
+    ],
+    fields: [
+      {
+        section: 'Layers',
+        key: 'layer1',
+        label: 'First fault (driver never starts / quota)?',
+        options: [
+          { id: 'namespace', label: 'Wrong / blocked namespace (staging)' },
+          { id: 'image', label: 'Wrong image / missing module' },
+          { id: 'memory', label: 'Executor memory under-spec’d' },
+          { id: 'shuffle', label: 'Dynamic allocation shuffle only' },
+        ],
       },
       {
-        section: 'Lesson',
-        key: 'yesterdayLesson',
-        label: 'Why “it worked yesterday” misleads',
+        section: 'Layers',
+        key: 'layer2',
+        label: 'Second fault (after namespace is correct)?',
         options: [
-          { id: 'other-tenant', label: 'Another tenant’s job changed the queue’s free capacity overnight' },
-          { id: 'spark-bug', label: 'Spark always breaks after 24 hours' },
-          { id: 'dns', label: 'The ResourceManager hostname rotated' },
-          { id: 'image', label: 'The lab image deleted yarn-site.xml' },
+          { id: 'image', label: 'Wrong image / missing module (+ pullSecrets)' },
+          { id: 'namespace', label: 'Wrong namespace again' },
+          { id: 'memory', label: 'Executor memory under-spec’d' },
+          { id: 'shuffle', label: 'Dynamic allocation shuffle only' },
+        ],
+      },
+      {
+        section: 'Layers',
+        key: 'layer3',
+        label: 'Third fault (executors die during shuffle)?',
+        options: [
+          { id: 'memory', label: 'Executor memory under-spec’d (overhead + limit)' },
+          { id: 'namespace', label: 'Wrong namespace' },
+          { id: 'image', label: 'Wrong image' },
+          { id: 'shuffle', label: 'Dynamic allocation shuffle only' },
         ],
       },
     ],

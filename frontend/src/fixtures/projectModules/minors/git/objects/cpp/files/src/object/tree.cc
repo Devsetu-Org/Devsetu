@@ -6,12 +6,12 @@ namespace tinygit {
 
 std::vector<uint8_t> EncodeTree(std::vector<TreeEntry> entries) {
   // TODO(1.4): EncodeTree
-  throw std::runtime_error("TODO(1.4): EncodeTree");
+  throw std::runtime_error("TODO(1.4)");
 }
 
 std::vector<TreeEntry> DecodeTree(const std::vector<uint8_t>& content) {
   // TODO(1.4): DecodeTree
-  throw std::runtime_error("TODO(1.4): DecodeTree");
+  throw std::runtime_error("TODO(1.4)");
 }
 
 Hash PutTree(Store s, const std::vector<TreeEntry>& entries) {

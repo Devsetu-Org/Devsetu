@@ -32,7 +32,7 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # all acceptance tests
+make test     # wal + db acceptance tests (not chapter 1's memtable suite)
 make asan     # same under AddressSanitizer + UBSan
 make run      # REPL in ./data: put k v | get k | del k | stats | quit
 ```

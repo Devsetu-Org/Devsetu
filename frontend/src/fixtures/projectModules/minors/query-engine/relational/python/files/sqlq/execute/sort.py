@@ -9,9 +9,8 @@ from sqlq.parse.ast import OrderKey
 
 
 def SortRows(rows: List[Row], keys: List[OrderKey]) -> None:
-    # TODO(5.4): Each key names an output column (Name, or the ident). Stable sort.
-    # Desc flips the comparison. A missing name is an error when there is at least one row.
-    raise NotImplementedError("TODO(5.4): SortRows")
+    # TODO(5.4) — SortRows
+    raise NotImplementedError("TODO(5.4)")
 
 
 def LimitRows(rows: List[Row], n: int) -> List[Row]:

@@ -1,33 +1,16 @@
-## Where you are
+## The read path
 <!-- mode: read-only -->
 
-The store now writes durably and flushes to SSTables. Reads work, but they get slower with every flush, and range scans are gone.
+The store now writes durably and flushes to SSTables. Reads work, but they get slower with every flush, and range scans are gone. This chapter fixes both: **Bloom filters** skip tables that cannot hold a key, and a **merging iterator** stitches the memtable and every table into one ordered stream.
 
-```plaintext
-            Get / Scan
-                 │
-        ┌────────▼────────┐
-  ch 1  │    Memtable      │  newest
-        └────────┬────────┘
-        ┌────────▼────────┐
-  ch 3  │ 000007.sst       │  ┐
-        │ 000006.sst       │  │ ch 4: you are here
-        │ ...              │  │ Bloom filters skip these;
-        │ 000001.sst       │  ┘ a merging iterator scans them all
-        └─────────────────┘  oldest
-```
+![LSM path chapter 4: memtable then many SSTables; filters skip, merge scans all](/lsm-tree/read-path/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> Make point lookups skip tables that cannot hold the key, and make range scans
-> work across the memtable and every table. Chapter 5 then reduces how many
-> tables there are in the first place.
-
-## The cost of many tables
-<!-- mode: read-only -->
+> Make point lookups skip tables that cannot hold the key, and make range scans work across the memtable and every table. Chapter 5 then reduces how many tables there are in the first place.
 
 ### Newest first, every time
 
-`DB.Get` (given in chapter 3) checks the memtable, then each table from newest to oldest, and stops at the first one that is not `Missing`:
+`DB.Get` checks the memtable, then each table from newest to oldest, and stops at the first one that is not `Missing`:
 
 | Result in a table | Meaning | What Get does |
 | --- | --- | --- |
@@ -48,21 +31,12 @@ A scan from `order:100` to `order:200` cannot ask one table at a time. Keys in t
 
 A **Bloom filter** is an array of `m` bits and `k` hash functions. To add a key, hash it `k` ways and set those `k` bits. To query a key, check the same `k` bits.
 
-```plaintext
-  add "order:7"    hashes → bits 3, 11, 17
-  add "order:9"    hashes → bits 6, 11, 21
-
-  bits:  0 0 0 1 0 0 1 0 0 0 0 1 0 0 0 0 0 1 0 0 0 1 0 0
-               ▲     ▲         ▲           ▲       ▲
-
-  query "order:8"  hashes → bits 3, 9, 21   bit 9 is 0 → definitely not here
-  query "order:5"  hashes → bits 6, 17, 21  all 1      → maybe (a false positive)
-```
+![Bloom filter: a zero bit means definitely not; all ones means maybe](/lsm-tree/read-path/bloom.jpg)
 
 - If any bit is 0, the key was **never** added. No false negatives, ever.
 - If all bits are 1, the key was **probably** added. Other keys may have set those bits.
 
-Each table gets a filter over its keys, written as the filter block chapter 3 left room for. The wiring is given: the public `Add` and `Finish` in `writer.go` now feed every key to a filter builder and write the block, and `Get` in `reader.go` asks the filter before calling your chapter 3 `get`. A "no" costs a few memory lookups instead of a disk read.
+Each table gets a filter over its keys, written as the filter block chapter 3 left room for. The wiring is given: writers feed every key to a filter builder, and `Get` asks the filter before calling your chapter 3 lookup. A "no" costs a few memory lookups instead of a disk read.
 
 ### How many bits, how many hashes
 
@@ -72,7 +46,7 @@ Each table gets a filter over its keys, written as the filter block chapter 3 le
 | 10 | 6 | about 1% |
 | 16 | 11 | under 0.1% |
 
-The best `k` is `bitsPerKey × ln 2 ≈ bitsPerKey × 0.69`. RocksDB's default is 10 bits per key: a 1% false-positive rate for about 1.25 bytes per key, a tiny fraction of the data.
+The best `k` is `bitsPerKey × ln 2 ≈ bitsPerKey × 0.69`. RocksDB's default is 10 bits per key: a 1% false-positive rate for about 1.25 bytes per key.
 
 > [!tip] Two hashes are enough
 > Computing k independent hashes is slow. Kirsch and Mitzenmacher showed that probe i = h1 + i·h2 (from two halves of one 64-bit hash) gives the same false-positive rate. `probe` (given) does exactly that, and LevelDB and RocksDB use the same trick.
@@ -96,37 +70,52 @@ In `internal/bloom/bloom.go`. `nBits` (at least 64) is computed for you.
 5. Return true.
 <!-- /lang -->
 <!-- lang: python -->
-### `TODO(4.1)` — `finish` / `TODO(4.2)` — `may_contain`
+### `TODO(4.1)` — `finish`
 
-In `lsmkv/bloom/bloom.py`. Size the bit array, store `k` in the last byte, set probes. `may_contain` checks the same probes; a short or invalid filter returns True.
+In `lsmkv/bloom/bloom.py`. `n_bits` (at least 64) is computed for you.
+
+1. `n_bytes = (n_bits + 7) // 8` and `m = n_bytes * 8`.
+2. `k = num_probes(self.bits_per_key)`.
+3. `filter = bytearray(n_bytes + 1)` and `filter[n_bytes] = k`. Storing k in the filter lets a reader decode a filter written with different settings.
+4. For every `h` in `self.hashes` and every `i` in `range(k)`: `bit = probe(h, i, m)`, then set `filter[bit // 8] |= 1 << (bit % 8)`.
+
+### `TODO(4.2)` — `may_contain`
+
+1. If `len(filter) < 2`, return `True`.
+2. `k = filter[-1]`. If `k < 1` or `k > max_probes`, return `True`. A filter you cannot read must never hide a key.
+3. `m = (len(filter) - 1) * 8` and `h = hash(key)`.
+4. For each `i` in `range(k)`: if bit `probe(h, i, m)` is 0, return `False`.
+5. Return `True`.
 <!-- /lang -->
 <!-- lang: cpp -->
-### `TODO(4.1)` — `Finish` / `TODO(4.2)` — `MayContain`
+### `TODO(4.1)` — `Finish`
 
-In `src/bloom/bloom.cc`. Size the bit array, store `k` in the last byte, set probes. `MayContain` checks the same probes; a short or invalid filter returns true.
+In `src/bloom/bloom.cc`. `nBits` (at least 64) is computed for you.
+
+1. `nBytes = (nBits + 7) / 8` and `m = static_cast<uint32_t>(nBytes * 8)`.
+2. `k = NumProbes(bits_per_key_)`.
+3. `filter` is `nBytes + 1` bytes; `filter[nBytes] = static_cast<uint8_t>(k)`. Storing k in the filter lets a reader decode a filter written with different settings.
+4. For every `h` in `hashes_` and every `i` in `[0, k)`: `bit = Probe(h, i, m)`, then `filter[bit/8] |= 1 << (bit % 8)`.
+
+### `TODO(4.2)` — `MayContain`
+
+1. If `filter.size() < 2`, return true.
+2. `k = filter.back()`. If `k < 1` or `k > kMaxProbes`, return true. A filter you cannot read must never hide a key.
+3. `m = static_cast<uint32_t>((filter.size() - 1) * 8)` and `h = Hash(key)`.
+4. For each `i` in `[0, k)`: if bit `Probe(h, i, m)` is 0, return false.
+5. Return true.
 <!-- /lang -->
 
-## Merging sorted streams
-<!-- mode: read-and-implement tasks:4.3 -->
+## Merging and range scans
+<!-- mode: read-and-implement tasks:4.3,4.4 -->
 
 ### A k-way merge with a heap
 
 Every source (the memtable and each table) already iterates in key order. Merging them is the same idea as the merge step of merge sort, with `k` inputs instead of two. A **min-heap** holds one current entry per source; the smallest key is always on top.
 
-```plaintext
-  memtable  (rank 0):  order:1=shipped               order:5=pending
-  000002    (rank 1):          order:2=paid   order:3=⊗   order:4=pending
-  000001    (rank 2):  order:1=pending order:2=pending order:3=pending
+![K-way merge: heap picks newest source for equal keys, then advances all ties](/lsm-tree/read-path/merge.jpg)
 
-  heap top → order:1 from rank 0   (rank 2 also has order:1: older, skipped)
-  next     → order:2 from rank 1   (rank 2's copy skipped)
-  next     → order:3 = tombstone from rank 1
-  next     → order:4, then order:5
-```
-
-### Ties go to the newest
-
-When two sources hold the same key, the heap must put the **newer** one on top: compare keys first, and for equal keys the lower rank (newer) wins. Then, when moving on, advance **every** source that is sitting on that key, so the older copies are skipped instead of showing up next.
+When two sources hold the same key, the heap must put the **newer** one on top: compare keys first, and for equal keys the lower rank (newer) wins. Then, when moving on, advance **every** source that is sitting on that key, so the older copies are skipped.
 
 > [!warn] Copy the key before you advance
 > `Key()` returns a slice into the iterator's own storage. After the top child moves, that slice may hold a different key. Copy the current key first, then advance children while they still equal the copy. One test hands out a reused buffer to catch exactly this.
@@ -144,30 +133,25 @@ You will need to import `bytes`.
 <!-- lang: python -->
 ### `TODO(4.3)` — `Less` and `next`
 
-In `lsmkv/iterator/merging.py`. Heap order: smaller key first; equal keys prefer lower rank (newer). `next` advances every child holding the current key.
+In `lsmkv/iterator/merging.py`. The heap plumbing (`push`, `pop`, `swap`, `rebuild`) is given.
+
+- `Less(i, j)`: compare the two keys; if they differ, the smaller key is less. If they are equal, `h[i].rank < h[j].rank` (lower rank is newer).
+- `next`: `key = bytes(self.h[0].it.key())`. While the heap is not empty and `self.h[0].it.key() == key`: advance that child with `next()`; if it is still valid, `heapq.heapify` or fix that position, otherwise pop it.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.3)` — `Less` and `Next`
 
-In `src/iterator/merging.cc`. Heap order: smaller key first; equal keys prefer lower rank (newer). `Next` advances every child holding the current key.
-<!-- /lang -->
+In `src/iterator/merging.cc`. The heap plumbing is given.
 
-## Range scans
-<!-- mode: read-and-implement tasks:4.4 -->
+- `Less(i, j)`: compare the two keys; if they differ, the smaller key is less. If they are equal, `h_[i].rank < h_[j].rank` (lower rank is newer).
+- `Next`: copy `key` from `h_[0].it->Key()`. While the heap is not empty and `h_[0].it->Key() == key`: advance that child; if it is still valid, `std::push_heap` / fix, otherwise remove it from the heap.
+<!-- /lang -->
 
 ### The merge returns tombstones on purpose
 
 The merging iterator reports tombstones like any other entry. That is deliberate: chapter 5's compaction needs to see them. A user-facing scan is where they disappear. If the newest entry for a key is a tombstone, the key is skipped, and the older values the merge already skipped stay hidden.
 
-```plaintext
-  Scan("order:1", "order:5")
-     merge(memtable, 000002, 000001)
-       order:1 = shipped     → emit
-       order:2 = paid        → emit
-       order:3 = ⊗           → skip (deleted)
-       order:4 = pending     → emit
-       order:5               → stop: end is excluded
-```
+![Scan emits live values, skips tombstones, stops at the end key](/lsm-tree/read-path/scan.jpg)
 
 <!-- lang: go -->
 ### `TODO(4.4)` — `Scan`
@@ -184,16 +168,25 @@ You will need to import `bytes` and the `iterator`, `memtable`, and `sstable` pa
 <!-- lang: python -->
 ### `TODO(4.4)` — `scan`
 
-In `lsmkv/db/scan.py`. Merge memtable + tables newest-first, seek to the range, skip tombstones, stop when `fn` returns False.
+In `lsmkv/db/scan.py`, with the lock held (given):
+
+1. Build `children` from `d.mem.new_iterator()` then each table's iterator in `d.tables` order. Keep the table iterators in a second list for the error check.
+2. `m = Merging(children)`; `seek_to_first()` if `start` is `None`, else `seek(start)`.
+3. For each entry: if `end` is not `None` and `m.key() >= end`, stop. Skip tombstone kinds. Call `fn`; stop if it returns `False`.
+4. Return the first non-`None` `err()` from the table iterators.
 <!-- /lang -->
 <!-- lang: cpp -->
 ### `TODO(4.4)` — `Scan`
 
-In `src/db/scan.cc`. Merge memtable + tables newest-first, seek to the range, skip tombstones, stop when `fn` returns false.
+In `src/db/scan.cc`, with the lock held (given):
+
+1. Build `children` from `mem.NewIterator()` then each table's iterator in `tables_` order. Keep the SSTable iterators in a second vector for the error check.
+2. `m = NewMerging(children)`; `SeekToFirst()` if `start` is empty, else `Seek(start)`.
+3. For each entry: if `end` is set and `Compare(m.Key(), end) >= 0`, stop. Skip tombstone kinds. Call `fn`; stop if it returns false.
+4. Return the first non-ok `Err()` from the table iterators.
 <!-- /lang -->
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
@@ -236,7 +229,5 @@ order:3  "new"
 > 2. 10 bits per key buys about a 1% false-positive rate.
 > 3. A k-way merge uses a heap; equal keys go to the newest source.
 > 4. Tombstones flow through the merge and are hidden at the edge, in `Scan` and `Get`.
-
-### What is missing
 
 Filters make "not found" cheap, but tables still pile up. Every overwrite and every delete leaves the old version on disk forever, and a scan still merges every table. Chapter 5 adds **compaction**: merge tables into one, keep only the newest version of each key, and drop tombstones that have nothing left to hide.

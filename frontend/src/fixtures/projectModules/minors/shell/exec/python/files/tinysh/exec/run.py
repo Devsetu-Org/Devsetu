@@ -71,15 +71,14 @@ def start_process(s, argv: list[str], io: Stdio) -> subprocess.Popen:
     """start_process looks up argv[0] and starts the process with the given stdio.
     It does not wait. The caller waits with wait_process.
     """
-    # TODO(2.2): look_path argv[0], build subprocess.Popen with cwd/env/stdio
-    # (use _has_fileno / PIPE + _pump_* when streams lack fileno), Start it.
-    raise NotImplementedError("TODO(2.2): start_process")
+    # TODO(2.2)
+    raise NotImplementedError("TODO(2.2)")
 
 
 def wait_process(c: subprocess.Popen) -> int:
     """wait_process waits for a process started by start_process and returns its status."""
-    # TODO(2.2): Wait and map the code via exit_status; join any _tinysh_pumps.
-    raise NotImplementedError("TODO(2.2): wait_process")
+    # TODO(2.2)
+    raise NotImplementedError("TODO(2.2)")
 
 
 def exit_status(code: Optional[int]) -> int:

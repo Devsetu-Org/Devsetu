@@ -3,6 +3,7 @@ import MonacoEditor, { loader } from '@monaco-editor/react';
 import type { editor as MonacoEditorNS } from 'monaco-editor';
 import type * as Monaco from 'monaco-editor';
 import MarkdownProse from './MarkdownProse';
+import { IconPlay, IconReset, IconStop } from './ChromeIcons';
 import type { SparkProjectFiles } from '../fixtures/dailyProductSalesL1';
 
 loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
@@ -218,9 +219,14 @@ interface SparkProjectEditorProps {
   /** Restore published starter code (parent handles persist + confirm). */
   onResetToStarter?: () => void;
   resetting?: boolean;
+  /** Optional Run control to the left of the file-explorer toggle. */
+  onRun?: () => void;
+  onStopRun?: () => void;
+  runInFlight?: boolean;
+  runDisabled?: boolean;
 }
 
-export default function SparkProjectEditor({
+function SparkProjectEditor({
   files,
   onChangeFiles,
   entryFile = 'src/main.py',
@@ -232,6 +238,10 @@ export default function SparkProjectEditor({
   onActivePathChange,
   onResetToStarter,
   resetting = false,
+  onRun,
+  onStopRun,
+  runInFlight = false,
+  runDisabled = false,
 }: SparkProjectEditorProps): JSX.Element {
   const paths = Object.keys(files);
   const initialFile = paths.includes(entryFile) ? entryFile : paths[0] || '';
@@ -342,11 +352,91 @@ export default function SparkProjectEditor({
     if (activePath) onActivePathChange?.(activePath);
   }, [activePath, onActivePathChange]);
 
+  // Parent focus jumps (theory task click) should open the file without remounting Monaco —
+  // remounting reflows line-number gutters and tab width, so the code appears to shift.
+  useEffect(() => {
+    if (!entryFile) return;
+    setPreviewPath((prev) => (prev == null ? prev : null));
+    setOpenTabs((prev) => (prev.includes(entryFile) ? prev : [...prev, entryFile]));
+    setActivePath((prev) => (prev === entryFile ? prev : entryFile));
+  }, [entryFile]);
+
+  const editorOptions = useMemo(
+    () => ({
+      fontSize: 13,
+      fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace',
+      fontLigatures: true,
+      lineHeight: 20,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      padding: { top: 10, bottom: 10 },
+      renderLineHighlight: 'line' as const,
+      // Lock indent metrics — Monaco's detectIndentation otherwise rewrites tabSize
+      // when the model is touched, which looks like the code shifting by a tab.
+      detectIndentation: false,
+      insertSpaces: language === 'python' || language === 'yaml' || language === 'json',
+      tabSize: language === 'python' ? 4 : 2,
+      wordWrap: language === 'markdown' ? ('on' as const) : ('off' as const),
+      folding: true,
+      lineNumbers: 'on' as const,
+      lineNumbersMinChars: 3,
+      lineDecorationsWidth: 12,
+      glyphMargin: false,
+      overviewRulerLanes: 0,
+      hideCursorInOverviewRuler: true,
+      overviewRulerBorder: false,
+      // Size only via ResizeObserver on the editor host — avoids relayout flashes when
+      // the theory pane swaps pages beside this column.
+      automaticLayout: false,
+      readOnly: isPreview,
+      scrollbar: {
+        vertical: 'visible' as const,
+        horizontal: 'auto' as const,
+        verticalScrollbarSize: 10,
+        horizontalScrollbarSize: 10,
+        useShadows: false,
+      },
+    }),
+    [language, isPreview],
+  );
+
+  const editorHostRef = useRef<HTMLDivElement | null>(null);
+  const showMarkdownPreview = isPreview && viewingPath.endsWith('.md');
+
   function handleMount(editor: MonacoEditorNS.IStandaloneCodeEditor, monaco: typeof Monaco): void {
     editorRef.current = editor;
     defineTheme(monaco);
     monaco.editor.setTheme(THEME_NAME);
+    editor.layout();
   }
+
+  useEffect(() => {
+    if (showMarkdownPreview) return undefined;
+    const host = editorHostRef.current;
+    if (!host || typeof ResizeObserver === 'undefined') return undefined;
+    let frame = 0;
+    let lastW = 0;
+    let lastH = 0;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width < 2 || height < 2) return;
+      // Ignore sub-pixel noise from the theory pane reflowing beside us.
+      if (Math.abs(width - lastW) < 1 && Math.abs(height - lastH) < 1) return;
+      lastW = width;
+      lastH = height;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        editorRef.current?.layout({ width, height });
+      });
+    });
+    ro.observe(host);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [showMarkdownPreview, viewingPath]);
 
   function updateActiveContent(value: string): void {
     if (!activePath || isPreview) return;
@@ -533,8 +623,6 @@ export default function SparkProjectEditor({
     setMenu(null);
   }
 
-  const showMarkdownPreview = isPreview && viewingPath.endsWith('.md');
-
   return (
     <div
       className={`spark-project-editor spark-project-editor--overlay-explorer${explorerOpen ? ' spark-explorer-open' : ' spark-explorer-collapsed'}`}
@@ -583,14 +671,38 @@ export default function SparkProjectEditor({
             {onResetToStarter && (
               <button
                 type="button"
-                className="spark-editor-reset"
+                className="spark-explorer-arrow project-run-icon-btn project-run-icon-btn--reset"
                 title="Reset to starter code"
                 aria-label="Reset to starter code"
-                disabled={resetting}
+                disabled={resetting || runInFlight}
                 onClick={onResetToStarter}
               >
-                {resetting ? 'Resetting…' : 'Reset'}
+                <IconReset color="#93c5fd" size={15} />
               </button>
+            )}
+            {onRun && (
+              runInFlight ? (
+                <button
+                  type="button"
+                  className="spark-explorer-arrow project-run-icon-btn project-run-icon-btn--stop"
+                  onClick={onStopRun}
+                  title="Stop run"
+                  aria-label="Stop run"
+                >
+                  <IconStop color="#f87171" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="spark-explorer-arrow project-run-icon-btn"
+                  onClick={onRun}
+                  disabled={runDisabled}
+                  title={runDisabled ? 'No verify commands for this chapter' : 'Run verify commands on an ephemeral runner'}
+                  aria-label="Run"
+                >
+                  <IconPlay color="#34d399" />
+                </button>
+              )
             )}
             <button
               type="button"
@@ -604,7 +716,7 @@ export default function SparkProjectEditor({
             </button>
           </div>
         </div>
-        <div className="code-editor-body">
+        <div className="code-editor-body" ref={editorHostRef}>
           {!viewingPath ? (
             <p className="dim" style={{ padding: 16 }}>Create a file to start coding.</p>
           ) : showMarkdownPreview ? (
@@ -619,26 +731,7 @@ export default function SparkProjectEditor({
               theme={THEME_NAME}
               onMount={handleMount}
               onChange={(val) => updateActiveContent(val ?? '')}
-              options={{
-                fontSize: 13,
-                fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace',
-                fontLigatures: true,
-                lineHeight: 20,
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                padding: { top: 10, bottom: 10 },
-                renderLineHighlight: 'line',
-                tabSize: language === 'python' ? 4 : 2,
-                wordWrap: language === 'markdown' ? 'on' : 'off',
-                folding: true,
-                lineNumbers: 'on',
-                glyphMargin: false,
-                overviewRulerLanes: 0,
-                hideCursorInOverviewRuler: true,
-                overviewRulerBorder: false,
-                readOnly: isPreview,
-                scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-              }}
+              options={editorOptions}
             />
           )}
         </div>
@@ -798,6 +891,9 @@ export default function SparkProjectEditor({
     </div>
   );
 }
+
+/** Skip re-renders when only the theory pane changes beside this editor. */
+export default React.memo(SparkProjectEditor);
 
 /** Concatenate Python sources for mock submit heuristics. */
 export function collectPythonSources(files: SparkProjectFiles): string {

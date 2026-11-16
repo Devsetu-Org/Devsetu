@@ -8,16 +8,15 @@ from sqlq.parse.expr import parse_expr
 
 
 def parse_select(p) -> Select:
-    # TODO(2.3): SELECT, one or more items separated by commas, FROM, a table name,
-    # parse_alias, parse_from_tail, an optional WHERE expression, then finish_select.
-    raise NotImplementedError("TODO(2.3): parse_select")
+    # TODO(2.3) — parse_select
+    raise NotImplementedError("TODO(2.3)")
 
 
 def parse_select_item(p) -> SelectItem:
-    # TODO(2.3): '*' is SelectItem(star=True). Otherwise an expression, then an optional AS name.
-    raise NotImplementedError("TODO(2.3): parse_select_item")
+    # TODO(2.3) — parse_select_item
+    raise NotImplementedError("TODO(2.3)")
 
 
 def parse_alias(p) -> str:
-    # TODO(2.3): AS ident, or a bare ident, or "".
-    raise NotImplementedError("TODO(2.3): parse_alias")
+    # TODO(2.3) — parse_alias
+    raise NotImplementedError("TODO(2.3)")

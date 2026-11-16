@@ -308,15 +308,35 @@ async function forgetEvent(eventId: string): Promise<void> {
   await pool.query(`DELETE FROM billing_events WHERE event_id = $1`, [eventId]);
 }
 
-/** Track ids the user can access right now (DevOps Engineer expands to its subtracks). */
-async function getEntitlements(userId: string): Promise<PlanId[]> {
+/**
+ * Feature / track ids the user can access right now
+ * (projects, whiteboard, linux, docker, kubernetes — from every entitled plan).
+ */
+async function getEntitlements(userId: string): Promise<string[]> {
   const subs = await listForUser(userId);
-  const out = new Set<PlanId>();
+  const out = new Set<string>();
   for (const s of subs) {
     if (!isEntitled(s)) continue;
     for (const id of getPlan(s.planId)?.covers || []) out.add(id);
   }
   return [...out];
+}
+
+/** Monthly lab credits from the highest-rank entitled sellable plan (0 if none). */
+async function getMonthlyCredits(userId: string): Promise<number> {
+  const subs = await listForUser(userId);
+  let best = 0;
+  let bestRank = -1;
+  for (const s of subs) {
+    if (!isEntitled(s)) continue;
+    const plan = getPlan(s.planId);
+    if (!plan || plan.sellable === false) continue;
+    if (plan.rank > bestRank) {
+      bestRank = plan.rank;
+      best = plan.credits;
+    }
+  }
+  return best;
 }
 
 module.exports = {
@@ -337,4 +357,5 @@ module.exports = {
   recordEvent,
   forgetEvent,
   getEntitlements,
+  getMonthlyCredits,
 };

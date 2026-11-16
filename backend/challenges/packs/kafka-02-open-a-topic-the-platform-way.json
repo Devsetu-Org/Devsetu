@@ -1,0 +1,60 @@
+{
+  "id": "kafka-02-open-a-topic-the-platform-way",
+  "number": 831,
+  "finalized": true,
+  "title": "Open a Topic the Platform Way",
+  "description": "**SITUATION:**\n\nThis is your first lab on the **KRaft** cluster — combined broker + controller, no ZooKeeper. (Lab 1 was the classic ZooKeeper control plane. You need both pictures.)\n\nQuickBite already runs `orders`, `rider.dispatch`, and `restaurant.notifications` on the three-broker POC. Leave them alone.\n\nThe next need is `order.status`. An order keeps changing after it is placed: preparation, pickup, delivery. Customers, riders, and support all need those events in one ordered place. `order.status` will hold one event per status change, keyed by Order ID.\n\nA ticket under `~/ticket/` proposes a shape. Treat it as a **claim**. The platform note under `~/ticket/PLATFORM.md` is the QuickBite standard.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Confirm this cluster is KRaft (no ZooKeeper host).\n2. Create `order.status` to the **platform** shape — not the ticket template if they disagree.\n3. Do not change `orders`, `rider.dispatch`, or `restaurant.notifications`.\n4. Fill every Investigation field, then Submit.\n\n**SPEC:**\n\n- `order.status`: 6 partitions, RF 3, `retention.ms` `259200000` (3 days), `min.insync.replicas` 2, `cleanup.policy` `delete`, ISR 3 on every partition.\n- Live topics stay as you found them (`orders` / `rider.dispatch`: 6 parts; `restaurant.notifications`: 3 parts; RF 3; min.ISR 2; retention 7d; cleanup delete).",
+  "difficulty": "L0",
+  "tags": [
+    "kafka",
+    "l0",
+    "foundations",
+    "orientation",
+    "kafka-3",
+    "kraft"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide. Compare ~/ticket/TICKET.md with ~/ticket/PLATFORM.md.",
+      "BOOTSTRAP_SERVERS is set. kafka-topics.sh --create takes --partitions and --replication-factor; retention and min.insync.replicas are --config.",
+      "There is no ZooKeeper on this lab — do not look for zookeeper-shell or /controller znodes.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Open a Topic the Platform Way",
+    "brief": "Open a Topic the Platform Way",
+    "solution": "",
+    "idLabel": "02",
+    "theory": "",
+    "guide": "# QuickBite Data Platform — open a topic the platform way (KRaft)\n\nThis lab is **KRaft**. Each `kafka-*` host is broker **and** controller. There is **no** ZooKeeper pod and no `/controller` znode.\n\n| Host      | Role                                      |\n|-----------|-------------------------------------------|\n| `kafka-0` | Combined broker + controller (node id 1)  |\n| `kafka-1` | Combined broker + controller (node id 2)  |\n| `kafka-2` | Combined broker + controller (node id 3)  |\n| `shell`   | CLI (`BOOTSTRAP_SERVERS`)                 |\n\nLeave `orders`, `rider.dispatch`, and `restaurant.notifications` alone.\n\n## 1. Read the ticket — then the platform note\n\n```bash\nless ~/ticket/TICKET.md\nless ~/ticket/PLATFORM.md\n```\n\nThe ticket can be wrong. **PLATFORM.md** is the QuickBite shape for `order.status`.\n\n## 2. Create `order.status`\n\nFrom the **shell**:\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --create \\\n  --topic order.status \\\n  --partitions 6 \\\n  --replication-factor 3 \\\n  --config retention.ms=259200000 \\\n  --config min.insync.replicas=2 \\\n  --config cleanup.policy=delete\n```\n\nConfirm:\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --describe --topic order.status\nkafka-configs.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --describe --entity-type topics --entity-name order.status --all\n```\n\nEvery partition should show three replicas in the ISR.\n\n## 3. Prove you did not touch the live topics\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --describe --topic orders\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --describe --topic rider.dispatch\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" --describe --topic restaurant.notifications\n```\n\n## 4. Investigation\n\nRecord that this control plane is KRaft, that you followed the platform note (not the wrong ticket), and the shape numbers you applied. Then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": [
+        "Planning for a Kafka cluster",
+        "Procuring the brokers",
+        "Starting the KRaft quorum",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

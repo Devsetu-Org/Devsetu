@@ -1,32 +1,32 @@
-## Where you are
+## Joins and aggregates
 <!-- mode: read-only -->
 
 A single-table filter is the core of the pipeline. This chapter adds the operators that combine tables and collapse rows.
 
-```plaintext
-  SELECT u.name, COUNT(*) AS n
-  FROM users u JOIN orders o ON u.id = o.user_id
-  WHERE o.total > 10
-  GROUP BY u.name
-  ORDER BY n DESC
-  LIMIT 1
+![Query engine pipeline: lexer (ch 1), parser (ch 2), catalog (ch 3), and executor (ch 4) feed joins and aggregates (you are here, ch 5)](/query-engine/relational/you-are-here.jpg)
 
-  Scan users
-    → Nested-loop join orders
-    → Filter total > 10
-    → Aggregate by name
-    → Sort
-    → Limit
+One statement uses every new piece:
+
+```sql
+SELECT u.name, COUNT(*) AS n
+FROM users u JOIN orders o ON u.id = o.user_id
+WHERE o.total > 10
+GROUP BY u.name
+ORDER BY n DESC
+LIMIT 1;
 ```
+
+![Full SELECT pipeline: scan users, nested-loop join orders, filter total > 10, aggregate by name, sort, limit, then rows](/query-engine/relational/full-pipeline.jpg)
 
 The join runs before the filter, because `WHERE` can mention columns from either table. Aggregation replaces the projection: the output is one row per group, not one row per input. Sort and limit run on that output.
 
 > [!scope] This chapter's job
-> One `INNER JOIN` with `ON a = b`, `COUNT(*)`, `SUM`, `GROUP BY`, `ORDER BY`, and `LIMIT`.
-> Still no outer join, no `OR`, and no second join.
+> One `INNER JOIN` with `ON a = b`, `COUNT(*)`, `SUM`, `GROUP BY`, `ORDER BY`, and `LIMIT`. Still no outer join, no `OR`, and no second join.
 
-## The clauses the parser skipped
-<!-- mode: read-and-implement tasks:5.1 -->
+## Parsing the tail and joining
+<!-- mode: read-and-implement tasks:5.1,5.2 -->
+
+### The clauses the parser skipped
 
 Chapter 2 left two hooks empty. They are live now. `parseFromTail` calls `parseJoin` when it sees `INNER` or `JOIN`, between the table alias and `WHERE`. `finishSelect` calls `parseTail` after `WHERE`.
 
@@ -97,10 +97,11 @@ In `src/parse/tail.cc`. The throw in `ParseTail` is the stand-in; replace the wh
 4. Return when the clause is absent. Do not require the clauses to appear.
 <!-- /lang -->
 
-## Nested-loop join
-<!-- mode: read-and-implement tasks:5.2 -->
+### Nested-loop join
 
 An inner join keeps pairs that match. The nested loop is the straightforward version: for each row on the left, try every row on the right. The right-hand table is scanned once up front (it is small, and it is in memory). The left side stays an iterator, so a filter under the join is not forced to materialize early. In `RunSelect` the filter is above the join, which matches `WHERE`.
+
+![Nested-loop join: for each row of users on the left, scan all rows of orders on the right and keep the pairs where u.id = o.user_id; honest and correct, slow on big tables](/query-engine/relational/join.jpg)
 
 A joined row is the left columns followed by the right columns. `u.id` and `o.user_id` are both present, so `ON u.id = o.user_id` evaluates against the combined row.
 
@@ -141,8 +142,10 @@ The struct and `NewNestedLoop` are in `src/execute/join.cc`. Fill in `Next`.
 `RunSelect` builds this only when `sel.join` is set. It qualifies the right table with its alias.
 <!-- /lang -->
 
-## COUNT and SUM
-<!-- mode: read-and-implement tasks:5.3 -->
+## Aggregates, order, and limit
+<!-- mode: read-and-implement tasks:5.3,5.4 -->
+
+### COUNT and SUM
 
 `HasAggregate` is given, in `build.go`. It is true when the query has a `GROUP BY` or any select item is a call. Those queries go through `Aggregate` instead of `Project`.
 
@@ -186,8 +189,7 @@ In `src/execute/agg.cc`:
 5. The output column name is the alias, or `Name(item.expr.get())` when there is no alias.
 <!-- /lang -->
 
-## Order and limit
-<!-- mode: read-and-implement tasks:5.4 -->
+### Order and limit
 
 `ORDER BY` names an output column, not an input column. `ORDER BY n` works when the select item was `COUNT(*) AS n`. With no alias, `ORDER BY count(*)` matches `parse.Name` of that call. The sort is stable: rows that compare equal stay in the order they were produced.
 
@@ -221,8 +223,7 @@ In `src/execute/sort.cc`:
 3. `std::stable_sort`. Compare values with integers on `i` and text on `s`. `desc` flips the comparison. A zero comparison falls through to the next key.
 <!-- /lang -->
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash

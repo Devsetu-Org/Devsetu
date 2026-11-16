@@ -19,15 +19,17 @@ std::pair<int, bool> RunBuiltin(Shell& s, const std::vector<std::string>& argv) 
 }
 
 int BuiltinCd(Shell& s, const std::vector<std::string>& args) {
-  // TODO(2.3): Resolve the directory (HOME when no args), Stat it, set s.dir.
+  // TODO(2.3)
   (void)s; (void)args;
-  throw std::runtime_error("TODO(2.3): BuiltinCd");
+  // TODO(2.3)
+  throw std::runtime_error("TODO(2.3)");
 }
 
 int BuiltinExit(Shell& s, const std::vector<std::string>& args) {
-  // TODO(2.3): Parse an optional numeric code, call SetExit, return the code.
+  // TODO(2.3)
   (void)s; (void)args;
-  throw std::runtime_error("TODO(2.3): BuiltinExit");
+  // TODO(2.3)
+  throw std::runtime_error("TODO(2.3)");
 }
 
 }  // namespace tinysh::exe

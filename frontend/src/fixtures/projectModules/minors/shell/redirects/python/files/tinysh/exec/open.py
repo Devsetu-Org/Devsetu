@@ -23,5 +23,5 @@ def open_redirs(directory: str, redirs: list[Redir]):
 
 def open_one(directory: str, r: Redir):
     """open_one opens one redirect target."""
-    # TODO(3.2): Resolve r.file against dir. Open with trunc/append/read per kind.
-    raise NotImplementedError("TODO(3.2): open_one")
+    # TODO(3.2)
+    raise NotImplementedError("TODO(3.2)")

@@ -26,7 +26,7 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # pager acceptance tests for this chapter
 make race     # same, with the race detector
 make run      # REPL on ./data.db: alloc | write n text | read n | free n | meta | quit
 ```

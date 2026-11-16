@@ -415,6 +415,71 @@ const ACTIONS = {
     argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'down'],
     confirm: 'down',
   },
+  'projects-base': {
+    label: 'Projects base',
+    section: 'projects',
+    summary: 'labs-projects Desired=1 (t4g.small).',
+    description: [
+      'Creates the labs-projects managed node group and launch template if missing, scales it to Desired=1, and waits for a Ready node labeled pool=projects.',
+      'That node is tainted so only Projects shells (minors/majors code boxes) schedule there. Instance type is t4g.small — denser, cheaper shells with Go/Python/C++ baked into projects-lab.',
+      'Not in EKS_NODEGROUPS, so a normal cluster sleep leaves it alone — park it with Projects sleep / Projects down. Does not apply the Karpenter overflow pool; run Projects up for that.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-projects.sh'), 'base'],
+  },
+  'projects-up': {
+    label: 'Projects elastic (up)',
+    section: 'projects',
+    summary: 'Apply labs-projects-elastic NodePool only.',
+    description: [
+      'Applies only the Karpenter EC2NodeClass + NodePool labs-projects-elastic. When Projects shells are Pending because the managed base is full, Karpenter buys matching Graviton t4g.small nodes (same pool label/taint as the base) and removes them once empty.',
+      'Does not scale the managed NG — run Projects base first for that. Prerequisite: Karpenter controller already installed (Install Karpenter).',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-projects.sh'), 'up'],
+  },
+  'projects-wake': {
+    label: 'Projects wake',
+    section: 'projects',
+    summary: 'Wake labs-projects, then elastic.',
+    description: [
+      'Convenience path after Projects sleep: scales labs-projects back to 1, waits for Ready, then applies labs-projects-elastic.',
+      'Use when Projects capacity was parked and you want the always-on base (and overflow) restored. If you only want the single managed node, prefer Projects base.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-projects.sh'), 'wake'],
+  },
+  'projects-sleep': {
+    label: 'Projects sleep',
+    section: 'projects',
+    summary: 'Park elastic and labs-projects → 0.',
+    description: [
+      'Parks Projects capacity without touching system-k8s or the EKS control plane. First patches labs-projects-elastic cpu limit to 0 and deletes its NodeClaims (Karpenter terminates those EC2 instances), then scales the labs-projects managed group to Desired=0.',
+      'Open Projects shells will sit Pending until capacity wakes again.',
+      'Bring capacity back with Projects wake (base + elastic) or Projects base alone if you do not need overflow.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-projects.sh'), 'sleep'],
+  },
+  'projects-spike': {
+    label: 'Projects spike check',
+    section: 'projects',
+    summary: 'base + spike box + capability checks.',
+    description: [
+      'End-to-end capability probe for the Projects pool. Runs Projects base, applies deploy/eks/projects/spike.yaml, waits for the spike pod Ready, then checks Go/Python/g++/make and that public internet is blocked.',
+      'Use after launch-template or image changes before learners hit the pool.',
+      'Requires the multi-arch devsetu/projects-lab image to be published (./images/build-all.sh projects-lab). First run may spend several minutes pulling the image.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-projects.sh'), 'spike'],
+  },
+  'projects-down': {
+    label: 'Projects down',
+    section: 'projects',
+    summary: 'Tear down spike + elastic; sleep NG.',
+    description: [
+      'Full Projects teardown for spike / infra experiments: deletes the dl-projects-spike namespace, deletes the labs-projects-elastic NodePool/EC2NodeClass, then sleeps labs-projects to Desired=0.',
+      'After this, Projects shells will not work until you run Projects base again (and up if you want elastic). Stronger than sleep alone because the elastic NodePool is removed from the cluster.',
+      'Confirm by typing down. Prefer Projects sleep when you only want to park capacity and keep the elastic pool definition installed.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-projects.sh'), 'down'],
+    confirm: 'down',
+  },
 };
 
 /**

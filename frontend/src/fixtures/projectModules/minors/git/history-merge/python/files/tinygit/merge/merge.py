@@ -39,7 +39,7 @@ class MergeConflict(ValueError):
 def merge(r: Repo, their_branch: str) -> Result:
     """Merge their_branch into the current HEAD."""
     # TODO(5.4): merge
-    raise NotImplementedError("TODO(5.4): merge")
+    raise NotImplementedError("TODO(5.4)")
 
 
 def write_blob_file(r: Repo, path: str, h: Hash) -> None:

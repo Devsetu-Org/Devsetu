@@ -13,10 +13,8 @@ import (
 
 // Checkout materializes commit's tree into the worktree and updates HEAD/index.
 func Checkout(r *repo.Repo, commit object.Hash) error {
-	// TODO(4.3): Load commit tree into path→hash. safetyCheck against dirty worktree.
-	// Remove index paths missing from target. Write blobs to worktree. Save new index.
-	// WriteDetachedHEAD(commit).
-	panic("TODO(4.3): Checkout")
+	// TODO(4.3)
+	panic("TODO(4.3)")
 }
 
 // CheckoutBranch checks out the tip of a branch and sets symbolic HEAD.

@@ -19,13 +19,10 @@ import { WHITEBOARD_ENABLED } from './constants/whiteboard';
 import SideQuestsPage from './pages/SideQuestsPage';
 import PlaygroundsPage from './pages/PlaygroundsPage';
 import ProjectsPage, { ProjectsHub } from './pages/ProjectsPage';
-import MachineCodingPage from './pages/MachineCodingPage';
 import ProjectModulePage from './pages/ProjectModulePage';
 import MinorsPage from './pages/MinorsPage';
 import SparkPlaygroundPage from './pages/SparkPlaygroundPage';
 import SparkPlaygroundOpenPage from './pages/SparkPlaygroundOpenPage';
-import SparkPrimerPage from './pages/SparkPrimerPage';
-import K8sPrimerPage from './pages/K8sPrimerPage';
 import K8sReadingPage from './pages/K8sReadingPage';
 import ProfilePage from './pages/ProfilePage';
 import FeedbackPage, { FEEDBACK_SIGN_IN } from './pages/FeedbackPage';
@@ -111,7 +108,8 @@ function LegacyPlayRedirect(): JSX.Element {
   const rest = pathname.replace(/^\/play/, '');
   let to = `/track${rest}`;
   if (/^\/projects\/.+/.test(rest)) to = rest.replace(/^\/projects/, '/majors');
-  else if (/^\/(majors|minors|projects|machine-coding)(\/|$)/.test(rest)) to = rest;
+  else if (/^\/(majors|minors|projects)(\/|$)/.test(rest)) to = rest;
+  else if (/^\/machine-coding(\/|$)/.test(rest)) to = '/track';
   return <Navigate to={to + search + hash} replace />;
 }
 
@@ -163,6 +161,8 @@ export default function App(): React.JSX.Element {
   const pendingStartPathRef = useRef<string | null>(null);
   const pendingStartChallengeRef = useRef<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
+  /** Last ?lab= id restored (or intentionally abandoned) — blocks reopen bounce on Back. */
+  const labRestoreKeyRef = useRef<string | null>(null);
 
   const [authMode, setAuthMode] = useState<AuthMode>('resolving');
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
@@ -285,12 +285,17 @@ export default function App(): React.JSX.Element {
 
   /** User navigated away while a lab was still opening — drop it and return to the catalog. */
   const abandonPendingStart = (): void => {
+    // Stamp the lab id so the ?lab= restore effect cannot reopen this lab in the
+    // same tick as playState flips to library (Back looked like a no-op).
+    const leavingLabId = pendingStartChallengeRef.current;
+    if (leavingLabId) labRestoreKeyRef.current = leavingLabId;
     startAbortRef.current?.abort();
     startAbortRef.current = null;
     void cancelInflightK8sStart(++openSeqRef.current);
     startAttemptRef.current += 1;
     pendingStartRef.current = false;
     pendingStartPathRef.current = null;
+    pendingStartChallengeRef.current = null;
     openingSessionRef.current = null;
     setLeaveLabPrompt(null);
     setLabLeaseLost(null);
@@ -388,7 +393,6 @@ export default function App(): React.JSX.Element {
     }
   }, [authMode]);
 
-  const labRestoreKeyRef = useRef<string | null>(null);
   const handleSelectChallengeRef = useRef<(
     challenge: ChallengePublic | ChallengeFull,
     opts?: { force?: boolean; start?: boolean },
@@ -399,7 +403,13 @@ export default function App(): React.JSX.Element {
     opts: { force?: boolean; start?: boolean } = {},
   ): Promise<void> => {
     if (authMode !== 'interviewer') {
-      requestLogin();
+      requestLogin(
+        `${window.location.pathname}${window.location.search}`,
+        {
+          title: 'Sign in to open this lab',
+          body: 'Your problem statement will restore right after you sign in.',
+        },
+      );
       return;
     }
     if ((challenge as ChallengePublic).locked) {
@@ -720,11 +730,16 @@ export default function App(): React.JSX.Element {
       return;
     }
     if (labRestoreKeyRef.current === labId) return;
+    // Wait for the first catalog fetch; then stop retrying if the lab is gone.
+    if (challenges.length === 0 && !challengesError) return;
     const challenge = challenges.find((c) => c.id === labId);
-    if (!challenge || !(challenge as ChallengePublic).finalized) return;
+    if (!challenge || !(challenge as ChallengePublic).finalized) {
+      labRestoreKeyRef.current = labId;
+      return;
+    }
     labRestoreKeyRef.current = labId;
     void handleSelectChallengeRef.current(challenge);
-  }, [authMode, playState, location.search, challenges]);
+  }, [authMode, playState, location.search, challenges, challengesError]);
 
   // Keep play UI in sync with the URL (browser Back/Forward, deep links).
   useEffect(() => {
@@ -1124,9 +1139,15 @@ export default function App(): React.JSX.Element {
     const dest = catalogPathForChallenge(activeChallenge?.id, activeChallenge?.sandboxType, activeChallenge?.tags);
     // A lab still opening keeps the catalog URL, so navigating there alone never
     // invalidates the start; it would finish and pull the user back into the lab.
-    if (pendingStartRef.current || activeSession?.id.startsWith('pending-k8s-')) {
+    if (
+      pendingStartRef.current
+      || activeSession?.id.startsWith('pending-k8s-')
+      || activeSession?.notStarted
+    ) {
+      if (activeChallenge?.id) labRestoreKeyRef.current = activeChallenge.id;
       abandonPendingStart();
-      navigate(dest);
+      // replace: drop ?lab= so the shelf restore effect does not bounce back in.
+      navigate(dest, { replace: true });
       void refreshChallenges();
       return;
     }
@@ -1381,8 +1402,7 @@ export default function App(): React.JSX.Element {
           <Route path="track/quests/:topicId" element={<SideQuestsPage />} />
           <Route path="track/playgrounds" element={<PlaygroundsPage />} />
           <Route path="projects" element={<ProjectsHub />} />
-          <Route path="machine-coding" element={<MachineCodingPage />} />
-          <Route path="machine-coding/:problemId" element={<MachineCodingPage />} />
+          <Route path="machine-coding/*" element={<Navigate to="/track" replace />} />
           <Route path="majors" element={<Navigate to="/projects" replace />} />
           <Route path="majors/:projectId" element={<ProjectsPage />} />
           <Route
@@ -1404,8 +1424,18 @@ export default function App(): React.JSX.Element {
           <Route path="learners/:learnerId" element={<LearnerProfilePage />} />
           <Route path="track/spark-playground/open" element={<SparkPlaygroundOpenPage />} />
           <Route path="track/spark-playground" element={<SparkPlaygroundPage />} />
-          <Route path="track/data-engineer/spark/intro" element={<SparkPrimerPage />} />
-          <Route path="track/devops-engineer/kubernetes/intro" element={<K8sPrimerPage />} />
+          <Route
+            path="track/data-engineer/spark/intro"
+            element={<Navigate to="/track/platforms-engineer/spark" replace />}
+          />
+          <Route
+            path="track/devops-engineer/kubernetes/intro"
+            element={<Navigate to="/track/devops-engineer/kubernetes" replace />}
+          />
+          <Route
+            path="track/platforms-engineer/spark/intro"
+            element={<Navigate to="/track/platforms-engineer/spark" replace />}
+          />
           <Route
             path="track/devops-engineer/read/:readingSlug"
             element={<K8sReadingPage trackId="devops" />}

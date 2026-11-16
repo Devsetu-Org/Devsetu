@@ -17,11 +17,11 @@ def safe_path(r: Repo, name: str) -> str:
 def read(r: Repo, name: str) -> Hash:
     """Read a ref file relative to the git dir (e.g. refs/heads/main)."""
     # TODO(2.1): read
-    raise NotImplementedError("TODO(2.1): read")
+    raise NotImplementedError("TODO(2.1)")
 
 
 def write(r: Repo, name: str, h: Hash) -> None:
     """Write a direct ref (hash only)."""
     # TODO(2.1): write
-    raise NotImplementedError("TODO(2.1): write")
+    raise NotImplementedError("TODO(2.1)")
 

@@ -1,0 +1,50 @@
+{
+  "id": "spark-16-namespace-quota-blocks-the-submit",
+  "number": 838,
+  "finalized": true,
+  "title": "Namespace Quota Blocks the Submit",
+  "description": "**SITUATION:**\n\nYou submitted `store-rollup-quota` in cluster mode. The driver never starts — quota / Forbidden. The team namespace has a **ResourceQuota**, and leftover **`debug-memory-hog`** is eating most of it.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Inspect ResourceQuota and pods in `$SPARK_K8S_NS`.\n2. Free the quota: delete `debug-memory-hog` **or** retarget the wrapper at the prod namespace in `~/lab/prod-namespace.txt`.\n3. Do **not** delete or raise `team-spark-quota`.\n4. Re-run `~/lab/submit-store-rollup-quota.sh` until the driver **Succeeded**.\n5. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- `team-spark-quota` still present.\n- Hog deleted **or** submit uses the prod namespace.\n- `store-rollup-quota-…` driver Succeeded.\n- Investigation: blocker `quota-hog`; fix `delete-hog` or `use-prod`.\n",
+  "difficulty": "L0",
+  "tags": ["spark", "kubernetes", "l0", "orientation", "spark-k8s", "quota"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": { "domainId": "platforms-engineer", "panelId": "spark" },
+  "problemStatement": {
+    "hints": [
+      "kubectl describe resourcequota -n $SPARK_K8S_NS",
+      "kubectl get pods -n $SPARK_K8S_NS — find debug-memory-hog",
+      "Do not delete team-spark-quota; delete the hog or use the prod namespace from ~/lab/prod-namespace.txt",
+      "Fill Investigation before Submit."
+    ],
+    "overview": "Namespace Quota Blocks the Submit",
+    "brief": "Namespace Quota Blocks the Submit",
+    "solution": "",
+    "idLabel": "16",
+    "theory": "",
+    "guide": "# QuickBite — Namespace quota blocks the submit\n\nResourceQuota + leftover debug-memory-hog block the driver.\n\n1. Inspect quota and pods.\n2. Delete the hog or retarget to prod.\n3. Keep team-spark-quota. Re-submit until Succeeded.\n4. Investigation, then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-k8s",
+    "daemonMode": "auto",
+    "chapter": "kubernetes",
+    "kind": "orientation",
+    "reservePods": 3,
+    "boot": {
+      "heading": "Starting your Kubernetes Spark lab",
+      "phases": [
+        "Creating your Kubernetes Spark namespace",
+        "Pulling the Spark-on-K8s image",
+        "Using the cached Spark-on-K8s image",
+        "Preparing the lab"
+      ]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking quota, hog/prod fix, Succeeded driver, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

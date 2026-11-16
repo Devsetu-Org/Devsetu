@@ -112,9 +112,5 @@ def encode(dst: bytearray, r: Record) -> bytearray:
     Returns dst. Appends: bytes already in dst must survive. The writer relies
     on that to reuse one buffer for every record.
     """
-    # TODO(2.1): remember start = len(dst), then extend dst by HEADER_SIZE
-    # zero bytes as a placeholder. append_payload(dst, r); the payload is
-    # dst[start+HEADER_SIZE:]. Write crc32c.checksum(payload) into
-    # dst[start:start+4] and len(payload) into dst[start+4:start+8] with
-    # struct.pack_into('<I', ...). Never overwrite what was already in dst.
-    raise NotImplementedError("TODO(2.1): encode")
+    # TODO(2.1)
+    raise NotImplementedError("TODO(2.1)")

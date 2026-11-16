@@ -14,9 +14,8 @@ std::unique_ptr<NestedLoop> NewNestedLoop(std::unique_ptr<Iter> left, std::vecto
 }
 
 std::pair<Row, bool> NestedLoop::Next() {
-  // TODO(5.2): For each left row, try every right row. Concatenate columns.
-  // Keep the pair when Eval(on_l) and Eval(on_r) match.
-  throw std::runtime_error("TODO(5.2): NestedLoop::Next");
+  // TODO(5.2) — NestedLoop::Next
+  throw std::runtime_error("TODO(5.2)");
 }
 
 }  // namespace execute

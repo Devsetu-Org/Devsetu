@@ -1,0 +1,62 @@
+{
+  "id": "kafka-01-stand-up-the-cluster-and-find-everything-on-disk",
+  "number": 830,
+  "finalized": true,
+  "title": "Stand Up the Cluster and Find Everything on Disk",
+  "description": "**SITUATION:**\n\nIt's your first shift on QuickBite's Data Platform team. This lab runs the **classic** Kafka control plane: one ZooKeeper ensemble member and three brokers. (Later labs move to KRaft — no ZooKeeper. You need both pictures.)\n\nDevSetu Platform has procured `zookeeper`, `kafka-0`, `kafka-1`, and `kafka-2`. The cluster is already up. `orders`, `rider.dispatch`, and `restaurant.notifications` are live — leave them alone.\n\nOn call, the CLI is useful — and incomplete. When ZooKeeper misbehaves or a log directory fills a disk, you need the processes and paths on the nodes themselves. Switch the terminal between hosts from the bar above.\n\nA handoff note under `~/ticket/` names paths. Treat it as a **claim**, not ground truth.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Confirm ZooKeeper is live on `zookeeper`, and a Kafka broker process is live on each of `kafka-0`–`kafka-2`.\n2. Find the **real** ZooKeeper data directory and the **real** Kafka log directory — do not trust the handoff paths without checking the live processes.\n3. From the **shell**, read the active controller broker id from ZooKeeper (`/controller`), not from a KRaft quorum tool.\n4. Fill every Investigation field. Do not create or delete topics — orientation only.",
+  "difficulty": "L0",
+  "tags": [
+    "kafka",
+    "l0",
+    "foundations",
+    "orientation",
+    "kafka-zk-3",
+    "zookeeper"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide tab for the inspection steps.",
+      "Switch the terminal to zookeeper, kafka-0, kafka-1, and kafka-2 from the node bar.",
+      "On a broker: find the Kafka JVM, then read KAFKA_LOG_DIRS from that process environment.",
+      "On zookeeper: find the QuorumPeer / zk process, then confirm dataDir (/data on this image).",
+      "Controller: zookeeper-shell.sh \"$ZOOKEEPER_CONNECT\" get /controller — parse brokerid. Do not use kafka-metadata-quorum.sh here.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Stand Up the Cluster and Find Everything on Disk",
+    "brief": "Stand Up the Cluster and Find Everything on Disk",
+    "solution": "",
+    "idLabel": "01",
+    "theory": "",
+    "guide": "# QuickBite Data Platform — Kafka + ZooKeeper on-disk orientation\n\nThis lab is the **classic** layout. ZooKeeper holds cluster metadata and elects\nthe controller. Brokers are brokers only. Later labs use **KRaft** (combined\nbroker + controller, no ZooKeeper). Know both.\n\n| Host         | Role in this lab                            |\n|--------------|---------------------------------------------|\n| `zookeeper`  | ZooKeeper (client port 2181)                |\n| `kafka-0`    | Broker id 1                                 |\n| `kafka-1`    | Broker id 2                                 |\n| `kafka-2`    | Broker id 3                                 |\n| `shell`      | CLI (`BOOTSTRAP_SERVERS`, `ZOOKEEPER_CONNECT`) |\n\nSwitch hosts from the bar above. Leave `orders`, `rider.dispatch`, and\n`restaurant.notifications` alone.\n\n## 1. Confirm processes\n\nOn **zookeeper**:\n\n```bash\nps -eo pid,args | grep -i '[q]uorumPeer\\\\|[z]ookeeper\\\\|[o]rg.apache.zookeeper'\n```\n\nOn each **kafka-*** host:\n\n```bash\nps -eo pid,args | grep -i '[k]afka\\\\|org.apache.kafka'\n```\n\n## 2. Find directories (distrust the handoff)\n\n`~/ticket/HANDOFF.md` on the shell names paths. They may be stale.\n\n**Kafka log.dirs** — on a broker, from the live process:\n\n```bash\ntr '\\\\0' '\\\\n' < /proc/PID/environ | grep -E 'LOG_DIR|log.dirs'\nls -la \"$LOG_DIR\"\n```\n\nA decoy directory may exist. If it has no real partition logs for the live\ntopics, you are looking at the wrong path.\n\n**ZooKeeper dataDir** — on `zookeeper`, confirm the live data directory\n(this image uses `/data`; look for `myid` / version files). A decoy folder may\nexist under `/opt`.\n\n## 3. Who is the controller?\n\nWith ZooKeeper, the active controller is a znode — not a KRaft quorum status.\n\nOn the **shell**:\n\n```bash\nzookeeper-shell.sh \"$ZOOKEEPER_CONNECT\" get /controller\n```\n\nParse `brokerid` from the JSON. Do **not** use `kafka-metadata-quorum.sh` on this lab.\n\n## 4. How this cluster is shaped\n\n- Control plane: **ZooKeeper**\n- Each `kafka-*` host: **broker only** (controller is elected among brokers via ZK)\n- Log directories and ZK data directories come from the **live process / image config**, not the handoff note\n\n## 5. Investigation\n\nRecord PIDs, ZK data dir, Kafka log dir, controller broker id, how you found\nthe Kafka log dir, and the control-plane dropdown. Then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-zk-3",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 5,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": [
+        "Planning for a Kafka cluster",
+        "Procuring ZooKeeper and the brokers",
+        "Starting ZooKeeper and the brokers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

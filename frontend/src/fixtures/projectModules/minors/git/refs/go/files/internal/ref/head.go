@@ -18,15 +18,14 @@ type HEAD struct {
 
 // ReadHEAD reads .tinygit/HEAD.
 func ReadHEAD(r *repo.Repo) (HEAD, error) {
-	// TODO(2.2): Read HEAD file. If it starts with "ref: ", return Symbolic.
-	// Otherwise ParseHex into Hash (detached).
-	panic("TODO(2.2): ReadHEAD")
+	// TODO(2.2)
+	panic("TODO(2.2)")
 }
 
 // ResolveHEAD returns the commit hash HEAD currently names.
 func ResolveHEAD(r *repo.Repo) (object.Hash, error) {
-	// TODO(2.2): ReadHEAD; if Symbolic, Read that ref; else return Hash.
-	panic("TODO(2.2): ResolveHEAD")
+	// TODO(2.2)
+	panic("TODO(2.2)")
 }
 
 // WriteSymbolicHEAD points HEAD at a ref name.

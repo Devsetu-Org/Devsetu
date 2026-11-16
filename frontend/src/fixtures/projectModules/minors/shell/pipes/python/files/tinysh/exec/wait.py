@@ -7,5 +7,5 @@ from .spawn import wait_cmd
 
 def wait_foreground(s, procs) -> int:
     """wait_foreground waits for every process and returns the last status."""
-    # TODO(4.3): wait_cmd each proc; return the last status.
-    raise NotImplementedError("TODO(4.3): wait_foreground")
+    # TODO(4.3)
+    raise NotImplementedError("TODO(4.3)")

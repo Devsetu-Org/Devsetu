@@ -1,27 +1,18 @@
-## Where you are
+## The parser
 <!-- mode: read-only -->
 
 The lexer hands you a list of tokens. The **parser** walks that list and builds a tree, the abstract syntax tree. A tree is easier to execute than a sentence: each node is one construct, and the children are its parts.
 
-```plaintext
-  SELECT name FROM users u WHERE id = 1 AND name > 'a'
-
-  Select
-    items: [ name ]
-    from:  users   alias: u
-    where: AND
-             ├─ = (id, 1)
-             └─ > (name, 'a')
-```
+![Query engine pipeline: the lexer (ch 1) feeds the parser (you are here, ch 2), then the catalog (ch 3), executor (ch 4), and joins and aggregates (ch 5)](/query-engine/parser/you-are-here.jpg)
 
 This chapter parses `SELECT` only. `CREATE` and `INSERT` are next. Joins and `GROUP BY` come in the last chapter; the hooks for them are already in the parser and do nothing yet.
 
-> [!scope] This chapter's job
-> A SELECT with a target list, FROM, an optional alias, and an optional WHERE of comparisons
-> joined by AND. A broken statement returns an error that names the byte offset.
+![SELECT name FROM users u WHERE id = 1 AND name > 'a' as an AST: a Select node with items [name], from users alias u, and where AND over = (id, 1) and > (name, 'a')](/query-engine/parser/ast.jpg)
 
-## The grammar, in one picture
-<!-- mode: read-only -->
+> [!scope] This chapter's job
+> A SELECT with a target list, FROM, an optional alias, and an optional WHERE of comparisons joined by AND. A broken statement returns an error that names the byte offset.
+
+### The grammar
 
 ```plaintext
   select    = SELECT item {',' item} FROM name [alias] [WHERE expr]
@@ -51,14 +42,7 @@ The node types are in `src/parse/ast.h`. `Parser` (`Peek`, `At`, `Eat`, `Expect`
 
 Recursive descent is one function per level of the grammar. The looser operator is the outer function. It calls the tighter one, and loops while it sees its own operator.
 
-```plaintext
-  parseAnd
-    parseCmp
-      parsePrimary
-    AND
-    parseCmp
-      parsePrimary
-```
+![Expression layers: parseAnd calls parseCmp on each side of AND, and each parseCmp calls parsePrimary down to the leaves; AND binds weakest](/query-engine/parser/expr.jpg)
 
 A comparison that has no operator is just the primary. `SELECT name FROM t` has no `WHERE`, and a select item can be a bare name. Do not require an operator.
 
@@ -254,8 +238,7 @@ In `src/parse/select.cc`.
 3. Otherwise return `""`.
 <!-- /lang -->
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash

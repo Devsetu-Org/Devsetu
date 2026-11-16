@@ -6,7 +6,6 @@ import (
 
 // LogWalk walks first-parent history from tip, newest first.
 func LogWalk(s *object.Store, tip object.Hash) ([]object.Commit, []object.Hash, error) {
-	// TODO(5.1): Follow Parents[0] until none. Skip cycles with a seen set.
-	// Return commits and their hashes, newest first.
-	panic("TODO(5.1): LogWalk")
+	// TODO(5.1)
+	panic("TODO(5.1)")
 }

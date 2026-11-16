@@ -34,7 +34,7 @@ Every file you write is carried into the next chapters unchanged.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # sstable + flush acceptance tests for this chapter
 make race     # same, with the race detector
 make run      # REPL in ./data: put | get | del | flush | stats | quit
 ```

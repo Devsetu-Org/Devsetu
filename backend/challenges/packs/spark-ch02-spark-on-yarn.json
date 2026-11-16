@@ -3,7 +3,7 @@
   "number": 820,
   "finalized": false,
   "title": "Chapter 2 — Spark on YARN (placeholder)",
-  "description": "**PLACEHOLDER**\n\nChapter 2 shelf rows are live as individual labs:\n\n1. `spark-09-submit-the-same-workload-on-yarn`\n2. `spark-10-read-the-rm-and-nm-as-instruments`\n3. `spark-11-land-in-the-right-capacity-queue`\n4. `spark-12-client-mode-driver-is-on-the-wrong-host`\n5. `spark-13-someone-elses-job-changed-yesterday`\n\nThis pack is not on the shelf.\n",
+  "description": "**PLACEHOLDER**\n\nChapter 2 shelf rows are live as individual labs:\n\n1. `spark-09-submit-the-same-workload-on-yarn`\n2. `spark-10-read-the-rm-and-nm-as-instruments`\n3. `spark-11-land-in-the-right-capacity-queue`\n4. `spark-12-client-mode-driver-is-on-the-wrong-host`\n5. `spark-13-someone-elses-job-changed-yesterday` (Design a Queue for the Analytics Team)\n\nThis pack is not on the shelf.\n",
   "difficulty": "L0",
   "tags": ["spark", "yarn", "placeholder"],
   "category": "spark",
