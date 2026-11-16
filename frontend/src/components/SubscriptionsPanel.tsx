@@ -145,7 +145,7 @@ export default function SubscriptionsPanel(): JSX.Element {
         </div>
       ) : null}
 
-      {summary && summary.credits > 0 ? (
+      {summary && (summary.credits ?? 0) > 0 ? (
         <p className="profile-panel-copy" role="status">
           Lab credits this month: <strong>{summary.credits}</strong>
         </p>

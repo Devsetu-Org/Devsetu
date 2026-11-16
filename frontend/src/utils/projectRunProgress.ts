@@ -130,27 +130,28 @@ export function parseProjectRunProgress(logs: string): ProjectRunProgress {
   const steps: ProgressStep[] = [];
   let cases: ProgressCase[] = [];
   let finished = false;
-  let current: ProgressStep | null = null;
+  // Object holder so TS tracks mutations across the ensureStep closure.
+  const state: { current: ProgressStep | null } = { current: null };
   let stepKey = 'boot';
   /** True after a --- PASS/FAIL/SKIP until the next package summary line. */
   let sawPerTestResult = false;
 
   const ensureStep = (command: string): ProgressStep => {
-    if (current && current.command === command) return current;
+    if (state.current && state.current.command === command) return state.current;
     stepKey = `${steps.length}:${command}`;
-    current = { command, status: 'running', cases: [] };
-    steps.push(current);
+    state.current = { command, status: 'running', cases: [] };
+    steps.push(state.current);
     sawPerTestResult = false;
-    return current;
+    return state.current;
   };
 
   const touchCase = (name: string, status: CaseStatus): void => {
     cases = resolveCase(cases, name, status, stepKey);
-    if (current) {
-      current.cases = resolveCase(current.cases, name, status, stepKey);
+    if (state.current) {
+      state.current.cases = resolveCase(state.current.cases, name, status, stepKey);
     } else {
       ensureStep('(tests)');
-      current!.cases = resolveCase(current!.cases, name, status, stepKey);
+      state.current!.cases = resolveCase(state.current!.cases, name, status, stepKey);
     }
   };
 
@@ -159,23 +160,23 @@ export function parseProjectRunProgress(logs: string): ProjectRunProgress {
 
     const cmd = line.match(CMD);
     if (cmd) {
-      if (current && current.status === 'running') current.status = 'passed';
+      if (state.current && state.current.status === 'running') state.current.status = 'passed';
       ensureStep(cmd[1].trim());
       continue;
     }
     if (CMD_OK.test(line)) {
-      if (current) current.status = 'passed';
+      if (state.current) state.current.status = 'passed';
       continue;
     }
     const exit = line.match(CMD_EXIT);
     if (exit) {
-      if (current) current.status = Number(exit[1]) === 0 ? 'passed' : 'failed';
+      if (state.current) state.current.status = Number(exit[1]) === 0 ? 'passed' : 'failed';
       continue;
     }
     if (RUN_DONE.test(line)) {
       finished = true;
-      if (current && current.status === 'running') {
-        current.status = line.includes('succeeded') ? 'passed' : 'failed';
+      if (state.current && state.current.status === 'running') {
+        state.current.status = line.includes('succeeded') ? 'passed' : 'failed';
       }
       continue;
     }
@@ -268,6 +269,7 @@ export function parseProjectRunProgress(logs: string): ProjectRunProgress {
     cases,
     ...counts,
     finished,
-    currentCommand: current && current.status === 'running' ? current.command : null,
+    currentCommand:
+      state.current && state.current.status === 'running' ? state.current.command : null,
   };
 }

@@ -5,7 +5,7 @@ export interface SparkDiagramNode {
   label: string;
   ui: string;
   clusterUi: string;
-  role?: 'master' | 'worker' | 'rm' | 'nm' | 'shell' | 'driver';
+  role?: 'master' | 'worker' | 'rm' | 'nm' | 'shell' | 'driver' | 'broker' | 'zookeeper';
 }
 
 function PulseCore({

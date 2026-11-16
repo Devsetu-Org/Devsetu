@@ -164,7 +164,7 @@ const minorUnopened = (pathname: string): boolean =>
 const majorUnopened = (pathname: string): boolean =>
   getProject(pathname.split('/')[2])?.status !== 'ready';
 
-export default function App(): React.JSX.Element {
+export default function App(): React.JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
   const navigationType = useNavigationType();
