@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { joinWaitlist, type WaitlistRole } from '../services/waitlistApi';
 import { LAUNCH_OFFER } from '../constants/pricing';
+import { PILOT } from '../constants/accessLock';
 
 const ROLE_OPTIONS: ReadonlyArray<{ id: WaitlistRole; label: string }> = [
   { id: 'student', label: 'Student' },
@@ -13,7 +14,13 @@ function sourceFromUrl(): string | undefined {
   return params.get('ref') || params.get('utm_source') || undefined;
 }
 
-export default function WaitlistForm(): JSX.Element {
+export interface WaitlistFormProps {
+  /** Closed pilot page — student-leaning defaults, tagged source. */
+  variant?: 'default' | 'pilot';
+}
+
+export default function WaitlistForm({ variant = 'default' }: WaitlistFormProps): JSX.Element {
+  const isPilot = variant === 'pilot';
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<WaitlistRole>('student');
   const [organization, setOrganization] = useState('');
@@ -27,11 +34,12 @@ export default function WaitlistForm(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
+      const trimmed = email.trim().toLowerCase();
       await joinWaitlist({
-        email: email.trim(),
-        role,
+        email: trimmed,
+        role: isPilot ? 'student' : role,
         organization: organization.trim() || undefined,
-        source: sourceFromUrl(),
+        source: isPilot ? 'pilot' : sourceFromUrl(),
         website,
       });
       setDone(true);
@@ -48,36 +56,44 @@ export default function WaitlistForm(): JSX.Element {
       <div className="waitlist-done" role="status">
         <strong>You&rsquo;re on the list.</strong>
         <span>
-          We&rsquo;ll email you before launch with your {LAUNCH_OFFER.percentOff}% off launch offer.
+          {isPilot
+            ? `We\u2019ll email you before the ${PILOT.startsLabel}–${PILOT.endsLabel} pilot opens.`
+            : `We\u2019ll email you before launch with your ${LAUNCH_OFFER.percentOff}% off launch offer.`}
         </span>
       </div>
     );
   }
 
-  const orgLabel = role === 'developer' ? 'Company (optional)' : 'College (optional)';
+  const orgLabel = isPilot
+    ? 'Year of study (optional)'
+    : role === 'developer'
+      ? 'Company (optional)'
+      : 'College (optional)';
 
   return (
     <form className="waitlist-form" onSubmit={(e) => void onSubmit(e)}>
-      <div className="waitlist-roles" role="radiogroup" aria-label="I am a">
-        {ROLE_OPTIONS.map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            role="radio"
-            aria-checked={role === opt.id}
-            className={`waitlist-role${role === opt.id ? ' is-active' : ''}`}
-            onClick={() => setRole(opt.id)}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {!isPilot ? (
+        <div className="waitlist-roles" role="radiogroup" aria-label="I am a">
+          {ROLE_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              role="radio"
+              aria-checked={role === opt.id}
+              className={`waitlist-role${role === opt.id ? ' is-active' : ''}`}
+              onClick={() => setRole(opt.id)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <input
         className="waitlist-input"
         type="email"
         required
         autoComplete="email"
-        placeholder="Your email"
+        placeholder={isPilot ? 'arjun@nitw.ac.in' : 'Your email'}
         aria-label="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -101,7 +117,7 @@ export default function WaitlistForm(): JSX.Element {
         onChange={(e) => setWebsite(e.target.value)}
       />
       <button type="submit" className="landing-cta-primary waitlist-submit" disabled={busy}>
-        {busy ? 'Joining…' : 'Join the waitlist'}
+        {busy ? 'Submitting…' : isPilot ? 'Submit' : 'Join the waitlist'}
         <span className="landing-cta-arrow" aria-hidden>
           →
         </span>

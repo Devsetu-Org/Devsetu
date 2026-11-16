@@ -71,6 +71,9 @@ async function getFeatures(user: LabUser | null | undefined): Promise<Set<string
       'k8s-platform',
     ]);
   }
+  const { isAccessLocked } = require('../accessLock');
+  // Paid entitlements do not unlock features while the site-wide access lock is on.
+  if (isAccessLocked()) return new Set();
   const uid = userIdOf(user);
   if (!uid) return new Set();
   const { getEntitlements } = require('./store');
@@ -80,11 +83,13 @@ async function getFeatures(user: LabUser | null | undefined): Promise<Set<string
 /** A paid plan (or staff) is what unlocks Save progress. Lite accounts do not. */
 async function hasPaidPlan(user: LabUser | null | undefined): Promise<boolean> {
   if (await isStaff(user)) return true;
-  const uid = userIdOf(user);
-  if (!uid) return false;
-  const { listForUser, isEntitled } = require('./store');
-  const subs = await listForUser(uid);
-  return subs.some((s: { planId: string }) => isEntitled(s));
+  const features = await getFeatures(user);
+  for (const t of PAID_TRACKS) {
+    if (features.has(t)) return true;
+  }
+  // Base unlocks projects/whiteboard without track covers.
+  if (features.has('projects') || features.has('whiteboard')) return true;
+  return false;
 }
 
 /** Subtracks the user may open past the free labs (staff get all of them). */
@@ -101,6 +106,10 @@ function isLabLocked(
   challenge: { id: string; category?: string | null },
   unlocked: Set<string>,
 ): boolean {
+  const { isAccessLocked } = require('../accessLock');
+  // While access is locked, free-lab bypass is off. Staff still get a full
+  // unlocked set from getFeatures; everyone else sees every lab as locked.
+  if (isAccessLocked() && unlocked.size === 0) return true;
   const track = paidTrackOf(challenge);
   if (!track || FREE_LAB_IDS.has(challenge.id)) return false;
   return !unlocked.has(track);
@@ -111,6 +120,16 @@ async function assertLabUnlocked(
   user: LabUser | null | undefined,
   challenge: { id: string; category?: string | null },
 ): Promise<void> {
+  const { isAccessLocked, ACCESS_LOCKED_MESSAGE } = require('../accessLock');
+  if (isAccessLocked() && !(await isStaff(user))) {
+    const err = new Error(ACCESS_LOCKED_MESSAGE) as Error & {
+      status?: number;
+      code?: string;
+    };
+    err.status = 403;
+    err.code = 'ACCESS_LOCKED';
+    throw err;
+  }
   if (!isLabLocked(challenge, await unlockedTracks(user))) return;
   const err = new Error('This lab is part of a paid track. Subscribe to unlock it.') as Error & {
     status?: number;

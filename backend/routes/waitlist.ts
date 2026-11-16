@@ -51,9 +51,12 @@ router.post('/', async (req: ExpressRequest, res: ExpressResponse, next: Express
     }
 
     const email = String(body.email || '').toLowerCase().trim();
-    const role = String(body.role || '').toLowerCase().trim();
-    const organization = String(body.organization || '').trim().slice(0, 120) || null;
     const source = String(body.source || '').trim().slice(0, 60) || null;
+    const isPilot = source === 'pilot' || source === 'nitw';
+    const role = isPilot
+      ? 'student'
+      : String(body.role || '').toLowerCase().trim();
+    const organization = String(body.organization || '').trim().slice(0, 120) || null;
 
     if (!email || email.length > 254 || !EMAIL_RE.test(email)) {
       res.status(400).json({ error: 'Enter a valid email address' });
