@@ -89,11 +89,9 @@ func Load(dir string) (State, error) {
 // manifest is either entirely the old one or entirely the new one.
 func Save(dir string, s State) error {
 	tmp := filepath.Join(dir, FileName+".tmp")
-	// TODO(5.2): write encode(s) to tmp (create or truncate), fsync it, and
-	// close it. Then rename tmp over FileName and syncDir(dir). Never write
-	// to MANIFEST directly: a crash mid-write would leave no valid manifest.
+	// TODO(5.2)
 	_ = tmp
-	panic("TODO(5.2): Save")
+	panic("TODO(5.2)")
 }
 
 func syncDir(dir string) error {

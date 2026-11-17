@@ -1,0 +1,29 @@
+{
+  "id": "spark-ch05-observability-and-optimizations",
+  "number": 823,
+  "finalized": false,
+  "title": "Chapter 5 — Observability and Optimizations (placeholder)",
+  "description": "**PLACEHOLDER**\n\nChapter 5 labs are not written yet. Planned:\n\n1. History Server Reads the Right Event Logs\n2. Stage Time Is One Hot Task\n3. Spill and GC Before You Add Executors\n4. Lag Report as a Tool\n5. Shuffle Service Health on the Critical Path\n\nDescriptions, setup, and graders land after Chapter 1 is locked.\n",
+  "difficulty": "L0",
+  "tags": ["spark", "observability", "placeholder"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [],
+    "overview": "Chapter 5 — Observability and Optimizations (placeholder)",
+    "brief": "Chapter 5 — Observability and Optimizations (placeholder)",
+    "solution": "",
+    "idLabel": "ch05",
+    "theory": ""
+  },
+  "platformSpec": {
+    "chapter": "observability",
+    "kind": "placeholder"
+  },
+  "visibleTo": "users",
+  "tokens": 0
+}

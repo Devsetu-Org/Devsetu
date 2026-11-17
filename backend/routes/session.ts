@@ -29,6 +29,7 @@ const terminalEventBus = require('../observability/terminalEventBus');
 const sessionIdle = require('../workspace/sessionIdle');
 const sessionExclusivity = require('../workspace/sessionExclusivity');
 const { handleBrowse, listBrowseServices } = require('../sandbox/sessionBrowseProxy');
+const { handleSparkUi } = require('../workspace/sparkUiProxy');
 
 const router = express.Router();
 
@@ -614,7 +615,12 @@ router.post('/:id/k8s/grade', requireSessionAccess, async (req: ExpressRequest, 
     if (loader.getChallenge(challengeId)?.k8sPlatform?.practice) {
       return res.status(400).json({ error: 'This is a practice lab: there is nothing to submit.' });
     }
-    const result = await k8sGrade.gradeK8sSession(ns, challengeId);
+    const rawInvestigation = req.body?.investigation;
+    const investigation =
+      rawInvestigation && typeof rawInvestigation === 'object' && !Array.isArray(rawInvestigation)
+        ? (rawInvestigation as Record<string, string>)
+        : null;
+    const result = await k8sGrade.gradeK8sSession(ns, challengeId, investigation);
     const submission = await k8sGrade.recordK8sSubmission(session, result);
     res.json({
       sessionId: session.id,
@@ -1130,7 +1136,16 @@ function browseMount(req: ExpressRequest, res: ExpressResponse, next: ExpressNex
   Promise.resolve(handleBrowse(req, res)).catch(next);
 }
 
+function sparkUiMount(req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): void {
+  const m = req.path.match(/^\/([^/]+)\/spark-ui\/([^/]+)(.*)$/);
+  if (!m) { next(); return; }
+  req.params.id = m[1];
+  req.params.node = m[2];
+  Promise.resolve(handleSparkUi(req, res)).catch(next);
+}
+
 router.use(browseMount);
+router.use(sparkUiMount);
 
 router.get('/:id/browse-services', (req: ExpressRequest, res: ExpressResponse) => {
   const session = sessionStore.get(req.params.id);

@@ -21,6 +21,7 @@ Defaults match the live `devlabs` cluster in **ap-south-2** (see `env.sh`).
 | `eks-docker.sh` | Docker-module capacity, same subcommands as `eks-linux.sh`: managed node group `labs-docker` (t4g.medium), Karpenter `labs-docker-elastic`, `nri-cgroup-rw-docker`, `devlabs/docker-box.json` seccomp (`seccomp`), and the Docker Hub pull-through mirror `dl-mirror/registry-mirror` (`docker/registry-mirror.yaml`) | — |
 | `eks-spark.sh` | Spark Labs capacity: `base` (managed node group `labs-spark`, t4g.medium), `up` (Karpenter `labs-spark-elastic`), `sleep` / `wake` / `down` | — |
 | `eks-kafka.sh` | Kafka-lab capacity: `base` (managed node group `labs-kafka`, t4g.medium), `up` (Karpenter `labs-kafka-elastic`), `trial` (three-broker spike + memory sample), `sleep` / `wake` / `down`. Footprint: `kafka/README.md` | — |
+| `eks-projects.sh` | Projects (minors/majors) code shells: `base` (managed NG `labs-projects`, **t4g.small**), `up` (Karpenter `labs-projects-elastic`), `spike` / `check` / `sleep` / `wake` / `down`. Image: `devsetu/projects-lab`. Notes: `projects/README.md` | — |
 | `eks-kubeconfig.sh` | Refresh `kube/k8s-lab.kubeconfig` | — |
 | `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig; wakes `system-k8s` and installs add-on placement + Kyverno + admission (`EKS_SKIP_PLATFORM=1` to skip). Run `eks-karpenter.sh` separately afterward. | Starts paying (system node once platform runs) |
 | `eks-destroy.sh` | Delete NGs + cluster | Stops paying |
@@ -235,7 +236,9 @@ kubectl -n ns-<user> describe resourcequota dl-lab-quota
 `eks-destroy.sh` first deletes the balloons, the NodePools (Karpenter terminates its own
 nodes) and the Karpenter controller, then terminates any leftover Karpenter-tagged
 instances. Karpenter nodes live outside the node groups, so without this step the cluster
-delete would leave them running and billing.
+delete would leave them running and billing. It then deletes every managed node group
+actually attached to the cluster (`labs-docker`, `labs-spark`, and `labs-kafka` included),
+not only `EKS_NODEGROUPS`. Sleep and wake still skip those three.
 
 Kept across destroy (reused on recreate): the `devlabs-labs-k8s` launch template, the
 `Karpenter-devlabs` CloudFormation stack (IAM roles, interruption queue), the Karpenter

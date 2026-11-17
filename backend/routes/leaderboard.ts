@@ -26,9 +26,12 @@ type Row = {
   last_solved_at: string | number | null;
   name: string | null;
   email: string | null;
+  username?: string | null;
 };
 
 function displayName(row: Row): string {
+  const username = String(row.username || '').trim();
+  if (username) return username;
   const name = String(row.name || '').trim();
   if (name) return name;
   const local = String(row.email || '').split('@')[0].trim();
@@ -74,7 +77,8 @@ router.get('/', requireInterviewer, async (req: ExpressRequest, res: ExpressResp
               ), 0)::int                       AS tokens,
               MAX(s.solved_at)                 AS last_solved_at,
               MAX(u.name)                      AS name,
-              MAX(u.email)                     AS email
+              MAX(u.email)                     AS email,
+              MAX(u.username)                  AS username
          FROM solves s
          LEFT JOIN challenges c ON c.id = s.challenge_id
          LEFT JOIN solution_views v
@@ -105,7 +109,7 @@ router.get('/', requireInterviewer, async (req: ExpressRequest, res: ExpressResp
   }
 });
 
-type PlatformRow = Row & { papers: number; avatar: string | null };
+type PlatformRow = Row & { papers: number; avatar: string | null; username?: string | null };
 
 /** Opaque, stable handle for a learner's public profile; never exposes the user id or email. */
 function publicId(userId: string): string {
@@ -175,7 +179,7 @@ async function rankPlatform(practiceIds: string[]): Promise<PlatformRow[]> {
            FROM labs l
            FULL OUTER JOIN papers p ON p.user_id = l.user_id
        )
-       SELECT t.*, u.name, u.email, u.avatar
+       SELECT t.*, u.name, u.email, u.username, u.avatar
          FROM totals t
          LEFT JOIN users u ON regexp_replace(u.id, '[^a-zA-Z0-9_-]', '_', 'g') = t.user_id
         WHERE t.tokens > 0

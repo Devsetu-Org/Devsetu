@@ -39,14 +39,9 @@ class Iterator:
     def seek(self, target: bytes) -> None:
         """Position on the first key >= target."""
         # ── TODO(1.4) — reuse the search ─────────────────────────────────────
-        #
-        # You already wrote the function that answers "first key >= target".
-        # No prev list is needed.
-        raise NotImplementedError("TODO(1.4): seek — position on the first key >= target")
+        raise NotImplementedError("TODO(1.4)")
 
     def next(self) -> None:
         """Move to the following key. Only call when valid()."""
         # ── TODO(1.4) — level 0 is the full sorted list ──────────────────────
-        #
-        # Upper levels skip nodes. Level 0 links every node in key order.
-        raise NotImplementedError("TODO(1.4): next — step along level 0")
+        raise NotImplementedError("TODO(1.4)")

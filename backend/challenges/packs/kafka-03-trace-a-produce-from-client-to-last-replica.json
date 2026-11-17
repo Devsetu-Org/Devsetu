@@ -1,0 +1,60 @@
+{
+  "id": "kafka-03-trace-a-produce-from-client-to-last-replica",
+  "number": 832,
+  "finalized": true,
+  "title": "Trace a Produce From Client to Last Replica",
+  "description": "**SITUATION:**\n\nKRaft cluster is up. `rider.dispatch` is live — leave its shape alone. Dispatch wants one keyed status line in the topic so you can prove the write path end to end: client → partition → leader → followers → log end on every replica.\n\nA note under `~/ticket/` names the key and value to produce. Use `$BOOTSTRAP_SERVERS` from the shell environment.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Produce the keyed record into `rider.dispatch` with `acks=all`.\n2. Find which partition the key hashed to, which broker leads that partition, and which brokers are in the ISR.\n3. Read the log-end offset for that partition (same on every in-sync replica after `acks=all`).\n4. Fill every Investigation field. Do not create or delete topics.\n\n**SPEC:**\n\n- The Investigation matches the live partition map and offsets for the record you produced.\n- `rider.dispatch` still has 6 partitions, RF 3, min.ISR 2.",
+  "difficulty": "L0",
+  "tags": [
+    "kafka",
+    "l0",
+    "foundations",
+    "orientation",
+    "kafka-3",
+    "kraft"
+  ],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "kafka"
+  },
+  "problemStatement": {
+    "hints": [
+      "Open the Guide. Produce with kafka-console-producer.sh and --property parse.key=true.",
+      "kafka-topics.sh --describe --topic rider.dispatch shows Leader and Isr per partition.",
+      "kafka-get-offsets.sh --topic rider.dispatch --time -1 shows the log end (high watermark) per partition.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Trace a Produce From Client to Last Replica",
+    "brief": "Trace a Produce From Client to Last Replica",
+    "solution": "",
+    "idLabel": "03",
+    "theory": "",
+    "guide": "# QuickBite Data Platform — trace one produce (KRaft)\n\n| Host      | Role                                     |\n|-----------|------------------------------------------|\n| `kafka-0` | Combined broker + controller (node id 1) |\n| `kafka-1` | Combined broker + controller (node id 2) |\n| `kafka-2` | Combined broker + controller (node id 3) |\n| `shell`   | CLI (`BOOTSTRAP_SERVERS`)                |\n\nLeave topic shapes alone. This lab is one keyed write into `rider.dispatch`.\n\n## 1. Read the ticket\n\n```bash\nless ~/ticket/PRODUCE.md\n```\n\n## 2. Produce with acks=all\n\nFrom the **shell**, using `$BOOTSTRAP_SERVERS`:\n\n```bash\nprintf '%s\\n' 'ride-9917:{\"status\":\"assigned\"}' | \\\n  kafka-console-producer.sh \\\n    --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n    --topic rider.dispatch \\\n    --property parse.key=true \\\n    --property key.separator=: \\\n    --producer-property acks=all\n```\n\n## 3. Map key → partition → leader → ISR\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --describe --topic rider.dispatch\n```\n\nFind the partition for `ride-9917` (or use `kafka-topics` / a short consumer with `print.key`). Then record **Leader** and **Isr** for that partition.\n\nHint — print which partition received the key:\n\n```bash\nkafka-console-consumer.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --topic rider.dispatch --from-beginning --property print.key=true \\\n  --property print.partition=true --property print.offset=true \\\n  --timeout-ms 10000 | grep ride-9917\n```\n\n## 4. Log end on the partition\n\n```bash\nkafka-get-offsets.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --topic rider.dispatch --time -1\n```\n\nAfter `acks=all`, every in-sync replica has caught up to that end offset.\n\n## 5. Investigation\n\nRecord bootstrap source, key, partition, leader broker id, ISR (sorted ascending), and the log-end offset. Then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": [
+        "Planning for a Kafka cluster",
+        "Procuring the brokers",
+        "Starting the KRaft quorum",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 180
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

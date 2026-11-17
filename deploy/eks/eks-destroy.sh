@@ -22,8 +22,20 @@ if ! eks_cluster_exists; then
   exit 0
 fi
 
+# Every managed node group on the cluster, not only EKS_NODEGROUPS. Docker, Spark, and
+# Kafka stay out of that list so sleep/wake leave them alone, but a cluster delete fails
+# while any group is still attached.
+eks_live_nodegroups() {
+  aws eks list-nodegroups \
+    --cluster-name "$EKS_CLUSTER_NAME" \
+    --region "$AWS_REGION" \
+    --query 'nodegroups[]' \
+    --output text | tr '\t' '\n' | sed '/^[[:space:]]*$/d; /^None$/d'
+}
+
+LIVE_NODEGROUPS="$(eks_live_nodegroups | paste -sd, -)"
 if [[ "$YES" -ne 1 ]]; then
-  echo "This will DELETE EKS cluster '$EKS_CLUSTER_NAME' and node groups: $EKS_NODEGROUPS"
+  echo "This will DELETE EKS cluster '$EKS_CLUSTER_NAME' and node groups: ${LIVE_NODEGROUPS:-none}"
   echo "App EC2 / S3 / IAM / kube/homes are NOT deleted."
   read -r -p "Type the cluster name to confirm: " ans
   if [[ "$ans" != "$EKS_CLUSTER_NAME" ]]; then
@@ -57,34 +69,39 @@ fi
 echo "==> deleting node groups"
 while IFS= read -r ng; do
   [[ -z "$ng" ]] && continue
-  if aws eks describe-nodegroup \
+  status="$(aws eks describe-nodegroup \
     --cluster-name "$EKS_CLUSTER_NAME" \
     --nodegroup-name "$ng" \
-    --region "$AWS_REGION" >/dev/null 2>&1; then
+    --region "$AWS_REGION" \
+    --query 'nodegroup.status' --output text 2>/dev/null || true)"
+  if [[ -z "$status" ]]; then
+    echo "--> nodegroup $ng already gone"
+  elif [[ "$status" == "DELETING" ]]; then
+    echo "--> nodegroup $ng already deleting"
+  else
     echo "--> delete nodegroup $ng"
     aws eks delete-nodegroup \
       --cluster-name "$EKS_CLUSTER_NAME" \
       --nodegroup-name "$ng" \
       --region "$AWS_REGION" >/dev/null
-  else
-    echo "--> nodegroup $ng already gone"
   fi
-done < <(eks_csv_to_lines "$EKS_NODEGROUPS")
+done < <(eks_live_nodegroups)
 
 echo "==> waiting for node groups to disappear"
-while IFS= read -r ng; do
-  [[ -z "$ng" ]] && continue
-  for _ in $(seq 1 60); do
-    if ! aws eks describe-nodegroup \
-      --cluster-name "$EKS_CLUSTER_NAME" \
-      --nodegroup-name "$ng" \
-      --region "$AWS_REGION" >/dev/null 2>&1; then
-      echo "    $ng gone"
-      break
-    fi
-    sleep 15
-  done
-done < <(eks_csv_to_lines "$EKS_NODEGROUPS")
+for _ in $(seq 1 80); do
+  left="$(eks_live_nodegroups | paste -sd' ' -)"
+  if [[ -z "$left" ]]; then
+    echo "    all node groups gone"
+    break
+  fi
+  echo "    still present: $left"
+  sleep 15
+done
+left="$(eks_live_nodegroups | paste -sd, -)"
+if [[ -n "$left" ]]; then
+  echo "node groups still attached: $left" >&2
+  exit 1
+fi
 
 echo "==> deleting cluster $EKS_CLUSTER_NAME"
 aws eks delete-cluster --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION" >/dev/null

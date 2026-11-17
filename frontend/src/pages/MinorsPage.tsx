@@ -3,6 +3,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { ModuleWorkspace } from './ProjectModulePage';
 import { ReadingSection, RichText } from './K8sReadingPage';
 import { MINORS, MINORS_PATH, getMinor, getMinorChapter, type MinorEntry } from '../constants/minors';
+import { PROJECTS_PATH } from '../constants/projects';
 import type { ProjectModule } from '../constants/projects';
 import { K8S_BLOG_STAMP_SRC } from '../constants/k8sReadings';
 import { LANGUAGE_LABELS, isLanguageId, type LanguageId } from '../constants/languages';
@@ -16,10 +17,17 @@ import {
 } from '../fixtures/projectModules';
 import NotifyButton from '../components/NotifyButton';
 import ChapterList from '../components/ChapterList';
-import { useIsAdmin } from '../components/AdminOnlyRoute';
 import type { EarlierChapter } from '../utils/chapterCarry';
-import { countDone, readSavedFiles } from '../utils/workspaceFiles';
-
+import {
+  chapterAccess,
+  chapterCleared,
+  chapterHasContent,
+  chapterPersistId,
+  chapterRunScopeId,
+  chapterTaskProgress,
+  chapterUnlocked,
+  lockReason,
+} from '../utils/minorChapterAccess';
 function minorLanguages(minor: MinorEntry): LanguageId[] {
   return minor.languages && minor.languages.length > 0 ? minor.languages : ['go'];
 }
@@ -61,19 +69,6 @@ function useMinorLanguage(minor: MinorEntry | null): [LanguageId, (lang: Languag
   return [language, setLanguage];
 }
 
-function chapterOpen(minor: MinorEntry, chapter: ProjectModule, language: LanguageId): boolean {
-  if (chapter.status !== 'ready') return false;
-  return chapter.kind === 'reading'
-    ? getMinorReading(minor.id, chapter.id) != null
-    : hasMinorChapterContent(minor.id, chapter.id, language);
-}
-
-function chapterPersistId(minor: MinorEntry, chapter: ProjectModule, language: LanguageId): string {
-  // Go keeps the id it had before other languages existed, so saved work survives.
-  const languageSuffix = language === 'go' ? '' : `.${language}`;
-  return `minor.${minor.id}.${chapter.id}${languageSuffix}`;
-}
-
 /** The build chapters before `chapter` in this language, oldest first. */
 function earlierChapters(
   minor: MinorEntry,
@@ -98,23 +93,35 @@ function earlierChapters(
   });
 }
 
+/** First build chapter that is open and not yet passed — the one to do next. */
+function upNextChapterId(minor: MinorEntry, language: LanguageId): string | null {
+  for (const chapter of minor.chapters || []) {
+    if (chapter.kind === 'reading') continue;
+    if (!chapterUnlocked(minor, chapter, language)) continue;
+    if (chapterCleared(minor, chapter)) continue;
+    return chapter.id;
+  }
+  return null;
+}
+
 function chapterProgress(
   minor: MinorEntry,
   chapter: ProjectModule,
   language: LanguageId,
+  upNextId: string | null,
 ): string | null {
   if (chapter.kind === 'reading') return null;
-  const content = getMinorChapterContent(minor.id, chapter.id, language);
-  const saved = content ? readSavedFiles(chapterPersistId(minor, chapter, language)) : null;
-  if (!content || !saved || content.tasks.length === 0) return null;
-  const done = countDone(saved, content.tasks);
-  return done === content.tasks.length ? 'Done' : `${done}/${content.tasks.length}`;
+  if (chapterCleared(minor, chapter)) return 'Done';
+  if (chapter.id === upNextId) return 'Up next';
+  const progress = chapterTaskProgress(minor, chapter, language);
+  if (!progress) return null;
+  return `${progress.done}/${progress.total}`;
 }
 
 function hasAuthoredContent(minor: MinorEntry): boolean {
   if (minor.chapters) {
     return minorLanguages(minor).some((lang) =>
-      (minor.chapters || []).some((c) => chapterOpen(minor, c, lang)),
+      (minor.chapters || []).some((c) => chapterHasContent(minor, c, lang)),
     );
   }
   return hasMinorContent(minor.id);
@@ -132,9 +139,9 @@ function LanguageSelect({
   if (languages.length < 2) return null;
   return (
     <label className="minor-language-select">
-      <span>Language</span>
       <select
         value={language}
+        aria-label="Language"
         onChange={(event) => {
           if (isLanguageId(event.target.value)) onChange(event.target.value);
         }}
@@ -149,28 +156,16 @@ function LanguageSelect({
   );
 }
 
-/** Admins can open planned minors that already have authored content, to review them before launch. */
-function canOpen(minor: MinorEntry, isAdmin: boolean): boolean {
-  return (minor.status === 'ready' || isAdmin) && hasAuthoredContent(minor);
+/** Only ready minors with authored content are open — planned stay Coming soon for everyone. */
+function canOpen(minor: MinorEntry): boolean {
+  return minor.status === 'ready' && hasAuthoredContent(minor);
 }
 
-function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
+export function MinorsGrid(): JSX.Element {
   return (
-    <div className="app-page play-problems-page app-page--no-scrollbar">
-      <header className="play-problems-hero">
-        <div className="play-problems-hero-copy">
-          <h1 className="play-problems-title">Minors</h1>
-          <p className="play-problems-lead">
-            Small independent builds — a listener, a protocol, a storage engine. Each one is a
-            working program you can run and break on its own; the bigger ones come in a few
-            chapters.
-          </p>
-        </div>
-      </header>
-
-      <section className="playgrounds-grid">
-        {MINORS.map((minor) => {
-          if (!canOpen(minor, isAdmin)) {
+    <section className="playgrounds-grid" aria-label="Minors">
+      {MINORS.map((minor) => {
+          if (!canOpen(minor)) {
             return (
               <div key={minor.id} className="playground-tile playground-tile--soon">
                 <strong className="playground-tile-title">
@@ -191,7 +186,6 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
             <Link key={minor.id} to={`${MINORS_PATH}/${minor.id}`} className="playground-tile">
               <strong className="playground-tile-title">
                 {minor.name}
-                {minor.status !== 'ready' && <span className="playground-tile-soon">Admin preview</span>}
               </strong>
               <p className="project-tile-subtitle">{minor.subtitle}</p>
               <p className="playground-tile-blurb">{minor.blurb}</p>
@@ -201,9 +195,8 @@ function MinorsIndex({ isAdmin }: { isAdmin: boolean }): JSX.Element {
               </span>
             </Link>
           );
-        })}
-      </section>
-    </div>
+      })}
+    </section>
   );
 }
 
@@ -214,19 +207,17 @@ function MinorDetail({
   minor: MinorEntry;
   language: LanguageId;
 }): JSX.Element {
+  const upNextId = upNextChapterId(minor, language);
   return (
     <div className="app-page play-problems-page project-detail--list app-page--no-scrollbar">
       <header className="project-detail-compact">
         <p className="play-papers-crumb">
-          <Link to={MINORS_PATH}>Minors</Link>
+          <Link to={PROJECTS_PATH}>Projects</Link>
           <span aria-hidden> / </span>
           <span>{minor.name}</span>
         </p>
         <h1 className="project-detail-compact-title">
           {minor.name}
-          {minor.status !== 'ready' && (
-            <span className="playground-tile-soon project-soon-badge">Admin preview</span>
-          )}
         </h1>
         <p className="project-detail-subtitle">{minor.subtitle}</p>
       </header>
@@ -239,11 +230,20 @@ function MinorDetail({
         ))}
       </div>
 
+      <p className="project-chapter-lock-note">
+        Each lab unlocks after you pass the one before it — a successful Run in Go or Python is
+        enough.
+      </p>
+
       <ChapterList
         chapters={minor.chapters || []}
-        isOpen={(chapter) => chapterOpen(minor, chapter, language)}
+        accessFor={(chapter) => chapterAccess(minor, chapter, language)}
         hrefFor={(chapter) => `${MINORS_PATH}/${minor.id}/${chapter.id}?lang=${language}`}
-        progressFor={(chapter) => chapterProgress(minor, chapter, language)}
+        progressFor={(chapter) => chapterProgress(minor, chapter, language, upNextId)}
+        isDoneFor={(chapter) =>
+          chapter.kind !== 'reading' && chapterCleared(minor, chapter)
+        }
+        lockReasonFor={(chapter) => lockReason(minor, chapter, language)}
       />
     </div>
   );
@@ -265,7 +265,9 @@ function MinorReading({
   const chapters = minor.chapters || [];
   const index = chapters.findIndex((c) => c.id === chapter.id);
   const firstNumber = chapters[0]?.kind === 'reading' ? 0 : 1;
-  const next = chapters.slice(index + 1).find((c) => chapterOpen(minor, c, language));
+  const next = chapters
+    .slice(index + 1)
+    .find((c) => chapterUnlocked(minor, c, language));
   const nextNumber = next ? String(chapters.indexOf(next) + firstNumber).padStart(2, '0') : '';
   return (
     <div className="app-page spark-primer-page">
@@ -284,7 +286,7 @@ function MinorReading({
         ) : null}
         <header className="spark-primer-header">
           <p className="spark-primer-crumb">
-            <Link to={MINORS_PATH}>Minors</Link>
+            <Link to={PROJECTS_PATH}>Projects</Link>
             <span aria-hidden> / </span>
             <Link to={minorPath}>{minor.name}</Link>
             <span aria-hidden> / </span>
@@ -351,12 +353,11 @@ function MinorReading({
 
 export default function MinorsPage(): JSX.Element {
   const { minorId, chapterId } = useParams<{ minorId?: string; chapterId?: string }>();
-  const isAdmin = useIsAdmin();
   const minor = getMinor(minorId);
   const [language, setLanguage] = useMinorLanguage(minor);
 
-  if (!minorId) return <MinorsIndex isAdmin={isAdmin} />;
-  if (!minor || !canOpen(minor, isAdmin)) return <Navigate to={MINORS_PATH} replace />;
+  if (!minorId) return <Navigate to={PROJECTS_PATH} replace />;
+  if (!minor || !canOpen(minor)) return <Navigate to={PROJECTS_PATH} replace />;
   const minorPath = `${MINORS_PATH}/${minor.id}`;
 
   if (minor.chapters) {
@@ -364,7 +365,7 @@ export default function MinorsPage(): JSX.Element {
       return <MinorDetail minor={minor} language={language} />;
     }
     const chapter = getMinorChapter(minor, chapterId);
-    if (!chapter || !chapterOpen(minor, chapter, language)) {
+    if (!chapter || !chapterUnlocked(minor, chapter, language)) {
       return <Navigate to={`${minorPath}?lang=${language}`} replace />;
     }
     if (chapter.kind === 'reading') {
@@ -377,13 +378,15 @@ export default function MinorsPage(): JSX.Element {
     return (
       <ModuleWorkspace
         persistId={chapterPersistId(minor, chapter, language)}
+        runScopeId={chapterRunScopeId(minor.id, chapter.id)}
+        runLanguage={language}
         content={content}
         earlierChapters={earlierChapters(minor, chapter, language)}
         trail={[
-          { to: MINORS_PATH, label: 'Minors' },
+          { to: PROJECTS_PATH, label: 'Projects' },
           { to: `${minorPath}?lang=${language}`, label: minor.name },
         ]}
-        title={`${chapter.label} · ${LANGUAGE_LABELS[language]}`}
+        title={chapter.label}
         crumbAction={
           <LanguageSelect
             languages={minorLanguages(minor).filter((lang) =>
@@ -399,13 +402,13 @@ export default function MinorsPage(): JSX.Element {
 
   if (chapterId) return <Navigate to={minorPath} replace />;
   const content = getMinorContent(minor.id);
-  if (!content) return <Navigate to={MINORS_PATH} replace />;
+  if (!content) return <Navigate to={PROJECTS_PATH} replace />;
 
   return (
     <ModuleWorkspace
       persistId={`minor.${minor.id}.v2`}
       content={content}
-      trail={[{ to: MINORS_PATH, label: 'Minors' }]}
+      trail={[{ to: PROJECTS_PATH, label: 'Projects' }]}
       title={minor.name}
     />
   );

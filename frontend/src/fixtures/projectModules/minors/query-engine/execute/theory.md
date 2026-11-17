@@ -1,22 +1,18 @@
-## Where you are
+## The executor
 <!-- mode: read-only -->
 
 The catalog holds tables. This chapter answers a single-table `SELECT` by pulling rows through a short pipeline.
 
-```plaintext
-  SELECT name FROM users WHERE id = 1
+![Query engine pipeline: lexer (ch 1), parser (ch 2), and catalog (ch 3) feed the executor (you are here, ch 4), then joins and aggregates (ch 5)](/query-engine/execute/you-are-here.jpg)
 
-  Scan users  →  Filter (id = 1)  →  Project (name)  →  rows
-```
+![SELECT name FROM users WHERE id = 1 as an iterator pipeline: Scan users, then Filter (id = 1), then Project (name), then rows out](/query-engine/execute/pipeline.jpg)
 
 Each box is an **iterator**. It has one method, `Next`, which returns the next row or says there are no more. The filter's child is the scan. The projection's child is the filter. Nobody builds a slice of the whole table until the end, and a filter drops a row before the projection ever sees it.
 
 > [!scope] This chapter's job
-> `SELECT` of a column list or `*` from one table, with an optional `WHERE` of `=`, `<`, `>`,
-> and `AND`. No join, no aggregate, no sort. Those are the next chapter.
+> `SELECT` of a column list or `*` from one table, with an optional `WHERE` of `=`, `<`, `>`, and `AND`. No join, no aggregate, no sort. Those are the next chapter.
 
-## Rows and expressions
-<!-- mode: read-only -->
+### Rows and expressions
 
 A scan names every column `table.column`, using the alias when the query gave one. `users u` produces `u.id` and `u.name`. `Get` finds a column by that exact name, or by the bare name when only one column has that suffix. `id` works. If a later join made `id` ambiguous, `Get` would refuse the bare name.
 
@@ -34,9 +30,17 @@ An expression evaluates against one row:
 <!-- lang: go -->
 `Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `internal/exec/row.go`. `Truth` is in `eval.go` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.go` wires the pipeline and is given. You write `Scan.Next`, `Eval`, `Filter.Next`, and `Project.Next`.
 <!-- /lang -->
+<!-- lang: python -->
+`Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `sqlq/execute/row.py`. `Truth` is in `eval.py` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.py` wires the pipeline and is given. You write `scan_next`, `Eval`, `filter_next`, and `project_next`.
+<!-- /lang -->
+<!-- lang: cpp -->
+`Row`, `Get`, `Iter`, `Scan`, `NewScan`, `Filter`, and `Project` are in `src/execute/row.h`. `Truth` is in `eval.cc` and calls `Eval`; leave `Truth` as it is. `RunSelect` in `build.cc` wires the pipeline and is given. You write `Scan::Next`, `Eval`, `Filter::Next`, and `Project::Next`.
+<!-- /lang -->
 
-## The scan
-<!-- mode: read-and-implement tasks:4.1 -->
+## Scan and filter
+<!-- mode: read-and-implement tasks:4.1,4.2,4.3 -->
+
+### The scan
 
 `NewScan` has already copied the table's rows and built the qualified column names. `Next` walks that copy. Return copies of the column slice and of the value slice, so a caller who mutates a row does not change the scan's state.
 
@@ -49,9 +53,26 @@ In `internal/exec/scan.go`:
 2. Copy `s.Rows[s.i]` with `append([]catalog.Value(nil), ...)`, then increment `s.i`.
 3. Return `Row{Cols: append([]string(nil), s.Cols...), Vals: vals}, true, nil`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `scan_next`
 
-## The filter
-<!-- mode: read-and-implement tasks:4.2,4.3 -->
+In `sqlq/execute/scan.py`:
+
+1. When `s.i >= len(s.rows)`, return `(Row(), False, None)`.
+2. Copy `s.rows[s.i]` with `list(...)`, then increment `s.i`.
+3. Return `(Row(cols=list(s.cols), vals=vals), True, None)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `Scan::Next`
+
+In `src/execute/scan.cc`:
+
+1. When `i >= rows.size()`, return `{Row{}, false}`.
+2. Copy `rows[i]` into the result, then increment `i`.
+3. Return a `Row` with copies of `cols` and `vals`, and `true`.
+<!-- /lang -->
+
+### The filter
 
 `Eval` turns an expression and a row into a value. `Filter.Next` asks its child for rows and keeps the ones whose predicate is true. A predicate error fails the query. It is not a false result.
 
@@ -75,9 +96,51 @@ In `internal/exec/filter.go`:
 3. `keep, err := f.Pred(row)`. An error fails the filter.
 4. When `keep` is true, return the row. Otherwise pull again.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.2)` — `Eval`
 
-## The projection
+In `sqlq/execute/eval.py`. Switch on the expression:
+
+- `IntLit` → `Int(e.v)`. `StrLit` → `Text(e.v)`.
+- `Ident` → `row.Get(e.name)`. `Qual` → `row.Get(e.table + "." + e.name)`, then `row.Get(e.name)` if the qualified name misses. Missing is an error.
+- `Binary` with `op == "AND"`: eval the left side. When it is bool and false, return `Bool(False)` without evaluating the right side. Otherwise the result is the right side, which must be bool.
+- `Binary` with `=`, `<`, or `>`: eval both sides. Reject different types. Compare `i` for `INT` and `s` for `TEXT`. Return `Bool`.
+- `Call`: raise an error. Aggregates are not evaluated here.
+
+### `TODO(4.3)` — `filter_next`
+
+In `sqlq/execute/filter.py`:
+
+1. Loop. `row, ok, err = f.child.Next()`.
+2. On an error, or when `ok` is false, return that triple.
+3. Call `f.pred(row)`. An error fails the filter.
+4. When keep is true, return the row. Otherwise pull again.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.2)` — `Eval`
+
+In `src/execute/eval.cc`. Switch on the expression:
+
+- `IntLit` → `Int(n->v)`. `StrLit` → `Text(s->v)`.
+- `Ident` → `row.Get(id->name)`. `Qual` → `row.Get(table + "." + name)`, then bare name if that misses. Missing is an error.
+- `Binary` with `op == "AND"`: eval the left side. When it is bool and false, return `Bool(false)` without evaluating the right side. Otherwise the result is the right side, which must be bool.
+- `Binary` with `=`, `<`, or `>`: eval both sides. Reject different types. Compare `i` for `INT` and `s` for `TEXT`. Return `Bool`.
+- `Call`: throw an error. Aggregates are not evaluated here.
+
+### `TODO(4.3)` — `Filter::Next`
+
+In `src/execute/filter.cc`:
+
+1. Loop. Pull from `child->Next()`.
+2. On a finished child, return finished.
+3. Call `pred(row)`. An error fails the filter.
+4. When keep is true, return the row. Otherwise pull again.
+<!-- /lang -->
+
+## Projection
 <!-- mode: read-and-implement tasks:4.4 -->
+
+### One row in, one row out
 
 The projection turns one input row into one output row. The given `project` helper in `build.go` evaluates each select item, uses the alias when there is one, and expands `*`. `Project.Next` only has to pull a child row and call `Pick`.
 
@@ -90,16 +153,45 @@ In `internal/exec/project.go`:
 2. `out, err := p.Pick(row)`. On error return `Row{}, false, err`.
 3. Return `out, true, nil`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.4)` — `project_next`
+
+In `sqlq/execute/project.py`:
+
+1. Pull one child row. Pass through a finished child or an error.
+2. `out = p.pick(row)`. On error return `(Row(), False, err)`.
+3. Return `(out, True, None)`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.4)` — `Project::Next`
+
+In `src/execute/project.cc`:
+
+1. Pull one child row via `child->Next()`. When the child is finished or returns an error, pass that through unchanged.
+2. `out = pick(row)`. On error return finished with the error.
+3. Return `out` with `true` so the scan continues with the next projected row.
+<!-- /lang -->
 
 `RunSelect` looks up the table, scans it under the alias (or the table name), wraps a `Filter` when there is a `WHERE`, then projects. `Query` on `sqlq.DB` calls it.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
 make test
 make race
+make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
 make run
 ```
 <!-- /lang -->

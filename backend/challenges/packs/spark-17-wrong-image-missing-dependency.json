@@ -1,0 +1,50 @@
+{
+  "id": "spark-17-wrong-image-missing-dependency",
+  "number": 839,
+  "finalized": true,
+  "title": "Wrong Image, Missing Dependency",
+  "description": "**SITUATION:**\n\nMorning `store-rollup-deps` fails. The submit wrapper uses the base **apache/spark** image. The job imports QuickBite’s `quickbite_utils` — only baked into the team lab image. Platform policy also requires `pullSecrets=quickbite-registry-pull` on every team-image submit.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Run `~/lab/submit-store-rollup-deps.sh` and read driver logs.\n2. Switch `spark.kubernetes.container.image` to `$SPARK_K8S_IMAGE`.\n3. Add `spark.kubernetes.container.image.pullSecrets=quickbite-registry-pull`.\n4. Resubmit until **Succeeded**. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Wrapper uses the team image (not apache/spark).\n- Wrapper sets pullSecrets to `quickbite-registry-pull`.\n- `store-rollup-deps-…` driver Succeeded.\n- Investigation: `missing-module` / `team-image-pullsecret`.\n",
+  "difficulty": "L1",
+  "tags": ["spark", "kubernetes", "l1", "multi-step-bug", "spark-k8s", "image"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": { "domainId": "platforms-engineer", "panelId": "spark" },
+  "problemStatement": {
+    "hints": [
+      "kubectl logs -n $SPARK_K8S_NS -l spark-role=driver — look for ModuleNotFoundError",
+      "Correct image is $SPARK_K8S_IMAGE (notes in ~/lab/notes.txt)",
+      "Platform policy: spark.kubernetes.container.image.pullSecrets=quickbite-registry-pull",
+      "Fill Investigation before Submit."
+    ],
+    "overview": "Wrong Image, Missing Dependency",
+    "brief": "Wrong Image, Missing Dependency",
+    "solution": "",
+    "idLabel": "17",
+    "theory": "",
+    "guide": "# QuickBite — Wrong image\n\nBase apache/spark lacks quickbite_utils. Switch to $SPARK_K8S_IMAGE and set pullSecrets.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-k8s",
+    "daemonMode": "auto",
+    "chapter": "kubernetes",
+    "kind": "multi-step-bug",
+    "reservePods": 3,
+    "boot": {
+      "heading": "Starting your Kubernetes Spark lab",
+      "phases": [
+        "Creating your Kubernetes Spark namespace",
+        "Pulling the Spark-on-K8s image",
+        "Using the cached Spark-on-K8s image",
+        "Preparing the lab"
+      ]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking team image, pullSecrets, Succeeded driver, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 15
+}

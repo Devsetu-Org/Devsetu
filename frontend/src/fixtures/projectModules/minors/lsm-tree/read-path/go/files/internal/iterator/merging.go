@@ -46,9 +46,8 @@ type mergeHeap []item
 func (h mergeHeap) Len() int { return len(h) }
 
 func (h mergeHeap) Less(i, j int) bool {
-	// TODO(4.3): the smaller key comes first. For equal keys, the newer child
-	// (lower rank) comes first, so it is the one Merging returns.
-	panic("TODO(4.3): Less")
+	// TODO(4.3)
+	panic("TODO(4.3)")
 }
 
 func (h mergeHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
@@ -101,8 +100,6 @@ func (m *Merging) Kind() memtable.Kind { return m.h[0].it.Kind() }
 // Next moves past the current key in every child that holds it. Only call
 // when Valid.
 func (m *Merging) Next() {
-	// TODO(4.3): copy the current key (children reuse their buffers). Then,
-	// while the heap's top holds that same key, advance the top child: if it
-	// is still Valid, heap.Fix(&m.h, 0); otherwise heap.Pop(&m.h).
-	panic("TODO(4.3): Next")
+	// TODO(4.3)
+	panic("TODO(4.3)")
 }

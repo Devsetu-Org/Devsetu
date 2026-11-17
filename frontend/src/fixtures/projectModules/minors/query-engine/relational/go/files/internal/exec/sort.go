@@ -4,9 +4,8 @@ import "github.com/devlabs/sqlq/internal/parse"
 
 // SortRows orders rows by the output column named by each key.
 func SortRows(rows []Row, keys []parse.OrderKey) error {
-	// TODO(5.4): Each key names an output column (parse.Name, or the ident). Stable sort.
-	// Desc flips the comparison. A missing name is an error when there is at least one row.
-	panic("TODO(5.4): SortRows")
+	// TODO(5.4) — SortRows
+	panic("TODO(5.4)")
 }
 
 // LimitRows keeps at most n rows. A negative n keeps every row.

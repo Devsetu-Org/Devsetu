@@ -35,16 +35,11 @@ func (it *Iterator) SeekToFirst() {
 // Seek positions the iterator on the first key >= target.
 func (it *Iterator) Seek(target []byte) {
 	// ── TODO(1.4) — reuse the search ───────────────────────────────────────
-	//
-	// You already wrote the function that answers "first key >= target".
-	// No prev array is needed.
-	panic("TODO(1.4): Seek — position on the first key >= target")
+	panic("TODO(1.4)")
 }
 
 // Next moves to the following key. Only call when Valid.
 func (it *Iterator) Next() {
 	// ── TODO(1.4) — level 0 is the full sorted list ────────────────────────
-	//
-	// Upper levels skip nodes. Level 0 links every node in key order.
-	panic("TODO(1.4): Next — step along level 0")
+	panic("TODO(1.4)")
 }

@@ -1,28 +1,18 @@
-## Where you are
+## The catalog
 <!-- mode: read-only -->
 
 A query names tables. The **catalog** is the list of those tables: each has a name, an ordered list of columns, and the rows inserted so far. This engine keeps that list in memory. There is no file and no index.
 
-```plaintext
-  CREATE TABLE users (id INT, name TEXT);
-  INSERT INTO users VALUES (1, 'ada'), (2, 'bea');
-
-  users
-  ┌────┬──────┐
-  │ id │ name │
-  │ 1  │ ada  │
-  │ 2  │ bea  │
-  └────┴──────┘
-```
+![Query engine pipeline: lexer (ch 1) and parser (ch 2) feed the catalog (you are here, ch 3), then the executor (ch 4) and joins and aggregates (ch 5)](/query-engine/catalog/you-are-here.jpg)
 
 Creating the same table twice is an error. Inserting a string into an `INT` column is an error. Inserting three values into a two-column table is an error. The catalog is where those mistakes stop, before any query runs.
 
-> [!scope] This chapter's job
-> Parse `CREATE TABLE` and `INSERT`, and store rows that match the schema. `SELECT` still
-> does not return rows. That is the next chapter.
+![CREATE TABLE users (id INT, name TEXT) and INSERT INTO users VALUES (1, 'ada'), (2, 'bea') produce a users table with columns id and name and two rows](/query-engine/catalog/table.jpg)
 
-## A table is a schema plus rows
-<!-- mode: read-only -->
+> [!scope] This chapter's job
+> Parse `CREATE TABLE` and `INSERT`, and store rows that match the schema. `SELECT` still does not return rows. That is the next chapter.
+
+### A table is a schema plus rows
 
 Every column is `INT` or `TEXT`. There are no nulls, so every cell of an inserted row has a value, and the value's type is the column's type. Column order is the order written in `CREATE TABLE`. `INSERT` does not take a column list; values line up left to right.
 
@@ -33,9 +23,21 @@ Names are case-sensitive. `Users` and `users` are different tables. Keywords are
 
 The parser grew a `CREATE` and `INSERT` arm. The statement nodes (`CreateTable`, `Insert`, `Column`) were already in `ast.go`. You write `parseCreate` and `parseInsert` in `internal/parse/ddl.go`. `parseInt` is given, on the parser.
 <!-- /lang -->
+<!-- lang: python -->
+`DB`, `Table`, `Col`, and `Value` are in `sqlq/catalog/catalog.py`. `Lookup` is given. You write `Create` and `Insert` in `mutate.py`.
+
+The parser grew a `CREATE` and `INSERT` arm. The statement nodes were already in `ast.py`. You write `parse_create` and `parse_insert` in `sqlq/parse/ddl.py`. `parse_int` is given.
+<!-- /lang -->
+<!-- lang: cpp -->
+`catalog::DB`, `Table`, `Col`, and `Value` are in `src/catalog/catalog.h`. `Lookup` is given. You write `Create` and `Insert` in `mutate.cc`.
+
+The parser grew a `CREATE` and `INSERT` arm. The statement nodes were already in `ast.h`. You write `ParseCreate` and `ParseInsert` in `src/parse/ddl.cc`. `ParseInt` is given.
+<!-- /lang -->
 
 ## Parsing the statements
 <!-- mode: read-and-implement tasks:3.1 -->
+
+The parser grows two new statements. Their grammar is small enough to read in three lines.
 
 ```plaintext
   create = CREATE TABLE name '(' name type {',' name type} ')'
@@ -64,9 +66,49 @@ In `internal/parse/ddl.go`.
 2. Repeat a parenthesized row. Each cell is `p.parsePrimary()`. Commas separate cells, and commas between `)` and `(` separate rows.
 3. Append each row to `ins.Rows`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.1)` — `parse_create`, `parse_type`, `parse_insert`
+
+In `sqlq/parse/ddl.py`.
+
+`parse_create`:
+
+1. Expect `CREATE`, `TABLE`, an ident, and `(`.
+2. Repeat: expect an ident, parse a type, append `Column(name=col.lit, type=typ)`. A comma continues the list.
+3. Expect `)`.
+
+`parse_type`: `INT` returns `TypeInt`, `TEXT` returns `TypeText`, anything else is `p.errorf("expected INT or TEXT")`.
+
+`parse_insert`:
+
+1. Expect `INSERT`, `INTO`, an ident, and `VALUES`.
+2. Repeat a parenthesized row. Each cell is `parse_primary(p)`. Commas separate cells, and commas between `)` and `(` separate rows.
+3. Append each row to `ins.rows`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.1)` — `ParseCreate`, `ParseType`, `ParseInsert`
+
+In `src/parse/ddl.cc`.
+
+`ParseCreate`:
+
+1. Expect `CREATE`, `TABLE`, an ident, and `(`.
+2. Repeat: expect an ident, parse a type, append a `Column`. A comma continues the list.
+3. Expect `)`.
+
+`ParseType`: `INT` returns `kInt`, `TEXT` returns `kText`, anything else is `p.Errorf("expected INT or TEXT")`.
+
+`ParseInsert`:
+
+1. Expect `INSERT`, `INTO`, an ident, and `VALUES`.
+2. Repeat a parenthesized row. Each cell is `ParsePrimary(p)`. Commas separate cells and rows.
+3. Append each row to `ins->rows`.
+<!-- /lang -->
 
 ## Storing rows
 <!-- mode: read-and-implement tasks:3.2,3.3 -->
+
+### The schema is the contract
 
 `Create` records the schema and zero rows. `Insert` appends one row after checking the shape. Copy the slices you store. Callers reuse the slices they pass in, and a later mutation of the input must not change the table.
 
@@ -87,16 +129,61 @@ In `internal/catalog/mutate.go`:
 3. For each column, `row[i].T` must equal `c.Type`. Say which column was wrong.
 4. Append `append([]Value(nil), row...)` to `t.Rows`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(3.2)` — `Create`
+
+In `sqlq/catalog/mutate.py`:
+
+1. An empty name, or `len(cols) == 0`, is an error.
+2. `name in db.tables` means the table exists.
+3. Walk `cols`. An empty `name`, or a name already seen in this list, is an error.
+4. Store `Table(name=name, cols=list(cols))`.
+
+### `TODO(3.3)` — `Insert`
+
+1. `db.Lookup(name)`. A missing table is that error.
+2. `len(row)` must equal `len(t.cols)`.
+3. For each column, `row[i].t` must equal `c.type`. Say which column was wrong.
+4. Append `list(row)` to `t.rows`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(3.2)` — `Create`
+
+In `src/catalog/mutate.cc`:
+
+1. An empty name, or an empty column list, is an error.
+2. `tables.count(name)` means the table exists.
+3. Walk `cols`. An empty `name`, or a name already seen in this list, is an error.
+4. Store a `Table` with a copy of `cols`.
+
+### `TODO(3.3)` — `Insert`
+
+1. `Lookup(name)`. A missing table is that error.
+2. `row.size()` must equal `cols.size()`.
+3. For each column, `row[i].t` must equal `c.type`. Say which column was wrong.
+4. Append a copy of `row` to `t->rows`.
+<!-- /lang -->
 
 The public `Exec` path parses, maps `INT` and `TEXT` onto `catalog.TypeInt` and `catalog.TypeText`, and calls `Create` or `Insert`. `Query` returns an error until the executor exists. You do not need to change that wiring.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
 make test
 make race
+make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
 make run
 ```
 <!-- /lang -->

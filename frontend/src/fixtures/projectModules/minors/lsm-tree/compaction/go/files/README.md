@@ -32,7 +32,7 @@ Do 5.2 first: flushes now record every new table in the manifest.
 ## Running
 
 ```
-make test     # go test ./...
+make test     # compaction + manifest acceptance tests for this chapter
 make race     # same, with the race detector
 make run      # REPL in ./data: put | get | del | scan | flush | compact | stats
 ```

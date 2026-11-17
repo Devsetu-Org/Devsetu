@@ -25,14 +25,26 @@ export interface ValidationSpec {
 /**
  * Play runtime. compose = Docker sandbox; spark-platform = shared batch; kubernetes = per-user
  * Namespace labs; linux = per-user Linux machine; docker = the same machine running Docker;
- * kafka = per-user Kafka cluster. Linux, Docker, and Kafka run on the kubernetes session runtime.
+ * kafka = per-user Kafka cluster; spark = per-user Spark cluster (platform labs, not the
+ * shared spark-platform batch runtime). Linux, Docker, Kafka, and Spark run on the
+ * kubernetes session runtime.
  */
-export type SandboxType = 'compose' | 'spark-platform' | 'board' | 'kubernetes' | 'linux' | 'docker' | 'kafka';
+export type SandboxType = 'compose' | 'spark-platform' | 'board' | 'kubernetes' | 'linux' | 'docker' | 'kafka' | 'spark';
 
 export interface K8sPlatformSpec {
   quota?: { pods?: string; cpu?: string; memory?: string };
   setup?: { script?: string };
-  grade?: { script?: string; timeoutSeconds?: number };
+  grade?: {
+    script?: string;
+    timeoutSeconds?: number;
+    /** Shown under “Grading” in the submit modal — per-lab wait copy. */
+    submitMessage?: string;
+  };
+  /** Per-lab vertical boot stepper (overrides generic Spark/YARN/manual lists). */
+  boot?: {
+    heading?: string;
+    phases?: string[];
+  };
   /** Hands-on only: no Submit, no grading, no tokens or leaderboard credit. */
   practice?: boolean;
   [key: string]: unknown;
@@ -436,6 +448,12 @@ export interface ActiveSession {
   notStarted?: boolean;
   /** Which lab-open this boot display belongs to, so a previous lab's steps are not shown. */
   bootSeq?: number;
+  /**
+   * Pool check after Start, shown on the first boot step. Failed means no
+   * machines are up; that step stops instead of opening a locked screen.
+   */
+  machineCheck?: 'checking' | 'failed' | null;
+  machineCheckMessage?: string | null;
 }
 
 export interface EndSessionResult {

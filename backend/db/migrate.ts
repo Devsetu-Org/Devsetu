@@ -113,9 +113,11 @@ const STATEMENTS: string[] = [
      ON session_workspace_files (session_id)`,
 
   // Spark Run/Submit attempts (formerly spark_jobs).
+  // session_id is nullable + SET NULL so ending/cleaning a lab session does not
+  // wipe the Submissions history the learner still needs to see.
   `CREATE TABLE IF NOT EXISTS submissions (
      id            TEXT PRIMARY KEY,
-     session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+     session_id    TEXT REFERENCES sessions(id) ON DELETE SET NULL,
      challenge_id  TEXT,
      user_id       TEXT,
      mode          TEXT NOT NULL,
@@ -344,6 +346,7 @@ async function renameGameSessionsToSessions(): Promise<void> {
 }
 
 const SESSIONS_CLEARED_KEY = 'sessions_cleared_v1';
+const SUBMISSIONS_SESSION_SET_NULL_KEY = 'submissions_session_set_null_v1';
 
 async function clearSessionsTable(): Promise<void> {
   const { rows } = await pool.query(`SELECT 1 FROM app_meta WHERE key = $1`, [SESSIONS_CLEARED_KEY]);
@@ -360,6 +363,46 @@ async function clearSessionsTable(): Promise<void> {
     String(Date.now()),
   ]);
   console.log('[migrate] truncated sessions (+ submissions / workspace files)');
+}
+
+/** Keep submission history when a lab session is ended or cleaned up. */
+async function submissionsSurviveSessionDelete(): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM app_meta WHERE key = $1`,
+    [SUBMISSIONS_SESSION_SET_NULL_KEY],
+  );
+  if (rows.length > 0) return;
+  if (!(await pool.query(`SELECT to_regclass('public.submissions') IS NOT NULL AS ok`)).rows[0]?.ok) {
+    return;
+  }
+
+  const { rows: fks } = await pool.query(
+    `SELECT tc.constraint_name
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.key_column_usage kcu
+         ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.table_schema = 'public'
+        AND tc.table_name = 'submissions'
+        AND tc.constraint_type = 'FOREIGN KEY'
+        AND kcu.column_name = 'session_id'`,
+  );
+  for (const row of fks as { constraint_name: string }[]) {
+    await pool.query(
+      `ALTER TABLE submissions DROP CONSTRAINT IF EXISTS ${row.constraint_name}`,
+    );
+  }
+  await pool.query(`ALTER TABLE submissions ALTER COLUMN session_id DROP NOT NULL`);
+  await pool.query(
+    `ALTER TABLE submissions
+       ADD CONSTRAINT submissions_session_id_fkey
+       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL`,
+  );
+  await pool.query(`INSERT INTO app_meta (key, value) VALUES ($1, $2)`, [
+    SUBMISSIONS_SESSION_SET_NULL_KEY,
+    String(Date.now()),
+  ]);
+  console.log('[migrate] submissions.session_id → ON DELETE SET NULL');
 }
 
 async function dropInvitesTable(): Promise<void> {
@@ -445,6 +488,7 @@ async function runMigrations(): Promise<void> {
   await dropChallengeLibraryColumns();
   await dropAuthoringTables();
   await clearSessionsTable();
+  await submissionsSurviveSessionDelete();
   await seedAuthDefaults();
   const { backfillExistingUsernames } = require('../auth/username');
   await backfillExistingUsernames();

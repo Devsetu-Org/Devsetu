@@ -1,32 +1,32 @@
-## Where you are
+## Joins and aggregates
 <!-- mode: read-only -->
 
 A single-table filter is the core of the pipeline. This chapter adds the operators that combine tables and collapse rows.
 
-```plaintext
-  SELECT u.name, COUNT(*) AS n
-  FROM users u JOIN orders o ON u.id = o.user_id
-  WHERE o.total > 10
-  GROUP BY u.name
-  ORDER BY n DESC
-  LIMIT 1
+![Query engine pipeline: lexer (ch 1), parser (ch 2), catalog (ch 3), and executor (ch 4) feed joins and aggregates (you are here, ch 5)](/query-engine/relational/you-are-here.jpg)
 
-  Scan users
-    → Nested-loop join orders
-    → Filter total > 10
-    → Aggregate by name
-    → Sort
-    → Limit
+One statement uses every new piece:
+
+```sql
+SELECT u.name, COUNT(*) AS n
+FROM users u JOIN orders o ON u.id = o.user_id
+WHERE o.total > 10
+GROUP BY u.name
+ORDER BY n DESC
+LIMIT 1;
 ```
+
+![Full SELECT pipeline: scan users, nested-loop join orders, filter total > 10, aggregate by name, sort, limit, then rows](/query-engine/relational/full-pipeline.jpg)
 
 The join runs before the filter, because `WHERE` can mention columns from either table. Aggregation replaces the projection: the output is one row per group, not one row per input. Sort and limit run on that output.
 
 > [!scope] This chapter's job
-> One `INNER JOIN` with `ON a = b`, `COUNT(*)`, `SUM`, `GROUP BY`, `ORDER BY`, and `LIMIT`.
-> Still no outer join, no `OR`, and no second join.
+> One `INNER JOIN` with `ON a = b`, `COUNT(*)`, `SUM`, `GROUP BY`, `ORDER BY`, and `LIMIT`. Still no outer join, no `OR`, and no second join.
 
-## The clauses the parser skipped
-<!-- mode: read-and-implement tasks:5.1 -->
+## Parsing the tail and joining
+<!-- mode: read-and-implement tasks:5.1,5.2 -->
+
+### The clauses the parser skipped
 
 Chapter 2 left two hooks empty. They are live now. `parseFromTail` calls `parseJoin` when it sees `INNER` or `JOIN`, between the table alias and `WHERE`. `finishSelect` calls `parseTail` after `WHERE`.
 
@@ -58,11 +58,50 @@ In `internal/parse/tail.go`. The panic in `parseTail` is the stand-in; replace t
 3. On `LIMIT`, expect an int, `parseInt`, and set `s.Limit` to a pointer to that value.
 4. Return nil when the clause is absent. Do not require the clauses to appear.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.1)` — `parse_tail` and `parse_join`
 
-## Nested-loop join
-<!-- mode: read-and-implement tasks:5.2 -->
+In `sqlq/parse/tail.py`. The `NotImplementedError` in `parse_tail` is the stand-in; replace the whole function.
+
+`parse_join`:
+
+1. `p.eat(KwInner)` when it is there. Then expect `JOIN` and an ident.
+2. `alias` is `parse_alias(p)`.
+3. Expect `ON`, parse a primary, expect `=`, parse a primary.
+4. Return `Join(table=..., alias=..., left=..., right=...)`.
+
+`parse_tail`:
+
+1. On `GROUP`, expect `BY`, then expressions separated by commas, appended to `s.group`.
+2. On `ORDER`, expect `BY`. Each key is an expression, then an optional `ASC` or `DESC`. `DESC` sets `OrderKey.desc`. Append to `s.order`.
+3. On `LIMIT`, expect an int, `parse_int`, and set `s.limit`.
+4. Return when the clause is absent. Do not require the clauses to appear.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.1)` — `ParseTail` and `ParseJoin`
+
+In `src/parse/tail.cc`. The throw in `ParseTail` is the stand-in; replace the whole function.
+
+`ParseJoin`:
+
+1. `p.Eat(kKwInner)` when it is there. Then expect `JOIN` and an ident.
+2. `alias` is `ParseAlias(p)`.
+3. Expect `ON`, parse a primary, expect `=`, parse a primary.
+4. Return a `Join` with table, alias, left, and right.
+
+`ParseTail`:
+
+1. On `GROUP`, expect `BY`, then expressions separated by commas, appended to `s->group`.
+2. On `ORDER`, expect `BY`. Each key is an expression, then an optional `ASC` or `DESC`. `DESC` sets `OrderKey.desc`. Append to `s->order`.
+3. On `LIMIT`, expect an int, `ParseInt`, and set `s->limit` / `s->has_limit`.
+4. Return when the clause is absent. Do not require the clauses to appear.
+<!-- /lang -->
+
+### Nested-loop join
 
 An inner join keeps pairs that match. The nested loop is the straightforward version: for each row on the left, try every row on the right. The right-hand table is scanned once up front (it is small, and it is in memory). The left side stays an iterator, so a filter under the join is not forced to materialize early. In `RunSelect` the filter is above the join, which matches `WHERE`.
+
+![Nested-loop join: for each row of users on the left, scan all rows of orders on the right and keep the pairs where u.id = o.user_id; honest and correct, slow on big tables](/query-engine/relational/join.jpg)
 
 A joined row is the left columns followed by the right columns. `u.id` and `o.user_id` are both present, so `ON u.id = o.user_id` evaluates against the combined row.
 
@@ -78,9 +117,35 @@ The struct and `NewNestedLoop` are in `internal/exec/join.go`. Fill in `Next`.
 
 `RunSelect` builds this only when `sel.Join` is set. It qualifies the right table with its alias.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.2)` — `nested_loop_next`
 
-## COUNT and SUM
-<!-- mode: read-and-implement tasks:5.3 -->
+The struct and `NewNestedLoop` are in `sqlq/execute/join.py`. Fill in `nested_loop_next`.
+
+1. When you need a new left row (`primed` is false, or `rj` is past the right side), pull `n.left.Next()`. A finished left side finishes the join. Store the row, set `rj` to 0, set `primed`.
+2. If the right side is empty, loop and pull the next left row.
+3. Take `n.right[n.rj]`, increment `rj`, and concatenate columns and values. Copy the lists.
+4. `Eval` `n.on_l` and `n.on_r` on the combined row. When the types match and the values match, return the combined row. Otherwise try the next right row.
+
+`RunSelect` builds this only when `sel.join` is set. It qualifies the right table with its alias.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.2)` — `NestedLoop::Next`
+
+The struct and `NewNestedLoop` are in `src/execute/join.cc`. Fill in `Next`.
+
+1. When you need a new left row (`primed` is false, or `rj` is past the right side), pull `left->Next()`. A finished left side finishes the join. Store the row, set `rj` to 0, set `primed`.
+2. If the right side is empty, loop and pull the next left row.
+3. Take `right[rj]`, increment `rj`, and concatenate columns and values. Copy the vectors.
+4. `Eval` `on_l` and `on_r` on the combined row. When the types match and the values match, return the combined row. Otherwise try the next right row.
+
+`RunSelect` builds this only when `sel.join` is set. It qualifies the right table with its alias.
+<!-- /lang -->
+
+## Aggregates, order, and limit
+<!-- mode: read-and-implement tasks:5.3,5.4 -->
+
+### COUNT and SUM
 
 `HasAggregate` is given, in `build.go`. It is true when the query has a `GROUP BY` or any select item is a call. Those queries go through `Aggregate` instead of `Project`.
 
@@ -101,9 +166,30 @@ In `internal/exec/agg.go`:
 4. For each bucket, build an output row. A `count` call becomes `catalog.Int(count)`. A `sum` call becomes the sum, or 0 when the bucket never added it. Any other item is evaluated against the bucket's first row. `*` in an aggregate list is an error.
 5. The output column name is the alias, or `parse.Name(item.Expr)` when there is no alias. `parse.Name` of `COUNT(*)` is `count(*)`, and of `SUM(total)` is `sum(total)`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.3)` — `Aggregate`
 
-## Order and limit
-<!-- mode: read-and-implement tasks:5.4 -->
+In `sqlq/execute/agg.py`:
+
+1. For each input row, build a key from `group`. A missing column is an error. Create the bucket on first sight and remember key order.
+2. Increment the count. For each select item that is a `Call` named `"sum"` and not `star`, `Eval` the argument and add it. `SUM` of a non-integer is an error.
+3. When `rows` is empty and `group` is empty, keep a single empty bucket so one output row still appears.
+4. For each bucket, build an output row. A `count` call becomes `Int(count)`. A `sum` call becomes the sum, or 0 when the bucket never added it. Any other item is evaluated against the bucket's first row. `*` in an aggregate list is an error.
+5. The output column name is the alias, or `Name(item.expr)` when there is no alias.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.3)` — `Aggregate`
+
+In `src/execute/agg.cc`:
+
+1. For each input row, build a key from `group`. A missing column is an error. Create the bucket on first sight and remember key order.
+2. Increment the count. For each select item that is a `Call` named `"sum"` and not `star`, `Eval` the argument and add it. `SUM` of a non-integer is an error.
+3. When `rows` is empty and `group` is empty, keep a single empty bucket so one output row still appears.
+4. For each bucket, build an output row. A `count` call becomes `Int(count)`. A `sum` call becomes the sum, or 0 when the bucket never added it. Any other item is evaluated against the bucket's first row. `*` in an aggregate list is an error.
+5. The output column name is the alias, or `Name(item.expr.get())` when there is no alias.
+<!-- /lang -->
+
+### Order and limit
 
 `ORDER BY` names an output column, not an input column. `ORDER BY n` works when the select item was `COUNT(*) AS n`. With no alias, `ORDER BY count(*)` matches `parse.Name` of that call. The sort is stable: rows that compare equal stay in the order they were produced.
 
@@ -118,14 +204,43 @@ In `internal/exec/sort.go`:
 2. Find that name in `rows[0].Cols`. Also accept `parse.Name(k.Expr)` as a second spelling. Missing, when there is at least one row, is an error. Zero rows is success: there is nothing to sort.
 3. `sort.SliceStable`. Compare values with integers on `I` and text on `S`. `Desc` flips the comparison. A zero comparison falls through to the next key.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(5.4)` — `SortRows`
 
-## Prove it
-<!-- mode: read-only -->
+In `sqlq/execute/sort.py`:
+
+1. For each key, the column name is `Name(k.expr)`. When the expression is an `Ident`, use `id.name` instead.
+2. Find that name in `rows[0].cols`. Also accept `Name(k.expr)` as a second spelling. Missing, when there is at least one row, is an error. Zero rows is success.
+3. Stable sort. Compare values with integers on `i` and text on `s`. `desc` flips the comparison. A zero comparison falls through to the next key.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(5.4)` — `SortRows`
+
+In `src/execute/sort.cc`:
+
+1. For each key, the column name is `Name(k.expr.get())`. When the expression is an `Ident`, use `id->name` instead.
+2. Find that name in `rows[0].cols`. Also accept `Name(k.expr.get())` as a second spelling. Missing, when there is at least one row, is an error. Zero rows is success.
+3. `std::stable_sort`. Compare values with integers on `i` and text on `s`. `desc` flips the comparison. A zero comparison falls through to the next key.
+<!-- /lang -->
+
+### Prove it
 
 <!-- lang: go -->
 ```bash
 make test
 make race
+make run
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
 make run
 ```
 <!-- /lang -->

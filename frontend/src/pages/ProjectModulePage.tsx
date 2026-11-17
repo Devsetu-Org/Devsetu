@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import MarkdownProse from '../components/MarkdownProse';
+import ProjectRunProgressPanel from '../components/ProjectRunProgressPanel';
 import SparkProjectEditor from '../components/SparkProjectEditor';
 import WorkspaceMobileSwitcher, {
   type WorkspaceMobilePane,
@@ -11,21 +12,58 @@ import { getModuleContent } from '../fixtures/projectModules';
 import type { ProjectModuleContent } from '../fixtures/projectModules';
 import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import {
+  runProjectModule,
+  type ProjectRunStatus,
+} from '../services/projectRun';
+import {
   type CarryPlan,
   type EarlierChapter,
   joinLabels,
   ownedFiles,
   planCarry,
-  withReference,
 } from '../utils/chapterCarry';
+import type { LanguageId } from '../constants/languages';
+import {
+  languageLabel,
+  loadRunHistory,
+  newRunId,
+  saveRunHistory,
+  upsertRunHistory,
+  type ProjectRunHistoryEntry,
+} from '../utils/projectRunHistory';
 import { readMigrating, removeMigrating, writeMigrating } from '../utils/storageMigrate';
 import { countDone, readSavedFiles, taskDone, workspaceFilesKeys } from '../utils/workspaceFiles';
 
-type BriefTab = 'theory' | 'tasks' | 'verify';
+type BriefTab = 'theory' | 'tasks' | 'runs';
 
 const BRIEF_MIN = 320;
-const BRIEF_RATIO = 0.42;
+const BRIEF_RATIO = 0.48;
 const BRIEF_MAX_RATIO = 0.62;
+
+const LOGS_DRAWER_MIN = 140;
+const LOGS_DRAWER_DEFAULT = 280;
+
+/** Match track Submissions verdict wording. */
+function runVerdict(status: ProjectRunStatus): string {
+  if (status === 'starting' || status === 'running' || status === 'queued') return 'In Progress';
+  if (status === 'succeeded') return 'Accepted';
+  if (status === 'cancelled') return 'Cancelled';
+  return 'Wrong Answer';
+}
+
+function runStamp(at: number): string {
+  return new Date(at).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function runShortId(id: string): string {
+  return id.replace(/-/g, '').slice(0, 8);
+}
 
 function clampBriefWidth(width: number, shellWidth: number): number {
   const max = Math.max(BRIEF_MIN, Math.floor(shellWidth * BRIEF_MAX_RATIO));
@@ -81,7 +119,6 @@ function carryNote(plan: CarryPlan): string | null {
     parts.push(`${joinLabels(plan.unfinished)} ${verb} the reference solution.`);
   }
   if (parts.length === 0) return null;
-  parts.push('Their tests still run here, so a bug in earlier code shows up in this chapter too.');
   return parts.join(' ');
 }
 
@@ -99,42 +136,124 @@ function startState(
   return { files: plan.files, gate: null, note: carryNote(plan) };
 }
 
-const DEFAULT_VERIFY_LEAD =
-  'Run these from the project root. The tests talk to your server over a real socket, so passing them means the thing actually works.';
-
 interface TheorySection {
   title: string;
   body: string;
-  mode: 'read-only' | 'read-and-implement';
-  taskIds: string[];
 }
 
 const MODE_META =
   /^<!--\s*mode:\s*(read-only|read-and-implement)(?:\s+tasks:([\d.,\s]+))?\s*-->\s*$/m;
 
-function parseTheoryMode(body: string): {
-  body: string;
-  mode: TheorySection['mode'];
-  taskIds: string[];
-} {
-  const match = body.match(MODE_META);
-  if (!match) {
-    return { body: body.trim(), mode: 'read-only', taskIds: [] };
+/** Drop mode comments — tasks live only under the Tasks tab. */
+function stripTheoryMeta(body: string): string {
+  return body.replace(MODE_META, '').trim();
+}
+
+/**
+ * TODO headings and their bodies belong in Tasks, not Theory. Drop every
+ * `### …TODO(…)…` block (and empty language wrappers left behind).
+ */
+function stripTodoSections(text: string): string {
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let skipping = false;
+  let inFence = false;
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) inFence = !inFence;
+
+    if (!inFence) {
+      const heading = line.match(/^(#{1,6})\s+(.+)$/);
+      if (heading) {
+        if (/TODO\s*\(/i.test(heading[2])) {
+          skipping = true;
+          continue;
+        }
+        skipping = false;
+      }
+    }
+
+    if (!skipping) out.push(line);
   }
-  const mode = match[1] as TheorySection['mode'];
-  const taskIds = (match[2] || '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-  const cleaned = body.replace(MODE_META, '').trim();
-  return { body: cleaned, mode, taskIds };
+
+  return out
+    .join('\n')
+    .replace(/<!--\s*lang:[^>]*-->\s*<!--\s*\/lang\s*-->/g, '')
+    .replace(/<!--\s*lang:[^>]*-->\s*/g, '')
+    .replace(/\s*<!--\s*\/lang\s*-->/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+interface TodoBrief {
+  /** Optional subtitle from the heading, e.g. `findGreaterOrEqual`. */
+  focus: string;
+  /** Markdown body under the TODO heading — the task expectation. */
+  body: string;
+}
+
+/**
+ * Pull `### TODO(N.x)` blocks out of theory so the Tasks tab can show them
+ * when a tile is opened. Theory itself strips these via `stripTodoSections`.
+ * A heading may name several tasks (`TODO(4.1) / TODO(4.2)`); they share the body.
+ */
+function extractTodoBriefs(text: string): Record<string, TodoBrief> {
+  const lines = text.split('\n');
+  const briefs: Record<string, TodoBrief> = {};
+  let currentIds: string[] = [];
+  let currentFocus = '';
+  let buffer: string[] = [];
+  let inFence = false;
+
+  const flush = (): void => {
+    if (currentIds.length === 0) return;
+    const body = buffer.join('\n').trim();
+    if (!body && !currentFocus) return;
+    for (const id of currentIds) {
+      const prev = briefs[id];
+      briefs[id] = {
+        focus: currentFocus || prev?.focus || '',
+        body: prev?.body ? `${prev.body}\n\n${body}`.trim() : body,
+      };
+    }
+  };
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) inFence = !inFence;
+
+    if (!inFence) {
+      const heading = line.match(/^#{1,6}\s+(.+)$/);
+      if (heading) {
+        const cleaned = heading[1].replace(/`/g, '');
+        const ids = [...cleaned.matchAll(/TODO\s*\((\d+\.\d+)\)/gi)].map((m) => m[1]);
+        if (ids.length > 0) {
+          flush();
+          currentIds = ids;
+          // Prefer the subtitle after the last TODO(…) on the line.
+          const afterLast = cleaned.replace(/^.*TODO\s*\(\d+\.\d+\)\s*(?:[—–\-:/])?\s*/i, '');
+          currentFocus = afterLast.replace(/\s*\/\s*TODO.*/i, '').trim();
+          buffer = [];
+          continue;
+        }
+        if (currentIds.length > 0) {
+          flush();
+          currentIds = [];
+          currentFocus = '';
+          buffer = [];
+        }
+      }
+    }
+
+    if (currentIds.length > 0) buffer.push(line);
+  }
+  flush();
+  return briefs;
 }
 
 /**
  * Theory reads as one article but is delivered a section at a time, so a long
  * brief never lands as a single wall of text. Sections break on `##`.
- * Optional HTML comment under the heading: `<!-- mode: read-only -->` or
- * `<!-- mode: read-and-implement tasks:1.1,1.2 -->`.
+ * Optional HTML comments (`mode` / `tasks`) are stripped; TODO blocks are too.
  */
 function splitTheory(text: string): TheorySection[] {
   const sections: TheorySection[] = [];
@@ -145,14 +264,12 @@ function splitTheory(text: string): TheorySection[] {
   const flush = (): void => {
     const raw = buffer.join('\n').trim();
     if (!raw) return;
-    const parsed = parseTheoryMode(raw);
-    const withoutHeading = parsed.body.replace(/^##\s+.+\n?/, '').trim();
+    const cleaned = stripTodoSections(stripTheoryMeta(raw));
+    const withoutHeading = cleaned.replace(/^##\s+.+\n?/, '').trim();
     if (!withoutHeading) return;
     sections.push({
       title: title || 'Theory',
       body: withoutHeading,
-      mode: parsed.mode,
-      taskIds: parsed.taskIds,
     });
   };
 
@@ -178,45 +295,36 @@ function splitTheory(text: string): TheorySection[] {
   return sections;
 }
 
-interface ModuleWorkspaceProps {
+interface ProjectBriefColumnProps {
   persistId: string;
   content: ProjectModuleContent;
-  trail?: Array<{ to: string; label: string }>;
-  title?: string;
-  /** Rendered at the right end of the breadcrumb row. */
-  crumbAction?: ReactNode;
-  /** Chapters this one builds on, oldest first. Their files carry forward. */
-  earlierChapters?: EarlierChapter[];
+  files: Record<string, string>;
+  gate: CarryPlan | null;
+  isNarrow: boolean;
+  onCollapse: () => void;
+  onFocusFile: (path: string) => void;
+  runHistory: ProjectRunHistoryEntry[];
+  selectedRunId: string | null;
+  onOpenRun: (runId: string) => void;
 }
 
-export function ModuleWorkspace({
+/**
+ * Owns theory pagination/tabs so flipping parts does not re-render the editor column.
+ */
+const ProjectBriefColumn = React.memo(function ProjectBriefColumn({
   persistId,
   content,
-  trail,
-  title,
-  crumbAction,
-  earlierChapters,
-}: ModuleWorkspaceProps): JSX.Element {
-  // Callers build this list on every render; only persistId and content key a reset.
-  const earlierRef = useRef(earlierChapters);
-  earlierRef.current = earlierChapters;
-  const [boot] = useState(() => startState(persistId, content, earlierChapters));
-  const [files, setFiles] = useState<Record<string, string>>(boot.files);
-  const [gate, setGate] = useState<CarryPlan | null>(boot.gate);
-  const [note, setNote] = useState<string | null>(boot.note);
-  const [earlierMenuOpen, setEarlierMenuOpen] = useState(false);
-  const earlierMenuRef = useRef<HTMLDivElement | null>(null);
+  files,
+  gate,
+  isNarrow,
+  onCollapse,
+  onFocusFile,
+  runHistory,
+  selectedRunId,
+  onOpenRun,
+}: ProjectBriefColumnProps): JSX.Element {
   const [briefTab, setBriefTab] = useState<BriefTab>('theory');
   const [theoryPage, setTheoryPage] = useState(0);
-  const isNarrow = useIsNarrowUi();
-  const [mobilePane, setMobilePane] = useState<WorkspaceMobilePane>('brief');
-  const [briefCollapsed, setBriefCollapsed] = useState(false);
-  const [briefWidth, setBriefWidth] = useState(() =>
-    typeof window !== 'undefined'
-      ? clampBriefWidth(window.innerWidth * BRIEF_RATIO, window.innerWidth)
-      : 520,
-  );
-  const [focusFile, setFocusFile] = useState(content.entryFile);
   const [theoryMarkdown, setTheoryMarkdown] = useState(() =>
     loadSavedTheory(persistId, content.theory),
   );
@@ -225,132 +333,34 @@ export function ModuleWorkspace({
     loadSavedTheory(persistId, content.theory),
   );
   const [theoryCopyStatus, setTheoryCopyStatus] = useState<string | null>(null);
-
-  const shellRef = useRef<HTMLDivElement | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const briefBodyRef = useRef<HTMLDivElement | null>(null);
-  const dragging = useRef(false);
-  const showBrief = isNarrow ? mobilePane === 'brief' : !briefCollapsed;
-  const showWorkspace = isNarrow ? mobilePane === 'workspace' : true;
-  const showResize = !isNarrow && !briefCollapsed;
 
   const theorySections = useMemo(() => splitTheory(theoryMarkdown), [theoryMarkdown]);
+  const todoBriefs = useMemo(() => extractTodoBriefs(theoryMarkdown), [theoryMarkdown]);
   const section = theorySections[Math.min(theoryPage, theorySections.length - 1)];
   const theoryDirty = theoryMarkdown !== content.theory;
 
-  // Fresh module: reset every piece of per-module state.
   useEffect(() => {
     const nextTheory = loadSavedTheory(persistId, content.theory);
-    const start = startState(persistId, content, earlierRef.current);
-    setFiles(start.files);
-    setGate(start.gate);
-    setNote(start.note);
-    setEarlierMenuOpen(false);
-    setFocusFile(content.entryFile);
     setBriefTab('theory');
     setTheoryPage(0);
     setTheoryMarkdown(nextTheory);
     setTheoryDraft(nextTheory);
     setTheoryEditing(false);
     setTheoryCopyStatus(null);
-  }, [persistId, content]);
+    setExpandedTaskId(null);
+  }, [persistId, content.theory]);
 
-  // Keep page in range when theory sections change after an edit.
   useEffect(() => {
     if (theoryPage > 0 && theoryPage >= theorySections.length) {
       setTheoryPage(Math.max(0, theorySections.length - 1));
     }
   }, [theorySections.length, theoryPage]);
 
-  // A new section starts at its own beginning, not where the last one ended.
   useEffect(() => {
     briefBodyRef.current?.scrollTo({ top: 0 });
   }, [theoryPage, briefTab, theoryEditing]);
-
-  // Nothing is saved while the gate is up: a saved chapter never asks again.
-  useEffect(() => {
-    if (gate) return undefined;
-    const t = window.setTimeout(() => {
-      try {
-        const { next, legacy } = workspaceFilesKeys(persistId);
-        writeMigrating(window.localStorage, next, legacy, JSON.stringify(files));
-      } catch {
-        // Quota or private mode — losing autosave is not worth breaking the page.
-      }
-    }, 400);
-    return () => window.clearTimeout(t);
-  }, [files, persistId, gate]);
-
-  useEffect(() => {
-    if (!earlierMenuOpen) return undefined;
-    const close = (e: MouseEvent): void => {
-      if (!earlierMenuRef.current?.contains(e.target as Node)) setEarlierMenuOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [earlierMenuOpen]);
-
-  const gateProgress = useMemo(
-    () =>
-      gate?.unfinished.map((chapter) => {
-        const saved = readSavedFiles(chapter.persistId);
-        return {
-          chapter,
-          done: saved ? countDone(saved, chapter.content.tasks) : null,
-          total: chapter.content.tasks.length,
-        };
-      }) ?? [],
-    [gate],
-  );
-
-  function startWithReference(): void {
-    if (!gate) return;
-    setFiles(gate.files);
-    setNote(carryNote(gate));
-    setGate(null);
-  }
-
-  function pullEarlierCode(): void {
-    const earlier = earlierChapters ?? [];
-    setEarlierMenuOpen(false);
-    if (
-      !window.confirm(
-        'Replace the earlier chapters’ files here with your latest finished code from those chapters? Changes you made to those files in this chapter are overwritten.',
-      )
-    ) {
-      return;
-    }
-    const plan = planCarry(content.files, earlier, readSavedFiles);
-    const next = { ...files };
-    for (const chapter of plan.fromLearner) {
-      for (const path of ownedFiles(chapter)) {
-        if (path in plan.files) next[path] = plan.files[path];
-      }
-    }
-    setFiles(next);
-    if (plan.fromLearner.length === 0) {
-      setNote('None of the earlier chapters is finished in this browser yet, so nothing changed.');
-    } else {
-      const kept =
-        plan.unfinished.length > 0
-          ? ` ${joinLabels(plan.unfinished)} ${plan.unfinished.length === 1 ? 'is' : 'are'} not finished, so ${plan.unfinished.length === 1 ? 'it keeps' : 'they keep'} the code it had here.`
-          : '';
-      setNote(`Pulled in your latest code from ${joinLabels(plan.fromLearner)}.${kept}`);
-    }
-  }
-
-  function swapInReference(): void {
-    const earlier = earlierChapters ?? [];
-    setEarlierMenuOpen(false);
-    if (
-      !window.confirm(
-        'Replace the earlier chapters’ files with the reference solution? It shows the answers to their tasks. Your work on this chapter’s tasks is kept.',
-      )
-    ) {
-      return;
-    }
-    setFiles(withReference(files, content.files, earlier));
-    setNote(`${joinLabels(earlier)} now ${earlier.length === 1 ? 'uses' : 'use'} the reference solution.`);
-  }
 
   const applyTheoryDraft = useCallback((): void => {
     setTheoryMarkdown(theoryDraft);
@@ -404,18 +414,585 @@ export function ModuleWorkspace({
     }
   }, [theoryEditing, theoryDraft, theoryMarkdown]);
 
+  return (
+    <div className="col spark-brief-col">
+      <div className="panel sandbox-brief-panel--solo spark-brief-panel--bare" style={{ flex: 1 }}>
+        <div className="spark-brief-tabs" role="tablist" aria-label="Module sections">
+          {(
+            [
+              ['theory', 'Theory'],
+              ['tasks', 'Tasks'],
+              ['runs', 'Runs'],
+            ] as Array<[BriefTab, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={briefTab === id}
+              className={`spark-brief-tab${briefTab === id ? ' active' : ''}`}
+              onClick={() => setBriefTab(id)}
+            >
+              {label}
+              {id === 'tasks' && (
+                <span className="spark-brief-tab-count">{content.tasks.length}</span>
+              )}
+            </button>
+          ))}
+          {!isNarrow && (
+            <button
+              type="button"
+              className="spark-brief-collapse-btn"
+              title="Collapse theory panel"
+              aria-label="Collapse theory panel"
+              onClick={onCollapse}
+            >
+              ⟨
+            </button>
+          )}
+        </div>
+
+        <div
+          className={`panel-body spark-brief-body${theoryEditing && briefTab === 'theory' ? ' spark-brief-body--theory-edit' : ''}`}
+          ref={briefBodyRef}
+        >
+          {briefTab === 'theory' && theoryEditing && (
+            <div className="spark-brief-admin spark-brief-admin--open project-theory-editor">
+              <div className="spark-brief-admin-bar">
+                <span className="spark-brief-admin-format">Theory markdown</span>
+                <button
+                  type="button"
+                  className="spark-ide-btn spark-ide-btn--run"
+                  disabled={theoryDraft === theoryMarkdown}
+                  onClick={applyTheoryDraft}
+                >
+                  Apply
+                </button>
+                <button type="button" className="ghost sm" onClick={cancelTheoryEdit}>
+                  Cancel
+                </button>
+                <button type="button" className="ghost sm" onClick={() => void copyTheoryMarkdown()}>
+                  {theoryCopyStatus || 'Copy'}
+                </button>
+                {theoryDirty && (
+                  <button type="button" className="ghost sm" onClick={resetTheoryToAuthored}>
+                    Reset authored
+                  </button>
+                )}
+              </div>
+              <p className="project-theory-editor-hint">
+                Edits apply in this browser. Copy the markdown into <code>theory.md</code> when you
+                want it in the repo.
+              </p>
+              <textarea
+                className="spark-brief-admin-editor"
+                spellCheck={false}
+                value={theoryDraft}
+                onChange={(e) => setTheoryDraft(e.target.value)}
+                aria-label="Theory markdown editor"
+              />
+            </div>
+          )}
+
+          {briefTab === 'theory' && !theoryEditing && section && (
+            <div className="theory-reader">
+              <h2 className="theory-section-title">{section.title}</h2>
+
+              <MarkdownProse text={section.body} className="markdown-prose" />
+
+              {theorySections.length > 1 && (
+                <nav className="theory-pager" aria-label="Theory sections">
+                  <button
+                    type="button"
+                    className="theory-pager-arrow"
+                    disabled={theoryPage <= 0}
+                    aria-label="Previous section"
+                    title={
+                      theoryPage > 0 ? theorySections[theoryPage - 1]?.title : undefined
+                    }
+                    onClick={() => setTheoryPage((page) => Math.max(0, page - 1))}
+                  >
+                    <span aria-hidden>‹</span>
+                  </button>
+                  <span className="theory-pager-status">
+                    {theoryPage + 1} / {theorySections.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="theory-pager-arrow"
+                    disabled={theoryPage >= theorySections.length - 1}
+                    aria-label="Next section"
+                    title={
+                      theoryPage < theorySections.length - 1
+                        ? theorySections[theoryPage + 1]?.title
+                        : undefined
+                    }
+                    onClick={() =>
+                      setTheoryPage((page) => Math.min(theorySections.length - 1, page + 1))
+                    }
+                  >
+                    <span aria-hidden>›</span>
+                  </button>
+                </nav>
+              )}
+            </div>
+          )}
+
+          {briefTab === 'theory' && !theoryEditing && !section && (
+            <p className="project-task-lead">No theory sections yet.</p>
+          )}
+
+          {briefTab === 'tasks' && (
+            <div className="project-task-list">
+              <p className="project-task-lead">
+                Everything else in the repo is written for you. Click a task for the expectation,
+                then open its file — the marker disappears when you replace the block.
+              </p>
+              {content.tasks.map((task) => {
+                const done = taskDone(files, task.file, task.id);
+                const expanded = expandedTaskId === task.id;
+                const brief = todoBriefs[task.id];
+                return (
+                  <article
+                    key={task.id}
+                    className={`project-task${done ? ' project-task--done' : ''}${
+                      expanded ? ' project-task--expanded' : ''
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="project-task-toggle"
+                      aria-expanded={expanded}
+                      onClick={() => {
+                        const next = expanded ? null : task.id;
+                        setExpandedTaskId(next);
+                        if (next) onFocusFile(task.file);
+                      }}
+                    >
+                      <span className="project-task-id">TODO({task.id})</span>
+                      <span className="project-task-body">
+                        <strong className="project-task-label">{task.label}</strong>
+                        <span className="project-task-summary">{task.summary}</span>
+                        <code className="project-task-file">{task.file}</code>
+                      </span>
+                      {done ? (
+                        <span className="project-task-state">done</span>
+                      ) : null}
+                    </button>
+                    {expanded && (
+                      <div className="project-task-detail">
+                        {brief?.focus ? (
+                          <p className="project-task-focus">
+                            Implement <code>{brief.focus}</code>
+                          </p>
+                        ) : null}
+                        {brief?.body ? (
+                          <>
+                            <p className="project-task-expectation-label">Expectation</p>
+                            <MarkdownProse
+                              text={brief.body}
+                              className="markdown-prose project-task-expectation"
+                            />
+                          </>
+                        ) : (
+                          <p className="project-task-expectation-fallback">
+                            Replace the <code>TODO({task.id})</code> block in{' '}
+                            <code>{task.file}</code>. {task.summary}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          className="ghost sm project-task-open-file"
+                          onClick={() => onFocusFile(task.file)}
+                        >
+                          Open {task.file}
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          {briefTab === 'runs' && (
+            <div className="k8s-submission-table">
+              {runHistory.length === 0 ? (
+                <p className="k8s-submission-empty">
+                  No runs yet. Use the play control above the editor.
+                </p>
+              ) : (
+                <>
+                  <div className="k8s-submission-head">
+                    <span>#</span>
+                    <span>ID</span>
+                    <span>Verdict</span>
+                    <span>Submitted</span>
+                  </div>
+                  {runHistory.map((run, index) => {
+                    const attempt = runHistory.length - index;
+                    const pending =
+                      run.status === 'starting' ||
+                      run.status === 'running' ||
+                      run.status === 'queued';
+                    const verdict = runVerdict(run.status);
+                    const lang = languageLabel(run.language);
+                    const langTag =
+                      run.language === 'python'
+                        ? 'py'
+                        : run.language === 'cpp'
+                          ? 'cpp'
+                          : run.language === 'go'
+                            ? 'go'
+                            : null;
+                    const shortId = runShortId(run.id);
+                    const when = runStamp(run.createdAt);
+                    return (
+                      <button
+                        key={run.id}
+                        type="button"
+                        className={`k8s-submission-row${
+                          pending
+                            ? ' is-pending'
+                            : run.status === 'succeeded'
+                              ? ' is-pass'
+                              : ' is-fail'
+                        }${selectedRunId === run.id ? ' is-selected' : ''}`}
+                        aria-label={`${attempt}, ${shortId}, ${verdict}${when ? `, ${when}` : ''}${
+                          lang ? `, ${lang}` : ''
+                        }`}
+                        onClick={() => onOpenRun(run.id)}
+                      >
+                        <span className="k8s-submission-num">{attempt}</span>
+                        <span
+                          className="k8s-submission-sid"
+                          title={lang ? `${lang} · ${run.id}` : run.id}
+                        >
+                          {langTag ? `${langTag}·${shortId}` : shortId}
+                        </span>
+                        <span className="k8s-submission-verdict">{verdict}</span>
+                        <span className="k8s-submission-time">{when}</span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+interface ModuleWorkspaceProps {
+  persistId: string;
+  content: ProjectModuleContent;
+  trail?: Array<{ to: string; label: string }>;
+  title?: string;
+  /** Rendered at the right end of the breadcrumb row. */
+  crumbAction?: ReactNode;
+  /** Chapters this one builds on, oldest first. Their files carry forward. */
+  earlierChapters?: EarlierChapter[];
+  /**
+   * Shared across language variants of the same chapter so Runs survives
+   * switching Go ↔ Python. Defaults to persistId.
+   */
+  runScopeId?: string;
+  /** Language of the workspace files currently open (shown on new runs). */
+  runLanguage?: LanguageId | null;
+}
+
+export function ModuleWorkspace({
+  persistId,
+  content,
+  trail,
+  title,
+  crumbAction,
+  earlierChapters,
+  runScopeId,
+  runLanguage = null,
+}: ModuleWorkspaceProps): JSX.Element {
+  // Callers build this list on every render; only persistId and content key a reset.
+  const earlierRef = useRef(earlierChapters);
+  earlierRef.current = earlierChapters;
+  const historyScope = runScopeId || persistId;
+  const [boot] = useState(() => startState(persistId, content, earlierChapters));
+  const [files, setFiles] = useState<Record<string, string>>(boot.files);
+  const [gate, setGate] = useState<CarryPlan | null>(boot.gate);
+  const [note, setNote] = useState<string | null>(boot.note);
+  const isNarrow = useIsNarrowUi();
+  const [mobilePane, setMobilePane] = useState<WorkspaceMobilePane>('brief');
+  const [briefCollapsed, setBriefCollapsed] = useState(false);
+  const [briefWidth, setBriefWidth] = useState(() =>
+    typeof window !== 'undefined'
+      ? clampBriefWidth(window.innerWidth * BRIEF_RATIO, window.innerWidth)
+      : 520,
+  );
+  const [focusFile, setFocusFile] = useState(content.entryFile);
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsDrawerHeight, setLogsDrawerHeight] = useState(LOGS_DRAWER_DEFAULT);
+  const [runHistory, setRunHistory] = useState<ProjectRunHistoryEntry[]>(() =>
+    loadRunHistory(historyScope),
+  );
+  const [viewingRunId, setViewingRunId] = useState<string | null>(
+    () => loadRunHistory(historyScope)[0]?.id ?? null,
+  );
+  const [liveRunId, setLiveRunId] = useState<string | null>(null);
+  const [runStatus, setRunStatus] = useState<ProjectRunStatus | 'idle'>('idle');
+  const [runLogs, setRunLogs] = useState(() => loadRunHistory(historyScope)[0]?.logs ?? '');
+
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const ideBodyRef = useRef<HTMLDivElement | null>(null);
+  const dragging = useRef(false);
+  const resizingLogs = useRef(false);
+  const runAbortRef = useRef<AbortController | null>(null);
+  const historyScopeRef = useRef(historyScope);
+  historyScopeRef.current = historyScope;
+  const runLanguageRef = useRef(runLanguage);
+  runLanguageRef.current = runLanguage;
+  const liveRunIdRef = useRef(liveRunId);
+  liveRunIdRef.current = liveRunId;
+
+  const viewingRun = runHistory.find((r) => r.id === viewingRunId) ?? runHistory[0] ?? null;
+  const displayLogs =
+    liveRunId && viewingRunId === liveRunId ? runLogs : viewingRun?.logs ?? runLogs;
+  const hasRun = runHistory.length > 0 || Boolean(liveRunId);
+  const runInFlight = runStatus === 'starting' || runStatus === 'running';
+  const showLogsBar = hasRun && !logsOpen;
+  const showBrief = isNarrow ? mobilePane === 'brief' : !briefCollapsed;
+  const showWorkspace = isNarrow ? mobilePane === 'workspace' : true;
+  const showResize = !isNarrow && !briefCollapsed;
+
+  const patchLiveRun = useCallback(
+    (patch: Partial<ProjectRunHistoryEntry> & { id: string }): void => {
+      setRunHistory((prev) => {
+        const existing = prev.find((r) => r.id === patch.id);
+        const nextEntry: ProjectRunHistoryEntry = {
+          id: patch.id,
+          language: patch.language ?? existing?.language ?? runLanguageRef.current ?? null,
+          status: patch.status ?? existing?.status ?? 'starting',
+          logs: patch.logs ?? existing?.logs ?? '',
+          createdAt: patch.createdAt ?? existing?.createdAt ?? Date.now(),
+          finishedAt:
+            patch.finishedAt !== undefined
+              ? patch.finishedAt
+              : existing?.finishedAt ?? null,
+        };
+        const next = upsertRunHistory(prev, nextEntry);
+        saveRunHistory(historyScopeRef.current, next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Fresh chapter (or language): reset workspace; keep Runs for the shared scope.
+  useEffect(() => {
+    const start = startState(persistId, content, earlierRef.current);
+    setFiles(start.files);
+    setGate(start.gate);
+    setNote(start.note);
+    setFocusFile(content.entryFile);
+    runAbortRef.current?.abort();
+    runAbortRef.current = null;
+    setLiveRunId(null);
+    setRunStatus('idle');
+    setLogsOpen(false);
+
+    const history = loadRunHistory(historyScope);
+    setRunHistory(history);
+    const latest = history[0] ?? null;
+    setViewingRunId(latest?.id ?? null);
+    setRunLogs(latest?.logs ?? '');
+  }, [persistId, content, historyScope]);
+
+  useEffect(() => {
+    return () => {
+      runAbortRef.current?.abort();
+    };
+  }, []);
+
+  // Nothing is saved while the gate is up: a saved chapter never asks again.
+  useEffect(() => {
+    if (gate) return undefined;
+    const t = window.setTimeout(() => {
+      try {
+        const { next, legacy } = workspaceFilesKeys(persistId);
+        writeMigrating(window.localStorage, next, legacy, JSON.stringify(files));
+      } catch {
+        // Quota or private mode — losing autosave is not worth breaking the page.
+      }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [files, persistId, gate]);
+
+  const gateProgress = useMemo(
+    () =>
+      gate?.unfinished.map((chapter) => {
+        const saved = readSavedFiles(chapter.persistId);
+        return {
+          chapter,
+          done: saved ? countDone(saved, chapter.content.tasks) : null,
+          total: chapter.content.tasks.length,
+        };
+      }) ?? [],
+    [gate],
+  );
+
+  const onFocusFile = useCallback((path: string): void => {
+    setFocusFile(path);
+  }, []);
+
+  const onOpenRun = useCallback((runId: string): void => {
+    setViewingRunId(runId);
+    const entry = runHistory.find((r) => r.id === runId);
+    if (entry && entry.id !== liveRunIdRef.current) {
+      setRunLogs(entry.logs);
+    }
+    setLogsOpen(true);
+  }, [runHistory]);
+
+  const onCollapseBrief = useCallback((): void => {
+    setBriefCollapsed(true);
+  }, []);
+
   const onResizeMove = useCallback((e: MouseEvent) => {
-    if (!dragging.current || !shellRef.current) return;
-    const rect = shellRef.current.getBoundingClientRect();
-    setBriefWidth(clampBriefWidth(e.clientX - rect.left, rect.width));
+    if (dragging.current && shellRef.current) {
+      const rect = shellRef.current.getBoundingClientRect();
+      setBriefWidth(clampBriefWidth(e.clientX - rect.left, rect.width));
+    }
+    if (resizingLogs.current && ideBodyRef.current) {
+      const rect = ideBodyRef.current.getBoundingClientRect();
+      const next = rect.bottom - e.clientY;
+      const max = Math.max(LOGS_DRAWER_MIN, Math.floor(rect.height * 0.9));
+      setLogsDrawerHeight(Math.min(max, Math.max(LOGS_DRAWER_MIN, next)));
+    }
   }, []);
 
   const onResizeEnd = useCallback(() => {
-    if (!dragging.current) return;
     dragging.current = false;
+    resizingLogs.current = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   }, []);
+
+  const handleStopRun = useCallback((): void => {
+    runAbortRef.current?.abort();
+  }, []);
+
+  const handleResetToStarter = useCallback((): void => {
+    if (runInFlight) return;
+    if (
+      !window.confirm(
+        'Reset this chapter to the starter? Your edits here are discarded. Finished earlier chapters stay as they are.',
+      )
+    ) {
+      return;
+    }
+    try {
+      const { next, legacy } = workspaceFilesKeys(persistId);
+      removeMigrating(window.localStorage, next, legacy);
+    } catch {
+      // ignore
+    }
+    const earlier = earlierChapters ?? [];
+    if (earlier.length === 0) {
+      setFiles(content.files);
+      setGate(null);
+      setNote(null);
+    } else {
+      const plan = planCarry(content.files, earlier, readSavedFiles);
+      if (plan.unfinished.length > 0) {
+        setFiles(content.files);
+        setGate(plan);
+        setNote(null);
+      } else {
+        setFiles(plan.files);
+        setGate(null);
+        setNote(carryNote(plan));
+      }
+    }
+    setFocusFile(content.entryFile);
+  }, [runInFlight, persistId, earlierChapters, content.files, content.entryFile]);
+
+  const handleRun = useCallback((): void => {
+    if (runInFlight) return;
+    runAbortRef.current?.abort();
+    const ac = new AbortController();
+    runAbortRef.current = ac;
+    const id = newRunId();
+    const createdAt = Date.now();
+    setLiveRunId(id);
+    setViewingRunId(id);
+    setLogsOpen(true);
+    setRunLogs('');
+    setRunStatus('starting');
+    patchLiveRun({
+      id,
+      language: runLanguageRef.current ?? null,
+      status: 'starting',
+      logs: '',
+      createdAt,
+      finishedAt: null,
+    });
+
+    void (async () => {
+      let latestLogs = '';
+      let latestStatus: ProjectRunStatus = 'starting';
+      try {
+        await runProjectModule({
+          persistId,
+          commands: content.verify,
+          files,
+          signal: ac.signal,
+          onLog: (logs) => {
+            latestLogs = logs;
+            setRunLogs(logs);
+            patchLiveRun({ id, logs, status: latestStatus });
+          },
+          onStatus: (status) => {
+            latestStatus = status;
+            setRunStatus(status);
+            patchLiveRun({
+              id,
+              status,
+              logs: latestLogs,
+              finishedAt:
+                status === 'succeeded' || status === 'failed' || status === 'cancelled'
+                  ? Date.now()
+                  : null,
+            });
+          },
+        });
+        patchLiveRun({
+          id,
+          status: 'succeeded',
+          logs: latestLogs,
+          finishedAt: Date.now(),
+        });
+        setRunStatus('succeeded');
+      } catch (e) {
+        if (ac.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
+          const logs = latestLogs.includes('cancelled')
+            ? latestLogs
+            : `${latestLogs}\nRun cancelled. Runner released.\n`;
+          setRunStatus('cancelled');
+          setRunLogs(logs);
+          patchLiveRun({ id, status: 'cancelled', logs, finishedAt: Date.now() });
+          return;
+        }
+        const message = e instanceof Error ? e.message : 'Run failed.';
+        const logs = latestLogs.includes(message) ? latestLogs : `${latestLogs}\n${message}\n`;
+        setRunStatus('failed');
+        setRunLogs(logs);
+        patchLiveRun({ id, status: 'failed', logs, finishedAt: Date.now() });
+      } finally {
+        if (runAbortRef.current === ac) runAbortRef.current = null;
+        if (liveRunIdRef.current === id) setLiveRunId(null);
+      }
+    })();
+  }, [runInFlight, persistId, content.verify, files, patchLiveRun]);
 
   useEffect(() => {
     const move = (e: MouseEvent): void => onResizeMove(e);
@@ -428,49 +1005,24 @@ export function ModuleWorkspace({
     };
   }, [onResizeMove, onResizeEnd]);
 
-  const doneCount = content.tasks.filter((t) => taskDone(files, t.file, t.id)).length;
-
-  function resetModule(): void {
-    const message = earlierChapters?.length
-      ? 'Reset this chapter? Your edits here are discarded, and it starts again from your finished earlier chapters.'
-      : 'Reset this module? Your edits will be discarded.';
-    if (!window.confirm(message)) return;
-    const filesKeys = workspaceFilesKeys(persistId);
-    const theoryKeys = theoryStorageKeys(persistId);
-    try {
-      removeMigrating(window.localStorage, filesKeys.next, filesKeys.legacy);
-      removeMigrating(window.localStorage, theoryKeys.next, theoryKeys.legacy);
-    } catch {
-      // ignore
-    }
-    const start = startState(persistId, content, earlierChapters);
-    setFiles(start.files);
-    setGate(start.gate);
-    setNote(start.note);
-    setFocusFile(content.entryFile);
-    setTheoryMarkdown(content.theory);
-    setTheoryDraft(content.theory);
-    setTheoryPage(0);
-    setTheoryEditing(false);
-    setTheoryCopyStatus(null);
-  }
-
   return (
     <div className="app-page project-module-page">
       {trail && trail.length > 0 && (
         <p className="play-papers-crumb project-module-crumb">
-          {trail.map((step, index) => (
-            <span key={step.to}>
-              {index > 0 && <span aria-hidden> / </span>}
-              <Link to={step.to}>{step.label}</Link>
-            </span>
-          ))}
-          {title && (
-            <>
-              <span aria-hidden> / </span>
-              <span>{title}</span>
-            </>
-          )}
+          <span className="project-module-crumb-path">
+            {trail.map((step, index) => (
+              <span key={step.to}>
+                {index > 0 && <span aria-hidden> / </span>}
+                <Link to={step.to}>{step.label}</Link>
+              </span>
+            ))}
+            {title && (
+              <>
+                <span aria-hidden> / </span>
+                <span>{title}</span>
+              </>
+            )}
+          </span>
           {crumbAction && <span className="project-module-crumb-action">{crumbAction}</span>}
         </p>
       )}
@@ -494,284 +1046,18 @@ export function ModuleWorkspace({
           />
         )}
         {showBrief && (
-          <div className="col spark-brief-col">
-            <div
-              className="panel sandbox-brief-panel--solo spark-brief-panel--bare"
-              style={{ flex: 1 }}
-            >
-              <div className="spark-brief-tabs" role="tablist" aria-label="Module sections">
-                {(
-                  [
-                    ['theory', 'Theory'],
-                    ['tasks', 'Tasks'],
-                    ['verify', 'Verify'],
-                  ] as Array<[BriefTab, string]>
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={briefTab === id}
-                    className={`spark-brief-tab${briefTab === id ? ' active' : ''}`}
-                    onClick={() => setBriefTab(id)}
-                  >
-                    {label}
-                    {id === 'tasks' && (
-                      <span className="spark-brief-tab-count">{content.tasks.length}</span>
-                    )}
-                  </button>
-                ))}
-                <div className="project-module-tab-actions">
-                  <span className="project-module-progress" title="Blocks with the TODO marker removed">
-                    {doneCount}/{content.tasks.length} blocks
-                  </span>
-                  {briefTab === 'theory' && !theoryEditing && (
-                    <button
-                      type="button"
-                      className="topnav-pill topnav-action"
-                      title="Edit theory markdown"
-                      onClick={() => {
-                        setTheoryDraft(theoryMarkdown);
-                        setTheoryEditing(true);
-                        setTheoryCopyStatus(null);
-                      }}
-                    >
-                      Edit
-                      {theoryDirty ? ' •' : ''}
-                    </button>
-                  )}
-                  {earlierChapters && earlierChapters.length > 0 && !gate && (
-                    <div className="project-earlier-menu" ref={earlierMenuRef}>
-                      <button
-                        type="button"
-                        className="topnav-pill topnav-action"
-                        aria-haspopup="menu"
-                        aria-expanded={earlierMenuOpen}
-                        title="Code from the chapters this one builds on"
-                        onClick={() => setEarlierMenuOpen((open) => !open)}
-                      >
-                        Earlier code ▾
-                      </button>
-                      {earlierMenuOpen && (
-                        <div className="project-earlier-menu-list" role="menu">
-                          <button type="button" role="menuitem" onClick={pullEarlierCode}>
-                            <strong>Pull in my latest code</strong>
-                            <span>From each finished earlier chapter</span>
-                          </button>
-                          <button type="button" role="menuitem" onClick={swapInReference}>
-                            <strong>Use the reference solution</strong>
-                            <span>Shows the answers to earlier chapters</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <button type="button" className="topnav-pill topnav-action" onClick={resetModule}>
-                    Reset
-                  </button>
-                </div>
-                {!isNarrow && (
-                  <button
-                    type="button"
-                    className="spark-brief-collapse-btn"
-                    title="Collapse theory panel"
-                    aria-label="Collapse theory panel"
-                    onClick={() => setBriefCollapsed(true)}
-                  >
-                    ⟨
-                  </button>
-                )}
-              </div>
-
-              <div
-                className={`panel-body spark-brief-body${theoryEditing && briefTab === 'theory' ? ' spark-brief-body--theory-edit' : ''}`}
-                ref={briefBodyRef}
-              >
-                {briefTab === 'theory' && theoryEditing && (
-                  <div className="spark-brief-admin spark-brief-admin--open project-theory-editor">
-                    <div className="spark-brief-admin-bar">
-                      <span className="spark-brief-admin-format">Theory markdown</span>
-                      <button
-                        type="button"
-                        className="spark-ide-btn spark-ide-btn--run"
-                        disabled={theoryDraft === theoryMarkdown}
-                        onClick={applyTheoryDraft}
-                      >
-                        Apply
-                      </button>
-                      <button type="button" className="ghost sm" onClick={cancelTheoryEdit}>
-                        Cancel
-                      </button>
-                      <button type="button" className="ghost sm" onClick={() => void copyTheoryMarkdown()}>
-                        {theoryCopyStatus || 'Copy'}
-                      </button>
-                      {theoryDirty && (
-                        <button type="button" className="ghost sm" onClick={resetTheoryToAuthored}>
-                          Reset authored
-                        </button>
-                      )}
-                    </div>
-                    <p className="project-theory-editor-hint">
-                      Edits apply in this browser. Copy the markdown into{' '}
-                      <code>theory.md</code> when you want it in the repo.
-                    </p>
-                    <textarea
-                      className="spark-brief-admin-editor"
-                      spellCheck={false}
-                      value={theoryDraft}
-                      onChange={(e) => setTheoryDraft(e.target.value)}
-                      aria-label="Theory markdown editor"
-                    />
-                  </div>
-                )}
-
-                {briefTab === 'theory' && !theoryEditing && section && (
-                  <div className="theory-reader">
-                    <div className="theory-section-head">
-                      {theorySections.length > 1 && (
-                        <p className="theory-eyebrow">
-                          Part {theoryPage + 1} of {theorySections.length}
-                        </p>
-                      )}
-                      <span
-                        className={`theory-mode-badge theory-mode-badge--${
-                          section.mode === 'read-and-implement' ? 'implement' : 'read'
-                        }`}
-                      >
-                        {section.mode === 'read-and-implement'
-                          ? 'Read and Implement'
-                          : 'Read only'}
-                      </span>
-                    </div>
-
-                    <h2 className="theory-section-title">{section.title}</h2>
-
-                    <MarkdownProse text={section.body} className="markdown-prose" />
-
-                    {section.mode === 'read-and-implement' && section.taskIds.length > 0 && (
-                      <div className="theory-implement-callout">
-                        <p className="theory-implement-lead">
-                          Complete these tasks in the repo, then continue.
-                        </p>
-                        <ul className="theory-implement-tasks">
-                          {section.taskIds.map((id) => {
-                            const task = content.tasks.find((t) => t.id === id);
-                            if (!task) return null;
-                            const done = taskDone(files, task.file, task.id);
-                            return (
-                              <li key={id}>
-                                <button
-                                  type="button"
-                                  className={`theory-implement-task${done ? ' is-done' : ''}`}
-                                  onClick={() => {
-                                    setBriefTab('tasks');
-                                    setFocusFile(task.file);
-                                  }}
-                                >
-                                  <span>TODO({task.id})</span>
-                                  <strong>{task.label}</strong>
-                                  <span>{done ? 'done' : 'open'}</span>
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    )}
-
-                    {theorySections.length > 1 && (
-                      <nav className="theory-pager" aria-label="Theory sections">
-                        <button
-                          type="button"
-                          className="theory-pager-arrow"
-                          disabled={theoryPage <= 0}
-                          aria-label="Previous section"
-                          title={
-                            theoryPage > 0
-                              ? theorySections[theoryPage - 1]?.title
-                              : undefined
-                          }
-                          onClick={() => setTheoryPage((page) => Math.max(0, page - 1))}
-                        >
-                          <span aria-hidden>‹</span>
-                        </button>
-                        <span className="theory-pager-status">
-                          {theoryPage + 1} / {theorySections.length}
-                        </span>
-                        <button
-                          type="button"
-                          className="theory-pager-arrow"
-                          disabled={theoryPage >= theorySections.length - 1}
-                          aria-label="Next section"
-                          title={
-                            theoryPage < theorySections.length - 1
-                              ? theorySections[theoryPage + 1]?.title
-                              : undefined
-                          }
-                          onClick={() =>
-                            setTheoryPage((page) =>
-                              Math.min(theorySections.length - 1, page + 1),
-                            )
-                          }
-                        >
-                          <span aria-hidden>›</span>
-                        </button>
-                      </nav>
-                    )}
-                  </div>
-                )}
-
-                {briefTab === 'theory' && !theoryEditing && !section && (
-                  <p className="project-task-lead">No theory sections yet. Click Edit to add markdown.</p>
-                )}
-
-                {briefTab === 'tasks' && (
-                  <div className="project-task-list">
-                    <p className="project-task-lead">
-                      Everything else in the repo is written for you. Open a task to jump to its
-                      file — the marker disappears when you replace the block.
-                    </p>
-                    {content.tasks.map((task) => {
-                      const done = taskDone(files, task.file, task.id);
-                      return (
-                        <button
-                          key={task.id}
-                          type="button"
-                          className={`project-task${done ? ' project-task--done' : ''}`}
-                          onClick={() => setFocusFile(task.file)}
-                        >
-                          <span className="project-task-id">TODO({task.id})</span>
-                          <span className="project-task-body">
-                            <strong className="project-task-label">{task.label}</strong>
-                            <span className="project-task-summary">{task.summary}</span>
-                            <code className="project-task-file">{task.file}</code>
-                          </span>
-                          <span className="project-task-state">{done ? 'done' : 'open'}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {briefTab === 'verify' && (
-                  <div className="project-verify">
-                    <p className="project-task-lead">{content.verifyLead ?? DEFAULT_VERIFY_LEAD}</p>
-                    <ul className="project-verify-list">
-                      {content.verify.map((cmd) => (
-                        <li key={cmd}>
-                          <code>{cmd}</code>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="project-verify-note">
-                      There is no runner attached to project modules yet, so run them in your own
-                      terminal. Your edits here are saved in this browser.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ProjectBriefColumn
+            persistId={persistId}
+            content={content}
+            files={files}
+            gate={gate}
+            isNarrow={isNarrow}
+            onCollapse={onCollapseBrief}
+            onFocusFile={onFocusFile}
+            runHistory={runHistory}
+            selectedRunId={viewingRunId}
+            onOpenRun={onOpenRun}
+          />
         )}
 
         {showResize && (
@@ -816,14 +1102,13 @@ export function ModuleWorkspace({
             {gate ? (
               <div className="panel spark-ide-panel project-carry-gate" style={{ flex: 1 }}>
                 <div className="project-carry-gate-card">
-                  <p className="project-carry-gate-eyebrow">Builds on earlier chapters</p>
+                  <p className="project-carry-gate-eyebrow">Chapter locked</p>
                   <h2 className="project-carry-gate-title">
                     Finish {gate.unfinished[0].label} first
                   </h2>
                   <p className="project-carry-gate-body">
-                    This chapter starts from your own code for the chapters before it.{' '}
-                    {gate.unfinished.length === 1 ? 'This one is' : 'These are'} not finished in
-                    this browser yet:
+                    Labs unlock in order. Complete every task in the earlier chapter
+                    {gate.unfinished.length === 1 ? '' : 's'} before this one opens:
                   </p>
                   <ul className="project-carry-gate-list">
                     {gateProgress.map(({ chapter, done, total }) => (
@@ -837,13 +1122,10 @@ export function ModuleWorkspace({
                     <Link className="spark-ide-btn spark-ide-btn--run" to={gate.unfinished[0].href}>
                       Go to {gate.unfinished[0].label}
                     </Link>
-                    <button type="button" className="ghost sm" onClick={startWithReference}>
-                      Start with the reference for {gate.unfinished.length === 1 ? 'it' : 'them'}
-                    </button>
                   </div>
                   <p className="project-carry-gate-hint">
-                    The reference is our solution to those tasks. Once you finish them yourself,
-                    bring your code in from Earlier code, Pull in my latest code.
+                    There is no skip. Pass the earlier chapter with a successful Run, then come
+                    back — your code carries forward automatically.
                   </p>
                 </div>
               </div>
@@ -858,12 +1140,99 @@ export function ModuleWorkspace({
                   </div>
                 )}
                 <div className="panel spark-ide-panel" style={{ flex: 1 }}>
-                  <SparkProjectEditor
-                    key={`${persistId}:${focusFile}`}
-                    files={files}
-                    onChangeFiles={setFiles}
-                    entryFile={focusFile}
-                  />
+                  <div
+                    ref={ideBodyRef}
+                    className={[
+                      'panel-body flush spark-ide-body',
+                      logsOpen ? 'spark-ide-body--job-open' : '',
+                      showLogsBar ? 'spark-ide-body--has-logs-bar' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    style={
+                      logsOpen
+                        ? ({
+                            ['--spark-job-drawer-h' as string]: `${logsDrawerHeight}px`,
+                          } as React.CSSProperties)
+                        : undefined
+                    }
+                  >
+                    <SparkProjectEditor
+                      key={persistId}
+                      files={files}
+                      onChangeFiles={setFiles}
+                      entryFile={focusFile}
+                      onResetToStarter={handleResetToStarter}
+                      onRun={handleRun}
+                      onStopRun={handleStopRun}
+                      runInFlight={runInFlight}
+                      runDisabled={content.verify.length === 0}
+                    />
+
+                    {showLogsBar && (
+                      <button
+                        type="button"
+                        className="spark-results-reopen"
+                        onClick={() => setLogsOpen(true)}
+                        title="Show results"
+                        aria-expanded={false}
+                        aria-controls="project-logs-drawer"
+                      >
+                        <span>Results</span>
+                        <span className="spark-results-reopen-chevron" aria-hidden>
+                          ⌃
+                        </span>
+                      </button>
+                    )}
+
+                    {logsOpen && (
+                      <div
+                        id="project-logs-drawer"
+                        className="spark-job-drawer spark-results-drawer project-logs-drawer"
+                        style={{ height: logsDrawerHeight }}
+                        role="region"
+                        aria-label="Run logs"
+                      >
+                        <div
+                          className="spark-job-drawer-resize"
+                          role="separator"
+                          aria-orientation="horizontal"
+                          aria-label="Resize logs"
+                          title="Drag to resize"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            resizingLogs.current = true;
+                            document.body.style.cursor = 'row-resize';
+                            document.body.style.userSelect = 'none';
+                          }}
+                          onDoubleClick={() => setLogsDrawerHeight(LOGS_DRAWER_DEFAULT)}
+                        />
+                        <div className="spark-job-drawer-header project-logs-header">
+                          <span className="spark-results-tab active">Results</span>
+                          {languageLabel(viewingRun?.language ?? runLanguage) && (
+                            <span className="project-run-history-lang">
+                              {languageLabel(viewingRun?.language ?? runLanguage)}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            className="spark-results-close"
+                            title="Hide results"
+                            aria-label="Hide results"
+                            onClick={() => setLogsOpen(false)}
+                          >
+                            <span aria-hidden>⌄</span>
+                          </button>
+                        </div>
+                        <div className="spark-job-drawer-body project-logs-body">
+                          <ProjectRunProgressPanel
+                            logs={displayLogs}
+                            inFlight={runInFlight && viewingRunId === liveRunId}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}

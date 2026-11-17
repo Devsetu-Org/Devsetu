@@ -156,7 +156,17 @@ export interface K8sPlatformSpec {
   /** Balloon slots (40m / 64Mi each) one lab pod needs when it is larger (default 1). */
   slotsPerPod?: number;
   setup?: { script?: string };
-  grade?: { script?: string; timeoutSeconds?: number };
+  grade?: {
+    script?: string;
+    timeoutSeconds?: number;
+    /** Shown under “Grading” in the submit modal — per-lab wait copy. */
+    submitMessage?: string;
+  };
+  /** Per-lab vertical boot stepper (overrides generic Spark/YARN/manual lists). */
+  boot?: {
+    heading?: string;
+    phases?: string[];
+  };
   /** Hands-on only: no Submit, no grading, no tokens or leaderboard credit. */
   practice?: boolean;
   /** sandboxType "linux" / "docker" only: the learner machine (workspace/linuxBox). */

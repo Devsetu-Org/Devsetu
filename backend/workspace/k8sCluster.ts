@@ -1636,7 +1636,12 @@ async function runChallengeScript(
   ns: string,
   challengeId: string,
   scriptName: string,
-  opts: { timeoutMs?: number; env?: Record<string, string> } = {},
+  opts: {
+    timeoutMs?: number;
+    env?: Record<string, string>;
+    /** Lines `BOOT_PHASE:<label>` on stdout advance the lab open stepper. */
+    onBootPhase?: (phase: string) => void;
+  } = {},
 ): Promise<KubectlResult> {
   const scriptPath = path.join(scriptsDir(challengeId), scriptName);
   const timeoutMs = opts.timeoutMs ?? 90_000;
@@ -1664,6 +1669,7 @@ async function runChallengeScript(
     trackStartChild(child);
     let stdout = '';
     let stderr = '';
+    let stdoutCarry = '';
     let settled = false;
     const settle = (fn: () => void): void => {
       if (settled) return;
@@ -1675,8 +1681,20 @@ async function runChallengeScript(
       child.kill('SIGKILL');
       settle(() => reject(Object.assign(new Error(`script timed out: ${scriptName}`), { status: 504 })));
     }, timeoutMs);
+    const consumeBootPhases = (chunk: string): void => {
+      if (!opts.onBootPhase) return;
+      const text = stdoutCarry + chunk;
+      const lines = text.split('\n');
+      stdoutCarry = lines.pop() || '';
+      for (const line of lines) {
+        const m = line.match(/^BOOT_PHASE:(.+)$/);
+        if (m?.[1]) opts.onBootPhase(m[1].trim());
+      }
+    };
     child.stdout.on('data', (d: Buffer) => {
-      stdout += d.toString();
+      const chunk = d.toString();
+      stdout += chunk;
+      consumeBootPhases(chunk);
     });
     child.stderr.on('data', (d: Buffer) => {
       stderr += d.toString();
@@ -1685,6 +1703,10 @@ async function runChallengeScript(
       settle(() => reject(signal?.aborted ? startSuperseded() : err));
     });
     child.on('close', (code: number | null) => {
+      if (stdoutCarry && opts.onBootPhase) {
+        const m = stdoutCarry.match(/^BOOT_PHASE:(.+)$/);
+        if (m?.[1]) opts.onBootPhase(m[1].trim());
+      }
       if (signal?.aborted) settle(() => reject(startSuperseded()));
       else settle(() => resolve({ code: code ?? 1, stdout, stderr }));
     });

@@ -85,15 +85,17 @@ function publicSubscription(sub: SubscriptionRow): Record<string, unknown> {
 
 async function billingSummary(uid: string): Promise<Record<string, unknown>> {
   const now = Date.now();
-  const [subs, payments, entitlements] = await Promise.all([
+  const [subs, payments, entitlements, credits] = await Promise.all([
     store.listForUser(uid),
     store.listPaymentsForUser(uid),
     store.getEntitlements(uid),
+    store.getMonthlyCredits(uid),
   ]);
   return {
     enabled: billingEnabled(),
     mode: billingMode(),
     entitlements,
+    credits,
     subscriptions: subs
       .filter((s: SubscriptionRow) => s.status !== 'created')
       .map(publicSubscription),
@@ -105,18 +107,23 @@ async function billingSummary(uid: string): Promise<Record<string, unknown>> {
 // GET /api/billing/config — public; drives the pricing page buttons.
 router.get('/config', (_req: ExpressRequest, res: ExpressResponse) => {
   const offer = plans.launchOffer();
+  const { CREDIT_RATES_PER_HOUR } = require('../billing/creditRates');
   res.json({
     enabled: billingEnabled(),
     mode: billingMode(),
     keyId: billingEnabled() ? razorpay.keyId() : null,
     offer,
-    plans: plans.listPlans().map((p: { id: string; name: string; price: number; covers: string[] }) => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      firstMonthPrice: offer ? plans.offerPrice(p.price, offer.percentOff) : p.price,
-      covers: p.covers,
-    })),
+    creditRatesPerHour: CREDIT_RATES_PER_HOUR,
+    plans: plans.listPlans().map(
+      (p: { id: string; name: string; price: number; credits: number; covers: string[] }) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        credits: p.credits,
+        firstMonthPrice: offer ? plans.offerPrice(p.price, offer.percentOff) : p.price,
+        covers: p.covers,
+      }),
+    ),
   });
 });
 
@@ -260,12 +267,11 @@ router.post('/orders', requireInterviewer, async (req: ExpressRequest, res: Expr
 
     const now = Date.now();
     const existing: SubscriptionRow[] = await store.listForUser(uid);
-    const coveredByOther = existing.some(
-      (s) =>
-        store.isEntitled(s, now) &&
-        s.planId !== plan.id &&
-        (plans.getPlan(s.planId)?.covers || []).includes(plan.id),
-    );
+    const coveredByOther = existing.some((s) => {
+      if (!store.isEntitled(s, now) || s.planId === plan.id) return false;
+      const holder = plans.getPlan(s.planId);
+      return holder ? plans.planIncludes(holder, plan) : false;
+    });
     if (coveredByOther) {
       return res.status(409).json({ error: `${plan.name} is already included in your plan` });
     }

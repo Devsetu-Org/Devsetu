@@ -1,0 +1,9 @@
+# Applied to driver and executor pods so they land on labs-spark.
+apiVersion: v1
+kind: Pod
+spec:
+  tolerations:
+    - key: devlabs.io/pool
+      operator: Equal
+      value: spark
+      effect: NoSchedule

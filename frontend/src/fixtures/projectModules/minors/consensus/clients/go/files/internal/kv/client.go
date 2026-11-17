@@ -52,23 +52,5 @@ func (ck *Clerk) Get(key []byte) (value []byte, ok bool, err error) {
 // do sends op until some leader commits it or Timeout passes.
 func (ck *Clerk) do(op Op) (Result, error) {
 	// ── TODO(5.4) — find the leader and keep asking ────────────────────────
-	//
-	// Stamp the op once: ck.seq++, op.ClientID = ck.id, op.Seq = ck.seq. Every
-	// retry sends THIS op unchanged, so the state machine can tell a retry
-	// from a new request.
-	//
-	// Until Timeout: call ck.ends[ck.leader].Call("KV.Execute", &ExecuteArgs{Op:
-	// op}, &reply) with a fresh ExecuteReply.
-	//
-	//  - Call returned true and reply.Err == "": done. Return
-	//    Result{Value: reply.Value, Found: reply.Found}, nil.
-	//  - Anything else (lost message, ErrNotLeader, ErrTimeout): pick the next
-	//    server to try. Follow reply.Leader when the server gave a valid hint,
-	//    unless that server just failed on an earlier attempt (a follower can
-	//    still point at a leader that has since been deposed; a hint is only a
-	//    hint). Otherwise move to the next server, round-robin.
-	//  - After a full lap of failures, sleep ~25ms so an election can finish.
-	//
-	// When the deadline passes, return Result{}, ErrUnavailable.
-	panic("TODO(5.4): Clerk.do — retry the same (ClientID, Seq) across servers until a leader commits it")
+	panic("TODO(5.4)")
 }

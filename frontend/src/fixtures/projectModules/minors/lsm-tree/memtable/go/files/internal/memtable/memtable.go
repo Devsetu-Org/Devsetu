@@ -58,13 +58,7 @@ func (m *Memtable) Put(key, value []byte) {
 // Delete records that key no longer exists.
 func (m *Memtable) Delete(key []byte) {
 	// ── TODO(1.3) — a delete is a write ────────────────────────────────────
-	//
-	// Do not remove the node. Older SSTables on disk may still hold a value
-	// for key, and removing it here would let that old value reappear.
-	//
-	// Copy key (like Put does), take the write lock, and store a tombstone:
-	// m.list.put(k, nil, KindTombstone)
-	panic("TODO(1.3): Delete — write a tombstone instead of removing the key")
+	panic("TODO(1.3)")
 }
 
 // Get looks key up in this memtable only.
@@ -73,16 +67,7 @@ func (m *Memtable) Delete(key []byte) {
 // own slice; callers must not modify it.
 func (m *Memtable) Get(key []byte) ([]byte, Result) {
 	// ── TODO(1.3) — three answers, not two ─────────────────────────────────
-	//
-	// Take the read lock and m.list.get(key).
-	//   no node                  -> nil, Missing
-	//   node.kind == KindTombstone -> nil, Deleted
-	//   otherwise                -> node.value, Found
-	//
-	// Missing and Deleted look alike to a user ("no value") but mean opposite
-	// things to the read path in chapter 4: Missing keeps searching older
-	// tables, Deleted stops.
-	panic("TODO(1.3): Get — report Found, Deleted, or Missing")
+	panic("TODO(1.3)")
 }
 
 // Len is the number of entries, tombstones included.

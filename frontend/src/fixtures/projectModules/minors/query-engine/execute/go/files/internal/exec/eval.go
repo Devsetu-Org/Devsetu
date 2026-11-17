@@ -9,10 +9,8 @@ import (
 
 // Eval evaluates a scalar expression against one row. Aggregate calls are not scalar.
 func Eval(e parse.Expr, row Row) (catalog.Value, error) {
-	// TODO(4.2): IntLit, StrLit, Ident and Qual via row.Get, Binary for AND and = < >.
-	// AND is short-circuit. Comparisons require matching types and return catalog.Bool.
-	// A Call is an error here; aggregates are a later chapter.
-	panic("TODO(4.2): Eval")
+	// TODO(4.2) — Eval
+	panic("TODO(4.2)")
 }
 
 // Truth reports whether a predicate holds.

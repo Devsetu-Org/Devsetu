@@ -1,0 +1,45 @@
+{
+  "id": "kafka-04-the-partition-and-replica-map",
+  "number": 833,
+  "finalized": true,
+  "title": "The Partition and Replica Map",
+  "description": "**SITUATION:**\n\nBefore the next incident page, you need a clear mental model of one live topic. `rider.dispatch` is already up on the KRaft cluster — leave its shape alone. No broker is down; this shift is a worksheet, not a firefight.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Describe `rider.dispatch`: partition count, RF, leaders, ISR, preferred leader (first replica in the list), `min.insync.replicas`, and unclean leader election.\n2. Predict what happens to **produces** when one broker dies under three RF / min.ISR combinations (Investigation dropdowns).\n3. Fill every Investigation field. Do not stop brokers, change configs, or create topics.\n\n**SPEC:**\n\n- Investigation matches the live map for `rider.dispatch`.\n- Predictions: RF3/minISR2 still accepts writes with one broker down; RF3/minISR3 and RF2/minISR2 reject writes when a required replica is gone.",
+  "difficulty": "L0",
+  "tags": ["kafka", "l0", "foundations", "orientation", "kafka-3", "kraft"],
+  "category": "kafka",
+  "sandboxType": "kafka",
+  "play": { "domainId": "platforms-engineer", "panelId": "kafka" },
+  "problemStatement": {
+    "hints": [
+      "kafka-topics.sh --describe --topic rider.dispatch shows Leader, Replicas, Isr, and Preferred per partition.",
+      "kafka-configs.sh --describe --entity-type topics --entity-name rider.dispatch --all shows min.insync.replicas and unclean.leader.election.enable.",
+      "Preferred leader is the first broker id in the Replicas list.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "The Partition and Replica Map",
+    "brief": "The Partition and Replica Map",
+    "solution": "",
+    "idLabel": "04",
+    "theory": "",
+    "guide": "# QuickBite Data Platform — partition and replica map (KRaft)\n\nStudy **`rider.dispatch`**. Do not change the cluster.\n\n## 1. Describe the topic\n\n```bash\nkafka-topics.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --describe --topic rider.dispatch\n\nkafka-configs.sh --bootstrap-server \"$BOOTSTRAP_SERVERS\" \\\n  --describe --entity-type topics --entity-name rider.dispatch --all\n```\n\nFor **partition 0**, record:\n\n- Leader broker id\n- Replicas list (preferred leader = **first** id)\n- ISR\n- Topic `min.insync.replicas`\n- `unclean.leader.election.enable` (should be false / default)\n\n## 2. RF vs ISR vs min.ISR\n\n- **RF** — how many replicas the topic is supposed to have.\n- **ISR** — which of those are caught up right now.\n- **min.insync.replicas** — how many ISR members a produce with `acks=all` needs before it succeeds.\n\n## 3. Three predictions (one broker dies)\n\nAssume `acks=all` and the dead broker held a replica of the partition you care about.\n\n| Case | RF | min.ISR | Produce after one broker dies? |\n|------|----|---------|--------------------------------|\n| A | 3 | 2 | Still OK if ISR stays ≥ 2 |\n| B | 3 | 3 | Fails — ISR cannot stay at 3 |\n| C | 2 | 2 | Fails — ISR cannot stay at 2 |\n\nUnclean election would let an out-of-ISR replica become leader. That is a durability tradeoff — not the fix on this lab.\n\n## 4. Investigation\n\nFill the map fields and the three prediction dropdowns. Then Submit.\n"
+  },
+  "platformSpec": {
+    "shape": "kafka-3",
+    "chapter": "foundations",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Preparing your Kafka cluster",
+      "phases": [
+        "Planning for a Kafka cluster",
+        "Procuring the brokers",
+        "Starting the KRaft quorum",
+        "Preparing the lab"
+      ]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": { "script": "grade.sh", "timeoutSeconds": 180 }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

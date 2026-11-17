@@ -4,6 +4,7 @@ import type { ChallengePublic, ChallengeFull } from '../types/domain';
 
 export type ProblemStatementTab =
   | 'description'
+  | 'guide'
   | 'theory'
   | 'data'
   | 'spec'
@@ -45,6 +46,8 @@ interface ProblemStatementData {
   moat?: string;
   /** Learner-facing concept write-up (markdown). */
   theory?: string;
+  /** Team setup / bring-up guide (markdown). Shown as the Guide tab. */
+  guide?: string;
   solutionWriteup?: string;
   dbAccess?: string[];
   inputSchema?: Array<{ column: string; type: string }>;
@@ -73,6 +76,14 @@ interface ProblemStatementData {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function challengeGuideText(
+  challenge: ChallengePublic | ChallengeFull | null | undefined,
+): string {
+  if (!challenge) return '';
+  const guide = getPs(challenge).guide;
+  return typeof guide === 'string' ? guide.trim() : '';
 }
 
 function getPs(challenge: ChallengePublic | ChallengeFull): ProblemStatementData {
@@ -285,6 +296,30 @@ export default function ProblemStatement({
             <p className="dim">
               Capture what was in mind before this lab existed, and how you went about creating it.
             </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (tab === 'guide') {
+    const guideText = typeof ps.guide === 'string' ? ps.guide.trim() : '';
+    return (
+      <div className="statement statement--tab">
+        <h2>Guide</h2>
+        <p className="dim" style={{ fontSize: 12, margin: '4px 0 12px' }}>
+          Team bring-up steps for this lab.
+        </p>
+        <hr className="statement-rule" aria-hidden="true" />
+        {guideText ? (
+          <MarkdownProse
+            text={guideText}
+            className="markdown-prose statement-description"
+            plainCode
+          />
+        ) : (
+          <div className="statement-empty">
+            <p>No team setup guide for this lab yet.</p>
           </div>
         )}
       </div>

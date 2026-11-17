@@ -1,11 +1,13 @@
 import type { ChapterReading } from './types';
+import btreeUpdateInPlaceImg from '../../assets/project-readings/lsm-tree/btree-update-in-place.jpg';
+import lsmAppendThenMergeImg from '../../assets/project-readings/lsm-tree/lsm-append-then-merge.jpg';
 
 /** LSM tree minor, chapter 00: what an LSM tree is, where it runs, and the plan. */
 export const LSM_TREE_OVERVIEW: ChapterReading = {
   eyebrow: 'LSM tree · Chapter 00',
   title: 'LSM trees: the engine behind write-heavy databases',
   lede:
-    'Start here before writing any code. We first look at **how storage engines are built in general**, and at the two designs nearly all of them use: **B-trees** and **LSM trees**. Then we dig into the LSM tree: how it works, where it runs, the problems it causes in production, and exactly what you will build across the five chapters of this minor.',
+    'Start here before writing any code. First, how storage engines work and the two designs nearly all of them use. Then the LSM tree in depth: how it is built, where it runs, the problems it causes in production, and what you will build across the five chapters of this minor.',
   showBlogStamp: true,
   sections: [
     {
@@ -48,97 +50,41 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
       title: 'B-trees: update in place',
       body: [
         'A B-tree stores data in fixed-size **pages**, typically 4 to 16 KiB, arranged as a tree. Leaf pages hold the keys and values in sorted order. The pages above them hold only separator keys and pointers that say which child page covers which range. (Most databases use the B+ tree variant described here, and everyone calls it a B-tree.)',
-        'Each page holds hundreds of pointers, so the tree is very wide and very shallow: three or four levels cover billions of keys. The top levels are small enough to stay in memory, so a lookup usually costs one or two disk reads.',
+        'Each page holds hundreds of pointers, so the tree is very wide and very shallow: three or four levels cover billions of keys. The top levels stay in memory, so a lookup usually costs one or two disk reads.',
       ],
-      code: {
-        language: 'plaintext',
-        filename: 'a B-tree',
-        code: [
-          '                    [ root:   g   |   p ]',
-          '                   /          |          \\',
-          '   [ a b c d e f ]     [ g h i … o ]     [ p q r … z ]   ← leaf pages, sorted',
-          '',
-          '   get("k"):  root → middle leaf → found       (one path, one place)',
-          '   put("k"):  same path, change the leaf page where it is',
-        ].join('\n'),
+      figure: {
+        image: btreeUpdateInPlaceImg,
+        imageAlt:
+          'Hand-drawn B-tree: a root with separators g and p pointing to three sorted leaf pages; get follows one root-to-leaf path, put changes that same leaf in place',
+        caption: 'One path, one place. A write finds the leaf and changes it.',
+        flush: true,
       },
       bullets: [
-        '**A write** follows the same path down to the one leaf that owns the key and changes that page. The change is recorded in a write-ahead log first; the page itself is written back to disk later.',
+        '**A write** follows the same path down to the one leaf that owns the key and changes that page (after recording the change in a write-ahead log).',
         '**A full page splits** in two, and the parent gets a new separator key. That is how the tree grows, and why pages sit partly empty afterwards.',
-        '**The cost** is that a 100-byte update dirties a whole 8 KiB page, and writes to random keys turn into writes to random pages all over the disk.',
+        '**The cost** is that a 100-byte update dirties a whole 8 KiB page, and writes to random keys become random page writes across the disk.',
         '**The reward** is that every key lives in exactly one place, so reads are fast and predictable.',
       ],
       after: [
-        'B-trees run **Postgres**, **MySQL**’s InnoDB, **SQLite**, Oracle, SQL Server, MongoDB’s **WiredTiger**, and the embedded stores **LMDB** and **bbolt** (inside etcd).',
+        'B-trees run **Postgres**, **MySQL**’s InnoDB, **SQLite**, Oracle, SQL Server, MongoDB’s **WiredTiger**, and the embedded stores **LMDB** and **bbolt** (inside etcd). The sister minor builds that design. This one takes the other trade.',
       ],
-    },
-    {
-      id: 'lsm-trees-briefly',
-      title: 'LSM trees: append, then merge',
-      body: [
-        'A **log-structured merge tree** never changes data where it lies. Writes collect in a sorted buffer in memory. When the buffer fills, it is written to disk in one sequential pass as a sorted, read-only file. Over time, a background process merges those files together.',
-      ],
-      code: {
-        language: 'plaintext',
-        filename: 'an LSM tree',
-        code: [
-          '   put("k") → [ memtable, sorted, in memory ] ──flush──▶  file 3   (newest)',
-          '                                                          file 2',
-          '                                                          file 1   (oldest)',
-          '',
-          '   get("k"):  memtable → file 3 → file 2 → file 1     (first answer wins)',
-          '   background: merge files 1–3 into one, keep the newest version of each key',
-        ].join('\n'),
-      },
-      after: [
-        'Every write is cheap and sequential. The catch is that one key can exist in several places at once, so a read may have to look in several of them, and the merging never stops.',
-      ],
-    },
-    {
-      id: 'side-by-side',
-      title: 'B-tree vs LSM tree, side by side',
-      body: [
-        'The two designs make opposite trades, which is why both are everywhere.',
-      ],
-      table: {
-        headers: ['', 'B-tree', 'LSM tree'],
-        rows: [
-          ['**A write**', 'Find the page, change it in place', 'Append to a log, insert into a memory buffer'],
-          ['**Disk pattern**', 'Random page writes', 'Large sequential file writes'],
-          ['**Where a key lives**', 'Exactly one page', 'Memory plus possibly several files'],
-          ['**Point lookup**', 'One root-to-leaf path', 'Check memory, then files newest first; filters skip most files'],
-          ['**Range scan**', 'Walk neighbouring leaf pages', 'Merge sorted streams from every file'],
-          ['**Delete**', 'Remove the key from its page', 'Write a tombstone that hides older versions'],
-          ['**Background work**', 'Little', 'Compaction, all the time'],
-          ['**Space**', 'Half-empty pages after splits', 'Old versions until compaction; compresses well'],
-          ['**Weak spot**', 'Heavy random writes', 'Read latency and compaction spikes'],
-        ],
-      },
-      after: [
-        'Engineers describe the trade with three kinds of **amplification**: extra bytes written to disk per byte the application writes (**write**), extra places checked per lookup (**read**), and extra disk used per byte of live data (**space**). B-trees keep read amplification low and pay in write amplification. LSM trees do the reverse, and tune the balance through compaction. No design is best at all three at once.',
-      ],
-      tableAfter: {
-        headers: ['LSM trees shine at', 'B-trees are usually better at'],
-        rows: [
-          ['Write-heavy workloads: logs, metrics, events, messages', 'Read-heavy workloads with many point lookups'],
-          ['Ingesting data faster than random I/O allows', 'Predictable read latency on every query'],
-          ['Compact storage, since files are rewritten and compressed', 'Frequent in-place updates of the same rows'],
-        ],
-      },
-      callout: {
-        kind: 'tip',
-        title: 'The workload decides',
-        body: [
-          'Because MySQL can run either engine under the same SQL, the choice is easy to see in practice: Meta moved much of its MySQL fleet from InnoDB (a B-tree) to MyRocks (an LSM tree), largely to cut storage. The rest of this minor is about the LSM side, built piece by piece.',
-        ],
-      },
     },
     {
       id: 'what-is-an-lsm-tree',
-      title: 'A closer look at the LSM tree',
+      title: 'LSM trees: append, then merge',
       body: [
-        'An LSM tree is built around one rule: **never update a file in place**. New writes are buffered in memory, written out as sorted files that are never modified again, and those files are merged together in the background.',
+        'A **log-structured merge tree** never changes data where it lies. Writes collect in a sorted buffer in memory. When the buffer fills, it is written to disk in one sequential pass as a sorted, read-only file. Over time, a background process merges those files together.',
         'That sounds like a small implementation detail. It is actually a different answer to the most basic question a database has to answer: *what happens when I change a key?* The rest of this reading, and the whole minor, follows that answer through.',
+      ],
+      figure: {
+        image: lsmAppendThenMergeImg,
+        imageAlt:
+          'Hand-drawn LSM tree: put goes into an in-memory memtable, flush writes immutable SSTables newest on top, get checks memtable then SSTables newest first, compaction merges files in the background',
+        caption: 'Append to memory, flush sorted files, merge later. First answer on a read wins.',
+        flush: true,
+      },
+      after: [
+        'Every write is cheap and sequential. The catch is that one key can exist in several places at once, so a read may have to look in several of them, and the merging never stops.',
       ],
       callout: {
         kind: 'idea',
@@ -180,6 +126,45 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
         title: 'Deletes are writes too',
         body: [
           'An LSM tree cannot remove a key from a file it never modifies. So a delete writes a **tombstone**, a marker that says "this key is gone". The tombstone shadows the older value on every read until compaction removes both.',
+        ],
+      },
+    },
+    {
+      id: 'side-by-side',
+      title: 'B-tree vs LSM tree, side by side',
+      body: [
+        'The two designs make opposite trades, which is why both are everywhere.',
+      ],
+      table: {
+        headers: ['', 'B-tree', 'LSM tree'],
+        rows: [
+          ['**A write**', 'Find the page, change it in place', 'Append to a log, insert into a memory buffer'],
+          ['**Disk pattern**', 'Random page writes', 'Large sequential file writes'],
+          ['**Where a key lives**', 'Exactly one page', 'Memory plus possibly several files'],
+          ['**Point lookup**', 'One root-to-leaf path', 'Check memory, then files newest first; filters skip most files'],
+          ['**Range scan**', 'Walk neighbouring leaf pages', 'Merge sorted streams from every file'],
+          ['**Delete**', 'Remove the key from its page', 'Write a tombstone that hides older versions'],
+          ['**Background work**', 'Little', 'Compaction, all the time'],
+          ['**Space**', 'Half-empty pages after splits', 'Old versions until compaction; compresses well'],
+          ['**Weak spot**', 'Heavy random writes', 'Read latency and compaction spikes'],
+        ],
+      },
+      after: [
+        'Engineers describe the trade with three kinds of **amplification**: extra bytes written to disk per byte the application writes (**write**), extra places checked per lookup (**read**), and extra disk used per byte of live data (**space**). B-trees keep read amplification low and pay in write amplification. LSM trees do the reverse, and tune the balance through compaction. No design is best at all three at once.',
+      ],
+      tableAfter: {
+        headers: ['LSM trees shine at', 'B-trees are usually better at'],
+        rows: [
+          ['Write-heavy workloads: logs, metrics, events, messages', 'Read-heavy workloads with many point lookups'],
+          ['Ingesting data faster than random I/O allows', 'Predictable read latency on every query'],
+          ['Compact storage, since files are rewritten and compressed', 'Frequent in-place updates of the same rows'],
+        ],
+      },
+      callout: {
+        kind: 'tip',
+        title: 'The workload decides',
+        body: [
+          'Because MySQL can run either engine under the same SQL, the choice is easy to see in practice: Meta moved much of its MySQL fleet from InnoDB (a B-tree) to MyRocks (an LSM tree), largely to cut storage. The rest of this minor is about the LSM side, built piece by piece.',
         ],
       },
     },
@@ -243,7 +228,7 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **lsmkv**, a working LSM storage engine in Go, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
+        'Over five chapters you build **lsmkv**, a working LSM storage engine in Go or Python, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -268,7 +253,7 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter adds only the files it needs and starts from your own code for the earlier ones. Stuck on one? You can switch that chapter to our reference solution and keep going.',
       ],
       after: [
-        '**What you need:** comfortable Go (slices, maps, structs, methods, and `go test`). No database or storage background; every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go or Python). No database or storage background; every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',
@@ -286,6 +271,6 @@ export const LSM_TREE_OVERVIEW: ChapterReading = {
     'That makes writes cheap and sequential, at the cost of reads checking several places and background compaction work.',
     'A delete is a write: a tombstone shadows older values until compaction removes both.',
     'RocksDB, LevelDB, Cassandra, ScyllaDB, HBase, and CockroachDB’s Pebble are all built this way, and their classic production problems are LSM behaviour.',
-    'Across five chapters you build each piece in Go: memtable, write-ahead log, SSTable, read path, and compaction.',
+    'Across five chapters you build each piece in Go or Python: memtable, write-ahead log, SSTable, read path, and compaction.',
   ],
 };

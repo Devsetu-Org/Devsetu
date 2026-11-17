@@ -1,0 +1,29 @@
+{
+  "id": "spark-ch03-spark-on-kubernetes",
+  "number": 821,
+  "finalized": false,
+  "title": "Chapter 3 — Spark on Kubernetes (placeholder)",
+  "description": "**PLACEHOLDER**\n\nChapter 3 labs are not written yet. Planned:\n\n1. Driver and Executor Pods\n2. Namespace and Quota Block the Submit\n3. Wrong Image, Missing Dependency\n4. Dynamic Allocation Without the Shuffle Service\n5. Which Namespace, Which Quota, Which Image\n\nDescriptions, setup, and graders land after Chapter 1 is locked.\n",
+  "difficulty": "L0",
+  "tags": ["spark", "kubernetes", "placeholder"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [],
+    "overview": "Chapter 3 — Spark on Kubernetes (placeholder)",
+    "brief": "Chapter 3 — Spark on Kubernetes (placeholder)",
+    "solution": "",
+    "idLabel": "ch03",
+    "theory": ""
+  },
+  "platformSpec": {
+    "chapter": "kubernetes",
+    "kind": "placeholder"
+  },
+  "visibleTo": "users",
+  "tokens": 0
+}

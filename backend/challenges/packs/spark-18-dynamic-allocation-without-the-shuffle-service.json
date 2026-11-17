@@ -1,0 +1,49 @@
+{
+  "id": "spark-18-dynamic-allocation-without-the-shuffle-service",
+  "number": 840,
+  "finalized": true,
+  "title": "Dynamic Allocation Without the Shuffle Service",
+  "description": "**SITUATION:**\n\n`store-rollup-dynamic` enables **Dynamic Allocation**. This Kubernetes pool has **no External Shuffle Service**. When executors scale down, shuffle blocks vanish → fetch failures.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Submit and inspect driver logs.\n2. Disable dynamic allocation and set `spark.executor.instances=2`.\n3. Resubmit until **Succeeded**. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Wrapper: `spark.dynamicAllocation.enabled=false` and `spark.executor.instances` ≥ 2.\n- `store-rollup-dynamic-…` driver Succeeded.\n- Investigation: `dyn-alloc-no-ess` / `disable-dyn-alloc`.\n",
+  "difficulty": "L1",
+  "tags": ["spark", "kubernetes", "l1", "multi-step-bug", "spark-k8s", "shuffle"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": { "domainId": "platforms-engineer", "panelId": "spark" },
+  "problemStatement": {
+    "hints": [
+      "Dynamic Allocation on K8s needs an External Shuffle Service — this pool does not run one.",
+      "Set spark.dynamicAllocation.enabled=false and spark.executor.instances=2",
+      "Fill Investigation before Submit."
+    ],
+    "overview": "Dynamic Allocation Without the Shuffle Service",
+    "brief": "Dynamic Allocation Without the Shuffle Service",
+    "solution": "",
+    "idLabel": "18",
+    "theory": "",
+    "guide": "# QuickBite — Dyn alloc without ESS\n\nDisable dynamic allocation; set static executor instances ≥ 2.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-k8s",
+    "daemonMode": "auto",
+    "chapter": "kubernetes",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your Kubernetes Spark lab",
+      "phases": [
+        "Creating your Kubernetes Spark namespace",
+        "Pulling the Spark-on-K8s image",
+        "Using the cached Spark-on-K8s image",
+        "Preparing the lab"
+      ]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking dyn-alloc disabled, static instances, Succeeded driver, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 15
+}

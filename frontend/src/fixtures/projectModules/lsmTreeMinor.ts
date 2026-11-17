@@ -96,7 +96,7 @@ export const LSM_TREE_MEMTABLE_GO: ProjectModuleContent = {
     },
     { search: 'findGreaterOrEqual', put: 'put', deleteGet: 'Delete and Get', seekNext: 'Seek and Next' },
   ),
-  verify: ['make test', 'make race', 'make run'],
+  verify: ['make test', 'make race'],
   verifyLead: LSM_VERIFY_LEAD,
 };
 
@@ -125,7 +125,7 @@ export const LSM_TREE_MEMTABLE_PYTHON: ProjectModuleContent = {
     },
     { search: 'find_greater_or_equal', put: 'put', deleteGet: 'delete and get', seekNext: 'seek and next' },
   ),
-  verify: ['make test', 'make run'],
+  verify: ['make test'],
   verifyLead: LSM_VERIFY_LEAD,
 };
 
@@ -156,6 +156,6 @@ export const LSM_TREE_MEMTABLE_CPP: ProjectModuleContent = {
     },
     { search: 'FindGreaterOrEqual', put: 'Put', deleteGet: 'Delete and Get', seekNext: 'Seek and Next' },
   ),
-  verify: ['make test', 'make asan', 'make run'],
+  verify: ['make test', 'make asan'],
   verifyLead: LSM_VERIFY_LEAD,
 };

@@ -47,5 +47,5 @@ export const CINDER_EVENT_LOOP: ProjectModuleContent = {
       summary: 'Wait, dispatch writable then readable, survive EINTR, stop cleanly.',
     },
   ],
-  verify: ['make test', 'make race', 'make run'],
+  verify: ['make test', 'make race'],
 };

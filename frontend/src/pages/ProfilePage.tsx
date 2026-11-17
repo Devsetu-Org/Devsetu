@@ -286,7 +286,7 @@ export default function ProfilePage(): JSX.Element {
                 <h2 id="profile-tokens-heading" className="profile-shelf-title">
                   Tokens
                 </h2>
-                <p className="profile-shelf-lead">Earned from solved labs</p>
+                <p className="profile-shelf-lead">For the leaderboard — earned from solved labs</p>
               </div>
               <p className="profile-shelf-count" aria-label={`${tokenCount} tokens`}>
                 {tokenCount}

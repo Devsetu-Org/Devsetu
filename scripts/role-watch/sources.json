@@ -1,0 +1,116 @@
+{
+  "greenhouse": [
+    "doordashusa",
+    "doordashindia",
+    "verifone",
+    "earnin",
+    "zetaglobal",
+    "twilio",
+    "impact",
+    "karat",
+    "coherehealth",
+    "nexla",
+    "streamnative",
+    "samsara",
+    "tubi",
+    "tubi-canada"
+  ],
+  "workday": [
+    {
+      "company": "Warner Bros. Discovery",
+      "host": "warnerbros.wd5.myworkdayjobs.com",
+      "tenant": "warnerbros",
+      "site": "global"
+    },
+    {
+      "company": "SS&C",
+      "host": "ssctech.wd1.myworkdayjobs.com",
+      "tenant": "ssctech",
+      "site": "SSCTechnologies"
+    },
+    {
+      "company": "AT&T",
+      "host": "att.wd1.myworkdayjobs.com",
+      "tenant": "att",
+      "site": "ATTGeneral"
+    },
+    {
+      "company": "Barclays",
+      "host": "barclays.wd3.myworkdayjobs.com",
+      "tenant": "barclays",
+      "site": "External_Career_Site_Barclays"
+    },
+    {
+      "company": "NVIDIA",
+      "host": "nvidia.wd5.myworkdayjobs.com",
+      "tenant": "nvidia",
+      "site": "NVIDIAExternalCareerSite"
+    }
+  ],
+  "ashby": ["sarvam", "sentry"],
+  "pages": [
+    {
+      "company": "Roblox",
+      "title": "Senior Software Engineer, Data Infrastructure Compute",
+      "url": "https://careers.roblox.com/jobs/8042578",
+      "track": "Spark",
+      "region": "Other"
+    },
+    {
+      "company": "NVIDIA",
+      "title": "Senior Systems Software Engineer - Accelerated Spark Applications",
+      "url": "https://jobs.nvidia.com/careers/job/893398236052",
+      "track": "Spark",
+      "region": "Other"
+    },
+    {
+      "company": "Airbnb",
+      "title": "Staff Software Engineer, Data Catalog",
+      "url": "https://careers.airbnb.com/positions/8154705/",
+      "track": "Other",
+      "region": "Other"
+    },
+    {
+      "company": "Salesforce",
+      "title": "Software Engineering PMTS (Apache, Kafka, Terraform)",
+      "url": "https://www.salesforce.com/company/careers/jobs/JR359744/software-engineering-pmts-apache-kafka-terraform/",
+      "track": "Kafka",
+      "region": "India"
+    },
+    {
+      "company": "Databricks",
+      "title": "Senior Software Engineer (Data Platform)",
+      "url": "https://www.databricks.com/company/careers/engineering---pipeline/senior-software-engineer-data-platform-7647369002",
+      "track": "Other",
+      "region": "India"
+    },
+    {
+      "company": "Databricks",
+      "title": "Senior Technical Solutions Engineer (Platform)",
+      "url": "https://www.databricks.com/company/careers/support/senior-technical-solutions-engineer-platform-7845320002",
+      "track": "Spark",
+      "region": "India"
+    },
+    {
+      "company": "Canonical",
+      "title": "Software Engineer - Data Infrastructure - Kafka",
+      "url": "https://jobs.generalcatalyst.com/companies/remote/jobs/96844145-software-engineer-data-infrastructure-kafka",
+      "track": "Kafka",
+      "region": "Other"
+    },
+    {
+      "company": "Apple",
+      "title": "Data Platform Engineer - Airflow Platform Specialist",
+      "url": "https://jobs.apple.com/en-us/search?location=india-INDC&team=machine-learning-and-ai-SFTWR-MCHLN",
+      "track": "Airflow",
+      "region": "India"
+    },
+    {
+      "company": "Astronomer",
+      "title": "Software Engineer, Platform",
+      "url": "https://www.astronomer.io/careers/",
+      "track": "Airflow",
+      "region": "Other"
+    }
+  ]
+}

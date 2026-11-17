@@ -1,39 +1,18 @@
-## Where you are
+## The write-ahead log
 <!-- mode: read-only -->
 
-Chapter 1 built the memtable: a sorted map in RAM. It is fast, and a crash wipes it out. Every write the user was told "OK" about is gone.
+Chapter 1 built the memtable: a sorted map in RAM. It is fast, and a crash wipes it out. Every write the user was told "OK" about is gone. This chapter adds the **write-ahead log** (WAL): an append-only file that receives every write before the memtable does. On startup the engine reads the log and replays each write into a fresh memtable.
 
-```plaintext
-            Put / Delete
-                 │
-        ┌────────▼────────┐
-  ch 2  │  Write-ahead log │ ◀──── you are here
-        └────────┬────────┘
-        ┌────────▼────────┐
-  ch 1  │    Memtable      │  done
-        └─────────────────┘
-```
-
-This chapter adds the **write-ahead log** (WAL): an append-only file that receives every write before the memtable does. On startup the engine reads the log from the beginning and replays each write into a fresh memtable.
+![LSM path chapter 2: Write-ahead log highlighted, then Memtable, then SSTables](/lsm-tree/write-ahead-log/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> Make acknowledged writes survive a crash. No SSTables yet: the log grows forever
-> in this chapter, and chapter 3 starts trimming it.
-
-## Why a log
-<!-- mode: read-only -->
+> Make acknowledged writes survive a crash. No SSTables yet: the log grows forever in this chapter, and chapter 3 starts trimming it.
 
 ### The rule
 
 **Log first, then apply, then acknowledge.** If the process dies after the log append, replay brings the write back. If it dies before, the write was never acknowledged, so losing it breaks no promise.
 
-```plaintext
-  Put("order:7", "paid")
-     │
-     ├─ 1. append record to wal.log   ← durable from here (with fsync)
-     ├─ 2. apply to memtable          ← visible to Get from here
-     └─ 3. return OK                  ← the promise
-```
+![Put flows: append to wal.log, apply to memtable, return OK](/lsm-tree/write-ahead-log/log-first.jpg)
 
 Reverse steps 1 and 2 and there is a window where a reader sees a value that a crash would erase.
 
@@ -51,22 +30,17 @@ The log is written strictly at its end. Disks and SSDs are fastest at sequential
 | etcd | the Raft log, fsynced before a write is committed |
 | Kafka | the whole product is a replicated append-only log |
 
-## The record format
-<!-- mode: read-and-implement tasks:2.1 -->
+## Records, fsync, and recovery
+<!-- mode: read-and-implement tasks:2.1,2.2,2.3,2.4 -->
 
 ### A crash can stop a write halfway
 
-A log write is not atomic. A crash or power cut can leave the last record half written: some bytes on disk, the rest missing. Replay must be able to tell "this is a whole record" from "this is the remains of one". So each record carries its own length and a **checksum**.
+A log write is not atomic. A crash can leave the last record half written. Replay must tell a whole record from the remains of one, so each record carries its own length and a **checksum**.
 
-```plaintext
-  ┌──────────────┬──────────────┬──────────────────────────────────────────┐
-  │ crc32c  (4)  │ length  (4)  │ payload (length bytes)                    │
-  └──────────────┴──────────────┴──────────────────────────────────────────┘
-                                  kind (1) │ keyLen (uvarint) │ key │ valueLen (uvarint) │ value
-```
+![WAL record: crc32c (4B), length (4B), payload with kind key value](/lsm-tree/write-ahead-log/record-frame.jpg)
 
 - **length** says how many payload bytes follow. If the file ends before that, the record was cut short.
-- **crc32c** is a checksum of the payload. If any byte of the payload is wrong, the checksum will not match.
+- **crc32c** is a checksum of the payload. If any byte is wrong, it will not match.
 - **uvarint** lengths use 1 byte for values under 128, so short keys cost almost nothing.
 
 > [!tip] Why CRC-32C
@@ -83,23 +57,52 @@ In `internal/wal/record.go`. `appendPayload` (given) writes the payload. Your jo
 
 `encode` **appends**: bytes already in `dst` must survive. The writer relies on that to reuse one buffer for every record.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `encode`
 
-## Appending and fsync
-<!-- mode: read-and-implement tasks:2.2 -->
+In `lsmkv/wal/record.py`. `append_payload` (given) writes the payload. Your job is the frame around it:
+
+1. Remember `start = len(dst)`, then extend `dst` by `HEADER_SIZE` zero bytes as a placeholder.
+2. `append_payload(dst, r)`; the payload is `dst[start+HEADER_SIZE:]`.
+3. Write `crc32c.checksum(payload)` into `dst[start:start+4]` and `len(payload)` into `dst[start+4:start+8]` with `struct.pack_into('<I', ...)`.
+
+`encode` **appends**: bytes already in `dst` must survive. The writer relies on that to reuse one buffer for every record.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `Encode`
+
+In `src/wal/record.cc`. `AppendPayload` (given) writes the payload. Your job is the frame around it:
+
+1. Remember `start = dst->size()`, then append `kHeaderSize` zero bytes as a placeholder.
+2. `AppendPayload(dst, r)`; the payload is the bytes after the placeholder.
+3. Write `Checksum(payload)` into the first 4 bytes and the payload length into the next 4, both little-endian.
+
+`Encode` **appends**: bytes already in `*dst` must survive. The writer relies on that to reuse one buffer for every record.
+<!-- /lang -->
 
 ### Write is not the same as durable
 
-When `write()` returns, the bytes are in the **OS page cache**, not on the disk. A process crash keeps them (the kernel still has them). A power cut or kernel panic loses them. `fsync` asks the OS to push the file's data to the device and waits until it has.
+This is about the **WAL file**, not the memtable. The memtable lives only in RAM; durability comes from appending each record to the log on disk. When `write()` returns, those bytes are in the **OS page cache**, not on the device. A process crash keeps them. A power cut loses them. `fsync` asks the OS to push the log's data to the device and waits until it has.
 
 | Mode | After `Append` returns, the record survives | Cost |
 | --- | --- | --- |
 | `SyncAlways` | a process crash **and** a power cut | one fsync per write (≈0.1–10 ms) |
 | `SyncNever` | a process crash only | almost free |
 
-Databases expose this choice: PostgreSQL's `synchronous_commit`, Redis's `appendfsync always | everysec | no`, RocksDB's `WriteOptions.sync`. Batching many writes into one fsync (group commit) is how production engines get both safety and speed. That is out of scope here.
+That tradeoff shows up in every durable store, under different names:
+
+| System | Knob | What it means |
+| --- | --- | --- |
+| PostgreSQL | `synchronous_commit` | `on` waits for the WAL flush before returning; `off` returns once the record is in the page cache (still crash-safe for the process, not for a power cut). |
+| Redis | `appendfsync` | `always` fsyncs each write; `everysec` batches about a second of writes into one fsync; `no` leaves it to the OS. |
+| RocksDB | `WriteOptions.sync` | per-write: sync this batch to the WAL, or don't. |
+
+An fsync is expensive (often 0.1–10 ms) because the disk has to confirm the bytes are on stable media. Doing that once per client write caps throughput at a few hundred to a few thousand writes per second on one log. Production engines get around it with **group commit**: while one fsync is in flight, other writers append into the same log, and when the fsync returns, *every* write that landed before it is durable. One disk wait covers many acknowledgements. PostgreSQL, InnoDB, and RocksDB all do a version of this.
+
+Your writer here is the simple end of that spectrum: `SyncAlways` or `SyncNever` per append, no grouping. That is enough to feel the cost and to make the durability promise honest. Group commit is the next engineering step once a single-threaded fsync becomes the bottleneck.
 
 > [!warn] One write per record
-> Build the whole record in memory and write it with **one** `Write` call. Writing the header and the payload separately doubles the system calls and makes a torn record more likely. And do not wrap the file in a `bufio.Writer`: a buffered record is not in the file at all until the buffer flushes, so an acknowledged write could vanish with the process.
+> Build the whole record in memory and write it with **one** `Write` call. Writing the header and the payload separately doubles the system calls and makes a torn record more likely. And do not wrap the file in a buffered writer: a buffered record is not in the file until the buffer flushes, so an acknowledged write could vanish with the process.
 
 <!-- lang: go -->
 ### `TODO(2.2)` — `Append`
@@ -112,26 +115,39 @@ In `internal/wal/writer.go`:
 
 `Create`, `OpenAppend`, `Size`, and `Close` are given.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.2)` — `append`
 
-## Replay and the torn tail
-<!-- mode: read-and-implement tasks:2.3 -->
+In `lsmkv/wal/writer.py`:
+
+1. Clear `self._buf` and `encode(self._buf, r)` to reuse the buffer.
+2. `n = self._f.write(self._buf)`; add `n` to `self._size`.
+3. If `self._mode is SyncMode.ALWAYS`, `flush` and `os.fsync`.
+
+`create`, `open_append`, `size`, and `close` are given.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.2)` — `Append`
+
+In `src/wal/writer.cc`:
+
+1. Clear `buf_` and `Encode(&buf_, r)` to reuse the buffer.
+2. One `fwrite` of the buffer; add the bytes written to `size_`.
+3. If `mode_ == SyncMode::kAlways`, fsync the file.
+
+`Create`, `OpenAppend`, `Size`, and `Close` are given.
+<!-- /lang -->
 
 ### Read until the first bad record
 
-Replay walks the file from offset 0. For each record it checks, in order:
+Replay walks the file from offset 0. For each record it checks header size, length, checksum, and payload decode — in that order. The first failure is the end of the log.
 
-```plaintext
-  offset ─▶ ┌ header? ──── fewer than 8 bytes left ─────────▶ stop (torn tail)
-            ├ length? ──── bigger than the bytes left ───────▶ stop (torn tail)
-            ├ checksum? ── does not match the payload ───────▶ stop (torn tail)
-            ├ payload? ─── does not decode ──────────────────▶ stop (torn tail)
-            └ ok: hand the record to the caller, offset += 8 + length
-```
+![Replay stops at the torn tail, then truncate to good and append](/lsm-tree/write-ahead-log/torn-tail.jpg)
 
-The offset where replay stops is the **good** length of the log. Everything after it is a torn tail: the write that was in flight when the process died. That write was never acknowledged, so dropping it is correct.
+The offset where replay stops is the **good** length. Everything after it is a torn tail: the write that was in flight when the process died. That write was never acknowledged, so dropping it is correct.
 
 > [!idea] Why stop instead of skipping
-> A bad record could also be a bit flip in the middle of an old, healthy log. Skipping it would silently lose one write and keep the rest. Stopping loses everything after it. LevelDB and RocksDB let you choose (RocksDB's `wal_recovery_mode`). This engine always treats the first bad record as the end of the log, which is right for the common case: a crash during the last append.
+> A bad (corrupted) record could also be a bit flip in the middle of an old, healthy log. Skipping it would silently lose one write and keep the rest. Stopping loses everything after it. LevelDB and RocksDB let you choose. This engine always treats the first bad record as the end of the log — right for the common case: a crash during the last append.
 
 <!-- lang: go -->
 ### `TODO(2.3)` — `Replay`
@@ -147,21 +163,34 @@ In `internal/wal/reader.go`. Reading the file and the missing-file case are give
 
 You will need to import `encoding/binary` and `hash/crc32`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `replay`
 
-## Recovery in the engine
-<!-- mode: read-and-implement tasks:2.4 -->
+In `lsmkv/wal/reader.py`. Reading the file and the missing-file case are given. Loop over `data`:
+
+1. `rest = data[good:]`. If `len(rest) < HEADER_SIZE`, return `good`.
+2. Read `sum` and `n` from the header (`struct.unpack_from('<II', ...)`). If `n > MAX_RECORD_SIZE` or the payload would run past the end, stop.
+3. Check `crc32c.checksum(payload) == sum`; otherwise stop.
+4. `decode_payload(payload)`; if it fails, stop.
+5. Call `fn(r)` (exceptions propagate).
+6. `good += HEADER_SIZE + n`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `Replay`
+
+In `src/wal/reader.cc`. Reading the file and the missing-file case are given. Loop over `data`:
+
+1. If fewer than `kHeaderSize` bytes remain, return `good`.
+2. Read little-endian `sum` and `n`. If `n > kMaxRecordSize` or the payload would run past the end, stop.
+3. If `Checksum(payload) != sum`, stop.
+4. `DecodePayload`; on `CorruptError`, stop.
+5. Call `fn(r)`.
+6. Advance `good` by `kHeaderSize + n`.
+<!-- /lang -->
 
 ### Open: replay, cut, append
 
-```plaintext
-  Open(dir)
-    ├─ memtable := empty
-    ├─ good := Replay(wal.log, apply each record to memtable)
-    ├─ truncate wal.log to good        ← cut the torn tail
-    └─ keep wal.log open for appends
-```
-
-Cutting the tail matters. If the garbage stayed, the next record would be appended **after** it, and the next replay would stop at the garbage and never reach the new record. A write acknowledged after a crash would be lost on the second crash. One of the tests does exactly this.
+Cutting the torn tail matters. If the garbage stayed, the next record would be appended **after** it, and the next replay would stop at the garbage and never reach the new record. A write acknowledged after a crash would be lost on the second crash. One of the tests does exactly this.
 
 <!-- lang: go -->
 ### `TODO(2.4)` — `recoverLog` and `commit`
@@ -171,41 +200,37 @@ In `internal/db/recover.go`. `Open` and `write` in `db.go` are given and call th
 - `recoverLog` (called by `Open`): `path := filepath.Join(d.dir, walName)`, then `wal.Replay(path, ...)` with a callback that calls `apply(d.mem, r)`. Then `d.log, err = wal.OpenAppend(path, good, d.opts.Sync)`, which truncates to `good` and positions at the end.
 - `commit` (called by `write`, which backs `Put` and `Delete` and already holds the lock): `d.log.Append(r)` first. Return its error if it fails. Only then `apply(d.mem, r)`.
 
-You will need to import `path/filepath`. Later chapters keep this file exactly as you leave it: they flush and compact around it.
+You will need to import `path/filepath`. Later chapters keep this file exactly as you leave it.
 
 > [!scope] Locking
 > One mutex covers the log append and the memtable update, so records reach the log in the same order they reach the memtable. Replay then rebuilds exactly the same state.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.4)` — `recover_log` and `commit`
 
-## Prove it
-<!-- mode: read-only -->
+In `lsmkv/db/recover.py`. `open_db` and `_write` in `db.py` are given and call these two:
 
-<!-- lang: go -->
-```bash
-make test     # every acceptance test
-make race     # the same tests with the race detector
-make run      # a REPL that keeps its data in ./data
-```
+- `recover_log`: `path = os.path.join(d.dir, WAL_NAME)`, then `replay(path, ...)` applying each record with `apply`. Then `d.log = open_append(path, good, d.opts.sync)`.
+- `commit`: `d.log.append(r)` first; only then `apply(d.mem, r)`.
+
+Later chapters keep this file exactly as you leave it.
+
+> [!scope] Locking
+> One lock covers the log append and the memtable update, so records reach the log in the same order they reach the memtable.
 <!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.4)` — `RecoverLog` and `Commit`
 
-Kill it and come back:
+In `src/db/recover.cc`. `Open` and `Put`/`Delete` call these two:
 
-```plaintext
-$ make run
-> put order:1 paid
-OK
-> del order:1
-OK
-> put order:2 pending
-OK
-^C
-$ make run
-lsmkv: ... recovered 2 entries.
-> get order:1
-(not found)
-> get order:2
-"pending"
-```
+- `RecoverLog`: replay `dir_ + "/" + kWalName`, applying each record with `Apply`. Then `log_.reset(OpenAppend(path, good, opts_.sync))`.
+- `Commit`: `log_->Append(r)` first; only then `Apply(&mem_, r)`.
+
+Later chapters keep this file exactly as you leave it.
+
+> [!scope] Locking
+> One mutex covers the log append and the memtable update, so records reach the log in the same order they reach the memtable.
+<!-- /lang -->
 
 > [!check] Before you move on
 > 1. A write is logged, then applied, then acknowledged. Never in another order.
@@ -213,6 +238,4 @@ lsmkv: ... recovered 2 entries.
 > 3. Each record carries a length and a checksum, so replay can find where a crash cut the log.
 > 4. Recovery truncates the torn tail before appending, or the next crash loses new writes.
 
-### What is missing
-
-The log only grows, and so does the memtable: every key the store has ever seen sits in RAM, and startup replays the entire history. Chapter 3 fixes both. When the memtable gets big, it is written to disk as a sorted, immutable **SSTable**, and the log is started fresh.
+The log only grows in this chapter, and so does the memtable: every key the store has ever seen sits in RAM, and startup replays the entire history. That is intentional for now — you are building durability, not lifetime size. Chapter 3 fixes both. When the memtable gets big, it is written to disk as a sorted, immutable **SSTable**. After that flush succeeds, the engine closes the old log and creates a fresh empty `wal.log`. Those writes now live in the table, so they do not need to be replayed again. It is not “delete these N records from the middle of the file”; it is “replace the whole log once the memtable is durable on disk.”

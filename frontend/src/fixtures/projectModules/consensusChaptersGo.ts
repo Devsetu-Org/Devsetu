@@ -1,7 +1,7 @@
 /**
- * Consensus (Raft) chapters 1–5, Go only for now. Each starter repo is loaded
- * whole from its `go/files/` folder; `solution/` folders are never globbed, so
- * they stay out of the bundle.
+ * Consensus (Raft) chapters 1–5, Go. Each starter repo is loaded whole from its
+ * `go/files/` folder; `solution/` folders are never globbed, so they stay out
+ * of the bundle. Python and C++ live in consensusChaptersPython/Cpp.ts.
  *
  * A task's `file` also marks which files the learner owns: the workspace
  * carries those files into later chapters, so they must be byte-identical in
@@ -62,7 +62,7 @@ function repo(globbed: RawFiles): RawFiles {
   return out;
 }
 
-const VERIFY = ['make test', 'make race', 'make run'];
+const VERIFY = ['make test', 'make race'];
 
 export const CONSENSUS_VERIFY_LEAD =
   'Run these from the project root. The acceptance tests cover this chapter and every chapter before it, so a clean run means the cluster works so far.';

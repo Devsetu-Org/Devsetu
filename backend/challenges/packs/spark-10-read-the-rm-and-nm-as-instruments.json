@@ -1,0 +1,65 @@
+{
+  "id": "spark-10-read-the-rm-and-nm-as-instruments",
+  "number": 819,
+  "finalized": true,
+  "title": "Read the RM and NM as Instruments",
+  "description": "**SITUATION:**\n\nSame YARN cluster as Lab 2.1 — `ds-spark-01` is the ResourceManager, `ds-spark-02` / `ds-spark-03` are NodeManagers, `shell` is the submit client. Overnight a NodeManager went **UNHEALTHY** on the RM. The morning `store-rollup-probe` is still **RUNNING**, but it never gets executors and the driver on the shell keeps warning that the job has not accepted any resources.\n\nTreat the RM and NM UIs the way Lab 1.2 treated Master and Worker UIs: as instruments, not ground truth. Read what they claim, then verify on the node before you act.\n\n**YOUR TASK:**\n\n1. Open the RM UI (or `yarn node -list -all`). Record how many NodeManagers are active, which host is flagged, and the state the RM gave it.\n2. Find the stuck `store-rollup-probe` application. Record its id, state, and what it actually holds (AM vs executors).\n3. On the flagged host, verify the RM's claim — process, disk, and the NodeManager config that produced the health report.\n4. Make a lasting fix so both NodeManagers are RUNNING again and the probe finishes on its own. Do not paper over the health check.\n5. Fill Investigation in story order, then Submit.\n\n**SPEC:**\n\n- ResourceManager lists both NodeManagers as RUNNING; both NM JVMs are up.\n- NodeManager health checking stays on and still meaningful (not disabled, not raised so high it never fires).\n- A `store-rollup-probe` application is FINISHED / SUCCEEDED on this RM.\n- Investigation matches what the RM / NM and the node showed at the start of the incident.\n- Do not change capacity-scheduler queues or NodeManager memory — later labs.\n",
+  "difficulty": "L0",
+  "tags": [
+    "spark",
+    "yarn",
+    "l0",
+    "orientation",
+    "yarn-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "yarn node -list -all — one host should be UNHEALTHY. yarn node -status <node-id> shows the health report.",
+      "ResourceManager UI: ds-spark-01:8088. NodeManager UIs: ds-spark-02/03:8042.",
+      "store-rollup-probe is RUNNING with an AM and no executors — one 1536 MB NM cannot hold both a 1024 MB AM and a 1024 MB executor.",
+      "On the flagged host: jps, df, and yarn-site.xml (max-disk-utilization-per-disk-percentage). The report can claim a full disk when the disk is not full.",
+      "Restore a sane threshold (for example 90), restart that NodeManager, wait for the probe to finish. Do not set enable=false or 100%.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Read the RM and NM as Instruments",
+    "brief": "Read the RM and NM as Instruments",
+    "solution": "",
+    "idLabel": "10",
+    "theory": "",
+    "guide": ""
+  },
+  "platformSpec": {
+    "shape": "yarn-2",
+    "daemonMode": "auto",
+    "chapter": "yarn",
+    "kind": "orientation",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your YARN cluster",
+      "phases": [
+        "Creating your YARN cluster",
+        "Pulling the Spark-on-YARN image",
+        "Using the cached Spark-on-YARN image",
+        "Starting the ResourceManager",
+        "Starting the NodeManagers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking the NodeManager is healthy again, the probe finished, and Investigation matches."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

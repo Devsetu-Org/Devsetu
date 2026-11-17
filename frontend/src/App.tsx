@@ -25,13 +25,11 @@ import {
 } from './constants/accessLock';
 import SideQuestsPage from './pages/SideQuestsPage';
 import PlaygroundsPage from './pages/PlaygroundsPage';
-import ProjectsPage from './pages/ProjectsPage';
+import ProjectsPage, { ProjectsHub } from './pages/ProjectsPage';
 import ProjectModulePage from './pages/ProjectModulePage';
 import MinorsPage from './pages/MinorsPage';
 import SparkPlaygroundPage from './pages/SparkPlaygroundPage';
 import SparkPlaygroundOpenPage from './pages/SparkPlaygroundOpenPage';
-import SparkPrimerPage from './pages/SparkPrimerPage';
-import K8sPrimerPage from './pages/K8sPrimerPage';
 import K8sReadingPage from './pages/K8sReadingPage';
 import ProfilePage from './pages/ProfilePage';
 import FeedbackPage, { FEEDBACK_SIGN_IN } from './pages/FeedbackPage';
@@ -81,7 +79,13 @@ import {
 } from './components/K8sLabWorkspace';
 import { SPARK_PLAYGROUND_CHALLENGE_ID } from './constants/playgroundDatasets';
 import { PRICING_PATH } from './constants/pricing';
-import { catalogPathForChallenge, isPlayDomainId, looksLikePlaySessionId } from './constants/playCatalog';import type {
+import { hideAppSplash } from './utils/appSplash';
+import {
+  catalogLabPath,
+  catalogPathForChallenge,
+  isPlayDomainId,
+  looksLikePlaySessionId,
+} from './constants/playCatalog';import type {
   AuthMode,
   PlayState,
   WorkspaceTab,
@@ -105,13 +109,14 @@ function needsK8sLeaveConfirm(session: ActiveSession | null | undefined): boolea
   );
 }
 
-/** Old /play/* links (bookmarks, published lab solutions) moved to /track, /majors and /minors. */
+/** Old /play/* links (bookmarks, published lab solutions) moved to /track, /projects, /majors and /minors. */
 function LegacyPlayRedirect(): JSX.Element {
   const { pathname, search, hash } = useLocation();
   const rest = pathname.replace(/^\/play/, '');
   let to = `/track${rest}`;
-  if (/^\/(majors|minors)(\/|$)/.test(rest)) to = rest;
-  else if (/^\/projects(\/|$)/.test(rest)) to = rest.replace(/^\/projects/, '/majors');
+  if (/^\/projects\/.+/.test(rest)) to = rest.replace(/^\/projects/, '/majors');
+  else if (/^\/(majors|minors|projects)(\/|$)/.test(rest)) to = rest;
+  else if (/^\/machine-coding(\/|$)/.test(rest)) to = '/track';
   return <Navigate to={to + search + hash} replace />;
 }
 
@@ -159,7 +164,7 @@ const minorUnopened = (pathname: string): boolean =>
 const majorUnopened = (pathname: string): boolean =>
   getProject(pathname.split('/')[2])?.status !== 'ready';
 
-export default function App(): React.JSX.Element {
+export default function App(): React.JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
   const navigationType = useNavigationType();
@@ -172,6 +177,8 @@ export default function App(): React.JSX.Element {
   const pendingStartPathRef = useRef<string | null>(null);
   const pendingStartChallengeRef = useRef<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
+  /** Last ?lab= id restored (or intentionally abandoned) — blocks reopen bounce on Back. */
+  const labRestoreKeyRef = useRef<string | null>(null);
 
   const [authMode, setAuthMode] = useState<AuthMode>('resolving');
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
@@ -235,6 +242,12 @@ export default function App(): React.JSX.Element {
     };
   }, []);
 
+  // Keep the index.html splash up until auth is resolved, then fade it out.
+  useEffect(() => {
+    if (authMode === 'resolving') return;
+    hideAppSplash();
+  }, [authMode]);
+
   const refreshChallenges = async (): Promise<void> => {
     try {
       const list = await fetchChallenges();
@@ -288,12 +301,17 @@ export default function App(): React.JSX.Element {
 
   /** User navigated away while a lab was still opening — drop it and return to the catalog. */
   const abandonPendingStart = (): void => {
+    // Stamp the lab id so the ?lab= restore effect cannot reopen this lab in the
+    // same tick as playState flips to library (Back looked like a no-op).
+    const leavingLabId = pendingStartChallengeRef.current;
+    if (leavingLabId) labRestoreKeyRef.current = leavingLabId;
     startAbortRef.current?.abort();
     startAbortRef.current = null;
     void cancelInflightK8sStart(++openSeqRef.current);
     startAttemptRef.current += 1;
     pendingStartRef.current = false;
     pendingStartPathRef.current = null;
+    pendingStartChallengeRef.current = null;
     openingSessionRef.current = null;
     setLeaveLabPrompt(null);
     setLabLeaseLost(null);
@@ -391,12 +409,23 @@ export default function App(): React.JSX.Element {
     }
   }, [authMode]);
 
+  const handleSelectChallengeRef = useRef<(
+    challenge: ChallengePublic | ChallengeFull,
+    opts?: { force?: boolean; start?: boolean },
+  ) => Promise<void>>(async () => {});
+
   const handleSelectChallenge = async (
     challenge: ChallengePublic | ChallengeFull,
     opts: { force?: boolean; start?: boolean } = {},
   ): Promise<void> => {
     if (authMode !== 'interviewer') {
-      requestLogin();
+      requestLogin(
+        `${window.location.pathname}${window.location.search}`,
+        {
+          title: 'Sign in to open this lab',
+          body: 'Your problem statement will restore right after you sign in.',
+        },
+      );
       return;
     }
     if (ACCESS_LOCKED && !isAdminUser(currentUser)) {
@@ -565,14 +594,19 @@ export default function App(): React.JSX.Element {
         setActiveSession({ ...pendingSession, lockedMessage: message || LAB_LOCKED_FALLBACK_MSG });
       };
       setActiveTab('problem');
-      // Locked/checking first — never show Start or Creating until the pool is
-      // confirmed up. Admins used to flash Start/Creating when kafka was empty.
+      // Opening the lab only shows Start. The pool check runs after that click,
+      // as the first stepper step, and fails that step when no machines are up.
       setActiveSession({
         ...pendingSession,
-        lockedMessage: 'Checking whether the lab machines are available…',
+        ...(startNow ? { machineCheck: 'checking' as const } : { notStarted: true }),
       });
       setPlayState('active');
       openingSessionRef.current = pendingId;
+      // Keep ?lab= on the shelf URL so refresh restores the problem statement
+      // (there is no /track/<sessionId> until Start succeeds).
+      const labShelfUrl = catalogLabPath(challenge.id, challenge.sandboxType, challenge.tags);
+      pendingStartPathRef.current = labShelfUrl.split('?')[0];
+      navigate(labShelfUrl, { replace: true });
 
       try {
         const full = await fetchChallenge(challenge.id);
@@ -587,8 +621,14 @@ export default function App(): React.JSX.Element {
           return;
         }
 
-        // Fail closed for everyone (including admin): a down pool or a failed
-        // check locks the terminal. Do not show Start, then Pending pods.
+        if (!startNow) {
+          attempt.settle();
+          setActiveSession({ ...pendingSession, notStarted: true });
+          return;
+        }
+
+        // Fail closed for everyone (including admin): a down pool fails the
+        // first stepper step. Do not show Start, then Pending pods.
         const availability = await fetchK8sAvailability(full.id).catch(() => ({
           available: false,
           message: LAB_LOCKED_FALLBACK_MSG,
@@ -596,17 +636,14 @@ export default function App(): React.JSX.Element {
         if (attempt.stale()) return;
         if (!availability.available) {
           attempt.settle();
-          lockLab(availability.message);
+          setActiveSession({
+            ...pendingSession,
+            machineCheck: 'failed',
+            machineCheckMessage: availability.message || LAB_LOCKED_FALLBACK_MSG,
+          });
           return;
         }
 
-        if (!startNow) {
-          attempt.settle();
-          setActiveSession({ ...pendingSession, notStarted: true });
-          return;
-        }
-
-        // Pool is up — only now leave the lock and show the boot/warming UI.
         setActiveSession(pendingSession);
         await cancelInflightK8sStart(attempt.openSeq);
         if (attempt.stale()) return;
@@ -702,6 +739,31 @@ export default function App(): React.JSX.Element {
       navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
     }
   };
+  handleSelectChallengeRef.current = handleSelectChallenge;
+
+  /** Reload on /track/…?lab=<id> should reopen the problem statement, not flash a blank page. */
+  useEffect(() => {
+    if (authMode !== 'interviewer') return;
+    if (playState !== 'library') {
+      if (playState === 'active') labRestoreKeyRef.current = null;
+      return;
+    }
+    const labId = new URLSearchParams(location.search).get('lab');
+    if (!labId) {
+      labRestoreKeyRef.current = null;
+      return;
+    }
+    if (labRestoreKeyRef.current === labId) return;
+    // Wait for the first catalog fetch; then stop retrying if the lab is gone.
+    if (challenges.length === 0 && !challengesError) return;
+    const challenge = challenges.find((c) => c.id === labId);
+    if (!challenge || !(challenge as ChallengePublic).finalized) {
+      labRestoreKeyRef.current = labId;
+      return;
+    }
+    labRestoreKeyRef.current = labId;
+    void handleSelectChallengeRef.current(challenge);
+  }, [authMode, playState, location.search, challenges, challengesError]);
 
   // Keep play UI in sync with the URL (browser Back/Forward, deep links).
   useEffect(() => {
@@ -1097,12 +1159,19 @@ export default function App(): React.JSX.Element {
     }
   };
 
-  const handleBackToLibrary = (): void => {
-    const dest = catalogPathForChallenge(activeChallenge?.id, activeChallenge?.sandboxType, activeChallenge?.tags);    // A lab still opening keeps the catalog URL, so navigating there alone never
+  const handleBackToLibrary = useCallback((): void => {
+    const dest = catalogPathForChallenge(activeChallenge?.id, activeChallenge?.sandboxType, activeChallenge?.tags);
+    // A lab still opening keeps the catalog URL, so navigating there alone never
     // invalidates the start; it would finish and pull the user back into the lab.
-    if (pendingStartRef.current || activeSession?.id.startsWith('pending-k8s-')) {
+    if (
+      pendingStartRef.current
+      || activeSession?.id.startsWith('pending-k8s-')
+      || activeSession?.notStarted
+    ) {
+      if (activeChallenge?.id) labRestoreKeyRef.current = activeChallenge.id;
       abandonPendingStart();
-      navigate(dest);
+      // replace: drop ?lab= so the shelf restore effect does not bounce back in.
+      navigate(dest, { replace: true });
       void refreshChallenges();
       return;
     }
@@ -1123,7 +1192,17 @@ export default function App(): React.JSX.Element {
     navigate(dest);
     if (leaving) void endActiveSessionBestEffort(leaving);
     void refreshChallenges();
-  };
+  }, [
+    activeChallenge?.id,
+    activeChallenge?.sandboxType,
+    activeChallenge?.tags,
+    activeSession,
+    playState,
+    ending,
+    dismissK8sLabToCatalog,
+    endActiveSessionBestEffort,
+    navigate,
+  ]);
 
   /**
    * The lab's fixed time ran out: keep the brief up and replace the shell with
@@ -1295,17 +1374,15 @@ export default function App(): React.JSX.Element {
     endResult,
     activeTab,
     ending,
+    handleBackToLibrary,
   ]);
 
   const needsUsername =
     authMode === 'interviewer' && Boolean(currentUser) && !currentUser?.username;
 
+  // Splash in index.html covers the viewport while auth resolves.
   if (authMode === 'resolving') {
-    return (
-      <div className="login">
-        <div><span className="spinner" /> Loading…</div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -1319,12 +1396,12 @@ export default function App(): React.JSX.Element {
               : <Navigate to="/track" replace />
           }
         />
-        <Route path={WAITLIST_PATH} element={<WaitlistPage />} />
-        <Route path={LEGACY_WAITLIST_PATH} element={<Navigate to={WAITLIST_PATH} replace />} />
         <Route
           path="/auth/google/callback"
           element={<GoogleAuthCallbackPage onLoggedIn={handleLoggedIn} />}
         />
+        <Route path={WAITLIST_PATH} element={<WaitlistPage />} />
+        <Route path={LEGACY_WAITLIST_PATH} element={<Navigate to={WAITLIST_PATH} replace />} />
         <Route path="play/*" element={<LegacyPlayRedirect />} />
         <Route element={<AppLayout />}>
           <Route path="track" element={<PlayPage />} />
@@ -1350,7 +1427,9 @@ export default function App(): React.JSX.Element {
           <Route path="track/quests" element={<SideQuestsPage />} />
           <Route path="track/quests/:topicId" element={<ContentOpenRoute><SideQuestsPage /></ContentOpenRoute>} />
           <Route path="track/playgrounds" element={<PlaygroundsPage />} />
-          <Route path="majors" element={<ProjectsPage />} />
+          <Route path="projects" element={<ProjectsHub />} />
+          <Route path="machine-coding/*" element={<Navigate to="/track" replace />} />
+          <Route path="majors" element={<Navigate to="/projects" replace />} />
           <Route path="majors/:projectId" element={<ProjectsPage />} />
           <Route
             path="majors/:projectId/:moduleId"
@@ -1371,8 +1450,18 @@ export default function App(): React.JSX.Element {
           <Route path="learners/:learnerId" element={<LearnerProfilePage />} />
           <Route path="track/spark-playground/open" element={<ContentOpenRoute><SparkPlaygroundOpenPage /></ContentOpenRoute>} />
           <Route path="track/spark-playground" element={<ContentOpenRoute><SparkPlaygroundPage /></ContentOpenRoute>} />
-          <Route path="track/data-engineer/spark/intro" element={<ContentOpenRoute><SparkPrimerPage /></ContentOpenRoute>} />
-          <Route path="track/devops-engineer/kubernetes/intro" element={<ContentOpenRoute><K8sPrimerPage /></ContentOpenRoute>} />
+          <Route
+            path="track/data-engineer/spark/intro"
+            element={<Navigate to="/track/platforms-engineer/spark" replace />}
+          />
+          <Route
+            path="track/devops-engineer/kubernetes/intro"
+            element={<Navigate to="/track/devops-engineer/kubernetes" replace />}
+          />
+          <Route
+            path="track/platforms-engineer/spark/intro"
+            element={<Navigate to="/track/platforms-engineer/spark" replace />}
+          />
           <Route
             path="track/devops-engineer/introduction"
             element={<Navigate to="/track/devops-engineer" replace />}
@@ -1392,6 +1481,10 @@ export default function App(): React.JSX.Element {
           <Route
             path="track/devops-engineer/docker/read/:readingSlug"
             element={<ContentOpenRoute><K8sReadingPage trackId="docker" /></ContentOpenRoute>}
+          />
+          <Route
+            path="track/platforms-engineer/spark/read/:readingSlug"
+            element={<ContentOpenRoute><K8sReadingPage trackId="spark" /></ContentOpenRoute>}
           />
           <Route path="track/:domainId/:panelId/leaderboard" element={<TrackLeaderboardPage />} />
           <Route path="track/:domainId" element={<PlayPage />} />
@@ -1485,7 +1578,11 @@ export default function App(): React.JSX.Element {
         <p>
           {activeChallenge?.sandboxType === 'kafka'
             ? 'Your cluster will be stopped. Topics you created in this lab are removed.'
-            : isBoxChallenge(activeChallenge)
+            : activeChallenge?.sandboxType === 'spark'
+              ? 'Your cluster will be stopped. Applications running in this lab are removed.'
+              : activeChallenge?.sandboxType === 'k8s-platform'
+                ? 'Your cluster will be stopped. Everything in this lab is removed.'
+                : isBoxChallenge(activeChallenge)
               ? 'Your machine will be stopped. All unsaved progress will be removed.'
               : 'You will leave this lab. Unsaved changes on the machine may be lost.'}
         </p>

@@ -1,11 +1,13 @@
 import type { ChapterReading } from './types';
+import btreeUpdateInPlaceImg from '../../assets/project-readings/b-tree/btree-update-in-place.jpg';
+import lsmAppendThenMergeImg from '../../assets/project-readings/b-tree/lsm-append-then-merge.jpg';
 
 /** B-tree minor, chapter 00: what a B+ tree engine is, where it runs, and the plan. */
 export const B_TREE_OVERVIEW: ChapterReading = {
   eyebrow: 'B-tree · Chapter 00',
   title: 'B-trees: the engine behind update-in-place databases',
   lede:
-    'Start here before writing any code. We first look at **how storage engines are built in general**, and at the two designs nearly all of them use: **B-trees** and **LSM trees**. Then we dig into the B-tree: how a B+ tree stays balanced, where it runs, the problems it causes in production, and exactly what you will build across the five chapters of this minor.',
+    'Start here before writing any code. First, how storage engines work and the two designs nearly all of them use. Then the B-tree in depth: how a B+ tree stays balanced, where it runs, the problems it causes in production, and what you will build across the five chapters of this minor.',
   showBlogStamp: true,
   sections: [
     {
@@ -49,17 +51,12 @@ export const B_TREE_OVERVIEW: ChapterReading = {
       body: [
         'A **log-structured merge tree** never changes data where it lies. Writes collect in a sorted buffer in memory. When the buffer fills, it is written to disk in one sequential pass as a sorted, read-only file. Over time, a background process merges those files together.',
       ],
-      code: {
-        language: 'plaintext',
-        filename: 'an LSM tree',
-        code: [
-          '   put("k") → [ memtable, sorted, in memory ] ──flush──▶  file 3   (newest)',
-          '                                                          file 2',
-          '                                                          file 1   (oldest)',
-          '',
-          '   get("k"):  memtable → file 3 → file 2 → file 1     (first answer wins)',
-          '   background: merge files 1–3 into one, keep the newest version of each key',
-        ].join('\n'),
+      figure: {
+        image: lsmAppendThenMergeImg,
+        imageAlt:
+          'Hand-drawn LSM tree: put goes into an in-memory memtable, flush writes immutable SSTables newest on top, get checks memtable then SSTables newest first, compaction merges files in the background',
+        caption: 'Append to memory, flush sorted files, merge later. First answer on a read wins.',
+        flush: true,
       },
       after: [
         'Every write is cheap and sequential. The catch is that one key can exist in several places at once, so a read may have to look in several of them, and the merging never stops. That is the LSM minor. Here we take the other trade.',
@@ -72,17 +69,12 @@ export const B_TREE_OVERVIEW: ChapterReading = {
         'A B-tree stores data in fixed-size **pages**, typically 4 to 16 KiB, arranged as a tree. Leaf pages hold the keys and values in sorted order. The pages above them hold only separator keys and pointers that say which child page covers which range.',
         'Most databases use the **B+ tree** variant described here, and everyone still calls it a B-tree. In a B+ tree the values live only in the leaves; the internal pages are a pure directory. Leaves are also linked sideways, so a range scan walks neighbours instead of climbing the tree again.',
       ],
-      code: {
-        language: 'plaintext',
-        filename: 'a B+ tree',
-        code: [
-          '                    [ root:   g   |   p ]',
-          '                   /          |          \\',
-          '   [ a b c d e f ] ←→ [ g h i … o ] ←→ [ p q r … z ]   ← leaves, linked',
-          '',
-          '   get("k"):  root → middle leaf → found       (one path, one place)',
-          '   put("k"):  same path, change the leaf page where it is',
-        ].join('\n'),
+      figure: {
+        image: btreeUpdateInPlaceImg,
+        imageAlt:
+          'Hand-drawn B-tree: a root with separators g and p pointing to three sorted leaf pages; get follows one root-to-leaf path, put changes that same leaf in place',
+        caption: 'One path, one place. A write finds the leaf and changes it.',
+        flush: true,
       },
       subsections: [
         {
@@ -106,45 +98,6 @@ export const B_TREE_OVERVIEW: ChapterReading = {
         title: 'The trade a B-tree makes',
         body: [
           'Every key lives in exactly one place, so **reads are fast and predictable**. The price is that a stream of writes to random keys becomes a stream of **random page writes**, and a small change dirties a whole page.',
-        ],
-      },
-    },
-    {
-      id: 'side-by-side',
-      title: 'B-tree vs LSM tree, side by side',
-      body: [
-        'The two designs make opposite trades, which is why both are everywhere.',
-      ],
-      table: {
-        headers: ['', 'B-tree', 'LSM tree'],
-        rows: [
-          ['**A write**', 'Find the page, change it in place', 'Append to a log, insert into a memory buffer'],
-          ['**Disk pattern**', 'Random page writes', 'Large sequential file writes'],
-          ['**Where a key lives**', 'Exactly one page', 'Memory plus possibly several files'],
-          ['**Point lookup**', 'One root-to-leaf path', 'Check memory, then files newest first; filters skip most files'],
-          ['**Range scan**', 'Walk neighbouring leaf pages', 'Merge sorted streams from every file'],
-          ['**Delete**', 'Remove the key; maybe merge pages', 'Write a tombstone that hides older versions'],
-          ['**Background work**', 'Little (checkpoints, eviction)', 'Compaction, all the time'],
-          ['**Space**', 'Half-empty pages after splits', 'Old versions until compaction; compresses well'],
-          ['**Weak spot**', 'Heavy random writes', 'Read latency and compaction spikes'],
-        ],
-      },
-      after: [
-        'Engineers describe the trade with three kinds of **amplification**: extra bytes written to disk per byte the application writes (**write**), extra places checked per lookup (**read**), and extra disk used per byte of live data (**space**). B-trees keep read amplification low and pay in write amplification. LSM trees do the reverse. No design is best at all three at once.',
-      ],
-      tableAfter: {
-        headers: ['B-trees are usually better at', 'LSM trees shine at'],
-        rows: [
-          ['Read-heavy workloads with many point lookups', 'Write-heavy workloads: logs, metrics, events, messages'],
-          ['Predictable read latency on every query', 'Ingesting data faster than random I/O allows'],
-          ['Frequent in-place updates of the same rows', 'Compact storage, since files are rewritten and compressed'],
-        ],
-      },
-      callout: {
-        kind: 'tip',
-        title: 'The workload decides',
-        body: [
-          'Because MySQL can run either engine under the same SQL, the choice is easy to see in practice: Meta moved much of its MySQL fleet from InnoDB (a B-tree) to MyRocks (an LSM tree), largely to cut storage. The rest of this minor is about the B-tree side, built piece by piece.',
         ],
       },
     },
@@ -186,6 +139,45 @@ export const B_TREE_OVERVIEW: ChapterReading = {
         title: 'The page is the unit of I/O',
         body: [
           'Almost every cost in this design is measured in pages: a lookup costs a few page reads, a write dirties one page (sometimes two when a split happens), and the buffer pool decides which pages stay in RAM. Thinking in pages is the whole game.',
+        ],
+      },
+    },
+    {
+      id: 'side-by-side',
+      title: 'B-tree vs LSM tree, side by side',
+      body: [
+        'The two designs make opposite trades, which is why both are everywhere.',
+      ],
+      table: {
+        headers: ['', 'B-tree', 'LSM tree'],
+        rows: [
+          ['**A write**', 'Find the page, change it in place', 'Append to a log, insert into a memory buffer'],
+          ['**Disk pattern**', 'Random page writes', 'Large sequential file writes'],
+          ['**Where a key lives**', 'Exactly one page', 'Memory plus possibly several files'],
+          ['**Point lookup**', 'One root-to-leaf path', 'Check memory, then files newest first; filters skip most files'],
+          ['**Range scan**', 'Walk neighbouring leaf pages', 'Merge sorted streams from every file'],
+          ['**Delete**', 'Remove the key; maybe merge pages', 'Write a tombstone that hides older versions'],
+          ['**Background work**', 'Little (checkpoints, eviction)', 'Compaction, all the time'],
+          ['**Space**', 'Half-empty pages after splits', 'Old versions until compaction; compresses well'],
+          ['**Weak spot**', 'Heavy random writes', 'Read latency and compaction spikes'],
+        ],
+      },
+      after: [
+        'Engineers describe the trade with three kinds of **amplification**: extra bytes written to disk per byte the application writes (**write**), extra places checked per lookup (**read**), and extra disk used per byte of live data (**space**). B-trees keep read amplification low and pay in write amplification. LSM trees do the reverse. No design is best at all three at once.',
+      ],
+      tableAfter: {
+        headers: ['B-trees are usually better at', 'LSM trees shine at'],
+        rows: [
+          ['Read-heavy workloads with many point lookups', 'Write-heavy workloads: logs, metrics, events, messages'],
+          ['Predictable read latency on every query', 'Ingesting data faster than random I/O allows'],
+          ['Frequent in-place updates of the same rows', 'Compact storage, since files are rewritten and compressed'],
+        ],
+      },
+      callout: {
+        kind: 'tip',
+        title: 'The workload decides',
+        body: [
+          'Because MySQL can run either engine under the same SQL, the choice is easy to see in practice: Meta moved much of its MySQL fleet from InnoDB (a B-tree) to MyRocks (an LSM tree), largely to cut storage. The rest of this minor is about the B-tree side, built piece by piece.',
         ],
       },
     },
@@ -253,7 +245,7 @@ export const B_TREE_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **btreekv**, a working B+ tree storage engine in Go, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
+        'Over five chapters you build **btreekv**, a working B+ tree storage engine in Go, Python, or C++, starting from an almost empty repository. Each chapter adds one box from the diagrams above, and each ends with tests that prove it works.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -302,7 +294,7 @@ export const B_TREE_OVERVIEW: ChapterReading = {
         '**Your code carries forward.** Each chapter adds only the files it needs and starts from your own code for the earlier ones. Stuck on one? You can switch that chapter to our reference solution and keep going.',
       ],
       after: [
-        '**What you need:** comfortable Go (slices, maps, structs, methods, and `go test`). No database or storage background; every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No database or storage background; every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',
@@ -319,6 +311,6 @@ export const B_TREE_OVERVIEW: ChapterReading = {
     'A B+ tree keeps values in the leaves, separators in the internal pages, and links leaves sideways for range scans.',
     'Around the tree sit a pager, a write-ahead log, and a buffer pool: without them it is a data structure, not an engine.',
     'Postgres, InnoDB, SQLite, WiredTiger, LMDB, and bbolt are all built this way, and their classic production problems are B-tree behaviour.',
-    'Across five chapters you build each piece in Go: pager, B+ tree, write-ahead log, buffer pool, and mutations.',
+    'Across five chapters you build each piece in Go, Python, or C++: pager, B+ tree, write-ahead log, buffer pool, and mutations.',
   ],
 };

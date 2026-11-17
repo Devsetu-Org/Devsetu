@@ -1,0 +1,64 @@
+{
+  "id": "spark-11-land-in-the-right-capacity-queue",
+  "number": 825,
+  "finalized": true,
+  "title": "Land in the Right Capacity Queue",
+  "description": "**SITUATION:**\n\nSame YARN cluster as Lab 2.1 / 2.2 — ResourceManager on `ds-spark-01`, NodeManagers on `ds-spark-02` / `ds-spark-03`, submit from `shell`. QuickBite runs capacity queues (`default`, `production`, `adhoc`). Platform policy: **store-rollup belongs in `production`**.\n\nThis morning's run is still **ACCEPTED** on the RM and never starts executors. The lasting submit path on disk is `~/lab/submit-store-rollup.sh`. Someone will tell you to raise `default` capacity until it looks green — that is not the fix.\n\n**YOUR TASK:**\n\n1. Read the RM Applications and Scheduler views (or `yarn application -list` / queue metrics). Record the morning job's state and queue, and why it can sit Accepted forever on this cluster.\n2. Compare that to spare capacity on the other queues — especially the queue platform policy names for store-rollup.\n3. Find where the wrong queue is baked into the lasting submit path. Repair that path; do **not** inflate `default` capacity.\n4. Run the repaired wrapper so store-rollup actually finishes. Record the new application id.\n5. Fill Investigation in story order, then Submit.\n\n**SPEC:**\n\n- `~/lab/submit-store-rollup.sh` submits with `--queue production` and the lab shape (2×1×512m).\n- A successful `store-rollup` application is RUNNING or FINISHED in `production` (not the Accepted morning id).\n- `default` capacity stays tight — do not raise it to paper over placement.\n- Do not disable the capacity scheduler.\n- Investigation matches what the RM and the wrapper showed.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "yarn",
+    "l1",
+    "multi-step-bug",
+    "yarn-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "yarn application -list — state and queue for the morning store-rollup. RM Scheduler shows each queue's share.",
+      "default is a small slice of the cluster. The lab AM ask is about 1024 MB — if that does not fit the queue's absolute share, the app stays Accepted.",
+      "Open ~/lab/submit-store-rollup.sh and ~/lab/notes.txt — policy vs what the wrapper still sends.",
+      "Repair --queue on the wrapper, then ~/lab/submit-store-rollup.sh. Do not edit capacity-scheduler.xml to inflate default.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "Land in the Right Capacity Queue",
+    "brief": "Land in the Right Capacity Queue",
+    "solution": "",
+    "idLabel": "11",
+    "theory": "",
+    "guide": ""
+  },
+  "platformSpec": {
+    "shape": "yarn-2",
+    "daemonMode": "auto",
+    "chapter": "yarn",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your YARN cluster",
+      "phases": [
+        "Creating your YARN cluster",
+        "Pulling the Spark-on-YARN image",
+        "Using the cached Spark-on-YARN image",
+        "Starting the ResourceManager",
+        "Starting the NodeManagers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking the repaired wrapper, production placement, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 15
+}

@@ -59,13 +59,8 @@ func OpenAppend(path string, good int64, mode SyncMode) (*Writer, error) {
 // Append writes recs to the end of the log as one batch. When it returns nil
 // under SyncAlways, every record is on disk.
 func (w *Writer) Append(recs ...Record) error {
-	// TODO(3.2): Reuse w.buf: start from w.buf[:0] and encode every record into it with
-	// w.buf = encode(w.buf, r). Then write the whole batch with ONE w.f.Write
-	// call, add the bytes written to w.size even if the write failed, and
-	// return the error if there was one.
-	// With SyncAlways, finish with return w.Sync(). (Sync, given below, also
-	// records how much of the log is durable.)
-	panic("TODO(3.2): Append")
+	// TODO(3.2)
+	panic("TODO(3.2)")
 }
 
 // Sync fsyncs the log and remembers that everything written so far is durable.

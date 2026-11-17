@@ -1,248 +1,139 @@
-# Kafka track — first ten labs
+# Kafka track — Platforms Engineer
 
-Platforms Engineer, Kafka panel. The ten packs are in `backend/challenges/packs/kafka-*.json` and listed on the Kafka shelf in `frontend/src/constants/playCatalog.ts`. kafka-01 is `finalized: true` and starts a kafka-3 cluster: three broker pods and a shell pod (`setup.sh`, `grade.sh`). The other nine stay `finalized: false` until their scripts exist.
+Platforms Engineer, Kafka panel. Packs will live in `backend/challenges/packs/kafka-*.json` and are listed on the Kafka shelf in `frontend/src/constants/playCatalog.ts`.
 
-Ridely already runs trips, matches, and alerts on this cluster. The learner is on call for the brokers. They do not write a producer.
+Curriculum design: `docs/kafka-curriculum-draft.csv`.
 
-Two pod shapes, from `deploy/eks/kafka/README.md`:
+Runtime: shapes from `deploy/eks/kafka/README.md` and `workspace/kafkaBox.ts`:
+`kafka-zk-3` (Lab 1: ZooKeeper + 3 classic brokers), `kafka-3` (Lab 2+: KRaft combined), later `kafka-1` / `kafka-4` / Kafka-on-K8s. Pool: `devlabs.io/pool=kafka` (`./deploy/eks/eks-kafka.sh`). Images: `apache/kafka:3.9.1`, `zookeeper:3.9`. Helpers: `backend/challenges/kafka/_lib/lab.sh`.
 
-| Shape | Labs |
-| --- | --- |
-| `kafka-3` | 00, 01, 02, 03, 04, 05, 09 |
-| `kafka-1` | 06, 07, 08 |
+**Story.** QuickBite already runs `orders`, `rider.dispatch`, and `restaurant.notifications`. The learner runs the brokers and the platform path around them—not the producer/consumer app code.
 
-`kafka-1` is one broker. Replication factor 3 is not possible there, so lab 01 stays on `kafka-3`. The shell has `BOOTSTRAP_SERVERS` set to the three broker DNS names, and the Kafka scripts on `PATH`. Client heap is 64 MB.
+**Evolution.** Lab 1 is intentionally **ZooKeeper-era** so learners see how the control plane used to work. From Lab 2 onward the track is **KRaft** (no ZooKeeper).
 
-A healthy `kafka-3` lab starts from the trial pod: three combined KRaft brokers, offsets topic at 3 partitions and replication factor 3, cleaner dedupe buffer 16 MB. `setup.sh` then breaks one thing.
+**Design note.** Chapter *buckets* rhyme with the Spark shelf for panel UX. Lab sequences are Kafka-first—do not chase Spark title parity.
 
----
+The prior ops shelf (`kafka-00` … `kafka-09`) is **Backlog**. Reuse lesson DNA where it fits; ship **new pack ids** for active chapters.
 
-## kafka-00 — First shift on the Kafka cluster
+## Chapter 1 — Foundations of a Kafka Cluster
 
-Shape: `kafka-3`. Difficulty: L0.
+Shape: **Lab 1** `kafka-zk-3`; **Labs 2–8** `kafka-3` (KRaft).
 
-**Situation.** First shift on QuickBite's Data Platform Kafka. The cluster is already up. `orders`, `restaurant.notifications`, and `rider.dispatch` are live; what each carries is in the Intro. Leftover topic `scratch` must be deleted. The learner writes down the controller, the leader of `rider.dispatch` partition 3, and how far that partition has been written.
+Arc: ZooKeeper-era layout → open a topic on KRaft → follow a write → replica map → URP vs failed produce → min.ISR → disk/segments → stacked capstone.
 
-**Task.**
+| Lab | Title | Kind | Diff | Status |
+| --- | --- | --- | --- | --- |
+| kafka-01 | Stand Up the Cluster and Find Everything on Disk | orientation | L0 | Open (`finalized: true`, ZooKeeper + Investigation) |
+| kafka-02 | Open a Topic the Platform Way | orientation | L0 | Planned (KRaft) |
+| kafka-03 | Trace a Produce From Client to Last Replica | orientation | L0 | Planned (KRaft) |
+| kafka-04 | The Partition and Replica Map | orientation | L0 | Planned (KRaft) |
+| kafka-05 | Under-Replicated Is Not a Failed Write | multi-step-bug | L1 | Planned (KRaft) |
+| kafka-06 | min.ISR Is Why Produces Fail | multi-step-bug | L1 | Planned (KRaft) |
+| kafka-07 | Segments, Retention, and Why Disk Fills | multi-step-bug | L1 | Planned (KRaft) |
+| kafka-08 | Capstone: Disk, ISR, and the Write Path | capstone | L2 | Planned (KRaft) |
 
-1. Write the controller broker id to `~/answers/controller`.
-2. Write the leader of `rider.dispatch` partition 3 to `~/answers/rider-dispatch-3-leader`.
-3. Write that partition's log end to `~/answers/rider-dispatch-3-end`.
-4. Delete `scratch`.
+### kafka-01
 
-**Spec.**
+`shape: kafka-zk-3`. ZooKeeper + three classic brokers already up. Setup plants live topics, decoy `/opt/zookeeper/data` + `/opt/kafka/kafka-logs`, and a wrong handoff. Learner records ZK + broker PIDs, finds live ZK `dataDir` (`/data`) and Kafka `log.dirs` (`/var/lib/kafka/data` via process env), reads controller from `zookeeper-shell get /controller`. Investigation: logDirsSource=`process-env`, controlPlane=`zookeeper`. Grade rejects decoys and KRaft answers. Local e2e: `solution/validate-local.sh`.
 
-- The end offset is the position after the last record on that partition, not the last stable offset.
+### kafka-02
 
-**Setup.** Create `orders` and `rider.dispatch` with 6 partitions, and `restaurant.notifications` with 3. Replication factor 3, `min.insync.replicas=2`. Produce six records round-robin onto `rider.dispatch` so partition 3 is not empty. Create `scratch` with 1 partition and replication factor 1. All three brokers running.
+**KRaft from here.** Create `order.status` to platform shape (partitions, RF, retention, min.ISR). Existing topics untouched. Ticket template may be wrong. Guide should note there is no ZooKeeper on this cluster.
 
-**Grade.** Answer files match `kafka-metadata-quorum.sh describe --status` and `kafka-get-offsets.sh --topic rider.dispatch --partitions 3 --time -1`. `scratch` does not exist.
+### kafka-03
 
----
+Seeded `rider.dispatch`. Produce one keyed record; answer files for leader, ISR, end offsets per replica.
 
-## kafka-01 — Open the order status topic
+### kafka-04
 
-Shape: `kafka-3`. Difficulty: L0.
+Worksheet / Investigation: RF, ISR, preferred leader, min.ISR, unclean election. Predict three broker-death cases. No cluster break required.
 
-**Situation.** QuickBite already runs `orders`, `rider.dispatch`, and `restaurant.notifications` on the three-broker POC cluster. These must not change in this lab. The next need is `order.status`: one event per status change (preparation, pickup, delivery), keyed by Order ID so each order's events stay in sequence. Customers, riders, and support each need that shared ordered log. Today those changes are not recorded anywhere they can all read.
+### kafka-05
 
-**Task.** Create `order.status` to the spec. Do not change the three topics already live.
+One broker stopped. Produces still succeed; URP non-zero. Start broker; wait ISR=3; leave min.ISR and unclean flags alone.
 
-**Spec.**
+### kafka-06
 
-- Name: `order.status`
-- Partitions: 6
-- Replication factor: 3
-- `retention.ms`: 259200000 (3 days)
-- `min.insync.replicas`: 2
-- Cleanup policy stays `delete`
-- `restaurant.notifications` stays at 3 partitions. `orders` and `rider.dispatch` stay at 6.
+RF too low for min.ISR with a broker down → produce failures. Ticket pushes min.ISR=1. Refuse; restore RF + broker.
 
-**Setup.** Healthy cluster with `orders` and `rider.dispatch` at 6 partitions, `restaurant.notifications` at 3, replication factor 3, `min.insync.replicas=2`. No `order.status`.
+### kafka-07
 
-**Grade.** `kafka-topics.sh --describe` and `kafka-configs.sh --describe --entity-type topics --entity-name order.status` match the spec. Every partition has three in-sync replicas. The three existing topics are untouched, including `restaurant.notifications` at 3 partitions and `retention.ms` `604800000`.
+Full log dir: debug topic + keep-forever. Free disk; teach delete vs compact (status changelog is the compact one). Hot path retention left alone unless ticket says otherwise.
 
----
+### kafka-08
 
-## kafka-02 — Orders-audit has one copy
+Capstone stacking 1.5–1.7: leader disk full, produces fail on some partitions, group behind on those partitions. No unclean election, no min.ISR=1, no reset to latest.
 
-Shape: `kafka-3`. Difficulty: L1.
+## Chapter 2 — Consumer Groups and Read Position
 
-**Situation.** `trips-audit` was created with one replica, and every partition is on `kafka-0`. That broker is patched tonight. If it stops, the audit log goes offline. Raise the replication factor to 3 before then. Leave the current leaders where they are.
+Shape: `kafka-3` or `kafka-1` where replication is not the lesson.
 
-**Task.** Reassign `trips-audit` so every partition has replicas on all three brokers, then wait until every in-sync set has three members.
+| Lab | Title | Kind | Diff | Status |
+| --- | --- | --- | --- | --- |
+| kafka-09 | Meet the Consumer Group | orientation | L0 | Planned |
+| kafka-10 | One Partition Stuck the Desk | multi-step-bug | L1 | Planned |
+| kafka-11 | Put the Offsets Back | multi-step-bug | L1 | Planned |
+| kafka-12 | The Group Never Stays Stable | multi-step-bug | L1 | Planned |
+| kafka-13 | Replay Ate the Request Path | multi-step-bug | L2 | Planned |
 
-**Spec.**
+## Chapter 3 — Kafka on Kubernetes
 
-- Replication factor 3 on every `trips-audit` partition.
-- ISR size 3 on every partition.
-- The leader of each partition is the broker that led it when the lab opened.
+Packs not built; needs Kafka-on-K8s runtime shape.
 
-**Setup.** `trips-audit`, 4 partitions, replication factor 1, all leaders and replicas on broker 1 (`kafka-0`). Record the leaders in a file the grader can read, outside the learner's home.
+| Lab | Title | Kind | Diff | Status |
+| --- | --- | --- | --- | --- |
+| kafka-14 | Broker Identity Is the PVC | orientation | L0 | Planned |
+| kafka-15 | Clients Are Calling an Address Brokers Do Not Advertise | multi-step-bug | L1 | Planned |
+| kafka-16 | Roll One Broker at a Time | multi-step-bug | L1 | Planned |
+| kafka-17 | StorageClass and the Broker That Never Joins | multi-step-bug | L1 | Planned |
+| kafka-18 | Bootstrap, Namespace, and Listener Drift | capstone | L2 | Planned |
 
-**Grade.** ISR is `{1,2,3}` on every partition. Leaders equal the recorded set. No other topic's replica placement changed.
+Listener / advertised / cluster-id style faults live here (and in Incidents), not as a Chapter 1 “post-maintenance” mirror.
 
----
+## Chapter 4 — Platform Automations
 
-## kafka-03 — Broker 2 left the ISR
+Topic-as-code, ACL/quota provision, fail-closed, drift → repair, request API.
 
-Shape: `kafka-3`. Difficulty: L1.
+| Lab | Title | Kind | Diff | Status |
+| --- | --- | --- | --- | --- |
+| kafka-19 | Topic Shape as Desired State | orientation | L0 | Planned |
+| kafka-20 | ACL and Quota From the Request File | multi-step-bug | L1 | Planned |
+| kafka-21 | Refuse RF=1 and Keep-Forever | multi-step-bug | L1 | Planned |
+| kafka-22 | Print Drift, Then Repair | multi-step-bug | L1 | Planned |
+| kafka-23 | Topic Request API | multi-step-bug | L1 | Planned |
 
-**Situation.** `matches` is under-replicated. Producers are still succeeding. `kafka-2` is stopped. The page is `UnderReplicatedPartitions`, not a produce error. Bring the broker back and wait until every matches partition has three in-sync replicas. Do not run a leader election by hand, and do not delete data.
+## Chapter 5 — Capacity, Leadership, and Placement
 
-**Task.** Start `kafka-2`. Wait for the ISR.
+Reports, hot partitions, reassignment onto a new broker, planned leadership shed—Kafka placement, not “add executors.”
 
-**Spec.**
+| Lab | Title | Kind | Diff | Status |
+| --- | --- | --- | --- | --- |
+| kafka-24 | Under-Replicated Report | orientation | L0 | Planned |
+| kafka-25 | Lag Report for Dispatch | orientation | L0 | Planned |
+| kafka-26 | One Key Owns the Topic | multi-step-bug | L1 | Planned |
+| kafka-27 | Move Replicas Onto the Empty Broker | multi-step-bug | L1 | Planned |
+| kafka-28 | Shed Leadership Before the Patch | multi-step-bug | L1 | Planned |
 
-- `kafka-2` is running.
-- Every `matches` partition has ISR size 3.
-- `min.insync.replicas` is still 2.
-- Unclean leader election is still off.
+## Chapter 6 — Incidents
 
-**Setup.** Stop the `kafka-2` container after the cluster is healthy. `matches` is replication factor 3, so each partition keeps a leader on `kafka-0` or `kafka-1`.
+| Lab | Title | Kind | Diff | Status |
+| --- | --- | --- | --- | --- |
+| kafka-29 | Leader Disk Full, Desk Behind | capstone | L2 | Planned |
+| kafka-30 | Offsets After the Firefight | multi-step-bug | L1 | Planned |
+| kafka-31 | Two Topics, One Full Broker | multi-step-bug | L2 | Planned |
+| kafka-32 | Drain While the Cluster Is Already Hurting | multi-step-bug | L2 | Planned |
+| kafka-33 | Quota, Listener, and Disk Together | capstone | L2 | Planned |
 
-**Grade.** Process in `kafka-2` is up. `kafka-topics.sh --describe --topic matches --under-replicated-partitions` prints nothing. Config flags unchanged.
+## Backlog pool
 
-The learner cannot `systemctl` a broker. Starting `kafka-2` is a script on the shell, `qb-broker start kafka-2`, which the lab image provides. It signals that one container. The same helper is how later labs stop a broker. The learner does not get a way to kill the shell or the other brokers by name except the one the lab names.
+Prior ops shelf. Built packs may stay finalized; they are out of the active sequence.
 
----
+| Lab | Title | Notes |
+| --- | --- | --- |
+| kafka-00 … kafka-09 | Prior ops shelf | Lesson DNA → Foundations 1.2/1.5–1.8 and Consumer Groups 2.2–2.3 when rebuilt under new ids |
 
-## kafka-04 — Payments is rejecting writes
+## What this track is not
 
-Shape: `kafka-3`. Difficulty: L1.
-
-**Situation.** Produces to `matches` are failing. The topic was left at replication factor 2 with `min.insync.replicas=2`, and `kafka-1` is down, so the in-sync set has one broker. A note in the ticket says to set `min.insync.replicas=1` so the page goes green. Do not. Start `kafka-1`, raise the replication factor to 3, and leave the minimum at 2.
-
-**Task.** Restore a produce path that still requires two in-sync replicas, and survive the next single broker failure.
-
-**Spec.**
-
-- `kafka-1` is running.
-- `matches` replication factor is 3, ISR size is 3, `min.insync.replicas` is 2.
-- A produce of one record succeeds.
-
-**Setup.** Alter `matches` to replication factor 2 with replicas only on brokers 1 and 2 (so `kafka-2` is the survivor). Stop `kafka-1`. Leave `min.insync.replicas=2`.
-
-**Grade.** Config and ISR as in the spec. `kafka-console-producer` of a single known record exits 0. The grader reads it back. `min.insync.replicas` was never 1 at grade time; the grade cannot see the past, so the spec is the end state only.
-
----
-
-## kafka-05 — Disk full on broker 1
-
-Shape: `kafka-3`. Difficulty: L2.
-
-**Situation.** `kafka-1` keeps leaving the ISR. Its log directory is at 100%. Almost all of the bytes are `debug-dump`, a topic created during an incident with retention turned off. `trips` was also left on keep-forever. `matches` is small and must not be deleted or shortened.
-
-**Task.**
-
-1. Delete `debug-dump`.
-2. Set `trips` retention to 7 days (`retention.ms=604800000`).
-3. Leave `matches` alone.
-4. `kafka-1` must be back in the ISR for `matches`.
-
-**Spec.**
-
-- `debug-dump` does not exist.
-- `trips` `retention.ms` is 604800000. Its cleanup policy is still `delete`.
-- `matches` retention is unchanged from the value recorded at setup.
-- Disk on `kafka-1`'s log directory is under 80%.
-- Every `matches` partition has ISR size 3.
-
-**Setup.** `kafka-1`'s emptyDir is 64 Mi, the same idea as the Linux disk-full lab. `debug-dump` is filled with closed segments until the filesystem is at 100% and `kafka-1` has dropped out of the ISR. `trips` has `retention.ms=-1`. Segment size on `debug-dump` is small so a delete frees space inside the grade timeout. `matches` retention is recorded for the grader.
-
-**Grade.** As in the spec. The grader checks the mount with `df` inside the `kafka-1` container.
-
----
-
-## kafka-06 — Orders was compacted
-
-Shape: `kafka-1`. Difficulty: L1.
-
-**Situation.** Support says last week's trips are gone. `trips` was switched to `cleanup.policy=compact`, so Kafka kept the latest record per key and dropped the rest. `trip-status` is the changelog, one current status per ride, and it is still a delete topic. Put `trips` back to `delete`. Set `trip-status` to `compact`. Do not try to reproduce the missing trips. They are gone.
-
-**Task.** Two config changes. Nothing else.
-
-**Spec.**
-
-- `trips` cleanup policy is `delete`.
-- `trip-status` cleanup policy is `compact`.
-- No new records were produced to `trips` by the learner. The grader records the end offset at setup and fails if it moved.
-
-**Setup.** One broker. `trips` is `compact` and has already been cleaned, so the log is shorter than what was produced. `trip-status` exists as `delete`. Record the `trips` end offset.
-
-**Grade.** Configs match. `trips` end offset equals the recorded value.
-
----
-
-## kafka-07 — One partition of matches is behind
-
-Shape: `kafka-1`. Difficulty: L1.
-
-**Situation.** `match-desk` is behind on `matches` partition 4 only. The other partitions are caught up. The member assigned to partition 4 is wedged. Restart that instance. Do not reset the group's offsets. Lag has to fall because the consumer catches up.
-
-**Task.** Restart `match-desk` instance 2. Wait until every partition's lag is below 10.
-
-**Spec.**
-
-- Group `match-desk` is stable.
-- Lag on every `matches` partition is under 10.
-- Committed offsets moved forward from the values recorded at the start of the lab. They did not jump to the log end in one step.
-
-**Setup.** One broker, `matches` with 6 partitions, a few thousand records. Three fixture consumers in the group. Instance 2 is paused after it commits an early offset on partition 4, so lag grows only there. The fixture, once restarted, consumes quickly. Record committed offsets where the learner cannot edit them.
-
-**Grade.** `kafka-consumer-groups.sh --describe --group match-desk`. Lag under 10. Each committed offset is greater than the recorded offset and less than the recorded offset plus the lag that existed at setup plus a small margin, so a `--to-latest` reset fails.
-
-The restart command is `qb-service restart match-desk@2`.
-
----
-
-## kafka-08 — Put the notification offsets back
-
-Shape: `kafka-1`. Difficulty: L1.
-
-**Situation.** During the last page someone ran `--reset-offsets --to-latest` on `alert-pager`. The records are still in the log. The 02:00 offsets are in `~/ticket/offsets.txt`, one `partition:offset` per line. Stop the group, reset to that file, and start the service again. Do not use `--to-earliest`. The backlog is nine days.
-
-**Task.** Reset `alert-pager` to the ticket, then start it.
-
-**Spec.**
-
-- Committed offsets equal `~/ticket/offsets.txt`.
-- The group is stable and the service process is running.
-- Offsets were not left at the log end, and not at zero.
-
-**Setup.** One broker. `alerts` has records well past the ticket offsets. The group's committed offsets are the log end. The service is stopped, so a reset is allowed. `~/ticket/offsets.txt` is written at setup. The real target is also stored outside the learner's home, in case they edit the ticket.
-
-**Grade.** Committed offsets match the hidden target. Group state is Stable. `qb-service` reports `alert-pager` active.
-
----
-
-## kafka-09 — Payments incident
-
-Shape: `kafka-3`. Difficulty: L2.
-
-**Situation.** Produces to some `matches` partitions are failing, and `match-desk` is behind on those same partitions. The other partitions are fine. `debug-dump` has filled `kafka-2`. That broker leads the failing partitions, and a full disk means the leader cannot append, so it stays leader. Two notes are in the ticket: turn on unclean leader election, or reset `match-desk` to latest. Do neither.
-
-Free the disk, or stop `kafka-2` so an in-sync replica can take over. Bring `kafka-2` back only once it can write. Lag has to drain because the consumer catches up.
-
-**Task.** `matches` accepts writes on every partition, the group catches up, and the two shortcuts are still off.
-
-**Spec.**
-
-- `debug-dump` is gone, or its retention is finite and the disk is under 80%.
-- `min.insync.replicas` on `matches` is still 2.
-- `unclean.leader.election.enable` is still false.
-- Every `matches` partition has ISR size 3.
-- `match-desk` committed offsets moved forward from the values recorded at setup, and lag on every partition is under 10.
-- A produce to each `matches` partition succeeds.
-
-**Setup.** Same 64 Mi log dir on `kafka-2` as lab 05, filled by `debug-dump`. Preferred leaders for three `matches` partitions are on `kafka-2`, and those are the current leaders. The consumer is healthy but stuck fetching from the wedged leaders. Record offsets and the `matches` `min.insync.replicas`.
-
-**Grade.** As in the spec. This lab only stacks lab 05 and lab 07. It does not add a new kind of failure.
-
----
-
-## What is not in these ten
-
-Listeners, adding a broker, draining one, a rolling restart, ACLs, and quotas are shelf 2. They need a second network, a fourth broker, or an authorizer.
-
-The session runtime that creates the pod, runs `setup.sh`, and runs `grade.sh` is not built yet. The pod shape it has to create is the trial in `deploy/eks/kafka/trial-kafka3.yaml`, with one broker omitted for labs 06–08, and a 64 Mi emptyDir on one broker for labs 05 and 09.
+- Not a producer/consumer coding course.
+- Not ZooKeeper (KRaft only).
+- Not a line-by-line remake of the Spark foundations list.

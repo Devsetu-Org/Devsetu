@@ -1,49 +1,26 @@
-## Where you are
+## The B+ tree
 <!-- mode: read-only -->
 
-Chapter 1 built the pager: an array of 4 KiB checksummed pages with a freelist. It hands out page numbers and stores whatever bytes you give it. It has no idea what the bytes mean.
+Chapter 1 built the pager: an array of 4 KiB checksummed pages with a freelist. It hands out page numbers and stores whatever bytes you give it. It has no idea what the bytes mean. This chapter gives the bytes a meaning: each page is a **node** of a **B+ tree**, and child pointers are page numbers.
 
-```plaintext
-            Put / Get
-                │
-       ┌────────▼────────┐
-  ch 2 │    B+ tree       │ ◀──── you are here
-       └────────┬────────┘
-       ┌────────▼────────┐
-  ch 1 │      Pager       │  done
-       └─────────────────┘
-```
-
-This chapter gives the bytes a meaning: each page is a **node** of a **B+ tree**, and child pointers are page numbers.
+![Write path: Put and Get enter the B+ tree (ch 2, you are here), which sits on the pager (ch 1, done)](/b-tree/btree/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> Search, insert, and split. `Put` and `Get` work and survive a clean `Close`. There is
-> no log yet (a crash mid-write can tear the tree), and no delete or range scan.
+> Search, insert, and split. `Put` and `Get` work and survive a clean `Close`. There is no log yet (a crash mid-write can tear the tree), and no delete or range scan.
 
-## Shape of a B+ tree
-<!-- mode: read-only -->
+### What a node is
 
-### Two kinds of page
+A **node** is one page interpreted as a B+ tree page. There are two kinds:
 
 | | Internal page | Leaf page |
 | --- | --- | --- |
 | Holds | separator keys and child page numbers | keys and values |
 | A lookup | picks one child and moves on | finds the key, or proves it is absent |
-| Links | children | the next leaf to the right |
+| Links | children (`len(keys) + 1` page numbers) | the next leaf to the right (`0` = none) |
 
 Every key lives in exactly one leaf. Internal pages carry only **separators**: copies of keys that say where to go. A separator is a sign on a fork in the road, not a piece of data.
 
-```plaintext
-                          ┌─────────────────────┐
-              internal    │      "m"    "t"     │
-                          └───┬──────┬───────┬──┘
-                    keys < m  │      │       │  keys >= t
-                              │      │ m <= keys < t
-                  ┌───────────▼┐  ┌──▼─────────┐  ┌▼───────────┐
-        leaves    │ a  c  f  k │─▶│ m  p  r    │─▶│ t  w  z    │─▶ 0
-                  └────────────┘  └────────────┘  └────────────┘
-                   next leaf ──▶
-```
+![B+ tree shape: an internal root with separators m and t over three linked leaves holding a c f k, m p r, and t w z](/b-tree/btree/shape.jpg)
 
 An internal page with `k` separators has `k + 1` children. `children[i]` covers every key below `keys[i]`; `children[i+1]` covers every key at or above it. A key **equal** to a separator goes right.
 
@@ -52,11 +29,9 @@ An internal page with `k` separators has `k + 1` children. `children[i]` covers 
 A page holds about 4 KiB, so an internal page holds dozens of separators. Each level multiplies the reach by that factor. A tree of a million keys is three or four levels tall, and a lookup reads **one page per level**. That is the whole point of the design: the number of disk reads for a lookup is the height, and the height grows like `log` base *fan-out*.
 
 > [!tip] Read amplification, B-tree style
-> A lookup in this tree touches `height` pages: 3 or 4 for most real databases, and the
-> top levels are almost always in memory (chapter 4). Compare chapter 4 of the LSM
-> minor, where one lookup may read a block from every table.
+> A lookup in this tree touches `height` pages: 3 or 4 for most real databases, and the top levels are almost always in memory (chapter 4). Compare chapter 4 of the LSM minor, where one lookup may read a block from every table.
 
-### What a page looks like on disk
+### What a page looks like in memory
 
 <!-- lang: go -->
 `node.go` (given) decodes a page into a `node` and encodes it back. You work with the decoded struct:
@@ -73,6 +48,36 @@ type node struct {
 
 Keys and values in a decoded node are private copies, so you can keep them. `Tree.load(no)` reads and decodes a page; `Tree.store(no, n)` encodes and writes it. A node that does not fit in a page makes `encode` panic: **split before you store**.
 <!-- /lang -->
+<!-- lang: python -->
+`node.py` (given) decodes a page into a `Node` and encodes it back. You work with the decoded dataclass:
+
+```python
+@dataclass
+class Node:
+    leaf: bool = False
+    keys: list[bytes] = field(default_factory=list)
+    vals: list[bytes] = field(default_factory=list)  # leaf only
+    children: list[int] = field(default_factory=list)  # internal only
+    next: int = 0  # leaf only
+```
+
+Keys and values in a decoded node are private copies, so you can keep them. `Tree.load(no)` reads and decodes a page; `Tree.store(no, n)` encodes and writes it. A node that does not fit in a page makes `encode` raise: **split before you store**.
+<!-- /lang -->
+<!-- lang: cpp -->
+`node.h` / `node.cc` (given) decode a page into a `Node` and encode it back. You work with the decoded struct:
+
+```cpp
+struct Node {
+  bool leaf = false;
+  std::vector<std::string> keys;
+  std::vector<std::string> vals;     // leaf only
+  std::vector<PageNo> children;      // internal only
+  PageNo next = 0;                   // leaf only
+};
+```
+
+Keys and values in a decoded node are private copies, so you can keep them. `Tree::Load(no)` reads and decodes a page; `Tree::Store(no, n)` encodes and writes it. A node that does not fit in a page makes `Encode` throw: **split before you store**.
+<!-- /lang -->
 
 Keys are at most 128 bytes and values at most 1024. The limits are tiny next to a 4 KiB page on purpose: a page that overflows by one entry can always be cut into two halves that both fit.
 
@@ -83,19 +88,12 @@ Keys are at most 128 bytes and values at most 1024. The limits are tiny next to 
 
 Inside a page the keys are sorted, so finding the right child (or the key itself) is a binary search. Between pages, a lookup follows pointers from the root to a leaf:
 
-```plaintext
-  Get("p")
-    root:  keys [m, t]        "p" >= m, "p" < t   ──▶ child 1
-    leaf:  keys [m, p, r]     "p" found at index 1 ──▶ return vals[1]
-```
+![Get("p"): at the root, p is at least m and below t so follow child 1; in the leaf, p is found at index 1 and returns its value](/b-tree/btree/search.jpg)
 
 The same walk finds where a **new** key belongs: it ends at the leaf whose range covers the key, and the key's place in that leaf's sorted order is the insertion point.
 
 > [!warn] `>` for the child, `>=` for the leaf
-> In an internal page you want the first separator **greater than** the key: a key equal
-> to a separator belongs to the child on its right. In a leaf you want the first key
-> **greater than or equal to** the target, and then check for equality. Mixing them up
-> loses exactly the keys that sit on a separator.
+> In an internal page you want the first separator **greater than** the key: a key equal to a separator belongs to the child on its right. In a leaf you want the first key **greater than or equal to** the target, and then check for equality. Mixing them up loses exactly the keys that sit on a separator.
 
 <!-- lang: go -->
 ### `TODO(2.1)` — `childIndex` and `leafIndex`
@@ -116,18 +114,55 @@ In the same file:
 
 `TestGetReadsOnePagePerLevel` counts page reads: a lookup that reads more than one page per level fails.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.1)` — `child_index` and `leaf_index`
+
+In `btreekv/btree/search.py`:
+
+- `child_index(key)` on an internal node: the number of separators `<= key`, which is also the index of the child to follow. `bisect.bisect_right(self.keys, key)`.
+- `leaf_index(key)` on a leaf: `bisect.bisect_left` for the first key `>= key`. Return that index and whether `self.keys[i]` equals `key` (check that `i` is in range first).
+
+### `TODO(2.2)` — `find_leaf` and `get`
+
+In the same file:
+
+- `find_leaf(key)`: start at `self.io.root()`. Root 0 means an empty tree: return `0, None`. Otherwise `self.load(no)`; if it is a leaf, return it; if not, move to `n.children[n.child_index(key)]`. Loop at most `MAX_DEPTH` times and raise `ErrCorrupt` beyond that.
+- `get(key)`: `find_leaf`, then `leaf_index`. An empty tree or an absent key returns `(None, False)`.
+
+`test_get_reads_one_page_per_level` counts page reads: a lookup that reads more than one page per level fails.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.1)` — `ChildIndex` and `LeafIndex`
+
+In `src/btree/search.cc`:
+
+- `ChildIndex(key)` on an internal node: the number of separators `<= key`. `std::upper_bound` on `n.keys`.
+- `LeafIndex(key)` on a leaf: `std::lower_bound` for the first key `>= key`. Return that index and whether the key equals.
+
+### `TODO(2.2)` — `FindLeaf` and `Get`
+
+In the same file:
+
+- `FindLeaf(key, out_leaf)`: start at `io_->Root()`. Root 0 means an empty tree: return `0`. Otherwise `Load(no)`; if it is a leaf, return it; if not, move to `n.children[ChildIndex(n, key)]`. Loop at most `kMaxDepth` times and throw `CorruptError` beyond that.
+- `Get(key, value)`: `FindLeaf`, then `LeafIndex`. An empty tree or an absent key returns `false`.
+
+`GetReadsOnePagePerLevel` counts page reads: a lookup that reads more than one page per level fails.
+<!-- /lang -->
 
 ## Inserting into a leaf
 <!-- mode: read-and-implement tasks:2.3 -->
 
 ### Keep the leaf sorted
 
-Inserting is search plus a slice insert. The leaf is sorted, so `leafIndex` says where the key goes. If the key is already there, you overwrite its value instead of adding a second entry.
+Inserting is search plus a slice insert. The leaf is sorted, so `leafIndex` says where the key goes. If the key is already there, you overwrite its value instead of adding a second entry. A B+ tree holds **one entry per key**: the newest write wins in place.
 
 ```plaintext
   leaf [a  c  m  x]      Put("f")        leaf [a  c  f  m  x]
   leaf [a  c  m  x]      Put("c", new)   leaf [a  c' m  x]       (same key, new value)
 ```
+
+> [!idea] Overwrite in place
+> Unlike an LSM memtable, there is no tombstone and no second version of the key. The leaf is the only place the key lives, so an overwrite replaces the value on that same slot.
 
 <!-- lang: go -->
 ### `TODO(2.3)` — `leafPut`
@@ -136,25 +171,29 @@ In `internal/btree/insert.go`. `i, found := n.leafIndex(key)`. If `found`, set `
 
 You will need to import `slices`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.3)` — `leaf_put`
+
+In `btreekv/btree/insert.py`. `i, found = self.leaf_index(key)`. If `found`, set `self.vals[i] = val`. Otherwise insert `key` into `self.keys` and `val` into `self.vals` at `i`, so both lists stay sorted and in step.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.3)` — `LeafPut`
+
+In `src/btree/insert.cc`. `auto [i, found] = LeafIndex(n, key)`. If `found`, set `n.vals[i] = val`. Otherwise insert `key` into `n.keys` and `val` into `n.vals` at `i`, so both stay sorted and in step.
+<!-- /lang -->
 
 This may leave the node **overfull**: more bytes than a page holds. `leafPut` does not check. The caller does, and splits.
 
-## Splitting
-<!-- mode: read-and-implement tasks:2.4 -->
+## Splitting and growing
+<!-- mode: read-and-implement tasks:2.4,2.5 -->
 
-### A full page becomes two
+### What splitting actually means
 
 When a page overflows, cut it in two at a point where both halves are about the same size in **bytes** (not entries, because values vary in length), and tell the parent about the new page. The tree grows sideways first, and only grows taller when the root itself splits.
 
-```plaintext
-  before:   parent [ ... ]
-                      │
-                  leaf [a b c d e f g h]   ← overfull
+That is all "splitting" means here: **one full page becomes two, and one separator moves (or is copied) into the parent.** There is no rebalancing pass over the whole tree. Neighbouring pages that still fit are left alone.
 
-  after:    parent [ ... "e" ... ]
-                      │       │
-                  leaf [a b c d] ─▶ leaf [e f g h]
-```
+![Split: an overfull leaf a to h becomes two leaves a to d and e to h, and the parent gains the separator e](/b-tree/btree/split.jpg)
 
 The two kinds of page split differently, and the difference is the heart of a B+ tree:
 
@@ -177,9 +216,26 @@ In `internal/btree/insert.go`. `n.splitPoint()` (given) returns where to cut: fo
 
 Clone the right half. If both nodes shared one backing array, an append to the left would overwrite the right.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.4)` — `split`
 
-## Growing the tree
-<!-- mode: read-and-implement tasks:2.5 -->
+In `btreekv/btree/insert.py`. `self.split_point()` (given) returns where to cut.
+
+- Leaf: `right` gets a copy of `keys[at:]` / `vals[at:]` and `next=self.next`. `self` keeps `[:at]`. The separator is `right.keys[0]`.
+- Internal: the separator is `self.keys[at]`. `right` gets copies of `keys[at+1:]` and `children[at+1:]`. `self` keeps `keys[:at]` and `children[:at+1]`.
+
+Copy the right half. Do not let two nodes share one list.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.4)` — `Split`
+
+In `src/btree/insert.cc`. `n.SplitPoint()` (given) returns where to cut.
+
+- Leaf: `right` gets copies of `keys[at:]` / `vals[at:]` and `next = n.next`. `n` keeps `[:at]`. The separator is `right.keys[0]`.
+- Internal: the separator is `n.keys[at]`. `right` gets copies of `keys[at+1:]` and `children[at+1:]`. `n` keeps `keys[:at]` and `children[:at+1]`.
+
+Copy the right half. Do not let two nodes share one vector.
+<!-- /lang -->
 
 ### Splits travel upward
 
@@ -196,9 +252,7 @@ Clone the right half. If both nodes shared one backing array, an append to the l
 If the news reaches the **root** and the root splits, there is no parent to tell. The tree makes one: a new root with a single separator and two children, the old root and its new sibling. The root pointer moves to the new page. This is the only way a B+ tree gets taller, and it does so everywhere at once, so every leaf stays at the same depth.
 
 > [!idea] Why a B-tree is always balanced
-> Insert never adds a level at the bottom. Leaves only split sideways; only the root
-> splitting adds a level on top. Every path from root to leaf therefore has the same
-> length, with no rebalancing pass at all.
+> Insert never adds a level at the bottom. Leaves only split sideways; only the root splitting adds a level on top. Every path from root to leaf therefore has the same length, with no rebalancing pass at all.
 
 <!-- lang: go -->
 ### `TODO(2.5)` — `Insert` and `insert`
@@ -218,20 +272,47 @@ In `internal/btree/insert.go`.
 2. Root 0 (empty tree): build a one-entry leaf, `t.newPage(leaf)`, `t.io.SetRoot(no)`.
 3. Otherwise `up, err := t.insert(root, key, val)`. If `up != nil`, the root split: build an internal node `{keys: [up.sep], children: [root, up.right]}`, `newPage` it, and `SetRoot` to it.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(2.5)` — `insert` / `Insert`
+
+In `btreekv/btree/insert.py`.
+
+`insert_rec(no, key, val)` returns a `Promoted` when page `no` split, and `None` when it did not. Same steps as Go: load, leaf_put or recurse+insert_child, store or split.
+
+`insert_public(key, val)`: `check_entry`, empty-tree leaf, or grow a new root when the old root splits.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(2.5)` — `Insert` and `InsertRec`
+
+In `src/btree/insert.cc`.
+
+`InsertRec(no, key, val)` returns an optional `Promoted` when page `no` split. Same steps as Go: Load, LeafPut or recurse+InsertChild, Store or Split.
+
+`Insert(key, val)`: `CheckEntry`, empty-tree leaf, or grow a new root when the old root splits.
+<!-- /lang -->
 
 > [!warn] No log yet
-> A split writes two pages and then rewrites the parent: three writes, and nothing makes
-> them atomic. Crash after the left page is rewritten but before the parent learns about
-> the right one, and the upper half of that leaf is simply gone: nothing points at the
-> page that holds it. Chapter 3 is the answer.
+> A split writes two pages and then rewrites the parent: three writes, and nothing makes them atomic. Crash after the left page is rewritten but before the parent learns about the right one, and the upper half of that leaf is simply gone: nothing points at the page that holds it. Chapter 3 is the answer.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test     # every acceptance test (python3 -m unittest)
+make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test     # build and run every acceptance test
+make asan     # the same tests under AddressSanitizer + UBSan
 make run      # a REPL that keeps its data in ./data
 ```
 <!-- /lang -->
@@ -252,13 +333,9 @@ keys=1 height=1 leaves=1 internal=0  pages=2 free=0  ...
 Load a few thousand keys from a shell loop and run `stats` again: `height=3`, a few dozen leaves, and every `get` still costs three page reads. `stats` also runs `Check`, which verifies sort order, separator bounds, leaf depth, and the leaf chain. If your split is wrong, `stats` says which page.
 
 > [!check] Before you move on
-> Say these out loud:
->
 > 1. Every key lives in one leaf; internal pages hold only separators.
 > 2. A lookup reads one page per level, and the height is `log` base fan-out.
-> 3. A leaf split copies the separator up; an internal split moves it up.
+> 3. A leaf split **copies** the separator up; an internal split **moves** it up.
 > 4. The tree only gets taller when the root splits, so it is always balanced.
-
-### What is missing
 
 If the process dies halfway through a split, the file can hold a page nothing points to, or a parent that points to a page that was never written. Even a clean-looking crash can leave a header out of date. Chapter 3 adds a **write-ahead log**: every change is logged first, and on startup the log is replayed to bring every page back.

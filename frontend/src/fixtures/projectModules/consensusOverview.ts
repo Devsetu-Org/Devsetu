@@ -5,7 +5,7 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
   eyebrow: 'Consensus · Chapter 00',
   title: 'Consensus: agreeing when machines can fail',
   lede:
-    'Start here before writing any code. We explain **why replicated systems need consensus**, how **Raft** elects a leader and replicates a log, where it runs in production, and exactly what you will build across the five chapters of this minor.',
+    'Start here before writing any code. First, why replicated systems need agreement at all. Then Raft in depth: how it elects a leader, replicates a log, and commits safely, where it runs in production, the problems it causes when it misfires, and what you will build across the five chapters of this minor.',
   showBlogStamp: true,
   sections: [
     {
@@ -100,7 +100,7 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
       id: 'how-it-works',
       title: 'How the pieces fit together',
       body: [
-        'Each box below is one chapter. The transport under the RPCs is given (in-process at first, then a simple network); you own the Raft rules.',
+        'A Raft cluster is not one algorithm — it is five layers that depend on each other. Each box below is one chapter of this minor. The transport under the RPCs is given (in-process at first); you own the Raft rules.',
       ],
       flows: [
         {
@@ -138,6 +138,13 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
         '**Persistence.** Before you grant a vote or reply success to AppendEntries, the durable state that Raft requires is on disk.',
         '**Clients.** A thin KV API turns Put/Delete into log commands and Get into a read of applied state (with a redirect if you contacted a follower).',
       ],
+      callout: {
+        kind: 'tip',
+        title: 'Safety first, then availability',
+        body: [
+          'Every chapter below prioritises the same trade: never invent two histories. A minority that is cut off must refuse to lead or commit, even if that means the cluster pauses until a majority can talk again.',
+        ],
+      },
     },
     {
       id: 'where-its-used',
@@ -164,7 +171,7 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
       id: 'why-it-matters',
       title: 'Why this matters if you run these systems',
       body: [
-        'Operational pain with etcd, Consul, or TiKV is often Raft behaviour showing through:',
+        'You do not have to write a consensus protocol to need this. Many of the classic operational problems with etcd, Consul, or TiKV are Raft behaviour showing through:',
       ],
       bullets: [
         '**Lost quorum.** Too many nodes down or partitioned: no leader, no writes. Adding nodes does not help until a majority can talk.',
@@ -201,7 +208,7 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
       id: 'what-you-build',
       title: 'What you will build in this minor',
       body: [
-        'Over five chapters you build **raftkv**, a small Raft cluster in Go that serves a replicated key/value API. A test harness drops messages, delays them, and kills nodes. Passing tests means the safety rules hold under those faults.',
+        'Over five chapters you build **raftkv**, a small Raft cluster that serves a replicated key/value API. A test harness drops messages, delays them, and kills nodes. Passing tests means the safety rules hold under those faults.',
       ],
       table: {
         headers: ['Chapter', 'You build', 'Done when'],
@@ -245,12 +252,12 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
       body: [],
       bullets: [
         '**Theory on the left, code on the right.** Each chapter opens with a short read, then sends you into the repository with clearly marked `TODO` blocks.',
-        '**Small tasks.** A chapter has two to four tasks, and each turns green as you finish it.',
-        '**Faults are the tests.** The harness injects drops, delays, and crashes. Green means the invariants held.',
+        '**Small tasks.** A chapter has two to five tasks, and each turns green as you finish it, so progress shows up long before the chapter is done.',
+        '**Faults are the tests.** The harness injects drops, delays, and crashes. When the tests pass, the invariants held.',
         '**Your code carries forward.** Each chapter starts from your own earlier work, with an opt-in reference solution if you get stuck.',
       ],
       after: [
-        '**What you need:** comfortable Go (goroutines, channels, mutexes, `go test`). No distributed-systems background; every idea is introduced when it is needed.',
+        '**What you need:** comfortable in the language you pick (Go, Python, or C++). No distributed-systems background; every idea is introduced when it is needed.',
       ],
       callout: {
         kind: 'scope',
@@ -266,6 +273,6 @@ export const CONSENSUS_OVERVIEW: ChapterReading = {
     'Raft uses a single leader per term, a replicated log, and majority votes for elections and commits.',
     'Safety first: a minority must not invent a conflicting committed history; availability needs a majority.',
     'etcd, Consul, TiKV, and CockroachDB all run on Raft (or a close cousin), and their outages often are quorum and election behaviour.',
-    'Across five chapters you build election, replication, commit, persistence, and a replicated KV API in Go.',
+    'Across five chapters you build election, replication, commit, persistence, and a replicated KV API in Go, Python, or C++.',
   ],
 };

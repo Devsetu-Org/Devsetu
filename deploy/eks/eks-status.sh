@@ -20,7 +20,7 @@ aws eks describe-cluster --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION" \
 echo ""
 echo "nodegroups:"
 # Every group on the cluster, not only EKS_NODEGROUPS. Docker, Spark, and Kafka stay out
-# of that list so default sleep/wake/destroy leave them alone, but a status check must still show them.
+# of that list so default sleep/wake leave them alone. Destroy deletes every group.
 have=","
 while IFS= read -r ng; do
   [[ -z "$ng" ]] && continue

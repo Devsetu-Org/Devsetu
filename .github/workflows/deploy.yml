@@ -14,6 +14,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      # The daily role watch commits only this file. It must not ship a release.
+      - "data/platform-roles.json"
   workflow_dispatch:
     inputs:
       sha:

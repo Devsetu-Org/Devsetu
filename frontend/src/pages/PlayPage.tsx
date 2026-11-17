@@ -13,15 +13,15 @@ import K8sLabWorkspace, {
 } from '../components/K8sLabWorkspace';
 import {
   LeaderboardIcon,
-  PrimerGuideIcon,
   RoadmapIcon,
   StatusBookIcon,
 } from '../components/TrackStatusIcons';
 import TrackLeaderboardModal from '../components/TrackLeaderboardModal';
 import MonthlyPaperCard, { MonthlyPaperBanner } from '../components/MonthlyPaperCard';
 import PlatformLeaderboardCard from '../components/PlatformLeaderboardCard';
-import TrackIntroModal from '../components/TrackIntroModal';
 import TrackRoadmapModal from '../components/TrackRoadmapModal';
+import PlayChapterShelf from '../components/PlayChapterShelf';
+import DevsetuLoader from '../components/DevsetuLoader';
 import { buildPanelRoadmapNodes } from '../lib/trackRoadmapNodes';
 import { IconCoins, IconLock } from '../components/ChromeIcons';
 import {
@@ -37,8 +37,6 @@ import {
   type PlayPanel,
 } from '../constants/playCatalog';
 import { WHITEBOARD_ENABLED, WHITEBOARD_PATH } from '../constants/whiteboard';
-import { SPARK_PRIMER_PATH } from '../constants/sparkPrimer';
-import { K8S_PRIMER_PATH } from '../constants/k8sPrimer';
 import type { K8sTrackItem } from '../constants/k8sReadings';
 import { readingTrackForPanel } from '../constants/readingTracks';
 import type { ChallengePublic } from '../types/domain';
@@ -46,14 +44,33 @@ import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi'
 import { ACCESS_LOCKED, ACCESS_LOCKED_OPEN_MSG } from '../constants/accessLock';
 import { visibilityMark } from '../constants/roles';
 
-function panelPrimerPath(panelId: string): string | null {
-  if (panelId === 'spark') return SPARK_PRIMER_PATH;
-  if (panelId === 'kubernetes') return K8S_PRIMER_PATH;
-  return null;
-}
-
 function panelLabCount(panel: PlayPanel): number {
   return panel.challengeIds.length;
+}
+
+/** Same trail as a project page: Tracks / DevOps Engineer / Linux. */
+function TrackCrumb({
+  domain,
+  panel,
+}: {
+  domain: PlayDomain;
+  panel?: PlayPanel | null;
+}): JSX.Element {
+  return (
+    <p className="play-papers-crumb">
+      <Link to="/track">Tracks</Link>
+      <span aria-hidden> / </span>
+      {panel ? (
+        <>
+          <Link to={playCatalogPath(domain.id)}>{domain.label}</Link>
+          <span aria-hidden> / </span>
+          <span>{panel.label}</span>
+        </>
+      ) : (
+        <span>{domain.label}</span>
+      )}
+    </p>
+  );
 }
 
 function domainLabCount(domain: PlayDomain): number {
@@ -76,7 +93,7 @@ interface LibraryViewProps {
  * from pack folders / solution filenames (*-l25.yaml).
  */
 function catalogIdLabel(challenge: ChallengePublic): string {
-  const fromK8sId = /^(?:k8s|linux|docker|kafka)-0*(\d+)-/i.exec(challenge.id)?.[1];
+  const fromK8sId = /^(?:k8s-platform|k8s|linux|docker|kafka|spark)-0*(\d+)-/i.exec(challenge.id)?.[1];
   if (fromK8sId) return String(Number(fromK8sId)); // "02" → "2", "25" → "25"
   if (/^l1-/i.test(challenge.id)) return '1';
   const ps = challenge.problemStatement;
@@ -104,12 +121,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   const params = useParams<{ domainId?: string; panelId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [kindFilter, setKindFilter] = useState<KindFilter>(
-    params.panelId === 'introduction' ? 'blog' : 'lab',
-  );
+  const [kindFilter, setKindFilter] = useState<KindFilter>('lab');
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
-  const [introOpen, setIntroOpen] = useState(false);
 
   const domainId =
     isPlayDomainId(params.domainId) && !getPlayDomain(params.domainId)?.comingSoon
@@ -138,7 +152,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
     const readingsOnly =
       panel.challengeIds.length === 0 && Boolean(readingTrackForPanel(domainId, panel.id));
     setKindFilter(readingsOnly ? 'blog' : 'lab');
-    setIntroOpen(false);
   }, [panel, domainId]);
 
   const byId = useMemo(() => {
@@ -173,9 +186,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
 
   const activeTopicId = panel?.id || null;
   const showLabList = Boolean(domainId && panel);
-  const labsToggleDisabled = panel?.id === 'introduction';
-  const primerPath = panel ? panelPrimerPath(panel.id) : null;
-
   const roadmapNodes = useMemo(() => {
     if (!panel) return [];
     return buildPanelRoadmapNodes(panel, readingTrack, byId);
@@ -386,6 +396,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
           {isDomainHub && domain && (
             <section className="play-hub" aria-label={`${domain.label} shelves`}>
               <header className="play-hub-header">
+                <TrackCrumb domain={domain} />
                 <h2 className="play-hub-title">{domain.label}</h2>
                 <p className="play-hub-lead">{domain.blurb}</p>
               </header>
@@ -425,7 +436,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         {p.subtitle && <p className="project-tile-subtitle">{p.subtitle}</p>}
                         <p className="playground-tile-blurb">{p.tileBlurb ?? p.blurb}</p>
                         <span className="playground-tile-cta">
-                          {p.label === 'Introduction' ? 'Start here' : `Start ${p.label} here`}
+                          Start {p.label} here
                           <span aria-hidden>→</span>
                         </span>
                       </Link>
@@ -445,7 +456,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       <strong className="play-paper-section-title">{p.label}</strong>
                       <p className="play-paper-section-blurb">{p.blurb}</p>
                       <span className="play-paper-section-cta">
-                        {p.label === 'Introduction' ? 'Start here' : `Start ${p.label} here`}
+                        Start {p.label} here
                         <span aria-hidden>→</span>
                       </span>
                     </Link>
@@ -457,39 +468,12 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
 
           {showLabList && domain && panel && (
             <>
-              <header className="play-hub-header play-hub-header--compact">
+              <header className="play-hub-header">
+                <TrackCrumb domain={domain} panel={panel} />
                 <div className="play-hub-title-row">
                   <h2 className="play-hub-title">{panel.label}</h2>
                   <div className="play-hub-title-actions">
-                    {primerPath && !(ACCESS_LOCKED && !isAdmin) ? (
-                      <Link
-                        to={primerPath}
-                        className="play-primer-link"
-                        aria-label="Read the primer"
-                        data-tip="Primer"
-                      >
-                        <PrimerGuideIcon className="play-primer-link-icon" title="" />
-                      </Link>
-                    ) : primerPath ? (
-                      <span
-                        className="play-primer-link is-locked"
-                        aria-label="Primer locked"
-                        data-tip={ACCESS_LOCKED_OPEN_MSG}
-                        title={ACCESS_LOCKED_OPEN_MSG}
-                      >
-                        <PrimerGuideIcon className="play-primer-link-icon" title="" />
-                      </span>
-                    ) : null}
-                    {panel.id === 'kafka' && (
-                      <button
-                        type="button"
-                        className="play-intro-link"
-                        onClick={() => setIntroOpen(true)}
-                      >
-                        Intro
-                      </button>
-                    )}
-                    {roadmapNodes.length > 0 && (
+                    {!panel.chapters?.length && roadmapNodes.length > 0 && (
                       <button
                         type="button"
                         className="play-primer-link play-roadmap-link"
@@ -513,6 +497,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                     )}
                   </div>
                 </div>
+                {panel.subtitle ? (
+                  <p className="project-detail-subtitle">{panel.subtitle}</p>
+                ) : null}
                 <p className="play-hub-lead">{panel.blurb}</p>
               </header>
               <TrackLeaderboardModal
@@ -522,9 +509,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 fullPath={`${playCatalogPath(domain.id, panel.id)}/leaderboard`}
                 onClose={() => setLeaderboardOpen(false)}
               />
-              {panel.id === 'kafka' && (
-                <TrackIntroModal open={introOpen} onClose={() => setIntroOpen(false)} />
-              )}
               <TrackRoadmapModal
                 open={roadmapOpen}
                 trackLabel={panel.label}
@@ -540,142 +524,160 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                     type="search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search track…"
+                    placeholder={panel.chapters?.length ? 'Search chapters…' : 'Search track…'}
                   />
                 </label>
-                <div className="play-kind-toggle" role="group" aria-label="Kind">
-                  <button
-                    type="button"
-                    className={`play-kind-toggle-btn${kindFilter === 'lab' ? ' is-active' : ''}`}
-                    aria-pressed={kindFilter === 'lab'}
-                    disabled={labsToggleDisabled}
-                    title={labsToggleDisabled ? 'Labs are not available on Introduction yet' : undefined}
-                    onClick={() => {
-                      if (!labsToggleDisabled) setKindFilter('lab');
-                    }}
-                  >
-                    Lab
-                  </button>
-                  <button
-                    type="button"
-                    className={`play-kind-toggle-btn${kindFilter === 'blog' ? ' is-active' : ''}`}
-                    aria-pressed={kindFilter === 'blog'}
-                    onClick={() => setKindFilter('blog')}
-                  >
-                    Blog
-                  </button>
-                </div>
+                {!panel.chapters?.length && (
+                  <div className="play-kind-toggle" role="group" aria-label="Kind">
+                    <button
+                      type="button"
+                      className={`play-kind-toggle-btn${kindFilter === 'lab' ? ' is-active' : ''}`}
+                      aria-pressed={kindFilter === 'lab'}
+                      onClick={() => setKindFilter('lab')}
+                    >
+                      Lab
+                    </button>
+                    <button
+                      type="button"
+                      className={`play-kind-toggle-btn${kindFilter === 'blog' ? ' is-active' : ''}`}
+                      aria-pressed={kindFilter === 'blog'}
+                      onClick={() => setKindFilter('blog')}
+                    >
+                      Blog
+                    </button>
+                  </div>
+                )}
               </section>
 
-              <section className="play-problems-table-wrap" aria-label={`${panel.label} track`}>
-                <div className="play-problems-table-head">
-                  <span>ID</span>
-                  <span>Title</span>
-                  <span className="play-problems-col-tokens" aria-hidden="true" />
-                </div>
-                {filteredRows.length === 0 ? (
-                  <div className="play-problems-empty">
-                    {availableInPanel === 0
-                      ? 'No items loaded for this shelf yet.'
-                      : 'No items match these filters.'}
+              {panel.chapters?.length ? (
+                <PlayChapterShelf
+                  chapters={panel.chapters}
+                  byId={byId}
+                  search={search}
+                  onSelectChallenge={onSelectChallenge}
+                  showVisibilityMarks={showVisibilityMarks}
+                  readingFor={(chapter) => {
+                    const slug = chapter.readingSlug;
+                    if (!slug || !readingTrack) return null;
+                    const reading = readingTrack.getReading(slug);
+                    if (!reading) return null;
+                    return {
+                      href: readingTrack.readingPath(reading.slug),
+                      title: reading.title,
+                    };
+                  }}
+                />
+              ) : (
+                <section className="play-problems-table-wrap" aria-label={`${panel.label} track`}>
+                  <div className="play-problems-table-head">
+                    <span>ID</span>
+                    <span>Title</span>
+                    <span className="play-problems-col-tokens" aria-hidden="true" />
                   </div>
-                ) : (
-                  <ul className="play-problems-table">
-                    {filteredRows.map((row) => {
-                      if (row.kind === 'reading') {
+                  {filteredRows.length === 0 ? (
+                    <div className="play-problems-empty">
+                      {availableInPanel === 0
+                        ? 'No items loaded for this shelf yet.'
+                        : 'No items match these filters.'}
+                    </div>
+                  ) : (
+                    <ul className="play-problems-table">
+                      {filteredRows.map((row) => {
+                        if (row.kind === 'reading') {
+                          return (
+                            <li key={row.key}>
+                              <button
+                                type="button"
+                                className={`play-problem-row play-problem-row--reading${contentLocked ? ' is-locked' : ''}`}
+                                title={contentLocked ? ACCESS_LOCKED_OPEN_MSG : undefined}
+                                onClick={() => {
+                                  if (contentLocked) return;
+                                  navigate(row.href);
+                                }}
+                              >
+                                <span className="play-problem-id" title={row.trackId}>
+                                  {row.trackId}
+                                </span>
+                                <span className="play-problem-title">
+                                  {row.title}
+                                  {contentLocked ? (
+                                    <span className="play-problem-lock" aria-label="Locked">
+                                      <IconLock size={13} />
+                                    </span>
+                                  ) : null}
+                                </span>
+                                <span className="play-problem-meta" aria-label="Blog">
+                                  <StatusBookIcon className="play-problem-status-icon play-problem-meta-book" />
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        }
+
+                        const { challenge, trackId } = row;
+                        const playable = Boolean(challenge.finalized);
+                        const solved = Boolean(challenge.solved);
+                        const locked = Boolean(challenge.locked);
+                        const vis = visibilityMark(challenge.visibleTo);
+                        const tokens =
+                          typeof challenge.tokens === 'number' && Number.isFinite(challenge.tokens)
+                            ? challenge.tokens
+                            : 10;
                         return (
                           <li key={row.key}>
                             <button
                               type="button"
-                              className={`play-problem-row play-problem-row--reading${contentLocked ? ' is-locked' : ''}`}
-                              title={contentLocked ? ACCESS_LOCKED_OPEN_MSG : undefined}
+                              className={`play-problem-row play-problem-row--lab${playable ? '' : ' disabled'}${solved ? ' is-solved' : ''}${locked ? ' is-locked' : ''}`}
+                              disabled={!playable}
+                              title={
+                                locked
+                                  ? (ACCESS_LOCKED ? ACCESS_LOCKED_OPEN_MSG : 'Subscribe to unlock this lab')
+                                  : undefined
+                              }
                               onClick={() => {
-                                if (contentLocked) return;
-                                navigate(row.href);
+                                if (playable) void onSelectChallenge(challenge);
                               }}
                             >
-                              <span className="play-problem-id" title={row.trackId}>
-                                {row.trackId}
+                              <span className="play-problem-id" title={challenge.id}>
+                                {trackId}
                               </span>
                               <span className="play-problem-title">
-                                {row.title}
-                                {contentLocked ? (
+                                {challenge.title}
+                                {locked ? (
                                   <span className="play-problem-lock" aria-label="Locked">
                                     <IconLock size={13} />
                                   </span>
                                 ) : null}
                               </span>
-                              <span className="play-problem-meta" aria-label="Blog">
-                                <StatusBookIcon className="play-problem-status-icon play-problem-meta-book" />
+                              <span
+                                className={`play-problem-meta${showVisibilityMarks ? ' play-problem-meta--staff' : ''}`}
+                              >
+                                {showVisibilityMarks ? (
+                                  <span
+                                    className={`play-visibility-badge play-visibility-badge--${vis.key}`}
+                                    title={vis.label}
+                                    aria-label={vis.label}
+                                  >
+                                    {vis.letter}
+                                  </span>
+                                ) : null}
+                                {challenge.k8sPlatform?.practice ? null : (
+                                  <span className="play-problem-tokens" title={`${tokens} tokens`}>
+                                    <span className="play-problem-tokens-coin">
+                                      <IconCoins size={14} />
+                                    </span>
+                                    {tokens}
+                                  </span>
+                                )}
                               </span>
                             </button>
                           </li>
                         );
-                      }
-
-                      const { challenge, trackId } = row;
-                      const playable = Boolean(challenge.finalized);
-                      const solved = Boolean(challenge.solved);
-                      const locked = Boolean(challenge.locked);
-                      const vis = visibilityMark(challenge.visibleTo);
-                      const tokens =
-                        typeof challenge.tokens === 'number' && Number.isFinite(challenge.tokens)
-                          ? challenge.tokens
-                          : 10;
-                      return (
-                        <li key={row.key}>
-                          <button
-                            type="button"
-                            className={`play-problem-row play-problem-row--lab${playable ? '' : ' disabled'}${solved ? ' is-solved' : ''}${locked ? ' is-locked' : ''}`}
-                            disabled={!playable}
-                            title={
-                              locked
-                                ? (ACCESS_LOCKED ? ACCESS_LOCKED_OPEN_MSG : 'Subscribe to unlock this lab')
-                                : undefined
-                            }
-                            onClick={() => {
-                              if (playable) void onSelectChallenge(challenge);
-                            }}
-                          >
-                            <span className="play-problem-id" title={challenge.id}>
-                              {trackId}
-                            </span>
-                            <span className="play-problem-title">
-                              {challenge.title}
-                              {locked ? (
-                                <span className="play-problem-lock" aria-label="Locked">
-                                  <IconLock size={13} />
-                                </span>
-                              ) : null}
-                            </span>
-                            <span
-                              className={`play-problem-meta${showVisibilityMarks ? ' play-problem-meta--staff' : ''}`}
-                            >
-                              {showVisibilityMarks ? (
-                                <span
-                                  className={`play-visibility-badge play-visibility-badge--${vis.key}`}
-                                  title={vis.label}
-                                  aria-label={vis.label}
-                                >
-                                  {vis.letter}
-                                </span>
-                              ) : null}
-                              {challenge.k8sPlatform?.practice ? null : (
-                                <span className="play-problem-tokens" title={`${tokens} tokens`}>
-                                  <span className="play-problem-tokens-coin">
-                                    <IconCoins size={14} />
-                                  </span>
-                                  {tokens}
-                                </span>
-                              )}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
             </>
           )}
         </main>
@@ -684,8 +686,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   );
 }
 
-export default function PlayPage(): JSX.Element | null {
+export default function PlayPage(): JSX.Element {
   const {
+    authMode,
     playState,
     challenges,
     challengesError,
@@ -697,69 +700,79 @@ export default function PlayPage(): JSX.Element | null {
     onBackToLibrary,
     onEnd,
     ending,
+    onRequestLogin,
   } = useAppState();
   const params = useParams<{ domainId?: string; panelId?: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const labId = searchParams.get('lab');
   const restoringSession =
     playState === 'library' &&
     Boolean(params.domainId) &&
     !params.panelId &&
     looksLikePlaySessionId(params.domainId);
 
-  if (restoringSession || playState === 'loading') {
+  // Guest deep-link (?lab=): never park on a forever "Reopening" spinner — ask to sign in.
+  useEffect(() => {
+    if (!labId || authMode !== 'unauthenticated') return;
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    onRequestLogin(returnTo, {
+      title: 'Sign in to open this lab',
+      body: 'Your problem statement will restore right after you sign in.',
+    });
+  }, [labId, authMode, onRequestLogin]);
+
+  // Signed-in but lab missing / not finalized: drop ?lab= so we do not spin forever.
+  useEffect(() => {
+    if (!labId || authMode !== 'interviewer') return;
+    if (playState !== 'library') return;
+    if (challenges.length === 0 && !challengesError) return; // still fetching
+    const challenge = challenges.find((c) => c.id === labId);
+    if (challenge && (challenge as { finalized?: boolean }).finalized !== false) return;
+    navigate(`${window.location.pathname}`, { replace: true });
+  }, [labId, authMode, playState, challenges, challengesError, navigate]);
+
+  const challengesReady = challenges.length > 0 || Boolean(challengesError);
+  const labInCatalog = Boolean(labId && challenges.some((c) => c.id === labId));
+  // Only show the reopen splash while signed in and restore can actually run.
+  const reopeningLab =
+    authMode === 'interviewer'
+    && Boolean(labId)
+    && (playState === 'library' || (playState === 'active' && !activeSession))
+    && (!challengesReady || labInCatalog);
+
+  if (reopeningLab || restoringSession || playState === 'loading') {
     const spark = isSparkPlatformChallenge(activeChallenge);
     const board = isBoardChallenge(activeChallenge);
     const k8s = isKubernetesChallenge(activeChallenge);
-    return (
-      <div className="app-page app-page-centered">
-        <div className="loading-card app-surface-card">
-          <span className="spinner" />
-          <div>
-            {board ? (
-              <>
-                Opening board for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  No cluster — fill the empty blocks from Unused.
-                </div>
-              </>
-            ) : isBoxChallenge(activeChallenge) ? (
-              <>
-                Opening {boxMachineLabel(activeChallenge)} lab for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Booting a fresh machine for you (up to two minutes on a cold start).
-                </div>
-              </>
-            ) : k8s ? (
-              <>
-                Opening Kubernetes lab for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Preparing your namespace on the shared cluster.
-                </div>
-              </>
-            ) : spark ? (
-              <>
-                Opening Spark workspace for <strong>{activeChallenge?.title}</strong>…
-                <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                  Shared cluster session — no Docker sandbox to build.
-                </div>
-              </>
-            ) : (
-              <>
-                {restoringSession ? (
-                  <>Restoring session…</>
-                ) : (
-                  <>
-                    Spinning up sandbox for <strong>{activeChallenge?.title}</strong>…
-                    <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 6 }}>
-                      This can take 30–60 seconds the first time while Docker images build.
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    let message = 'Loading…';
+    let detail: string | undefined;
+    if (reopeningLab) {
+      message = activeChallenge?.title
+        ? `Opening ${activeChallenge.title}`
+        : 'Reopening lab';
+      detail = 'Restoring the problem statement.';
+    } else if (board) {
+      message = `Opening ${activeChallenge?.title || 'board'}`;
+      detail = 'No cluster — fill the empty blocks from Unused.';
+    } else if (isBoxChallenge(activeChallenge)) {
+      message = `Opening ${boxMachineLabel(activeChallenge)} lab`;
+      detail = 'Booting a fresh machine for you.';
+    } else if (k8s) {
+      message = `Opening ${activeChallenge?.title || 'Kubernetes lab'}`;
+      detail = 'Preparing your namespace on the shared cluster.';
+    } else if (spark) {
+      message = `Opening ${activeChallenge?.title || 'Spark workspace'}`;
+      detail = 'Shared cluster session — no Docker sandbox to build.';
+    } else if (restoringSession) {
+      message = 'Restoring session';
+    } else {
+      message = activeChallenge?.title
+        ? `Spinning up ${activeChallenge.title}`
+        : 'Spinning up sandbox';
+      detail = 'This can take 30–60 seconds the first time while Docker images build.';
+    }
+    return <DevsetuLoader message={message} detail={detail} />;
   }
 
   if (playState === 'library') {
@@ -833,5 +846,5 @@ export default function PlayPage(): JSX.Element | null {
     );
   }
 
-  return null;
+  return <DevsetuLoader message="Loading…" />;
 }

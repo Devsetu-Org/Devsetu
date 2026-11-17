@@ -5,6 +5,7 @@ export interface BillingPlanConfig {
   id: string;
   name: string;
   price: number;
+  credits: number;
   firstMonthPrice: number;
   covers: string[];
 }
@@ -16,6 +17,8 @@ export interface BillingConfig {
   mode: BillingMode;
   keyId: string | null;
   offer: { percentOff: number; endsAt: number } | null;
+  /** Credits burned per wall-clock hour by sub-track. */
+  creditRatesPerHour?: Record<string, number>;
   plans: BillingPlanConfig[];
 }
 
@@ -50,6 +53,8 @@ export interface BillingSummary {
   enabled: boolean;
   mode: BillingMode;
   entitlements: string[];
+  /** Monthly lab credits from the active membership (0 on Lite / Base). */
+  credits?: number;
   subscriptions: BillingSubscription[];
   payments: BillingPayment[];
 }

@@ -1,47 +1,32 @@
-## Where you are
+## The buffer pool
 <!-- mode: read-only -->
 
-Chapter 3 made writes safe. It did not make them fast. Every `Get` reads each page of its root-to-leaf path from the file, every time, and every committed page is written to the file immediately.
+Chapter 3 made writes safe. It did not make them fast. Every `Get` reads each page of its root-to-leaf path from the file, every time, and every committed page is written to the file immediately. A B+ tree is built to be cached. The root is read by **every** lookup; the pages just under it by almost every lookup. Read them once and keep them in RAM, and a lookup in a three-level tree touches the disk for one page, not three.
 
-```plaintext
-            Put / Get
-                │
-       ┌────────▼────────┐
-  ch 2 │    B+ tree       │
-       └────────┬────────┘
-       ┌────────▼────────┐        ┌─────────────┐
-  ch 4 │   Buffer pool    │ ◀──────│ you are here │
-       └──┬───────────┬──┘        └─────────────┘
-          │           │ log first
-          ▼           ▼
-       data.db      wal.log
-```
-
-A B+ tree is built to be cached. The root is read by **every** lookup; the pages just under it by almost every lookup. Read them once and keep them in RAM, and a lookup in a three-level tree touches the disk for one page, not three.
+![Write path: Put and Get enter the B+ tree (ch 2), which sits on the buffer pool (ch 4, you are here), writing data.db and wal.log with the log first](/b-tree/buffer-pool/you-are-here.jpg)
 
 > [!scope] This chapter's job
-> A pool of frames between the tree and the page file: pin and unpin, clock eviction, and
-> a write-back rule that never lets a page reach the file ahead of its log records. The
-> tree itself does not change; it is handed the pool where it used to get the pager.
+> A pool of frames between the tree and the page file: pin and unpin, clock eviction, and a write-back rule that never lets a page reach the file ahead of its log records. The tree itself does not change; it is handed the pool where it used to get the pager.
 
-## Frames and pins
-<!-- mode: read-and-implement tasks:4.1 -->
-
-### A fixed number of frames
+### What a frame is
 
 The pool owns a fixed array of **frames**, each holding one 4 KiB page. Memory use is exactly `frames × 4 KiB`, which is the point: a database that cached without limit would eat the machine.
 
-```plaintext
-   table (page no -> frame)                 frames
-   ┌─────┬───────┐                   ┌─────────┬─────────┬─────────┬─────────┐
-   │  1  │   0   │ ────────────────▶ │ page 1  │ page 9  │ page 4  │ (empty) │
-   │  9  │   1   │                   │ pins 0  │ pins 2  │ pins 0  │         │
-   │  4  │   2   │                   │ ref  1  │ ref  1  │ ref  0  │         │
-   └─────┴───────┘                   │ dirty 0 │ dirty 1 │ dirty 0 │         │
-                                     └─────────┴─────────┴─────────┴─────────┘
-```
+| Piece | Role |
+| --- | --- |
+| `Data` | The 4 KiB page bytes currently cached in this frame |
+| `No` | Which page number those bytes belong to |
+| `pins` | How many callers are actively using the frame; eviction skips pinned frames |
+| `ref` | Clock second-chance bit: set on use, cleared by the sweeping hand |
+| `dirty` | In-memory copy differs from disk; must flush before reuse |
+| `lsn` | Log size when the frame was last dirtied; flush may not run ahead of this |
+
+![Buffer pool frames: a page-number to frame table pointing at frames holding pages 1, 9, and 4, each with pins, ref, and dirty flags, plus an empty frame](/b-tree/buffer-pool/frames.jpg)
 
 `Fetch(no)` returns the frame holding page `no`. A **hit** is a map lookup. A **miss** picks a frame to reuse, reads the page into it, and updates the map.
+
+## Pin, unpin, and clock
+<!-- mode: read-and-implement tasks:4.1,4.2 -->
 
 ### Pinning keeps a page from moving
 
@@ -59,6 +44,9 @@ Chapter 3's rule still holds: the log records that describe a page must be durab
    log.Durable() = 6000  →  page 7 must NOT be written yet: record B might still be in the OS cache
 ```
 
+> [!takeaway] Write-ahead still means write-ahead
+> Caching does not weaken durability. A dirty frame is an in-memory after-image; the log is still the source of truth until that frame is flushed under the LSN rule.
+
 <!-- lang: go -->
 ### `TODO(4.1)` — `pin` and `Unpin`
 
@@ -74,9 +62,30 @@ In `internal/buffer/pin.go`. The pool mutex is already held for you in both. `Fe
 - Panic if `f.pins == 0`: unpinning twice is a bug in the caller, and hiding it would let a frame be recycled under someone's feet.
 - `f.pins--`. If `dirty`: `f.dirty = true` and `f.lsn = p.logSize()`.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.1)` — `pin` and `unpin`
 
-## Choosing a victim
-<!-- mode: read-and-implement tasks:4.2 -->
+In `btreekv/buffer/pin.py`. The pool lock is already held for you in both. `fetch` and the page methods in `pool.py` (given) call `pin`. `read_page` uses `load=True`; `write_page` uses `load=False` because it overwrites the whole page and the page may not exist in the file yet.
+
+`pin(no, load)`:
+
+- **Hit** (`no in self.table`): raise pins, set `ref = True`, return the frame.
+- **Miss**: `victim()` (task 4.2). If the frame is in use, `flush_frame`, remove from `table`, clear `used`. If `load`, read from backing. Then claim it: page number, `used`, `ref`, `pins = 1`, not dirty, `lsn = 0`.
+
+`unpin(f, dirty)`: raise if `pins == 0`; else decrement. If `dirty`, set dirty and `lsn = self.log_size()`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.1)` — `Pin` and `Unpin`
+
+In `src/buffer/pin.cc`. Hold `mu_` for the whole call. `Fetch` and the `PageIO` methods in `pool.cc` (given) call `Pin`. `ReadPage` uses `load = true`; `WritePage` uses `load = false`.
+
+`Pin(no, load)`:
+
+- **Hit** (`table_` has `no`): `pins++`, `ref = true`, return the frame.
+- **Miss**: `Victim()` (task 4.2). If used, `FlushFrame`, erase from `table_`, clear `used`. If `load`, read from backing. Then claim it: page number, used, ref, pins=1, not dirty, lsn=0.
+
+`Unpin(f, dirty)`: throw if `pins == 0`; else decrement. If `dirty`, set dirty and `lsn = LogSize()`.
+<!-- /lang -->
 
 ### Which page goes?
 
@@ -90,16 +99,7 @@ When the pool is full and a new page is needed, one resident page must leave. Th
 
 **Clock** arranges the frames in a circle with a **hand**. Each frame has a **ref bit**, set whenever the frame is used. To find a victim, the hand sweeps:
 
-```plaintext
-   frame:   A      B      C      D
-   ref:     1      0      1      0
-   pins:    0      0      1      0
-            ▲
-          hand
-
-   A: ref=1 → clear it, second chance, move on
-   B: ref=0, unpinned → VICTIM
-```
+![Clock sweep: frames A to D with ref bits and pins; the hand clears A's ref bit for a second chance, then evicts B, which is unreferenced and unpinned](/b-tree/buffer-pool/clock.jpg)
 
 A frame used since the last sweep survives one pass; a frame nobody touched is evicted. Postgres uses this exact scheme (with a counter instead of a single bit), and so did many Unix kernels.
 
@@ -123,28 +123,44 @@ In `internal/buffer/evict.go`. The caller holds the mutex. Loop `step` from 0 to
 
 After the loop return `0, ErrPoolFull`. The hand moves **past** the victim, so the next sweep starts after it. `TestClockGivesASecondChance` depends on that.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.2)` — `victim`
 
-## Writing back, log first
+In `btreekv/buffer/evict.py`. The caller holds the lock. Loop up to `2 * len(self.frames)` steps: take `self.hand`, advance it, look at that frame.
+
+- unused: return its index.
+- pinned: skip.
+- `ref`: clear it and skip.
+- otherwise: return the index.
+
+If every frame is pinned, raise `ErrPoolFull`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.2)` — `Victim`
+
+In `src/buffer/evict.cc`. The caller holds `mu_`. Loop up to `2 * frames_.size()` steps: take `hand_`, advance it, look at that frame.
+
+- unused: return its index.
+- pinned: skip.
+- `ref`: clear it and skip.
+- otherwise: return the index.
+
+If every frame is pinned, throw `PoolFullError`.
+<!-- /lang -->
+
+## Flushing dirty pages
 <!-- mode: read-and-implement tasks:4.3 -->
 
 ### Eviction must not run ahead of the log
 
 An evicted dirty page has to go to the file before its frame is reused. That is the moment the write-ahead rule matters: if the page reaches `data.db` while its log records are still in the OS cache, a power cut leaves the file with a change the log does not know about. Recovery cannot undo it, because this engine only redoes.
 
-```plaintext
-  flushFrame(f)
-     ├─ f.dirty?                       no  ──▶ nothing to do
-     ├─ f.lsn > log.Durable()?         yes ──▶ log.Sync()     ← the log catches up first
-     ├─ backing.WritePage(f.No, f.Data)
-     └─ f.dirty = false
-```
+![flushFrame: skip if clean, sync the log if the frame's LSN is past the durable point, write the page to the backing file, then clear dirty](/b-tree/buffer-pool/flush.jpg)
 
 With `SyncAlways`, the log is durable the moment `commit` returns, so the check always passes and costs nothing. With `SyncNever` the pool is the one that forces an `fsync`, just in time, and only when a dirty page is about to leave. That is how real systems can batch log flushes and still obey the rule.
 
 > [!tip] Why not always sync
-> A check against `Durable()` makes the common case free: after one `Sync`, many dirty
-> pages with an older LSN go out without another one. `TestNoLogSyncWhenAlreadyDurable`
-> fails an implementation that syncs every time.
+> A check against `Durable()` makes the common case free: after one `Sync`, many dirty pages with an older LSN go out without another one. `TestNoLogSyncWhenAlreadyDurable` fails an implementation that syncs every time.
 
 <!-- lang: go -->
 ### `TODO(4.3)` — `flushFrame`
@@ -158,9 +174,24 @@ In `internal/buffer/flush.go`. The caller holds the mutex.
 
 `FlushAll` (given) calls this for every frame; `Close` uses it as part of the checkpoint.
 <!-- /lang -->
+<!-- lang: python -->
+### `TODO(4.3)` — `flush_frame`
 
-## The pool under the tree
-<!-- mode: read-only -->
+In `btreekv/buffer/flush.py`. The caller holds the lock.
+
+1. Return unless `f.dirty`.
+2. If `self.log is not None` and `f.lsn > self.log.durable()`, call `self.log.sync()`.
+3. Write the page to backing; clear `f.dirty`.
+<!-- /lang -->
+<!-- lang: cpp -->
+### `TODO(4.3)` — `FlushFrame`
+
+In `src/buffer/flush.cc`. The caller holds `mu_`.
+
+1. Return unless `f->dirty`.
+2. If `log_ != nullptr` and `f->lsn > log_->Durable()`, call `log_->Sync()`.
+3. Write the page to backing; clear `f->dirty`.
+<!-- /lang -->
 
 ### Nothing above changes
 
@@ -177,22 +208,32 @@ In `internal/buffer/flush.go`. The caller holds the mutex.
 - **`Close`** (given) flushes the pool, fsyncs the page file, and only then empties the log.
 
 > [!warn] A free page may still be in the cache
-> The pager pops the freelist by reading the head page from the file. A page freed a
-> moment ago exists only as a dirty frame. `Pool.Allocate` (given) flushes that frame
-> first. Without it the pager would read stale bytes and follow a pointer into nowhere.
+> The pager pops the freelist by reading the head page from the file. A page freed a moment ago exists only as a dirty frame. `Pool.Allocate` (given) flushes that frame first. Without it the pager would read stale bytes and follow a pointer into nowhere.
 
 ### Cache sizing in the real world
 
 The right pool size is "as much as you can spare": Postgres's `shared_buffers` (typically a quarter of RAM, the OS cache holds the rest), InnoDB's `innodb_buffer_pool_size` (often 70–80% of RAM on a dedicated server). The hit rate climbs steeply for the first few frames, which hold the top of the tree, then slowly.
 
-## Prove it
-<!-- mode: read-only -->
+### Prove it
 
 <!-- lang: go -->
 ```bash
 make test     # every acceptance test
 make race     # the same tests with the race detector
 make run      # a REPL that keeps its data in ./data
+```
+<!-- /lang -->
+<!-- lang: python -->
+```bash
+make test
+make run
+```
+<!-- /lang -->
+<!-- lang: cpp -->
+```bash
+make test
+make asan
+make run
 ```
 <!-- /lang -->
 
@@ -210,7 +251,5 @@ The database tests use pools of 4 and 6 frames over thousands of keys, so nearly
 > 2. Clock approximates LRU with a ref bit per frame and a sweeping hand.
 > 3. A dirty frame remembers the log size when it was dirtied, and the pool syncs the log up to that point before writing the page.
 > 4. The tree did not change: the pool is just another page store.
-
-### What is missing
 
 You can insert and look up, and nothing ever leaves. `Delete` returns "not built yet", pages are never freed, and there is no way to list keys in order, even though the leaves are already linked. Chapter 5 finishes the engine: **delete** with borrow and merge to keep pages full, and **scan** along the leaf chain.

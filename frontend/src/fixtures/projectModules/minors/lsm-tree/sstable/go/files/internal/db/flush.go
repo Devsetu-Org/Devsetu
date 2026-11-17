@@ -10,14 +10,7 @@ func (d *DB) flush() error {
 	d.nextFile++
 	path := tablePath(d.dir, num)
 	tmp := path + tmpExt
-	// TODO(3.4): write the memtable to a table and make it live, in this order:
-	//  1. sstable.Create(tmp, d.writerOptions()) and Add every entry from
-	//     d.mem's iterator, tombstones included. On error, Abort.
-	//  2. Finish, os.Rename(tmp, path), then syncDir(d.dir).
-	//  3. sstable.Open(path) and hand it to d.addTable(table{num: num, t: t}),
-	//     which makes it the newest table. Close it if addTable fails.
-	//  4. Only now: close d.log, start a fresh one with wal.Create, and replace
-	//     d.mem with an empty memtable.
+	// TODO(3.4)
 	_, _ = path, tmp
-	panic("TODO(3.4): flush")
+	panic("TODO(3.4)")
 }

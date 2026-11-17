@@ -363,7 +363,7 @@ export default function K8sReadingPage({
     if (authMode !== 'interviewer') {
       onRequestLogin(window.location.pathname, {
         title: 'Sign in to open the playground',
-        body: 'The playground is a real Linux machine beside this blog. It opens for a Linux or DevOps Engineer subscription. Sign in, then open it again.',
+        body: 'The playground is a real Linux machine beside this blog. It opens with a Plus or Pro plan. Sign in, then open it again.',
       });
       return;
     }
@@ -427,7 +427,7 @@ export default function K8sReadingPage({
         <p className="spark-primer-crumb">
           <Link to="/track">Tracks</Link>
           <span aria-hidden> / </span>
-          <Link to="/track/devops-engineer">DevOps Engineer</Link>
+          <Link to={track.domainPath}>{track.domainLabel}</Link>
           <span aria-hidden> / </span>
           <Link to={track.labsPath}>{track.label}</Link>
           <span aria-hidden> / </span>
@@ -448,7 +448,7 @@ export default function K8sReadingPage({
               </p>
               <p>
                 {needsSubscription
-                  ? 'A Linux or DevOps Engineer subscription opens a terminal beside this blog.'
+                  ? 'A Plus or Pro plan opens a terminal beside this blog.'
                   : 'Open a terminal beside this blog and try the commands as you read.'}
               </p>
             </div>
@@ -509,11 +509,6 @@ export default function K8sReadingPage({
                 </Link>
               </li>
             ))}
-            {track.primer ? (
-              <li>
-                <Link to={track.primer.path}>{track.primer.label}</Link>
-              </li>
-            ) : null}
           </ul>
         </section>
       ) : null}

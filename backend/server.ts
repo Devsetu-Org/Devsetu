@@ -30,6 +30,7 @@ const notifyRoutes = require('./routes/notify');
 const monthlyPaperRoutes = require('./routes/monthlyPaper');
 const profileRoutes = require('./routes/profile');
 const waitlistRoutes = require('./routes/waitlist');
+const projectsRoutes = require('./routes/projects');
 const { requireAdminWhenAccessLocked } = require('./auth/middleware');
 
 const terminalService = require('./observability/terminalService');
@@ -71,6 +72,7 @@ app.use('/api/admin', requireAdminWhenAccessLocked, adminRoutes);
 app.use('/api/billing', requireAdminWhenAccessLocked, billingRoutes);
 app.use('/api/notify', requireAdminWhenAccessLocked, notifyRoutes);
 app.use('/api/profile', requireAdminWhenAccessLocked, profileRoutes);
+app.use('/api/projects', requireAdminWhenAccessLocked, projectsRoutes);
 app.use('/api/dev/db', requireAdminWhenAccessLocked, devDbRoutes);
 
 app.use((err: Error & { status?: number }, _req: ExpressRequest, res: ExpressResponse, _next: ExpressNextFunction) => {

@@ -12,8 +12,9 @@
 #   trial   base + the three-broker spike (deploy/eks/kafka/trial-kafka3.yaml), then measure
 #   measure re-sample the running spike (kubectl top + cgroup working set + one CLI call)
 #
-# Not in EKS_NODEGROUPS, so eks-sleep.sh / eks-wake.sh / eks-destroy.sh skip it. Pods must
-# select and tolerate devlabs.io/pool=kafka. Park it with this script.
+# Not in EKS_NODEGROUPS, so eks-sleep.sh / eks-wake.sh skip it. eks-destroy.sh deletes
+# every group on the cluster, including this one. Pods must select and tolerate
+# devlabs.io/pool=kafka. Park it with this script.
 #
 # Usage (repo root, kubeconfig from eks-kubeconfig.sh):
 #   ./deploy/eks/eks-kafka.sh base

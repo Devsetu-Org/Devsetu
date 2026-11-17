@@ -1,0 +1,61 @@
+{
+  "id": "spark-14-dns-memory-and-disk-triple",
+  "number": 828,
+  "finalized": true,
+  "title": "DNS, Memory, and Disk Triple",
+  "description": "**SITUATION:**\n\n`store-rollup-triple` fails on a warm standalone cluster. Mentors will ask what you looked at first. The failure **changes** as you fix things — this is a layered incident, not a single root cause.\n\nSetup planted **three** platform faults at once:\n\n1. Client **driver hostname** advertises `broken-host.quickbite.invalid`.\n2. **`spark.executor.memoryOverhead=48m`** — too small for the PySpark burn.\n3. **`DISK_FILLER`** under Worker `spark-local` dirs.\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Read the planted failure.\n2. Peel the onion: fix driver host → raise overhead → remove filler.\n3. Re-run until `/opt/spark/lab/last_run.txt` → `STATUS=ok`.\n4. Fill **Investigation** (which layer was first / second / third), then Submit.\n\n**SPEC:**\n\n- Planted `spark.driver.host=broken-host.quickbite.invalid` is gone.\n- Tiny `memoryOverhead=48m` is no longer the shell default.\n- `DISK_FILLER` removed on both Workers.\n- Probe `STATUS=ok`.\n- Investigation complete.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "l2",
+    "foundations",
+    "multi-step-bug",
+    "spark-2"
+  ],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "grep spark.driver.host and memoryOverhead in /opt/spark/conf/spark-defaults.conf on the shell.",
+      "After the host is fixed, expect memory pressure (48m overhead) before disk.",
+      "rm DISK_FILLER under $SPARK_HOME/work/spark-local on both Workers.",
+      "Fill the Investigation tab — missing answers fail on Submit."
+    ],
+    "overview": "DNS, Memory, and Disk Triple",
+    "brief": "DNS, Memory, and Disk Triple",
+    "solution": "",
+    "idLabel": "14",
+    "theory": "",
+    "guide": "# QuickBite — DNS + memory + disk (peel the onion)\n\nThree faults at once. Fixing only one is not enough.\n\n1. `spark.driver.host=broken-host.quickbite.invalid` on the shell.\n2. `spark.executor.memoryOverhead=48m`.\n3. `DISK_FILLER` under Worker `spark-local`.\n\nPeel host → overhead → disk, then re-run `store-rollup-triple` → `STATUS=ok`.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-2",
+    "daemonMode": "manual",
+    "chapter": "backlog",
+    "kind": "multi-step-bug",
+    "reservePods": 4,
+    "boot": {
+      "heading": "Starting your cluster",
+      "phases": [
+        "Pulling the Spark image",
+        "Starting the master",
+        "Starting the workers",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 300,
+      "submitMessage": "Checking host, overhead, disk filler, and the probe."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

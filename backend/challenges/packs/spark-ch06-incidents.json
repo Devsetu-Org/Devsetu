@@ -1,0 +1,29 @@
+{
+  "id": "spark-ch06-incidents",
+  "number": 824,
+  "finalized": false,
+  "title": "Chapter 6 — Incidents (placeholder)",
+  "description": "**PLACEHOLDER**\n\nChapter 6 labs are not written yet. Planned:\n\n1. Disk Full and a Stuck Query at Once\n2. Checkpoint Restored Wrong After the Firefight\n3. Executors Lost Under Shared-Worker Pressure\n4. Drain During an Incident Without Making It Worse\n5. Cascading Failure Across Queue and Namespace\n\nDescriptions, setup, and graders land after Chapter 1 is locked.\n",
+  "difficulty": "L0",
+  "tags": ["spark", "incidents", "placeholder"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": {
+    "domainId": "platforms-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [],
+    "overview": "Chapter 6 — Incidents (placeholder)",
+    "brief": "Chapter 6 — Incidents (placeholder)",
+    "solution": "",
+    "idLabel": "ch06",
+    "theory": ""
+  },
+  "platformSpec": {
+    "chapter": "incidents",
+    "kind": "placeholder"
+  },
+  "visibleTo": "users",
+  "tokens": 0
+}

@@ -132,17 +132,23 @@ export default function SubscriptionsPanel(): JSX.Element {
       {summary && current.length === 0 ? (
         <div className="profile-plan-card">
           <p className="profile-plan-badge">Current plan</p>
-          <h3 className="profile-plan-name">Beta access</h3>
-          <p className="profile-plan-price">Free</p>
+          <h3 className="profile-plan-name">Lite</h3>
+          <p className="profile-plan-price">₹0</p>
           <p className="profile-panel-copy">
             {summary.enabled
-              ? 'You don’t have a paid track yet. Pick one on the pricing page.'
+              ? 'Lite: 1 project and 2 labs per track. Upgrade for all projects, whiteboards, and lab credits.'
               : 'You’re on open beta: the full practice floor while we grow. Paid plans will appear here when billing opens.'}
           </p>
           <Link to={PRICING_PATH} className="profile-panel-link">
             View pricing
           </Link>
         </div>
+      ) : null}
+
+      {summary && (summary.credits ?? 0) > 0 ? (
+        <p className="profile-panel-copy" role="status">
+          Lab credits this month: <strong>{summary.credits}</strong>
+        </p>
       ) : null}
 
       {current.map((sub) => (

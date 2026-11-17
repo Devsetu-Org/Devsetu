@@ -345,8 +345,11 @@ tests are given. You own two bodies in `internal/eventloop/loop.go`.
 
 ### `TODO(1.1)` — `Register`
 
-Set `O_NONBLOCK`, then `poller.Add` with the given interest. Non-blocking must happen
-**before** the fd enters the interest set.
+In `internal/eventloop/loop.go`:
+
+1. Set `O_NONBLOCK` on `fd` before it joins the poller (a blocking fd would park the only loop thread on the next `Read`).
+2. Call `poller.Add(fd, interest)` with the given bitset (`Readable`, `Writable`, or both).
+3. Return any error from either step without registering a half-ready fd.
 
 ### `TODO(1.2)` — `Run`
 
@@ -374,12 +377,15 @@ Set `O_NONBLOCK`, then `poller.Add` with the given interest. Non-blocking must h
         │     └──────────────────────────────────────┘
 ```
 
-Pin the OS thread. Loop until `Stop`: drain `Post` tasks, `Wait`, retry `EINTR`, dispatch
-**writable then readable**, ignore handler errors for that event, exit cleanly when stopped.
-A small positive `timeoutMs` is how `Stop` and `Post` get noticed without a dedicated wakeup
-fd.
+In `internal/eventloop/loop.go`: call `runtime.LockOSThread()` once before the loop. Repeat until `Stop` is set:
 
-Open the Tasks tab for both markers, implement them in `loop.go`, then continue.
+1. Drain every queued `Post` task on this thread.
+2. Call `poller.Wait` with the reusable `events` buffer and the configured timeout.
+3. On `EINTR`, retry `Wait` without dispatching stale events.
+4. For each returned event, run `OnWritable` when the writable bit is set, then `OnReadable` when the readable bit is set (writable first for future partial writes). A handler error on one fd does not stop others in the same batch.
+5. When stopped after a wait, drain posted tasks again and return.
+
+A small positive `timeoutMs` lets `Stop` and `Post` wake the loop without a dedicated wakeup fd. Open the Tasks tab, implement both bodies in `loop.go`, then run `make test` and the `PING` proof in the section below.
 
 ## From main to PING
 <!-- mode: read-only -->

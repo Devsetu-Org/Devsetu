@@ -5,7 +5,7 @@ import { useAppState } from '../context/AppStateContext';
 import { isAdminUser } from '../services/authApi';
 import { PlayChromeProvider } from '../context/PlayChromeContext';
 import { PLAYGROUNDS_PATH, SPARK_PLAYGROUND_PATH } from '../constants/playgrounds';
-import { MAJORS_PATH } from '../constants/projects';
+import { MAJORS_PATH, PROJECTS_PATH } from '../constants/projects';
 import { MINORS_PATH } from '../constants/minors';
 import { PRICING_PATH } from '../constants/pricing';
 import { MONTHLY_PAPER_PATH } from '../constants/monthlyPaper';
@@ -35,6 +35,7 @@ const PLAY_SUBROUTES = [
   PAPERS_PATH,
   '/track/quests',
   PLAYGROUNDS_PATH,
+  PROJECTS_PATH,
   MAJORS_PATH,
   MINORS_PATH,
   WHITEBOARD_PATH,
@@ -79,6 +80,13 @@ function AppLayoutInner(): React.JSX.Element {
   const showNav = authMode !== 'resolving' && playState !== 'active';
   const showAdmin = Boolean(currentUser?.admin) || isAdminUser(currentUser);
   const onPlaySubroute = PLAY_SUBROUTES.some((p) => location.pathname.startsWith(p));
+  const onProjects =
+    location.pathname === PROJECTS_PATH ||
+    location.pathname.startsWith(`${PROJECTS_PATH}/`) ||
+    location.pathname === MAJORS_PATH ||
+    location.pathname.startsWith(`${MAJORS_PATH}/`) ||
+    location.pathname === MINORS_PATH ||
+    location.pathname.startsWith(`${MINORS_PATH}/`);
   const onPlayRoute =
     location.pathname === '/track' ||
     (location.pathname.startsWith('/track/') && !onPlaySubroute);
@@ -130,23 +138,15 @@ function AppLayoutInner(): React.JSX.Element {
         onClick={() => setNavOpen(false)}
       >
         <NavIcon name="track" />
-        <span>Track</span>
+        <span>Tracks</span>
       </NavLink>
       <NavLink
-        to={MAJORS_PATH}
-        className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
+        to={PROJECTS_PATH}
+        className={`topnav-pill topnav-action${onProjects ? ' active' : ''}`}
         onClick={() => setNavOpen(false)}
       >
         <NavIcon name="majors" />
-        <span>Majors</span>
-      </NavLink>
-      <NavLink
-        to={MINORS_PATH}
-        className={({ isActive }) => `topnav-pill topnav-action${isActive ? ' active' : ''}`}
-        onClick={() => setNavOpen(false)}
-      >
-        <NavIcon name="minors" />
-        <span>Minors</span>
+        <span>Projects</span>
       </NavLink>
       <NavLink
         to={LEADERBOARD_PATH}

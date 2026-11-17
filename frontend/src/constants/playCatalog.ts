@@ -12,6 +12,29 @@ export type PlayDomainId =
 
 export type PlayPanelId = string;
 
+/** One lab row inside a chapter card. Pack labs use challengeId; planned labs are title-only. */
+export type PlayChapterLab =
+  | {
+      challengeId: string;
+      /** Green “Free” mark on the chapter shelf (display only until billing covers Spark). */
+      free?: boolean;
+    }
+  | {
+      title: string;
+      /** Planned lab with no pack yet — shown locked on the chapter shelf. */
+      placeholder: true;
+    };
+
+export interface PlayChapter {
+  id: string;
+  /** Small label above the title, e.g. "Chapter 1". */
+  kicker: string;
+  title: string;
+  /** Blog slug on this panel's reading track. The shelf links it above the labs. */
+  readingSlug?: string;
+  labs: PlayChapterLab[];
+}
+
 export interface PlayPanel {
   id: PlayPanelId;
   label: string;
@@ -22,6 +45,12 @@ export interface PlayPanel {
   tileBlurb?: string;
   /** Challenge ids shown under this panel (order preserved). */
   challengeIds: string[];
+  /**
+   * Optional chapter cards for the panel shelf (Spark, Kafka). When set, Play
+   * renders a chapter grid instead of the flat lab table. challengeIds still
+   * drives catalog membership and must list every pack lab in the chapters.
+   */
+  chapters?: PlayChapter[];
 }
 
 export interface PlayDomain {
@@ -169,17 +198,25 @@ export const PLAY_DOMAINS: PlayDomain[] = [
     id: 'platforms-engineer',
     label: 'Platforms Engineer',
     blurb:
-      'The shared systems other engineers run on. Kafka Platform Engineering is coming soon. Kubernetes cluster operations are ahead.',
+      'The shared systems other engineers run on. Kafka, Spark, and Kubernetes clusters that are already up.',
     panels: [
       {
         id: 'kafka',
         label: 'Kafka',
-        subtitle: 'A cluster that is already up',
+        subtitle: 'ZooKeeper first, then KRaft',
         tileBlurb:
-          'Topics, replicas, disk, and consumer lag on QuickBite’s Kafka. You run the brokers. You don’t write the services.',
+          'Start on ZooKeeper-era brokers, then move to KRaft. ISR, consumers, and platform guardrails on QuickBite’s Kafka. You run the cluster — not the services.',
         blurb:
-          'Topics, replicas, disk, and consumer lag on QuickBite’s Kafka. The cluster is already up. You run the brokers.',
+          'Lab 1 is the classic ZooKeeper control plane. From Lab 2 the track is KRaft. You run the brokers; you don’t write the producers.',
         challengeIds: [
+          'kafka-01-stand-up-the-cluster-and-find-everything-on-disk',
+          'kafka-02-open-a-topic-the-platform-way',
+          'kafka-03-trace-a-produce-from-client-to-last-replica',
+          'kafka-04-the-partition-and-replica-map',
+          'kafka-05-under-replicated-is-not-a-failed-write',
+          'kafka-06-min-isr-is-why-produces-fail',
+          'kafka-07-segments-retention-and-why-disk-fills',
+          'kafka-08-capstone-disk-isr-and-the-write-path',
           'kafka-00-first-shift-on-the-kafka-cluster',
           'kafka-01-open-the-notifications-topic',
           'kafka-02-orders-audit-has-one-copy',
@@ -191,12 +228,240 @@ export const PLAY_DOMAINS: PlayDomain[] = [
           'kafka-08-put-the-notification-offsets-back',
           'kafka-09-payments-incident',
         ],
+        chapters: [
+          {
+            id: 'foundations',
+            kicker: 'Chapter 1',
+            title: 'Foundations of a Kafka Cluster',
+            labs: [
+              { challengeId: 'kafka-01-stand-up-the-cluster-and-find-everything-on-disk', free: true },
+              { challengeId: 'kafka-02-open-a-topic-the-platform-way', free: true },
+              { challengeId: 'kafka-03-trace-a-produce-from-client-to-last-replica' },
+              { challengeId: 'kafka-04-the-partition-and-replica-map' },
+              { challengeId: 'kafka-05-under-replicated-is-not-a-failed-write' },
+              { challengeId: 'kafka-06-min-isr-is-why-produces-fail' },
+              { challengeId: 'kafka-07-segments-retention-and-why-disk-fills' },
+              { challengeId: 'kafka-08-capstone-disk-isr-and-the-write-path' },
+            ],
+          },
+          {
+            id: 'consumers',
+            kicker: 'Chapter 2',
+            title: 'Consumer Groups and Read Position',
+            labs: [
+              { title: 'Meet the Consumer Group', placeholder: true },
+              { title: 'One Partition Stuck the Desk', placeholder: true },
+              { title: 'Put the Offsets Back', placeholder: true },
+              { title: 'The Group Never Stays Stable', placeholder: true },
+              { title: 'Replay Ate the Request Path', placeholder: true },
+            ],
+          },
+          {
+            id: 'kubernetes',
+            kicker: 'Chapter 3',
+            title: 'Kafka on Kubernetes',
+            labs: [
+              { title: 'Broker Identity Is the PVC', placeholder: true },
+              { title: 'Clients Are Calling an Address Brokers Do Not Advertise', placeholder: true },
+              { title: 'Roll One Broker at a Time', placeholder: true },
+              { title: 'StorageClass and the Broker That Never Joins', placeholder: true },
+              { title: 'Bootstrap, Namespace, and Listener Drift', placeholder: true },
+            ],
+          },
+          {
+            id: 'platform-automations',
+            kicker: 'Chapter 4',
+            title: 'Platform Automations',
+            labs: [
+              { title: 'Topic Shape as Desired State', placeholder: true },
+              { title: 'ACL and Quota From the Request File', placeholder: true },
+              { title: 'Refuse RF=1 and Keep-Forever', placeholder: true },
+              { title: 'Print Drift, Then Repair', placeholder: true },
+              { title: 'Topic Request API', placeholder: true },
+            ],
+          },
+          {
+            id: 'capacity',
+            kicker: 'Chapter 5',
+            title: 'Capacity, Leadership, and Placement',
+            labs: [
+              { title: 'Under-Replicated Report', placeholder: true },
+              { title: 'Lag Report for Dispatch', placeholder: true },
+              { title: 'One Key Owns the Topic', placeholder: true },
+              { title: 'Move Replicas Onto the Empty Broker', placeholder: true },
+              { title: 'Shed Leadership Before the Patch', placeholder: true },
+            ],
+          },
+          {
+            id: 'incidents',
+            kicker: 'Chapter 6',
+            title: 'Incidents',
+            labs: [
+              { title: 'Leader Disk Full, Desk Behind', placeholder: true },
+              { title: 'Offsets After the Firefight', placeholder: true },
+              { title: 'Two Topics, One Full Broker', placeholder: true },
+              { title: 'Drain While the Cluster Is Already Hurting', placeholder: true },
+              { title: 'Quota, Listener, and Disk Together', placeholder: true },
+            ],
+          },
+          {
+            id: 'backlog',
+            kicker: 'Backlog',
+            title: 'Backlog pool',
+            labs: [
+              { challengeId: 'kafka-00-first-shift-on-the-kafka-cluster' },
+              { challengeId: 'kafka-01-open-the-notifications-topic' },
+              { challengeId: 'kafka-02-orders-audit-has-one-copy' },
+              { challengeId: 'kafka-03-broker-2-left-the-isr' },
+              { challengeId: 'kafka-04-payments-is-rejecting-writes' },
+              { challengeId: 'kafka-05-disk-full-on-broker-1' },
+              { challengeId: 'kafka-06-orders-was-compacted' },
+              { challengeId: 'kafka-07-one-partition-of-payments-is-behind' },
+              { challengeId: 'kafka-08-put-the-notification-offsets-back' },
+              { challengeId: 'kafka-09-payments-incident' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'spark',
+        label: 'Spark',
+        subtitle: 'A cluster that is already up',
+        tileBlurb:
+          'Master, workers, and live applications on QuickBite’s Spark. You run the cluster. You don’t write the jobs.',
+        blurb:
+          'Master, workers, and live applications on QuickBite’s Spark. The cluster is already up. You run the workers.',
+        challengeIds: [
+          'spark-01-stand-up-the-cluster-and-find-everything-on-disk',
+          'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments',
+          'spark-03-trace-a-job-from-submission-to-last-task',
+          'spark-04-find-where-the-data-actually-lives',
+          'spark-05-the-executor-memory-map',
+          'spark-06-diagnose-an-executor-lost-to-memory-pressure',
+          'spark-07-the-capstone-bug-slow-then-dead',
+          'spark-08-post-maintenance-mess',
+          'spark-14-dns-memory-and-disk-triple',
+          'spark-09-submit-the-same-workload-on-yarn',
+          'spark-10-read-the-rm-and-nm-as-instruments',
+          'spark-11-land-in-the-right-capacity-queue',
+          'spark-12-client-mode-driver-is-on-the-wrong-host',
+          'spark-13-someone-elses-job-changed-yesterday',
+          'spark-15-driver-and-executor-pods-on-kubernetes',
+          'spark-16-namespace-quota-blocks-the-submit',
+          'spark-17-wrong-image-missing-dependency',
+          'spark-18-dynamic-allocation-without-the-shuffle-service',
+          'spark-19-driver-oomkilled-spark-memory-vs-k8s-limits',
+          'spark-20-multi-fault-k8s-submit',
+        ],
+        chapters: [
+          {
+            id: 'foundations',
+            kicker: 'Chapter 1',
+            title: 'Foundations of a Spark Cluster',
+            readingSlug: 'what-is-spark',
+            labs: [
+              { challengeId: 'spark-01-stand-up-the-cluster-and-find-everything-on-disk', free: true },
+              { challengeId: 'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments', free: true },
+              { challengeId: 'spark-03-trace-a-job-from-submission-to-last-task' },
+              { challengeId: 'spark-04-find-where-the-data-actually-lives' },
+              { challengeId: 'spark-05-the-executor-memory-map' },
+              { challengeId: 'spark-06-diagnose-an-executor-lost-to-memory-pressure' },
+              { challengeId: 'spark-07-the-capstone-bug-slow-then-dead' },
+              { challengeId: 'spark-08-post-maintenance-mess' },
+            ],
+          },
+          {
+            id: 'yarn',
+            kicker: 'Chapter 2',
+            title: 'Spark on YARN',
+            readingSlug: 'spark-on-yarn',
+            labs: [
+              { challengeId: 'spark-09-submit-the-same-workload-on-yarn' },
+              { challengeId: 'spark-10-read-the-rm-and-nm-as-instruments' },
+              { challengeId: 'spark-11-land-in-the-right-capacity-queue' },
+              { challengeId: 'spark-12-client-mode-driver-is-on-the-wrong-host' },
+              { challengeId: 'spark-13-someone-elses-job-changed-yesterday' },
+            ],
+          },
+          {
+            id: 'kubernetes',
+            kicker: 'Chapter 3',
+            title: 'Spark on Kubernetes',
+            readingSlug: 'spark-on-kubernetes',
+            labs: [
+              { challengeId: 'spark-15-driver-and-executor-pods-on-kubernetes' },
+              { challengeId: 'spark-16-namespace-quota-blocks-the-submit' },
+              { challengeId: 'spark-17-wrong-image-missing-dependency' },
+              { challengeId: 'spark-18-dynamic-allocation-without-the-shuffle-service' },
+              { challengeId: 'spark-19-driver-oomkilled-spark-memory-vs-k8s-limits' },
+              { challengeId: 'spark-20-multi-fault-k8s-submit' },
+            ],
+          },
+          {
+            id: 'platform-automations',
+            kicker: 'Chapter 4',
+            title: 'Platform Automations',
+            readingSlug: 'platform-automations',
+            labs: [
+              { title: 'Infra-as-Code for the Cluster Shape', placeholder: true },
+              { title: 'Automated Environment and Dependency Provision', placeholder: true },
+              { title: 'Guardrail: Refuse the Bad Request', placeholder: true },
+              { title: 'Detect Drift, Then Reconcile', placeholder: true },
+              { title: 'Self-Service Job Request API', placeholder: true },
+              { title: 'Submit Through Livy Instead of SSH', placeholder: true },
+            ],
+          },
+          {
+            id: 'observability',
+            kicker: 'Chapter 5',
+            title: 'Observability and Optimizations',
+            readingSlug: 'observability-and-optimizations',
+            labs: [
+              { title: 'History Server Reads the Right Event Logs', placeholder: true },
+              { title: 'Stage Time Is One Hot Task', placeholder: true },
+              { title: 'Spill and GC Before You Add Executors', placeholder: true },
+              { title: 'Lag Report as a Tool', placeholder: true },
+              { title: 'Shuffle Service Health on the Critical Path', placeholder: true },
+            ],
+          },
+          {
+            id: 'incidents',
+            kicker: 'Chapter 6',
+            title: 'Incidents',
+            readingSlug: 'incidents',
+            labs: [
+              { title: 'Disk Full and a Stuck Query at Once', placeholder: true },
+              { title: 'Checkpoint Restored Wrong After the Firefight', placeholder: true },
+              { title: 'Executors Lost Under Shared-Worker Pressure', placeholder: true },
+              { title: 'Drain During an Incident Without Making It Worse', placeholder: true },
+              { title: 'Cascading Failure Across Queue and Namespace', placeholder: true },
+            ],
+          },
+          {
+            id: 'backlog',
+            kicker: 'Backlog',
+            title: 'Backlog pool',
+            labs: [
+              { challengeId: 'spark-14-dns-memory-and-disk-triple' },
+            ],
+          },
+        ],
       },
       {
         id: 'kubernetes',
         label: 'Kubernetes',
-        blurb: 'CKA-style labs: cluster install, control plane, networking, and node operations.',
-        challengeIds: [],
+        subtitle: 'A cluster that is already up',
+        tileBlurb:
+          'Nodes, scheduling, and the control plane on QuickBite’s Kubernetes. You run the cluster. You don’t share it.',
+        blurb:
+          'Nodes, scheduling, and the control plane on QuickBite’s Kubernetes. The cluster is already up. You are the admin of that lab only.',
+        challengeIds: [
+          'k8s-platform-01-first-shift-on-the-cluster',
+          'k8s-platform-02-place-the-three-services',
+          'k8s-platform-03-payment-handler-on-the-tainted-node',
+          'k8s-platform-04-one-pod-asks-for-too-much',
+          'k8s-platform-05-a-collector-on-every-node',
+        ],
       },
     ],
   },
@@ -337,6 +602,19 @@ export function catalogPathForChallenge(
     }
   }
   return '/track';
+}
+
+/**
+ * Shelf URL that keeps a not-yet-started (or still-booting) lab open across
+ * reload. Cleared once the real `/track/<sessionId>` URL takes over.
+ */
+export function catalogLabPath(
+  challengeId: string,
+  sandboxType?: string | null,
+  tags?: string[] | null,
+): string {
+  const base = catalogPathForChallenge(challengeId, sandboxType, tags);
+  return `${base}?lab=${encodeURIComponent(challengeId)}`;
 }
 
 export function getPlayDomain(id: PlayDomainId | null | undefined): PlayDomain | null {

@@ -1,0 +1,50 @@
+{
+  "id": "spark-20-multi-fault-k8s-submit",
+  "number": 842,
+  "finalized": true,
+  "title": "Multi-Fault K8s Submit",
+  "description": "**SITUATION:**\n\nMorning `store-rollup-k8s-capstone` never recovered after maintenance. Setup planted **three** faults: wrong namespace (staging is quota-blocked), base apache/spark image (missing team module + missing pullSecrets), and executor memory under-spec’d (256m heap = 256m limit, no overhead).\n\n**YOUR TASK:**\n\n1. Open the **Guide**. Peel the onion — namespace → image → memory.\n2. Use the prod namespace from `~/lab/prod-namespace.txt`.\n3. Switch to `$SPARK_K8S_IMAGE` and set `pullSecrets=quickbite-registry-pull`.\n4. Set executor memoryOverhead and raise executor limit.memory.\n5. Prove **Succeeded** in prod. Fill **Investigation**, then Submit.\n\n**SPEC:**\n\n- Wrapper targets prod; team image + pullSecrets; executor overhead + raised limit.\n- `store-rollup-k8s-capstone-…` Succeeded in prod.\n- Investigation layers: `namespace` / `image` / `memory`.\n",
+  "difficulty": "L2",
+  "tags": ["spark", "kubernetes", "l2", "capstone", "spark-k8s"],
+  "category": "spark",
+  "sandboxType": "spark",
+  "play": { "domainId": "platforms-engineer", "panelId": "spark" },
+  "problemStatement": {
+    "hints": [
+      "Staging is quota-blocked — read ~/lab/prod-namespace.txt",
+      "Team image is $SPARK_K8S_IMAGE; pullSecrets=quickbite-registry-pull",
+      "Executor limit must exceed heap + overhead",
+      "Fill Investigation before Submit."
+    ],
+    "overview": "Multi-Fault K8s Submit",
+    "brief": "Multi-Fault K8s Submit",
+    "solution": "",
+    "idLabel": "20",
+    "theory": "",
+    "guide": "# QuickBite — Capstone\n\nFix namespace, then image+pullSecrets, then executor memory.\n"
+  },
+  "platformSpec": {
+    "shape": "spark-k8s",
+    "daemonMode": "auto",
+    "chapter": "kubernetes",
+    "kind": "capstone",
+    "reservePods": 3,
+    "boot": {
+      "heading": "Starting your Kubernetes Spark lab",
+      "phases": [
+        "Creating your Kubernetes Spark namespace",
+        "Pulling the Spark-on-K8s image",
+        "Using the cached Spark-on-K8s image",
+        "Preparing the lab"
+      ]
+    },
+    "setup": { "script": "setup.sh" },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 360,
+      "submitMessage": "Checking namespace, image, memory, Succeeded driver, and Investigation."
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 25
+}
