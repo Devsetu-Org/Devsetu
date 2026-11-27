@@ -1,0 +1,59 @@
+{
+  "id": "git-10-undo-the-bad-commit",
+  "number": 609,
+  "finalized": true,
+  "title": "Revert the Silenced Board Notify",
+  "description": "**SITUATION:**\n\n**Staging** is Forgeboard's pre-production environment — a full copy of the product that QA and engineers use to verify changes before customers ever see them. It deploys from `main`. Real customers use **production**, which still runs `release/2.1`, so prod itself is fine.\n\nOvernight on staging, board cards moved but nobody got a ping. QA and a few Core engineers noticed it while using the staging board and reported it on the staging engineering channel — a staging problem, not a production outage.\n\nSomeone traced it to a load-test toggle that turns notifications off. That change already **landed on `main`** the usual way (review + merge). Teammates have pulled that tip into their local clones and into staging.\n\nYou do not force-push or rewrite main to erase it — and the team remote will not accept a push straight onto `main` anyway. The fix is a new commit that **undoes** the bad one, on a short-lived fix branch, pushed for review so it can merge back onto `main` and unstick staging.\n\nPriya's new card SLA breach-check helper (`src/card_sla.py`) already landed on top of the bad commit and QA is testing it on staging — leave that feature commit intact. You are Ada Learner. Open `~/sprint-service` on `main`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. From main, open a fix branch named `fix/reenable-board-notify`.\n2. Find the bad commit that turned notifications off and undo it with a new commit that reverses that change (do not rewrite history).\n3. Confirm notifications are on again, Priya's card SLA helper commit is still intact, and the bad commit is still in the log.\n4. Push your fix branch to the team remote so it can be merged onto `main` — do not push or update `main` yourself.\n5. Leave the working tree clean.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "revert",
+    "undo",
+    "history",
+    "chapter-history-and-recovery"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "Branch first: `git switch -c fix/reenable-board-notify` from main. Do the revert on that branch.",
+      "`git log --oneline` — the culprit's subject mentions silencing board notify. It is *not* the latest commit (Priya's card SLA helper sits above it).",
+      "`git revert <sha>` creates a new commit that applies the inverse patch; later commits are untouched.",
+      "Don't use `reset` — teammates already pulled, and rolling back would also wipe Priya's SLA helper.",
+      "Push the fix branch for review (`git push -u origin fix/reenable-board-notify`). Direct pushes to main are rejected by the forge."
+    ],
+    "overview": "Notifications were turned off on shared integration main under Priya's card SLA helper. Open a fix branch, revert with a new commit, push for merge onto `main` — keep history and the SLA helper intact.",
+    "brief": "From main, open `fix/reenable-board-notify`, revert the notify-off commit, keep Priya's card SLA helper, push the branch for review. Leave `main` alone.",
+    "solution": "# Solution — Revert the Silenced Board Notify\n\n`main` is the shared integration branch (staging tracks it). Production still runs `release/2.1`. A load-test change that silenced board notify already landed on `main` under Priya's card SLA breach-check helper (`src/card_sla.py`). Core forbids direct pushes to `main` — open a fix branch, revert only the bad commit, push for review.\n\n## 1. Branch from main\n\n```bash\ncd ~/sprint-service\ngit switch -c fix/reenable-board-notify\ngit log --oneline\ngit show <sha>           # \"Silence board notify during load test\"\n```\n\nThe bad commit is below `Add card SLA breach check helper`, so `git revert HEAD` would undo Priya's feature instead.\n\n## 2. Revert on the fix branch\n\n```bash\ngit revert --no-edit <bad-sha>\n```\n\nGit creates `Revert \"Silence board notify during load test\"` with the inverse patch. Priya's `src/card_sla.py` commit above is unaffected because it touched a different file.\n\n## 3. Push for review (not main)\n\n```bash\ngit push -u origin fix/reenable-board-notify\ncat src/board_notify.py        # NOTIFY_ENABLED = True again\ncat src/card_sla.py            # SLA helper still intact\ngit status\ngit log --oneline --graph --all --decorate\n```\n\nLeave `main` where you found it. In a real team a PR would merge this branch onto `main` next; this lab ends at the push.\n\n## revert vs reset\n\n- `git revert` adds a new commit that undoes an old one. Safe when the bad tip was already shared — and keeps later feature commits intact.\n- `git reset --hard` moves the branch pointer back and discards commits. Only for local, unshared work (see the next lab).\n",
+    "idLabel": "10",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

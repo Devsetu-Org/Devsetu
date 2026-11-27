@@ -1,0 +1,58 @@
+{
+  "id": "git-11-reset-and-reflog-recover-lost-work",
+  "number": 610,
+  "finalized": true,
+  "title": "Recover Lost Column Auto-Advance",
+  "description": "**SITUATION:**\n\nForgeboard boards stall when cards sit in Doing with no owner follow-up. Product wants a small auto-advance feature: if a card stays in Doing longer than a threshold, move it to Blocked so the board stays honest for sprint reviews. You built that on `feature/column-auto-advance` and committed **Add column auto-advance for stale Doing cards** (it created `src/column_automate.py`). You had not pushed that commit yet.\n\nTidying up before standup, you ran git reset --hard HEAD~1 on that feature tip thinking you were cleaning a dirty tree — and the file and commit vanished from the branch. git log on the feature no longer shows it. origin still has the old feature tip without the auto-advance work.\n\nPanic is optional; committed work is often still in the repository even when no branch tip points at it. Recover that commit onto `feature/column-auto-advance`, then push the feature so it can go to review. This work was never on `main` — leave `main` alone and do not park the rescue there. The team remote will not accept a push straight onto `main`.\n\nYou are Ada Learner in `~/sprint-service` — you start on `feature/column-auto-advance` after the accidental reset. `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Figure out how to find the commit that disappeared from the feature tip.\n2. Restore it so it is part of `feature/column-auto-advance` again.\n3. Make sure `src/column_automate.py` is back exactly as written, and you are still on the feature branch.\n4. Push `feature/column-auto-advance` to `origin` for review. Do not push or update `main`.\n5. Leave everything committed with a clean working tree.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "reset",
+    "reflog",
+    "recovery",
+    "chapter-history-and-recovery"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git log on the feature tip will not show the lost commit — look for another way Git records where HEAD has been.",
+      "Find the SHA whose subject is Add column auto-advance for stale Doing cards, then put the feature tip back on that commit (or re-apply it).",
+      "Stay on feature/column-auto-advance. Do not switch to main to park the rescue.",
+      "After the tip is restored, push the feature to origin for review. Leave main alone."
+    ],
+    "overview": "Forgeboard column auto-advance was committed on a private feature tip, then lost to reset --hard before push. Recover it onto the feature and push for review — leave `main` alone.",
+    "brief": "Recover the lost column auto-advance commit on `feature/column-auto-advance`, push the branch for review. Do not park it on `main`.",
+    "solution": "# Solution — Recover Lost Column Auto-Advance\n\nYou hard-reset away the column auto-advance commit on **feature/column-auto-advance** before it was on origin. Restore it from the reflog, then push the feature for review. Leave `main` alone.\n\n## 1. Confirm it is gone\n\n```bash\ncd ~/sprint-service\ngit branch --show-current   # feature/column-auto-advance\ngit log --oneline           # no \"Add column auto-advance for stale Doing cards\"\nls src                      # no column_automate.py\n```\n\n## 2. Ask the reflog\n\n```bash\ngit reflog\n```\n\n```text\n79fdd2d HEAD@{0}: reset: moving to HEAD~1\n1102836 HEAD@{1}: commit: Add column auto-advance for stale Doing cards\n...\n```\n\nHEAD@{1} is the lost commit.\n\n## 3. Restore it on the feature\n\n```bash\ngit reset --hard <lost-sha>\n# or: git cherry-pick <lost-sha>\n```\n\nStay on feature/column-auto-advance.\n\n## 4. Push for review\n\n```bash\ngit push -u origin feature/column-auto-advance\ngit log --oneline\ncat src/column_automate.py\ngit status\n```\n\nDo not push main.\n\n## Takeaways\n\n- reset --hard moves a private tip. Recover locally first; origin only learns after you push.\n- The reflog is a local safety net — not shared with the remote.\n",
+    "idLabel": "11",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

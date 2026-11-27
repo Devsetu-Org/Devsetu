@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-11-vector-clocks",
+  "number": 711,
+  "finalized": true,
+  "title": "Vector Clocks and Concurrency",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nDriver `UpdateLocation` and rider `CancelTrip` race. Neither saw the other. Lamport may arbitrarily order them and hide the conflict: do you still show a pin on a cancelled trip?\n\nVector clocks expose **concurrency** so a merge policy can run.\n\n**YOUR TASK:**\n\nImplement Lab 3.3 (`TODO(3.3)`).\n\n1. Vector clocks on rider, driver, and dispatch (small N).\n2. Classify pairs: before / after / concurrent.\n3. On concurrent cancel vs location, apply cancel-wins (drop soft pin).\n\n**SPEC:**\n\n- Dominating vectors → before/after\n- Incomparable → concurrent\n- Concurrent cancel vs location → cancel wins\n- Soft pin must not survive that conflict\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-time-ordering",
+    "l1",
+    "vector-clocks",
+    "concurrency"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Small N: rider, driver, dispatch.",
+      "Concurrent when neither vector dominates.",
+      "On concurrent cancel vs location, drop the soft pin.",
+      "Lamport would hide this race."
+    ],
+    "overview": "Cancel and location can be concurrent; cancel wins.",
+    "brief": "Classify before/after/concurrent with vector clocks; cancel wins over location.",
+    "solution": "",
+    "idLabel": "11",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "time-ordering",
+      "taskId": "3.3",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

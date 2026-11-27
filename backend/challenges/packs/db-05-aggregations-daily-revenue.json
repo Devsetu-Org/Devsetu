@@ -1,0 +1,51 @@
+{
+  "id": "db-05-aggregations-daily-revenue",
+  "number": 624,
+  "finalized": true,
+  "title": "Aggregations: Daily Revenue",
+  "description": "**SITUATION:**\n\nThe CFO wants a one-line-per-day revenue view for a date window given in your ticket. Cancelled orders are not revenue.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Group orders by calendar day.\n2. Return the number of orders and the sum of totals per day, excluding cancelled orders.\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `day` (date), `orders` (count), `revenue` (`SUM(total)`, not rounded)\n- Exclude `status = 'cancelled'`\n- Only the ticket's date window (inclusive)\n- Sorted by `day` ascending\n- Read-only\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "group-by",
+    "sum",
+    "count"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`SELECT created_at::date AS day, COUNT(*) AS orders, SUM(total) AS revenue`",
+      "`GROUP BY created_at::date` then `ORDER BY day`.",
+      "Exclude cancelled orders in the `WHERE` clause."
+    ],
+    "overview": "Aggregations: Daily Revenue",
+    "brief": "Aggregations: Daily Revenue",
+    "solution": "## 1. Read the window\n\n```bash\ncat ~/ticket/TASK.md\n```\n\n## 2. Bucket by day with GROUP BY\n\n```sql\nSELECT created_at::date AS day,\n       COUNT(*)         AS orders,\n       SUM(total)       AS revenue\nFROM orders\nWHERE status <> 'cancelled'\n  AND created_at >= DATE '2026-11-01'\n  AND created_at <  DATE '2026-11-07' + 1\nGROUP BY created_at::date\nORDER BY day;\n```\n\n- `created_at::date` truncates the timestamp to a date; group by that same expression.\n- `WHERE` filters rows **before** grouping, so cancelled orders never reach the aggregates.\n- `COUNT(*)` counts rows per group, `SUM(total)` adds their totals.\n- Don't `ROUND` the revenue unless you must: the grader compares exact sums.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "05",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

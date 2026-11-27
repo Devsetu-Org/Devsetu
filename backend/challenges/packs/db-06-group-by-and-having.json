@@ -1,0 +1,51 @@
+{
+  "id": "db-06-group-by-and-having",
+  "number": 625,
+  "finalized": true,
+  "title": "GROUP BY and HAVING",
+  "description": "**SITUATION:**\n\nMarketing wants to thank the QuickBite regulars. Find customers who placed more than N orders; N is in your ticket and differs per session.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Group orders by customer and count them.\n2. Filter the groups with `HAVING`.\n3. Join to `customers` for the name.\n4. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `customer_id`, `name`, `order_count`\n- Customers with strictly more than N orders (any status)\n- Sorted by `order_count` DESC, then `customer_id` ASC\n- Orders pointing at missing customers must not appear\n- Read-only\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "group-by",
+    "having",
+    "join"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`HAVING COUNT(*) > N`",
+      "Join `customers c ON c.id = o.customer_id` and group by `c.id, c.name`.",
+      "Sort with `ORDER BY order_count DESC, c.id`."
+    ],
+    "overview": "GROUP BY and HAVING",
+    "brief": "GROUP BY and HAVING",
+    "solution": "## 1. Read N from the ticket\n\n```bash\ncat ~/ticket/TASK.md\n```\n\n## 2. Aggregate, then filter the groups\n\n```sql\nSELECT c.id AS customer_id,\n       c.name,\n       COUNT(*) AS order_count\nFROM orders o\nJOIN customers c ON c.id = o.customer_id\nGROUP BY c.id, c.name\nHAVING COUNT(*) > 12\nORDER BY order_count DESC, c.id;\n```\n\n- `WHERE` runs before grouping and sees rows; `HAVING` runs after and sees aggregates. `WHERE COUNT(*) > 12` is an error.\n- Every selected column must be in `GROUP BY` or inside an aggregate.\n- The inner join to `customers` also drops the orphan orders from the earlier labs.\n- \"More than 12\" means `> 12`, not `>=`.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "06",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

@@ -1,0 +1,51 @@
+{
+  "id": "db-12-add-an-index-speed-up-search",
+  "number": 631,
+  "finalized": true,
+  "title": "Add an Index: Speed Up Search",
+  "description": "**SITUATION:**\n\nThe customer \"My orders\" lookup (`WHERE customer_id = ...`) is slow on production-sized data. `orders` holds about 300,000 rows here and has no index on `customer_id`, so Postgres reads every row.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Run `EXPLAIN ANALYZE` on the lookup from your ticket and note the `Seq Scan`.\n2. Create an index on `orders (customer_id)`.\n3. Run `EXPLAIN ANALYZE` again and confirm the plan uses the index.\n\n**SPEC:**\n\n- A valid, plain index on `orders` whose first column is `customer_id`\n- The lookup's plan uses `Index Scan` / `Bitmap Index Scan` / `Index Only Scan`, no `Seq Scan on orders`\n- The table keeps all its rows\n- Graded from the catalog and a live `EXPLAIN`\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "index",
+    "explain",
+    "performance"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`CREATE INDEX idx_orders_customer_id ON orders (customer_id);`",
+      "`\\d orders` lists indexes.",
+      "Run the ticket's `EXPLAIN ANALYZE` before and after; compare `Execution Time`."
+    ],
+    "overview": "Add an Index: Speed Up Search",
+    "brief": "Add an Index: Speed Up Search",
+    "solution": "## 1. See the problem\n\nUse the customer id from your ticket:\n\n```sql\nEXPLAIN ANALYZE\nSELECT id, status, total, created_at FROM orders WHERE customer_id = 1234;\n```\n\n```text\nSeq Scan on orders  (cost=0.00..6197.00 rows=120 ...)\n  Filter: (customer_id = 1234)\n  Rows Removed by Filter: 299880\nExecution Time: ~30 ms\n```\n\n`Seq Scan` means Postgres read every row. `Rows Removed by Filter` shows how much work was thrown away.\n\n## 2. Create the index\n\n```sql\nCREATE INDEX idx_orders_customer_id ON orders (customer_id);\n```\n\nCheck it exists:\n\n```sql\n\\d orders\n```\n\n## 3. See the fix\n\n```sql\nEXPLAIN ANALYZE\nSELECT id, status, total, created_at FROM orders WHERE customer_id = 1234;\n```\n\n```text\nBitmap Heap Scan on orders ...\n  ->  Bitmap Index Scan on idx_orders_customer_id\n        Index Cond: (customer_id = 1234)\nExecution Time: ~0.2 ms\n```\n\nIf the planner still seq-scans (rare on a fresh table), run `ANALYZE orders;` so it has fresh statistics.\n\n## Trade-offs\n\n- Indexes speed up reads on that column and slow down writes slightly (each `INSERT`/`UPDATE` maintains them) and use disk.\n- Index the columns you filter, join, or sort on a lot, not every column.\n\nThen **Submit**.\n",
+    "idLabel": "12",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

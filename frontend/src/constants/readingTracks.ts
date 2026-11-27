@@ -32,8 +32,14 @@ import {
   SPARK_PLATFORM_LABS_PATH,
   sparkReadingPath,
 } from './sparkReadings';
+import {
+  getGitReading,
+  gitReadingPath,
+  GIT_LABS_PATH,
+  listGitTrackItems,
+} from './gitReadings';
 
-export type ReadingTrackId = 'kubernetes' | 'linux' | 'docker' | 'devops' | 'spark';
+export type ReadingTrackId = 'kubernetes' | 'linux' | 'docker' | 'devops' | 'spark' | 'git';
 
 export interface ReadingTrack {
   id: ReadingTrackId;
@@ -114,6 +120,19 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
     readingPath: sparkReadingPath,
     listTrackItems: listSparkTrackItems,
   },
+  git: {
+    id: 'git',
+    label: 'Git',
+    domainPath: '/track/software-engineer',
+    domainLabel: 'Software Engineer',
+    labsPath: GIT_LABS_PATH,
+    primer: null,
+    relatedLabsIntro:
+      'Read the blog first, then open the related lab and practice the same loop yourself.',
+    getReading: getGitReading,
+    readingPath: gitReadingPath,
+    listTrackItems: listGitTrackItems,
+  },
 };
 
 export function readingTrackForPanel(
@@ -121,6 +140,7 @@ export function readingTrackForPanel(
   panelId: string | null | undefined,
 ): ReadingTrack | null {
   if (domainId === 'platforms-engineer' && panelId === 'spark') return READING_TRACKS.spark;
+  if (domainId === 'software-engineer' && panelId === 'git') return READING_TRACKS.git;
   if (domainId !== 'devops-engineer') return null;
   if (panelId === 'kubernetes') return READING_TRACKS.kubernetes;
   if (panelId === 'linux') return READING_TRACKS.linux;

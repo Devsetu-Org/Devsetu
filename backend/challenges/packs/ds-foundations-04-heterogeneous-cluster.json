@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-04-heterogeneous-cluster",
+  "number": 704,
+  "finalized": true,
+  "title": "Capstone: The Heterogeneous Cluster",
+  "description": "**SITUATION:**\n\nYou are on the **Fleetline** dispatch team. Not every caller shares one RTT.\n\nA rider on weak cellular, a driver on city Wi‑Fi, and a server sidecar next to dispatch look different on the wire. One global attempt budget false-fails cellular or hangs the server path.\n\nFleetline assumed one size of network. That is the last fallacy in this chapter.\n\nThis lab is **standalone**. You size budgets — you do not re-implement Call.\n\n**YOUR TASK:**\n\nImplement `AttemptBudget` in `internal/budget/budget.go`.\n\n`class` is one of `rider`, `driver`, `server` (or unknown).\n\n1. Known classes return a value in `[1, DefaultAttempts]`.\n2. The three known classes must not all return the same number.\n3. Prefer `rider ≥ server` (cellular needs more patience).\n4. Unknown class returns `DefaultAttempts`.\n\n**SPEC:**\n\n- Heterogeneous budgets for rider / driver / server\n- Bounded by DefaultAttempts\n- Unknown → DefaultAttempts\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** (`make test`) in the editor.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-fallacies",
+    "l1",
+    "timeouts",
+    "heterogeneous",
+    "fallacies",
+    "capstone"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "A simple switch on class is enough.",
+      "Rider should get at least as many attempts as server.",
+      "Unknown class must hit DefaultAttempts."
+    ],
+    "overview": "Rider phones, driver phones, and servers need different attempt budgets.",
+    "brief": "Implement AttemptBudget for rider, driver, and server classes.",
+    "solution": "",
+    "idLabel": "04",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "fallacies-1.4",
+      "taskId": "1.4",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

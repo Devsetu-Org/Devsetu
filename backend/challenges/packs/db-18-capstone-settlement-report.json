@@ -1,0 +1,52 @@
+{
+  "id": "db-18-capstone-settlement-report",
+  "number": 637,
+  "finalized": true,
+  "title": "Capstone: Settlement Report",
+  "description": "**SITUATION:**\n\nFinance closes the books for a date window in your ticket. They need one query: a daily settlement report across `customers`, `orders`, `order_items` and `payments`, with running revenue and a revenue rank. Items and retried payments multiply order totals if you join carelessly.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Build the report with CTEs that aggregate items and payments **per order** before joining.\n2. Add window functions for the running total and the revenue rank.\n3. Save it to `~/answers/report.sql`.\n\n**SPEC:**\n\n- Columns, in order: `day`, `orders`, `customers` (distinct), `item_units`, `revenue`, `captured`, `running_revenue`, `revenue_rank`\n- In scope: delivered, non-deleted orders in the ticket's window whose customer exists\n- `captured` = sum of `payments.amount` with `status = 'captured'` (0 if none); orders with no captured payment still count\n- `running_revenue` = cumulative revenue by day; `revenue_rank` = `RANK()` by revenue DESC\n- Sorted by `day`; finishes in under 2 seconds\n- Graded against a reference result set\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "capstone",
+    "cte",
+    "window-functions",
+    "joins"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "CTEs: `in_scope`, `units` (per order), `paid` (per order, `FILTER (WHERE status = 'captured')`), `daily`.",
+      "`SUM(revenue) OVER (ORDER BY day)` and `RANK() OVER (ORDER BY revenue DESC)` on the daily rows.",
+      "Sanity check: your daily `revenue` must equal `SUM(total)` over the same orders."
+    ],
+    "overview": "Capstone: Settlement Report",
+    "brief": "Capstone: Settlement Report",
+    "solution": "## 1. The shape of the problem\n\nThe report is **one row per day**, but the source data is one row per order, several rows per order in `order_items`, and one or two rows per order in `payments`. Joining those straight onto orders **multiplies** each order's `total` (once per item, once per payment attempt). The fix is to collapse each child table to **one row per order** first.\n\n## 2. Build it in steps with CTEs\n\nUse the dates from **your** ticket:\n\n```sql\nWITH in_scope AS (\n  SELECT o.id, o.created_at::date AS day, o.customer_id, o.total\n  FROM orders o\n  JOIN customers c ON c.id = o.customer_id          -- drops orphan orders\n  WHERE o.status = 'delivered'\n    AND o.deleted_at IS NULL\n    AND o.created_at >= DATE '2026-11-02'\n    AND o.created_at <  DATE '2026-11-10' + 1\n),\nunits AS (                                           -- one row per order\n  SELECT order_id, SUM(qty) AS units\n  FROM order_items\n  GROUP BY order_id\n),\npaid AS (                                            -- one row per order\n  SELECT order_id,\n         SUM(amount) FILTER (WHERE status = 'captured') AS captured\n  FROM payments\n  GROUP BY order_id\n),\ndaily AS (\n  SELECT s.day,\n         COUNT(*)                     AS orders,\n         COUNT(DISTINCT s.customer_id) AS customers,\n         COALESCE(SUM(u.units), 0)    AS item_units,\n         SUM(s.total)                 AS revenue,\n         COALESCE(SUM(p.captured), 0) AS captured\n  FROM in_scope s\n  LEFT JOIN units u ON u.order_id = s.id\n  LEFT JOIN paid  p ON p.order_id = s.id\n  GROUP BY s.day\n)\nSELECT day, orders, customers, item_units, revenue, captured,\n       SUM(revenue) OVER (ORDER BY day)       AS running_revenue,\n       RANK()       OVER (ORDER BY revenue DESC) AS revenue_rank\nFROM daily\nORDER BY day;\n```\n\n## 3. Why each decision\n\n- **Per-order CTEs (`units`, `paid`)** prevent fan-out. Summing `orders.total` after a raw join to items would overcount.\n- **`LEFT JOIN`** to `units` and `paid`: a delivered order with no captured payment must still count in `orders` and `revenue`.\n- **`FILTER (WHERE status = 'captured')`** ignores the failed attempt without losing the order row.\n- **`COUNT(DISTINCT customer_id)`** gives unique customers per day.\n- **Window functions run after `GROUP BY`**: `SUM(revenue) OVER (ORDER BY day)` is the running total across the daily rows, and `RANK() OVER (ORDER BY revenue DESC)` ranks the days.\n- Pre-aggregating also makes the query fast: the database sums each child table once instead of building a huge join first.\n\n## 4. Check it\n\n```bash\nnano ~/answers/report.sql\ntime psql -f ~/answers/report.sql\n```\n\nSanity check: `revenue` for a day should equal `SELECT SUM(total) FROM orders WHERE ...` for the same filters. If yours is larger, you have a fan-out.\n\nThen **Submit**.\n",
+    "idLabel": "18",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 120
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

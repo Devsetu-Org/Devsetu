@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-06-wrong-answer-failures",
+  "number": 706,
+  "finalized": true,
+  "title": "Wrong-Answer Failures",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nWorse than silence: a **wrong answer**. A delayed `MatchDriver` reply arrives after the rider already cancelled and requested again. The app assigns the old driver to the new trip id. Or a cached ETA handler returns another trip's estimate.\n\nThe network delivered a coherent lie. Retries alone do not fix that.\n\n**YOUR TASK:**\n\nImplement Lab 2.2 (`TODO(2.2)`).\n\n1. Bind replies to request identity (trip id + client token / RPC id).\n2. Reject mismatched replies.\n3. Fence stale matches with a trip generation / epoch so an old success cannot overwrite a newer cancel.\n\n**SPEC:**\n\n- Late replies for trip A never mutate trip B\n- Stale match after cancel+new request is rejected\n- Wrong-answer fixtures fail closed\n- Soft ETA mistakes are out of scope unless they share the same identity check\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-partial-failure",
+    "l1",
+    "stale-reply",
+    "fencing",
+    "partial-failure"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Include trip id + client token / RPC id in the request and check the reply.",
+      "A trip generation / epoch fences cancel-then-rematch races.",
+      "Wrong-answer fixtures should be detected, not applied.",
+      "Worse than silence: a coherent lie."
+    ],
+    "overview": "Late or mismatched replies must not mutate the wrong trip.",
+    "brief": "Bind replies to trip identity and fence stale MatchDriver successes.",
+    "solution": "",
+    "idLabel": "06",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "partial-failure",
+      "taskId": "2.2",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

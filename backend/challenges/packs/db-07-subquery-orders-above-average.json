@@ -1,0 +1,50 @@
+{
+  "id": "db-07-subquery-orders-above-average",
+  "number": 626,
+  "finalized": true,
+  "title": "Subquery: Orders Above Average",
+  "description": "**SITUATION:**\n\nGrowth wants to study \"big basket\" orders: anything worth more than the average order in a date window. The average must be computed by the query, not pasted in.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Compute the average total over the ticket's window (non-cancelled orders) in a subquery.\n2. Return the orders above it.\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `id`, `total`\n- Only non-cancelled orders in the ticket's window (inclusive)\n- `total` strictly greater than the average of those same orders\n- Sorted by `total` DESC, then `id` ASC\n- Must use `AVG(...)` in a subquery\n- Read-only\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "subquery",
+    "avg"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`WHERE total > (SELECT AVG(total) FROM orders WHERE ...)`",
+      "Repeat the window and cancelled filter inside the subquery.",
+      "`ORDER BY total DESC, id`"
+    ],
+    "overview": "Subquery: Orders Above Average",
+    "brief": "Subquery: Orders Above Average",
+    "solution": "## 1. Same filter on both sides\n\nThe ticket defines \"typical\" using the **same** rows you are filtering: orders in the date window, not cancelled. The average and the outer query must use the same filter or the comparison is meaningless.\n\n## 2. A scalar subquery in WHERE\n\n```sql\nSELECT id, total\nFROM orders\nWHERE status <> 'cancelled'\n  AND created_at >= DATE '2026-11-01'\n  AND created_at <  DATE '2026-11-07' + 1\n  AND total > (\n    SELECT AVG(total)\n    FROM orders\n    WHERE status <> 'cancelled'\n      AND created_at >= DATE '2026-11-01'\n      AND created_at <  DATE '2026-11-07' + 1\n  )\nORDER BY total DESC, id;\n```\n\n- The inner query returns a single value (the average), so it can sit on the right of `>`.\n- Hard-coding the average would work today and break tomorrow.\n- A CTE (`WITH avg_total AS (...)`) is a fine rewrite when the same subquery repeats.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "07",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

@@ -1,0 +1,58 @@
+{
+  "id": "git-14-stash-work-in-progress",
+  "number": 613,
+  "finalized": true,
+  "title": "Stash Invite WIP for the TTL Hotfix",
+  "description": "**SITUATION:**\n\nForgeboard is adding **workspace invites** so enterprise admins can bring teammates into a workspace with a link. You are on `feature/workspace-invites` in `~/sprint-service` building that feature. That branch already has committed invite work ahead of `main` — several commits that belong only on the feature, not on a hotfix.\n\nOn top of those commits you also have an **uncommitted** edit in `src/main.py`: a preview banner for pending invite counts. The banner is half-finished — dirty in your working tree, not ready to commit. Keep it off every branch tip for now.\n\nOps needs invite links on staging to last 72 hours. On `main`, `invite_link_ttl_hours` is still 0 under `[invites]`, so enterprise admins cannot get teammates into Forgeboard before the walkthrough. Jordan asked you to open a short fix branch **from today's `main`** (not from the feature), set only that TTL to 72, and push the fix for review. The fix branch should carry exactly one new commit beyond `main` — the config change — and must not include the feature's invite commits or the banner WIP. Do not change `main` yourself.\n\nGit will not let you switch away with those dirty edits in the way. Set the WIP aside, land and push the fix from `main`, then come back to the feature and put your banner edit back exactly as it was.\n\nYour identity (Ada Learner) is already configured. Start on `feature/workspace-invites` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Set aside your uncommitted invite-banner edit so you can leave the feature branch (do not commit it).\n2. Switch to `main`, open `fix/invite-ttl-72` from that tip, set `invite_link_ttl_hours` to 72, and commit only that config change. Push the fix for review. Do not push or update `main`, and do not base the fix on `feature/workspace-invites`.\n3. Switch back to `feature/workspace-invites`, restore your banner edit exactly as it was, and end with that WIP as the only dirty change (nothing left set aside).\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "stash",
+    "hotfix",
+    "branches",
+    "chapter-collaboration"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git stash push -m \"invite banner WIP\" sets the dirty src/main.py aside — do not commit it.",
+      "git switch main && git switch -c fix/invite-ttl-72 — must branch from main, not from the feature.",
+      "Edit only invite_link_ttl_hours to 72, commit, push. The fix tip should be exactly one commit beyond main and touch only config/app.conf.",
+      "git switch feature/workspace-invites && git stash pop — restore the banner. Leave main alone."
+    ],
+    "overview": "Feature already has commits ahead of `main` plus dirty banner WIP. Set WIP aside, land exactly one TTL=72 commit on `fix/invite-ttl-72` from `main`, push, restore WIP.",
+    "brief": "Stash WIP. From main, one-commit `fix/invite-ttl-72` (TTL 72 only), push. Restore WIP on the feature. Leave `main` alone.",
+    "solution": "# Solution — Stash Invite WIP for the TTL Hotfix\n\nDirty invite-banner WIP blocks switching off `feature/workspace-invites`. Stash it, land `fix/invite-ttl-72` from `main`, push for review, then restore the WIP.\n\n## 1. Stash the WIP\n\n```bash\ncd ~/sprint-service\ngit status\ngit stash push -m \"invite banner wip\"\ngit status\n```\n\n## 2. Fix branch from main\n\n```bash\ngit switch main\ngit switch -c fix/invite-ttl-72\nnano config/app.conf   # invite_link_ttl_hours = 72\ngit add config/app.conf\ngit commit -m \"Set invite link TTL to 72 hours\"\ngit push -u origin fix/invite-ttl-72\n```\n\n## 3. Restore the feature WIP\n\n```bash\ngit switch feature/workspace-invites\ngit stash pop\ngit stash list          # empty\ngit status              # M src/main.py\n```\n\nLeave `main` where you found it.\n",
+    "idLabel": "14",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

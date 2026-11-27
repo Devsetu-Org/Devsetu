@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-23-flp-intuition",
+  "number": 723,
+  "finalized": true,
+  "title": "FLP and Escape Hatches",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nTwo dispatch replicas must agree which driver owns trip T after a crash and arbitrary delays. In a fully asynchronous network where even one process may crash, **deterministic consensus is impossible** (FLP).\n\nYou cannot promise \"we always decide the unique owner\" and \"we always eventually decide\" under that model without relaxing something.\n\n**YOUR TASK:**\n\nImplement Lab 6.3 (`TODO(6.3)`).\n\n1. A minimal two/three-node \"who owns T\" agreement toy under an adversarial async scheduler.\n2. Show a run where a deterministic protocol never decides, **or** a run where relaxing a safety/liveness/assumption restores progress.\n3. Reflect: elections, quorums, timeouts, and simulation exist for this reason.\n\n**SPEC:**\n\n- Toy agreement under adversarial schedule\n- Non-decision or explicit escape hatch demonstrated\n- Written note linking to Raft / failure detectors\n- Does not claim FLP means consensus is useless\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-safety-liveness",
+    "l2",
+    "flp",
+    "consensus"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "FLP: deterministic consensus impossible in fully async model with one crash.",
+      "Show a run that never decides, or restore progress by relaxing an assumption.",
+      "Raft assumes partial synchrony for liveness; safety can still hold while elections thrash.",
+      "This is why Simulation and Consensus come next."
+    ],
+    "overview": "Async + crash blocks deterministic agreement without weakening something.",
+    "brief": "Exhibit non-decision for a deterministic who-owns-T toy under adversarial async.",
+    "solution": "",
+    "idLabel": "23",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "safety-liveness",
+      "taskId": "6.3",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

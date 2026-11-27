@@ -1,0 +1,44 @@
+{
+  "id": "ds-foundations-13-linearizability",
+  "number": 713,
+  "finalized": true,
+  "title": "Linearizability",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nTrip **ownership** — which driver owns trip T — must behave as if there were one copy of the truth. Once a match is acknowledged, every subsequent read sees that owner until a later acknowledged change.\n\nTwo rider phones must not disagree about who owns T after a successful Match.\n\n**YOUR TASK:**\n\nImplement Lab 4.1 (`TODO(4.1)`).\n\n1. A small replicated trip-owner register with linearizable `Match` / `ReadOwner`.\n2. A history checker: client histories that violate linearizability fail.\n3. Soft fields (ETA, location) stay out of this lab.\n\n**SPEC:**\n\n- Acknowledged Match then ReadOwner sees that driver\n- Histories with two owners illegally fail\n- Soft fields not part of the linearizable object\n- Real-time order respected in the legal linearization\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-consistency",
+    "l1",
+    "ownership"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Once Match is acknowledged, later reads see that owner until a later ack'd change.",
+      "Real-time order: if A finishes before B starts, A precedes B.",
+      "Soft fields stay out of this lab.",
+      "Illegal two-owner histories must fail the checker."
+    ],
+    "overview": "Trip ownership must behave as one copy of the truth.",
+    "brief": "Provide a linearizable Match / ReadOwner for trip assignment.",
+    "solution": "",
+    "idLabel": "13",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "consistency",
+      "taskId": "4.1",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

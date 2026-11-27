@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-24-classify",
+  "number": 724,
+  "finalized": true,
+  "title": "Capstone: Classify and Design",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nProduct writes tickets like \"never double-dispatch\" and \"always match within 30s.\" Those are not the same kind of requirement. Classify them before picking Raft, leases, or best-effort timers.\n\n**YOUR TASK:**\n\nImplement Lab 6.4 (`TODO(6.4)`).\n\nClassify (extend as needed):\n\n- \"Never two drivers on one trip.\"\n- \"Riders always get a car in under a minute.\"\n- \"The map is never wrong.\"\n- \"Cancelled trips stay cancelled.\"\n- \"We eventually show the driver's true location.\"\n- \"Match is available in every partition.\"\n\nFor nonsense or over-strong claims, propose a corrected property Foundations can defend. Exit ticket: one paragraph tying single-owner safety and eventual match under assumptions to Simulation / Consensus next.\n\n**SPEC:**\n\n- Each claim labeled safety / liveness / SLO / nonsense\n- Over-strong claims get a corrected version\n- Exit paragraph present\n- Closes Foundations\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-safety-liveness",
+    "l2",
+    "classify",
+    "capstone"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Never two drivers → safety.",
+      "Always a car in under a minute → over-strong SLO / nonsense as absolute.",
+      "Map is never wrong → nonsense.",
+      "Eventually show true location → liveness-ish / eventual."
+    ],
+    "overview": "Classify Fleetline product claims as safety, liveness, SLO, or nonsense.",
+    "brief": "Label claims and correct over-strong ones into Foundations-defensible properties.",
+    "solution": "",
+    "idLabel": "24",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "safety-liveness",
+      "taskId": "6.4",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

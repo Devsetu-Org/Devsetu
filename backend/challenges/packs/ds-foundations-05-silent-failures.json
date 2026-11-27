@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-05-silent-failures",
+  "number": 705,
+  "finalized": true,
+  "title": "Silent Failures",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nA driver taps **Complete trip** in a parking garage. The app shows a checkmark. Dispatch never recorded `Completed`. Or maybe it did — the reply was dropped, so nobody on the phone knows.\n\nSilence is not success and not a clean error. It is **unknown**. Retries without care create duplicate completes; never retrying leaves the trip stuck `InProgress`.\n\n**YOUR TASK:**\n\nImplement the silent-complete path for Lab 2.1 (`TODO(2.1)` in `internal/lab/lab.go`).\n\n1. Treat \"no reply\" as **unknown**, not success.\n2. Attach an idempotency key (or trip + transition token) so a safe retry cannot double-apply `Completed`.\n3. Replaying the same key converges; inventing a new key must not create two completes.\n\nThe full netsim fixtures land with Submit. The contract is unknown + idempotent Completed.\n\n**SPEC:**\n\n- Failed Call after a possible apply does not claim success in the client model\n- Same idempotency key → at most one Completed transition\n- Different key after a possible apply is a bug in the client design (tests will catch double-complete)\n- CallOnce remains the naive control from Fallacies\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-partial-failure",
+    "l1",
+    "idempotency",
+    "partial-failure"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Silence ≠ success. Do not mark the UI done on Call failure alone.",
+      "Reuse the same idempotency key / transition token when retrying Completed.",
+      "A new key must not create a second complete.",
+      "At-least-once delivery needs idempotency for strong transitions."
+    ],
+    "overview": "No reply after CompleteTrip is unknown, not success. Idempotent retry must not double-complete.",
+    "brief": "Treat silence as unknown and make Completed idempotent under retry.",
+    "solution": "",
+    "idLabel": "05",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "partial-failure",
+      "taskId": "2.1",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

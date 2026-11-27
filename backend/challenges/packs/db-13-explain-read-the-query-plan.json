@@ -1,0 +1,52 @@
+{
+  "id": "db-13-explain-read-the-query-plan",
+  "number": 632,
+  "finalized": true,
+  "title": "EXPLAIN: Read the Query Plan",
+  "description": "**SITUATION:**\n\nThe \"latest pending orders\" panel for one customer is slow: filter by customer and status, `ORDER BY created_at DESC LIMIT 20` on a 300,000-row table with no helpful index. Read the plan, find the expensive nodes, and fix them.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Run the ticket's query under `EXPLAIN (ANALYZE)`; spot the `Seq Scan` and the `Sort`.\n2. Create an index that finds the customer's rows already in `created_at` order.\n3. Save the new `EXPLAIN (ANALYZE)` output to `~/answers/plan.txt`.\n\n**SPEC:**\n\n- The live plan has an index scan, **no** `Seq Scan` and **no** `Sort` node\n- `~/answers/plan.txt` is the after-fix `EXPLAIN (ANALYZE)` plan for the ticket's query (contains `Execution Time`, `customer_id = <ticket id>`, an index scan, no Seq Scan / Sort)\n- No data is changed\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "explain",
+    "index",
+    "composite-index",
+    "sort"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "An index on `customer_id` alone still leaves a `Sort` node.",
+      "`CREATE INDEX ... ON orders (customer_id, created_at DESC);` then `ANALYZE orders;`",
+      "`psql -c \"EXPLAIN (ANALYZE) <query>\" > ~/answers/plan.txt`"
+    ],
+    "overview": "EXPLAIN: Read the Query Plan",
+    "brief": "EXPLAIN: Read the Query Plan",
+    "solution": "## 1. Read the \"before\" plan\n\n```sql\nEXPLAIN (ANALYZE)\nSELECT id, status, total, created_at\nFROM orders\nWHERE customer_id = 1234 AND status = 'pending'\nORDER BY created_at DESC\nLIMIT 20;\n```\n\nTypical output (read it from the **innermost / most indented** node outwards):\n\n```text\nLimit\n  ->  Sort  (Sort Key: created_at DESC, Sort Method: top-N heapsort)\n        ->  Seq Scan on orders\n              Filter: ((customer_id = 1234) AND (status = 'pending'))\n              Rows Removed by Filter: 299xxx\nExecution Time: ~35 ms\n```\n\nTwo problems:\n\n1. **Seq Scan** — Postgres reads all 300,000 rows to keep ~35.\n2. **Sort** — it then sorts those rows to answer `ORDER BY created_at DESC LIMIT 20`.\n\n## 2. Make the index match the query\n\nAn index on `customer_id` alone fixes the scan but leaves the Sort. An index that includes the `ORDER BY` column returns rows already in order:\n\n```sql\nCREATE INDEX idx_orders_customer_created\n  ON orders (customer_id, created_at DESC);\nANALYZE orders;\n```\n\n(`(customer_id, status, created_at DESC)` works too, and the `status = 'pending'` check can then be done inside the index.)\n\nRule of thumb: equality columns first, then the `ORDER BY` column.\n\n## 3. Save the \"after\" plan\n\n```bash\npsql -c \"EXPLAIN (ANALYZE) SELECT id, status, total, created_at FROM orders WHERE customer_id = 1234 AND status = 'pending' ORDER BY created_at DESC LIMIT 20;\" > ~/answers/plan.txt\ncat ~/answers/plan.txt\n```\n\nNow you should see:\n\n```text\nLimit\n  ->  Index Scan using idx_orders_customer_created on orders\n        Index Cond: (customer_id = 1234)\n        Filter: (status = 'pending')\nExecution Time: ~0.1 ms\n```\n\nNo Seq Scan, no Sort. Use **your** customer id from the ticket, then **Submit**.\n",
+    "idLabel": "13",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

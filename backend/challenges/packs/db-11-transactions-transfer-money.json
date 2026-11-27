@@ -1,0 +1,51 @@
+{
+  "id": "db-11-transactions-transfer-money",
+  "number": 630,
+  "finalized": true,
+  "title": "Transactions: Transfer Money",
+  "description": "**SITUATION:**\n\nA wallet transfer is two writes: debit one wallet, credit another. If anything fails halfway, money must not appear or vanish. `wallets.balance` has a `CHECK (balance >= 0)` constraint.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Write `~/answers/transfer.sql` moving the ticket's amount from the ticket's source wallet to its destination wallet inside an explicit transaction.\n2. Make it all-or-nothing, including when the source cannot cover the amount.\n\n**SPEC:**\n\n- Script: `~/answers/transfer.sql`, using `BEGIN` ... `COMMIT`\n- Success: source loses the amount, destination gains it, no other wallet changes\n- Insufficient funds: **neither** wallet changes\n- Graded by running the script twice (enough balance, then too little) with plain `psql -f` that keeps going after errors\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "transactions",
+    "acid",
+    "rollback"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`BEGIN; UPDATE wallets SET balance = balance - X WHERE id = A; UPDATE wallets SET balance = balance + X WHERE id = B; COMMIT;`",
+      "The `CHECK` constraint makes the debit fail when the balance is too low.",
+      "Test with `psql -f ~/answers/transfer.sql` and look at both wallets before and after."
+    ],
+    "overview": "Transactions: Transfer Money",
+    "brief": "Transactions: Transfer Money",
+    "solution": "## 1. The problem\n\nA transfer is two writes. If the debit succeeds and the credit never runs (crash, constraint, bug), money disappears. If the credit runs and the debit fails, money is created.\n\nA **transaction** makes the writes one unit: `COMMIT` keeps both, and an error or `ROLLBACK` throws both away.\n\n## 2. The script\n\nUse the wallet ids and amount from **your** ticket:\n\n```sql\nBEGIN;\n\nUPDATE wallets SET balance = balance - 250 WHERE id = 7;\nUPDATE wallets SET balance = balance + 250 WHERE id = 31;\n\nCOMMIT;\n```\n\n## 3. Why the rollback case works\n\n`wallets` has `CHECK (balance >= 0)`. If wallet 7 holds less than 250, the first `UPDATE` fails with a constraint violation. Postgres marks the whole transaction as aborted:\n\n- the second `UPDATE` is rejected (\"current transaction is aborted, commands ignored until end of transaction block\")\n- `COMMIT` on an aborted transaction performs a `ROLLBACK`\n- both wallets keep their old balance\n\nWithout `BEGIN`, each statement commits on its own. The failed debit would be skipped but the credit would still run: money from nowhere. That is what the grader's second run checks.\n\n## 4. Use relative updates\n\n`SET balance = balance - 250` runs against the current value inside the transaction. Reading the balance first in your client and writing `SET balance = 1750` loses concurrent updates.\n\n## 5. Test it\n\n```bash\npsql -c \"SELECT id, balance FROM wallets WHERE id IN (7, 31);\"\npsql -f ~/answers/transfer.sql\npsql -c \"SELECT id, balance FROM wallets WHERE id IN (7, 31);\"\n```\n\nThe grader resets the balances itself. Then **Submit**.\n",
+    "idLabel": "11",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

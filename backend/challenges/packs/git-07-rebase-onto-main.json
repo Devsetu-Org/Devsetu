@@ -1,0 +1,60 @@
+{
+  "id": "git-07-rebase-onto-main",
+  "number": 606,
+  "finalized": true,
+  "title": "Rebase Board Filters Onto Main",
+  "description": "**SITUATION:**\n\nPriya (or you earlier) pushed `feature/board-filters` to the forge — two commits that add board column filters (todo / doing / done / blocked) and a short README note. That tip lives on `origin`; your laptop starts on `main` and does not have a local copy of the feature yet.\n\nWhile the feature sat there, `main` moved ahead on the forge (and on your local `main`): log level and a board_label helper, plus a README rewrite in the same boards section. The remote feature still starts from the older tip, so it is behind main.\n\nJordan blocked opening the PR this morning. On this team, feature branches stay **linear**: replay the two commits on current `main` — not a \"Merge branch `main` into feature\" knot. When the README commit replays, Git will stop; keep both your board-filters notes and `main`'s board_label note. Same subjects, new SHAs. Then push the rewritten feature (history changed, so a lease-safe force push). Do not change `main` yourself.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Fetch from `origin` and check out `feature/board-filters` from the remote tip.\n2. Replay that branch onto current `main` so it has exactly those two commits on top of `main`, with a linear history. Resolve the README conflict keeping both docs.\n3. Push the rewritten `feature/board-filters` to `origin` (the history changed, so a normal push will be rejected — update the remote tip safely). Do not push or update `main`. Leave a clean working tree.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "rebase",
+    "conflicts",
+    "linear-history",
+    "push",
+    "force-with-lease",
+    "chapter-merging-and-rebasing"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git fetch origin && git switch feature/board-filters",
+      "git rebase main — when README conflicts, keep board-filters docs and board_label, then git add README.md && git rebase --continue",
+      "Preserve the two original subjects. History is rewritten, so: git push --force-with-lease origin feature/board-filters",
+      "Leave main alone."
+    ],
+    "overview": "Fetch `feature/board-filters` from `origin`, rebase onto `main` (keep both README docs), force-with-lease push — leave `main` alone.",
+    "brief": "Fetch and check out `origin/feature/board`-filters`, rebase onto `main`, push --force-with-lease. Leave `main` alone.",
+    "solution": "# Solution — Rebase Board Filters Onto Main\n\nYour `feature/board-filters` branch forked before `main` moved. Jordan wants a **linear** feature history for the PR — not a merge-of-main knot. Replay your two commits on top of today's `main`, resolve the README conflict by keeping **both** docs, then force-with-lease push the rewritten feature.\n\n## 1. See the divergence\n\n```bash\ncd ~/sprint-service\ngit branch --show-current\ngit log --oneline --graph --all\n```\n\nYour two filter commits sit on an older tip; `main` has moved ahead. Origin already has that pre-rebase feature tip.\n\n## 2. Rebase (do not merge)\n\n```bash\ngit rebase main\n```\n\nThe first commit (`filters.py`) applies cleanly. The second stops on `README.md` — both you and `main` rewrote the board docs.\n\n## 3. Resolve README — keep both sides\n\nKeep your board-filters usage notes **and** main's note about the `board_label` helper. Combine them; delete every conflict marker.\n\n```bash\nnano README.md\ngrep -nE '^(<<<<<<<|=======|>>>>>>>)' README.md   # should print nothing\ngit add README.md\ngit rebase --continue\n```\n\nThen confirm:\n\n```bash\ngit log --oneline --graph --all\ngit log --oneline main..HEAD\n```\n\nExactly two commits, same subjects, now based on main's tip. New SHAs are expected — that is rebase rewriting the feature tip.\n\n## 4. Force-with-lease push the feature\n\nOrigin still points at the old tip. A plain push is rejected after rebase. Update **only** the feature branch:\n\n```bash\ngit push --force-with-lease origin feature/board-filters\n```\n\nDo **not** push or rewrite `main`.\n\n## Notes\n\n- Merging `main` into the feature would sync the files but leave a merge commit; this lab wants the linear story.\n- `git rebase --abort` undoes a rebase that went wrong.\n- Leave `main` exactly where it is; only the feature branch should move.\n- Never plain `--force` on a shared branch when `--force-with-lease` will do.\n",
+    "idLabel": "07",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

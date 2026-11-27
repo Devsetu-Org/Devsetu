@@ -18,6 +18,8 @@ const PAID_TRACKS = new Set<string>([
   'kafka',
   'spark',
   'k8s-platform',
+  'git',
+  'databases',
 ]);
 
 /** First two labs of each paid subtrack in Play order. */
@@ -32,6 +34,10 @@ const FREE_LAB_IDS = new Set<string>([
   'kafka-02-open-a-topic-the-platform-way',
   'spark-01-stand-up-the-cluster-and-find-everything-on-disk',
   'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments',
+  'git-01-first-commit-on-sprint-service',
+  'git-02-branch-for-the-flag-fix',
+  'db-01-your-first-select',
+  'db-02-where-with-multiple-conditions',
 ]);
 
 /** Lite-tier majors (Base+ unlocks all). */
@@ -69,6 +75,8 @@ async function getFeatures(user: LabUser | null | undefined): Promise<Set<string
       'kafka',
       'spark',
       'k8s-platform',
+      'git',
+      'databases',
     ]);
   }
   const { isAccessLocked } = require('../accessLock');

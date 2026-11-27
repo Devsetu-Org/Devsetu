@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-07-gray-failures",
+  "number": 707,
+  "finalized": true,
+  "title": "Gray Failures",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\n**Gray failure:** the system looks healthy in pieces and broken in combination. Classic Fleetline case — **asymmetric visibility**.\n\nThe rider's path to dispatch works. The driver's does not (or one AZ sees the match and another does not). Rider sees \"Alex is arriving.\" Alex's app never got `ConfirmPickup`. Support sees two green services.\n\nThe failure is in the *combination* of views, not in a single red light.\n\n**YOUR TASK:**\n\nImplement Lab 2.3 (`TODO(2.3)`).\n\n1. Handle asymmetric partitions (A→B ok, B→A dropped).\n2. Require a cross-view check before firm Assigned (e.g. driver ack).\n3. Surface degraded / awaiting driver ack instead of a false Assigned when only one side confirmed.\n\n**SPEC:**\n\n- One-sided match observation is not firm Assigned\n- Firm Assigned requires dual confirmation (or equivalent)\n- Health of each process alone is not enough\n- Soft map pins may still show degraded state\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-partial-failure",
+    "l1",
+    "asymmetric",
+    "gray-failure",
+    "partial-failure"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Model A→B ok and B→A dropped as asymmetric partition.",
+      "Single-sided success is degraded, not Assigned.",
+      "Driver ack (or dual observation) before firm match.",
+      "Dashboards that only ask process up will miss this."
+    ],
+    "overview": "Asymmetric visibility: rider sees a match the driver never got.",
+    "brief": "Require cross-ack before treating a match as firm Assigned.",
+    "solution": "",
+    "idLabel": "07",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "partial-failure",
+      "taskId": "2.3",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

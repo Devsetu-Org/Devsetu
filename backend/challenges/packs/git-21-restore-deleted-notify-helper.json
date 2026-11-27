@@ -1,0 +1,58 @@
+{
+  "id": "git-21-restore-deleted-notify-helper",
+  "number": 638,
+  "finalized": true,
+  "title": "Restore the Deleted Notify Format Helper",
+  "description": "**SITUATION:**\n\nForgeboard board-notify webhooks on staging started failing after a cleanup landed on `main`. Ops needs the helper that builds the Slack-shaped payload — a function named `format_notify_payload`. It used to live under src/ in `~/sprint-service`, but it is gone from today's tip. Looking at today's files will not show deleted lines.\n\nProduct still wants that helper back — and only that helper. Jordan asked you to bring `src/notify_format.py` back exactly as it was, on a short fix branch named `fix/restore-notify-format`, and push it for review so it can merge onto `main`. Do not change `main` yourself.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Search history to find when `format_notify_payload` disappeared, then open `fix/restore-notify-format` from `main`.\n2. Restore `src/notify_format.py` exactly as it was before the deletion and commit that restore on the fix branch. Leave every other file on the tip as it is.\n3. Push `fix/restore-notify-format` to `origin` for review. Do not push or update `main`. Leave a clean working tree.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "pickaxe",
+    "restore",
+    "history",
+    "chapter-history-and-recovery"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "When lines are gone, searching today's tip will not help. Search commit history for the string format_notify_payload (git log -S is built for that).",
+      "Inspect the commit that removed it (git show). If it touched more than one path, restore only src/notify_format.py — e.g. git restore --source=<sha>^ -- src/notify_format.py",
+      "Do the restore on fix/restore-notify-format, not on main.",
+      "Push the fix branch for review. Leave main alone."
+    ],
+    "overview": "`format_notify_payload` is gone from `main` after a cleanup. Restore `src/notify_format.py` on `fix/restore-notify-format` without changing other tip files, push. Leave `main` alone.",
+    "brief": "Restore `src/notify_format.py` onto `fix/restore-notify-format` from history. Keep the rest of the tip as-is. Push; leave `main` alone.",
+    "solution": "# Solution — Restore the Deleted Notify Format Helper\n\n`format_notify_payload` was removed in a cleanup that also changed other files. Inspect that commit; restore **only** `src/notify_format.py` onto `fix/restore-notify-format` and push — leave `main` alone.\n\n```bash\ncd ~/sprint-service\ngit log -S'format_notify_payload' --oneline\ngit show <delete-sha>    # notice other paths changed too\ngit switch -c fix/restore-notify-format\ngit restore --source=<delete-sha>^ -- src/notify_format.py\ngit add src/notify_format.py\ngit commit -m \"Restore format_notify_payload for board-notify webhooks\"\ngit push -u origin fix/restore-notify-format\n```\n\nReverting the whole cleanup would bring the helper back and undo the other edits Core wants to keep — that fails the grader.\n",
+    "idLabel": "21",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

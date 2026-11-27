@@ -1,0 +1,59 @@
+{
+  "id": "git-08-interactive-rebase-squash-the-noise",
+  "number": 607,
+  "finalized": true,
+  "title": "Squash CSV Export WIP Into Two Commits",
+  "description": "**SITUATION:**\n\n`feature/csv-export` exports Forgeboard sprint boards to CSV so PMs can download card lists. Someone hacked it together late last night — five noisy commits (wip, wip 2 - actually write it, WIP tests, fixup typo in csv_export, wip docs) — and **pushed that diary to `origin`**. The code is fine; the history is not. Your laptop starts on `main`; the noisy tip is only on the remote until you fetch it.\n\nWIP means work in progress: throwaway subjects while exploring. They were never meant for a reviewer.\n\nPriya is reviewing this morning and will not approve a five-commit WIP stack. Rewrite the branch into **exactly two** commits on top of main — one for the export implementation, one for tests + README — with clear subjects (no wip / fixup / typo). Final files must stay the same; only history changes. Then push the rewritten feature so she can review. Do not change `main` yourself.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Fetch from `origin` and check out `feature/csv-export` from the remote tip.\n2. Rewrite that branch into exactly two clear commits beyond `main` without changing the final files.\n3. Push the rewritten `feature/csv-export` to `origin` (the history changed, so a normal push will be rejected — update the remote tip safely). Do not push or update `main`. Leave a clean working tree.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "rebase",
+    "squash",
+    "history",
+    "push",
+    "chapter-merging-and-rebasing"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git fetch origin && git switch feature/csv-export",
+      "git rebase -i main — pick/reword/squash/fixup into exactly two commits with clear subjects.",
+      "Final tree must match the noisy tip; only history changes.",
+      "git push --force-with-lease origin feature/csv-export. Leave main alone."
+    ],
+    "overview": "Fetch noisy `feature/csv-export` from `origin`, squash into two clear commits, force-with-lease push — leave `main` alone.",
+    "brief": "Fetch and check out `origin/feature/csv`-export`, squash to two commits, push --force-with-lease. Leave `main` alone.",
+    "solution": "# Solution — Squash CSV Export WIP Into Two Commits\n\nPriya will not approve a five-commit WIP stack. That tip is already on `origin`. Rewrite into two clear commits — implementation, then tests + docs — without changing the final tree, then force-with-lease push. Do not push `main`.\n\n## 1. See the noise\n\n```bash\ncd ~/sprint-service\ngit log --oneline main..HEAD\n```\n\n## 2. Interactive rebase\n\n```bash\ngit rebase -i main\n```\n\nKeep the first real implementation commit as `pick`, mark the follow-ups as `squash`/`fixup` so you end with **two** commits. Reword subjects so they are clear.\n\nIf your editor is awkward:\n\n```bash\ngit reset --soft main\ngit restore --staged .\ngit add src/csv_export.py\ngit commit -m \"Add CSV export for sprint board downloads\"\ngit add tests/test_csv_export.py README.md\ngit commit -m \"Add CSV export tests and README notes\"\n```\n\n## 3. Verify\n\n```bash\ngit log --oneline main..HEAD\ngit status\n```\n\nExactly two commits, clear subjects, clean working tree.\n\n## 4. Publish the rewritten tip\n\n```bash\ngit push --force-with-lease origin feature/csv-export\n```\n\nDo **not** `git push origin main`.\n",
+    "idLabel": "08",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 5
+}

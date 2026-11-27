@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-12-order-the-log",
+  "number": 712,
+  "finalized": true,
+  "title": "Capstone: Order the Distributed Log",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nIncident review for trip `T-8421`: five nodes, skewed walls, concurrent locations, one cancel. You receive a shuffled bag of events with clock metadata. Reconstruct what happened without inventing causality.\n\n**YOUR TASK:**\n\nImplement Lab 3.4 (`TODO(3.4)`).\n\n1. Produce an audit order from the event bag.\n2. Respect happens-before and legal lifecycle transitions.\n3. Emit concurrent soft sets explicitly rather than silently total-ordering them.\n\n**SPEC:**\n\n- Causal edges respected in the output order\n- Illegal lifecycle transitions rejected\n- Concurrent soft events flagged as a set\n- Closes Time and Ordering\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-time-ordering",
+    "l2",
+    "audit",
+    "event-log",
+    "capstone"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Topological / clock-based sort.",
+      "Reject orders that break happens-before or illegal transitions.",
+      "Emit concurrent soft sets explicitly.",
+      "Do not silently total-order soft races."
+    ],
+    "overview": "Rebuild a defensible audit order from a messy multi-node trip log.",
+    "brief": "Sort a shuffled event bag respecting happens-before and legal lifecycle.",
+    "solution": "",
+    "idLabel": "12",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "time-ordering",
+      "taskId": "3.4",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

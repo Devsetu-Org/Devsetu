@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-21-safety-properties",
+  "number": 721,
+  "finalized": true,
+  "title": "Safety Properties",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\n**Safety:** nothing bad ever happens. \"Never two drivers for one trip\" is safety. Once a bad prefix appears in the trace, you cannot eventually un-break it.\n\n**YOUR TASK:**\n\nImplement Lab 6.1 (`TODO(6.1)`).\n\n1. A checker that fails as soon as a history violates a safety invariant.\n2. Fixtures: clean history; double-assign; illegal transition — only clean passes.\n3. Rewrite vague product language into checkable safety claims.\n\n**SPEC:**\n\n- Double-assign fails\n- Illegal lifecycle fails\n- Clean history passes\n- Claims are checkable predicates, not vibes\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-safety-liveness",
+    "l2",
+    "safety",
+    "invariants"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "At most one driver owner per trip at a logical time.",
+      "No Completed without Assigned.",
+      "No assign after Cancelled without a new trip id.",
+      "Safety violations are finite bad prefixes."
+    ],
+    "overview": "Encode and check Fleetline safety invariants on trip histories.",
+    "brief": "Fail histories that double-assign or skip illegal lifecycle steps.",
+    "solution": "",
+    "idLabel": "21",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "safety-liveness",
+      "taskId": "6.1",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

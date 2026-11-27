@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-14-weaker-models",
+  "number": 714,
+  "finalized": true,
+  "title": "Weaker Models",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nETA and \"cars nearby\" do not need linearizability. Stronger-than-needed models cost latency. The map can be a little stale; trip ownership cannot.\n\n**YOUR TASK:**\n\nImplement Lab 4.2 (`TODO(4.2)`).\n\n1. Implement (or simulate) one weaker model for nearby-driver reads.\n2. Show a history that is legal under that model but illegal under linearizability — and argue why that is OK for the map.\n3. Keep ownership on the strong API from 4.1.\n\n**SPEC:**\n\n- Nearby API uses the weaker model\n- At least one history distinguishes weak vs linearizable\n- Ownership path unchanged\n- Document the model name in the solution notes\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-consistency",
+    "l1",
+    "sequential",
+    "causal",
+    "nearby"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Map refresh every second cannot pay quorum latency every time.",
+      "Show a history legal under weak but illegal under linearizability.",
+      "Ownership from 4.1 stays strong.",
+      "Name the model you chose (sequential, causal, …)."
+    ],
+    "overview": "Nearby drivers do not need linearizability; pick a weaker model and defend it.",
+    "brief": "Implement a weaker consistency model for nearby-driver reads.",
+    "solution": "",
+    "idLabel": "14",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "consistency",
+      "taskId": "4.2",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

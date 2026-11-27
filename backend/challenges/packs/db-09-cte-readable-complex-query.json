@@ -1,0 +1,51 @@
+{
+  "id": "db-09-cte-readable-complex-query",
+  "number": 628,
+  "finalized": true,
+  "title": "CTE: Readable Complex Query",
+  "description": "**SITUATION:**\n\nThe legacy settlement query is a 60-line nest of subqueries nobody dares touch. Rewrite the per-customer settlement summary with named `WITH` steps. Watch for the join trap: items multiply order totals.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Write a query starting with `WITH` and at least two named CTEs.\n2. Produce one row per customer for delivered, non-deleted orders in the ticket's window.\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `customer_id`, `name`, `delivered_orders`, `item_units`, `gross`\n- `status = 'delivered'`, `deleted_at IS NULL`, inside the ticket's date window\n- `item_units` = sum of `qty`; `gross` = sum of `orders.total` (no fan-out)\n- Sorted by `gross` DESC, then `customer_id` ASC\n- At least two CTEs; orphan orders excluded\n- Read-only\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "cte",
+    "with",
+    "aggregation"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "Aggregate items first: `SELECT order_id, SUM(qty) FROM order_items GROUP BY order_id`.",
+      "`LEFT JOIN` the per-order units onto delivered orders.",
+      "Join `customers` last to drop orphan orders."
+    ],
+    "overview": "CTE: Readable Complex Query",
+    "brief": "CTE: Readable Complex Query",
+    "solution": "## 1. Name each step\n\nA CTE is a named subquery you define up front with `WITH` and then use like a table. Break the report into steps:\n\n1. `delivered` — the orders in scope\n2. `units` — item quantity **per order**\n3. `per_customer` — roll the orders up to one row per customer\n\n## 2. Write it\n\n```sql\nWITH delivered AS (\n  SELECT id, customer_id, total\n  FROM orders\n  WHERE status = 'delivered'\n    AND deleted_at IS NULL\n    AND created_at >= DATE '2026-11-01'\n    AND created_at <  DATE '2026-11-09' + 1\n),\nunits AS (\n  SELECT order_id, SUM(qty) AS units\n  FROM order_items\n  GROUP BY order_id\n),\nper_customer AS (\n  SELECT d.customer_id,\n         COUNT(*)                  AS delivered_orders,\n         COALESCE(SUM(u.units), 0) AS item_units,\n         SUM(d.total)              AS gross\n  FROM delivered d\n  LEFT JOIN units u ON u.order_id = d.id\n  GROUP BY d.customer_id\n)\nSELECT c.id AS customer_id, c.name,\n       p.delivered_orders, p.item_units, p.gross\nFROM per_customer p\nJOIN customers c ON c.id = p.customer_id\nORDER BY p.gross DESC, c.id;\n```\n\nWhy `units` is its own step: `order_items` has several rows per order. If you join items straight onto orders and then `SUM(total)`, each order's total is added once **per item**. Collapse items to one row per order first, then join.\n\nThe final inner join to `customers` drops orphan orders.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql | head\n```\n\nThen **Submit**.\n",
+    "idLabel": "09",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

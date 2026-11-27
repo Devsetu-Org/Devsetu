@@ -1,0 +1,50 @@
+{
+  "id": "db-02-where-with-multiple-conditions",
+  "number": 621,
+  "finalized": true,
+  "title": "WHERE with Multiple Conditions",
+  "description": "**SITUATION:**\n\nSupport is drowning in \"where is my food?\" tickets. They want a worklist of **big orders that are still pending**, newest first, so they can chase the kitchens. The rupee threshold is in your ticket and changes every session.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Combine two conditions with `AND`: `status = 'pending'` and `total` strictly above the ticket's threshold.\n2. Sort newest first.\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `id`, `customer_id`, `total`, `created_at`\n- `status = 'pending'` AND `total >` threshold (strictly greater)\n- `ORDER BY created_at DESC`\n- Read-only\n- File: `~/answers/query.sql`\n",
+  "difficulty": "L0",
+  "tags": [
+    "databases",
+    "l0",
+    "sql",
+    "where",
+    "order-by"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`WHERE status = 'pending' AND total > <threshold>`",
+      "Newest first is `ORDER BY created_at DESC`.",
+      "Use the threshold from `~/ticket/TASK.md`, not a made-up number."
+    ],
+    "overview": "WHERE with Multiple Conditions",
+    "brief": "WHERE with Multiple Conditions",
+    "solution": "## 1. Read the threshold\n\n```bash\ncat ~/ticket/TASK.md\n```\n\nThe rupee threshold is different every session (400–900).\n\n## 2. Combine conditions with AND\n\n```sql\nSELECT id, customer_id, total, created_at\nFROM orders\nWHERE status = 'pending'\n  AND total > 650\nORDER BY created_at DESC;\n```\n\n- `>` is **strictly** greater: an order of exactly 650.00 must not appear.\n- `ORDER BY created_at DESC` puts the newest first. Without `ORDER BY`, Postgres returns rows in no promised order.\n- Text values use single quotes: `'pending'`. Double quotes are for identifiers.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "02",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

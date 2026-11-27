@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-02-constrained-network",
+  "number": 702,
+  "finalized": true,
+  "title": "The Constrained Network",
+  "description": "**SITUATION:**\n\nYou are on the **Fleetline** dispatch team. Soft driver location updates keep the rider map alive — but they are chatty and fat.\n\nOn a **constrained** link (limited bandwidth), those soft blobs queue in front of the RPCs that actually move the trip: match, confirm, advance. Riders stare at \"Finding your driver…\" even though nothing was dropped. Soft traffic starved the strong path.\n\nFleetline assumed infinite network capacity. It does not.\n\nThis lab is **standalone**. You do not implement retries here.\n\n**YOUR TASK:**\n\nImplement `Coalesce` in `internal/location/coalesce.go`.\n\nDrivers stream many `Update` values. Before they compete with trip RPCs for link budget, thin them:\n\n1. Keep at most one update per `DriverID` — the one with the highest `Seq`.\n2. Preserve first-seen driver order among distinct drivers.\n3. Under spam with duplicate drivers, return a shorter slice than the input.\n\n**SPEC:**\n\n- Newest `Seq` wins per driver\n- First-seen order among drivers\n- Spam with one driver collapses to a single update\n- Empty / nil input → empty output\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** (`make test`) in the editor. The Submit harness lands next.\n",
+  "difficulty": "L0",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-fallacies",
+    "l0",
+    "bandwidth",
+    "location",
+    "fallacies"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Track the best Update per DriverID and the order drivers first appeared.",
+      "When Seq ties or is higher, replace the stored pin for that driver.",
+      "Do not invent a retry loop — that is a different lab."
+    ],
+    "overview": "Driver location spam starves trip RPCs on a constrained link. Coalesce soft updates so only the newest pin per driver remains.",
+    "brief": "Implement Coalesce: newest pin per driver, first-seen order.",
+    "solution": "",
+    "idLabel": "02",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "fallacies-1.2",
+      "taskId": "1.2",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

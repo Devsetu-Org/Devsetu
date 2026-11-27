@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-15-eventual-sessions",
+  "number": 715,
+  "finalized": true,
+  "title": "Eventual Consistency and Sessions",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nDriver location is **eventually** consistent: replicas converge when updates stop. After a tunnel and reconnect, the driver also wants **read-your-writes** so they do not stare at their own stale pin.\n\n**YOUR TASK:**\n\nImplement Lab 4.3 (`TODO(4.3)`).\n\n1. Eventual propagation of `UpdateLocation` across lab replicas with a convergence test.\n2. A session token so reconnect reads land on a replica that has seen that session's writes (or waits until it has).\n3. Without sessions, read-your-writes may fail; with sessions, it must not.\n\n**SPEC:**\n\n- Replicas converge when updates quiesce\n- Session reads honor read-your-writes\n- Ownership / Match stays off the eventual path\n- Soft location only\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-consistency",
+    "l1",
+    "eventual",
+    "session",
+    "location"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Eventual: replicas converge when updates stop.",
+      "Session token sticks reads to a replica that saw the session's writes.",
+      "Without sessions, reconnect can violate read-your-writes.",
+      "Ownership stays out of the eventual path."
+    ],
+    "overview": "Locations converge eventually; sessions give read-your-writes after reconnect.",
+    "brief": "Propagate UpdateLocation to convergence and honor session reads.",
+    "solution": "",
+    "idLabel": "15",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "consistency",
+      "taskId": "4.3",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

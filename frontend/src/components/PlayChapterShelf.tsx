@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { PlayChapter, PlayChapterLab } from '../constants/playCatalog';
+import { MINORS_PATH } from '../constants/minors';
 import type { ChallengePublic } from '../types/domain';
 import { visibilityMark } from '../constants/roles';
 import { IconCoins, IconLock } from './ChromeIcons';
@@ -14,11 +15,17 @@ export interface ChapterReadingLink {
 function isPlaceholderLab(
   lab: PlayChapterLab,
 ): lab is Extract<PlayChapterLab, { placeholder: true }> {
-  return 'placeholder' in lab && lab.placeholder;
+  return 'placeholder' in lab && lab.placeholder === true;
+}
+
+function isMinorLab(
+  lab: PlayChapterLab,
+): lab is Extract<PlayChapterLab, { minorId: string; chapterId: string }> {
+  return 'minorId' in lab && 'chapterId' in lab;
 }
 
 function labTitle(lab: PlayChapterLab, challenge: ChallengePublic | null): string {
-  if (isPlaceholderLab(lab)) return lab.title;
+  if (isPlaceholderLab(lab) || isMinorLab(lab)) return lab.title;
   return challenge?.title || lab.challengeId;
 }
 
@@ -27,6 +34,11 @@ function labTokens(challenge: ChallengePublic | null): number {
     return challenge.tokens;
   }
   return 10;
+}
+
+function minorHref(lab: Extract<PlayChapterLab, { minorId: string; chapterId: string }>): string {
+  const base = `${MINORS_PATH}/${lab.minorId}/${lab.chapterId}?lang=go`;
+  return lab.taskId ? `${base}&task=${encodeURIComponent(lab.taskId)}` : base;
 }
 
 interface PlayChapterShelfProps {
@@ -46,6 +58,7 @@ export default function PlayChapterShelf({
   showVisibilityMarks = false,
   readingFor,
 }: PlayChapterShelfProps): JSX.Element {
+  const navigate = useNavigate();
   const q = search.trim().toLowerCase();
 
   const chapterViews = useMemo(() => {
@@ -53,24 +66,38 @@ export default function PlayChapterShelf({
     return chapters.map((chapter) => {
       const reading = readingFor?.(chapter) ?? null;
       const labs = chapter.labs.map((lab) => {
-        const row =
-          isPlaceholderLab(lab)
-            ? {
-                key: `${chapter.id}:${lab.title}`,
-                index,
-                title: lab.title,
-                free: false,
-                challenge: null as ChallengePublic | null,
-                placeholder: true,
-              }
-            : {
-                key: lab.challengeId,
-                index,
-                title: labTitle(lab, byId.get(lab.challengeId) || null),
-                free: Boolean(lab.free),
-                challenge: byId.get(lab.challengeId) || null,
-                placeholder: false,
-              };
+        if (isMinorLab(lab)) {
+          const row = {
+            key: `${lab.minorId}/${lab.chapterId}/${lab.taskId || lab.title}`,
+            index,
+            title: lab.title,
+            free: Boolean(lab.free),
+            challenge: null as ChallengePublic | null,
+            placeholder: false,
+            minorHref: minorHref(lab),
+          };
+          index += 1;
+          return row;
+        }
+        const row = isPlaceholderLab(lab)
+          ? {
+              key: `${chapter.id}:${lab.title}`,
+              index,
+              title: lab.title,
+              free: false,
+              challenge: null as ChallengePublic | null,
+              placeholder: true,
+              minorHref: null as string | null,
+            }
+          : {
+              key: lab.challengeId,
+              index,
+              title: labTitle(lab, byId.get(lab.challengeId) || null),
+              free: Boolean(lab.free),
+              challenge: byId.get(lab.challengeId) || null,
+              placeholder: false,
+              minorHref: null as string | null,
+            };
         index += 1;
         return row;
       });
@@ -83,6 +110,7 @@ export default function PlayChapterShelf({
               chapter.kicker,
               reading?.title,
               lab.challenge?.id,
+              lab.minorHref,
               ...(lab.challenge?.tags || []),
             ]
               .filter(Boolean)
@@ -128,10 +156,12 @@ export default function PlayChapterShelf({
             <ol className="play-chapter-labs">
               {labs.map((lab) => {
                 const challenge = lab.challenge;
+                const isMinor = Boolean(lab.minorHref);
                 /* Pack labs open the brief even when not finalized (Start stays gated). */
-                const openable = Boolean(challenge) && !challenge?.locked && !lab.placeholder;
+                const openable =
+                  isMinor || (Boolean(challenge) && !challenge?.locked && !lab.placeholder);
                 const billingLocked = Boolean(challenge?.locked);
-                const locked = billingLocked || lab.placeholder || !challenge;
+                const locked = !isMinor && (billingLocked || lab.placeholder || !challenge);
                 const solved = Boolean(challenge?.solved);
                 const showFree = lab.free && !billingLocked;
                 const tokens = labTokens(challenge);
@@ -144,15 +174,21 @@ export default function PlayChapterShelf({
                       className={`play-chapter-lab${openable ? '' : ' is-disabled'}${locked ? ' is-locked' : ''}${solved ? ' is-solved' : ''}`}
                       disabled={!openable}
                       title={
-                        lab.placeholder || !challenge
-                          ? 'Lab description coming soon'
-                          : challenge.locked
-                            ? 'Subscribe to unlock this lab'
-                            : !challenge.finalized
-                              ? 'Open the brief — live cluster start comes later'
-                              : undefined
+                        isMinor
+                          ? 'Open in coding workspace'
+                          : lab.placeholder || !challenge
+                            ? 'Lab description coming soon'
+                            : challenge.locked
+                              ? 'Subscribe to unlock this lab'
+                              : !challenge.finalized
+                                ? 'Open the brief — live cluster start comes later'
+                                : undefined
                       }
                       onClick={() => {
+                        if (lab.minorHref) {
+                          navigate(lab.minorHref);
+                          return;
+                        }
                         if (openable && challenge) void onSelectChallenge(challenge);
                       }}
                     >

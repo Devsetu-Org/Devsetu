@@ -1,0 +1,44 @@
+{
+  "id": "ds-foundations-10-lamport-clocks",
+  "number": 710,
+  "finalized": true,
+  "title": "Happens-Before and Lamport Clocks",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nSupport needs an order of trip events that never puts an effect before its cause. Wall clocks failed. **Happens-before** is the relation you can trust: if A could have caused B, then A happened before B.\n\nLamport clocks give a single integer that respects that relation (with concurrent ties).\n\n**YOUR TASK:**\n\nImplement Lab 3.2 (`TODO(3.2)`).\n\n1. Instrument rider, dispatch, and driver with Lamport timestamps on send / receive / local events.\n2. Prove: for every causal pair in the trip workflow, Lamport order matches happens-before.\n3. Accept that equal or incomparable Lamport values may still be concurrent.\n\n**SPEC:**\n\n- Causal trip edges have strictly increasing Lamport stamps\n- Local events tick the clock\n- Receive merges max(local, message)\n- Concurrency detection is not required until 3.3\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-time-ordering",
+    "l1",
+    "happens-before"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "On send: tick, stamp the message.",
+      "On receive: clock = max(local, msg) + 1.",
+      "Causal pairs must have clock(A) < clock(B).",
+      "Equal Lamport values can still be concurrent — motivation for vectors."
+    ],
+    "overview": "Lamport timestamps respect happens-before on the trip workflow.",
+    "brief": "Instrument Fleetline nodes with Lamport clocks on send/receive/local events.",
+    "solution": "",
+    "idLabel": "10",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "time-ordering",
+      "taskId": "3.2",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

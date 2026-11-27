@@ -1,0 +1,50 @@
+{
+  "id": "db-03-join-orders-to-customers",
+  "number": 622,
+  "finalized": true,
+  "title": "JOIN Orders to Customers",
+  "description": "**SITUATION:**\n\nThe receipts email job needs each order's customer name and email. Orders and customers live in separate tables linked by `orders.customer_id` -> `customers.id`.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Join `orders` to `customers` with an inner join.\n2. Restrict to the date range in your ticket (inclusive, whole days).\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `order_id` (`orders.id`), `name`, `email`\n- Inner join on `customers.id = orders.customer_id`\n- Orders created from the ticket's start date through its end date, inclusive\n- Sorted by `order_id` ascending\n- Read-only\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "join",
+    "inner-join"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`FROM orders o JOIN customers c ON c.id = o.customer_id`",
+      "Alias `o.id AS order_id`.",
+      "Read both dates from `~/ticket/TASK.md`."
+    ],
+    "overview": "JOIN Orders to Customers",
+    "brief": "JOIN Orders to Customers",
+    "solution": "## 1. Read the ticket\n\n```bash\ncat ~/ticket/TASK.md\n```\n\nYou need the date range (inclusive) and the three output columns.\n\n## 2. Inner join on the foreign key\n\n```sql\nSELECT o.id AS order_id, c.name, c.email\nFROM orders o\nJOIN customers c ON c.id = o.customer_id\nWHERE o.created_at >= DATE '2026-11-01'\n  AND o.created_at <  DATE '2026-11-04' + 1\nORDER BY o.id;\n```\n\n- Alias the tables (`o`, `c`) so every column is unambiguous.\n- `JOIN` means `INNER JOIN`: orders with no matching customer disappear from the result. That is exactly what the ticket asks for here, and why the next lab hunts for them.\n- The end date is inclusive, so the upper bound is \"end date + 1 day, exclusive\".\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql | head\n```\n\nThen **Submit**.\n",
+    "idLabel": "03",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

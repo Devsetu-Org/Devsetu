@@ -1,0 +1,51 @@
+{
+  "id": "db-17-when-sql-when-nosql",
+  "number": 636,
+  "finalized": true,
+  "title": "When SQL, When NoSQL",
+  "description": "**SITUATION:**\n\nArchitecture review is tomorrow. The same QuickBite orders exist as relational rows (`orders`, `order_items`) and as nested documents (`order_docs`). Your ticket gives two query patterns: one favours relational, the other favours a document model. Make the call and explain it.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Explore both models in `psql`.\n2. For Pattern A and Pattern B from your ticket, choose relational or document and justify it.\n3. Write `~/answers/recommendation.md` in the layout the ticket specifies.\n\n**SPEC:**\n\n- Layout lines: `REVIEW CODE`, `PATTERN A`, `WHY A`, `PATTERN B`, `WHY B`, `TRADE-OFFS`\n- The review code from the ticket, exactly\n- Correct model for each pattern (one choice each)\n- Each `WHY` 40+ characters with a concrete modelling term from the ticket's list\n- `TRADE-OFFS` 60+ characters naming a cost of each approach and at least two of the ticket's trade-off terms\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "nosql",
+    "data-modeling",
+    "architecture"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "Joins, reports and all-or-nothing updates favour relational; one-read aggregates and varying shapes favour documents.",
+      "Copy the label lines exactly: `PATTERN A: relational` or `PATTERN A: document`.",
+      "Use at least one of the keywords the ticket lists in each `WHY`."
+    ],
+    "overview": "When SQL, When NoSQL",
+    "brief": "When SQL, When NoSQL",
+    "solution": "## 1. Decide per access pattern, not per religion\n\nAsk what the query does most:\n\n| The pattern is mostly... | Fits | Why |\n| --- | --- | --- |\n| ad-hoc questions, reports, **joins and aggregates** across entities | **relational** | SQL joins, `GROUP BY`, indexes on any column, questions you did not plan for |\n| **multi-row updates that must be all-or-nothing**, balances, constraints | **relational** | ACID transactions, `CHECK`/`FOREIGN KEY` constraints enforced by the database |\n| load **one aggregate** (an order with its items) in **one read** by key | **document** | nested data is stored together: one read, no joins |\n| **varying / evolving shape** (menu attributes, webhook payloads) | **document** | flexible schema: new fields need no migration |\n\n## 2. Example answer\n\nIf Pattern A were the wallet transfer and Pattern B the single-read order page (yours will differ; use **your** two patterns and your review code):\n\n```markdown\nREVIEW CODE: DB17-4821\nPATTERN A: relational\nWHY A: A transfer is two updates that must commit together; Postgres transactions and a CHECK constraint keep balances correct and never half-applied (ACID).\nPATTERN B: document\nWHY B: The order page always reads one order with its items by id, so a single nested document is one read with no joins and good locality.\nTRADE-OFFS: Relational gives joins, constraints and transactions but needs a fixed schema and migrations; documents give a flexible schema and fast single reads but duplicate (denormalised) data, so cross-order reports and consistency are harder.\n```\n\n## 3. Try both in psql\n\n```sql\nSELECT o.id, o.total, i.sku, i.qty FROM orders o JOIN order_items i ON i.order_id = o.id WHERE o.id = 10;\nSELECT doc FROM order_docs WHERE doc ->> 'order_id' = '10';\nSELECT status, count(*), sum(total) FROM orders GROUP BY status;                 -- natural in SQL\nSELECT doc ->> 'status', count(*), sum((doc ->> 'total')::numeric) FROM order_docs GROUP BY 1;  -- possible, clumsier\n```\n\n## 4. Rules of thumb\n\n- Start relational: you get joins, constraints and transactions for free, and `jsonb` covers a surprising amount of \"flexible\" data.\n- Choose documents when the shape varies or the data is always read and written as one aggregate.\n- Many systems use both. Postgres already stores each pattern here.\n\nSave the file to `~/answers/recommendation.md`, then **Submit**.\n",
+    "idLabel": "17",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}
