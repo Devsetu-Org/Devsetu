@@ -5,7 +5,7 @@ import { MINORS_PATH } from '../constants/minors';
 import type { ChallengePublic } from '../types/domain';
 import { visibilityMark } from '../constants/roles';
 import { IconCoins, IconLock } from './ChromeIcons';
-import { StatusBookIcon, StatusCheckIcon } from './TrackStatusIcons';
+import { StatusBookIcon } from './TrackStatusIcons';
 
 export interface ChapterReadingLink {
   href: string;
@@ -197,7 +197,9 @@ export default function PlayChapterShelf({
                           {lab.index}
                         </span>,
                         <span key="title" className="play-chapter-lab-title">
-                          {lab.title}
+                          <span className="play-chapter-lab-title-text" title={lab.title}>
+                            {lab.title}
+                          </span>
                           {locked ? (
                             <span className="play-chapter-lab-lock" aria-label="Locked">
                               <IconLock size={13} />
@@ -206,15 +208,17 @@ export default function PlayChapterShelf({
                         </span>,
                         <span
                           key="meta"
-                          className={`play-chapter-lab-meta${showVisibilityMarks && vis ? ' play-chapter-lab-meta--staff' : ''}`}
+                          className={[
+                            'play-chapter-lab-meta',
+                            showFree && !solved ? 'play-chapter-lab-meta--free' : '',
+                            showVisibilityMarks && vis ? 'play-chapter-lab-meta--staff' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                         >
                           {showFree && !solved ? (
                             <span className="play-chapter-lab-free">Free</span>
-                          ) : solved ? (
-                            <StatusCheckIcon className="play-chapter-lab-check" title="Solved" />
-                          ) : (
-                            <span className="play-chapter-lab-free-slot" aria-hidden />
-                          )}
+                          ) : null}
                           {showVisibilityMarks && vis ? (
                             <span
                               className={`play-visibility-badge play-visibility-badge--${vis.key}`}
