@@ -77,6 +77,7 @@ import {
   isPublicLabComingSoon,
   LAB_COMING_SOON_MSG,
 } from './components/K8sLabWorkspace';
+import { NARROW_UI_QUERY } from './hooks/useMediaQuery';
 import { SPARK_PLAYGROUND_CHALLENGE_ID } from './constants/playgroundDatasets';
 import { PRICING_PATH } from './constants/pricing';
 import { hideAppSplash } from './utils/appSplash';
@@ -100,6 +101,16 @@ import type {
 } from './types/domain';
 
 const LAB_LOCKED_FALLBACK_MSG = 'Something is down on our side. Please contact the administrator.';
+const MOBILE_MACHINE_MSG =
+  'Machines only start on a laptop — open this page on a wider screen to continue.';
+
+function isNarrowUiViewport(): boolean {
+  return (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(NARROW_UI_QUERY).matches
+  );
+}
 
 /** Started Kubernetes labs (machine requested or shell up) need a leave warning. */
 function needsK8sLeaveConfirm(session: ActiveSession | null | undefined): boolean {
@@ -459,7 +470,22 @@ export default function App(): React.JSX.Element | null {
       return;
     }
     const force = Boolean(opts.force);
-    const startNow = force || Boolean(opts.start);
+    const narrowUi = isNarrowUiViewport();
+    // Mobile: never provision a machine/cluster. K8s/linux boxes can still open the brief.
+    if (
+      narrowUi
+      && !isKubernetesChallenge(challenge)
+      && !isProjectChallenge(challenge)
+      && !isBoardChallenge(challenge)
+    ) {
+      setStartError(MOBILE_MACHINE_MSG);
+      clearLabDeepLink();
+      setPlayState('library');
+      return;
+    }
+    const startNow =
+      (force || Boolean(opts.start))
+      && !(narrowUi && isKubernetesChallenge(challenge));
     setStartError(null);
     setLabConflict(null);
     setLabLeaseLost(null);
@@ -568,6 +594,15 @@ export default function App(): React.JSX.Element | null {
 
     // Spark-platform: hydrate meta from MinIO; seed starter from MinIO when contentSource=minio.
     if (isSparkPlatformChallenge(challenge)) {
+      if (isNarrowUiViewport()) {
+        attempt.settle();
+        setActiveChallenge(null);
+        setActiveSession(null);
+        setStartError(MOBILE_MACHINE_MSG);
+        setPlayState('library');
+        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
+        return;
+      }
       try {
         const full = await fetchChallenge(challenge.id);
         if (attempt.stale()) return;
@@ -684,7 +719,7 @@ export default function App(): React.JSX.Element | null {
           return;
         }
 
-        if (!startNow) {
+        if (!startNow || isNarrowUiViewport()) {
           attempt.settle();
           setActiveSession({ ...pendingSession, notStarted: true });
           return;
@@ -710,6 +745,12 @@ export default function App(): React.JSX.Element | null {
         setActiveSession(pendingSession);
         await cancelInflightK8sStart(attempt.openSeq);
         if (attempt.stale()) return;
+        // Last-line check: viewport may have narrowed while the brief was opening.
+        if (isNarrowUiViewport()) {
+          attempt.settle();
+          setActiveSession({ ...pendingSession, notStarted: true });
+          return;
+        }
         const res = await startK8sSession(full.id, { force, signal: attempt.signal, openSeq: attempt.openSeq });
         if (attempt.stale()) {
           discardStartedSession(res.sessionId);
@@ -780,6 +821,16 @@ export default function App(): React.JSX.Element | null {
         openingSessionRef.current = pendingId;
         navigate(labShelfUrl, { replace: true });
       }
+      return;
+    }
+
+    if (isNarrowUiViewport()) {
+      attempt.settle();
+      setActiveChallenge(null);
+      setActiveSession(null);
+      setStartError(MOBILE_MACHINE_MSG);
+      setPlayState('library');
+      navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
       return;
     }
 
@@ -1189,6 +1240,12 @@ export default function App(): React.JSX.Element | null {
   const handleOpenSparkPlayground = async (): Promise<void> => {
     if (authMode !== 'interviewer') {
       requestLogin();
+      return;
+    }
+    if (isNarrowUiViewport()) {
+      setStartError(MOBILE_MACHINE_MSG);
+      setPlayState('library');
+      navigate('/track/spark-playground', { replace: true });
       return;
     }
     setStartError(null);
