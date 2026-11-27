@@ -2,6 +2,7 @@ import { isBoardChallenge } from '../components/BoardWorkspace';
 import type { ReadingTrack } from '../constants/readingTracks';
 import type { PlayPanel } from '../constants/playCatalog';
 import type { ChallengePublic } from '../types/domain';
+import { displayChallengeTitle } from '../utils/challengeTitle';
 
 export type TrackRoadmapNode =
   | {
@@ -22,8 +23,9 @@ export type TrackRoadmapNode =
     };
 
 function catalogIdLabel(challenge: ChallengePublic): string {
-  const fromK8sId = /^(?:k8s|linux|docker|kafka|spark|git|db)-0*(\d+)-/i.exec(challenge.id)?.[1];
-  if (fromK8sId) return String(Number(fromK8sId));
+  const fromId = /^(?:k8s|linux|docker|kafka|spark|git|db|ds|de)-.*?0*(\d+)-/i.exec(challenge.id)?.[1]
+    || /^(?:.*?)-0*(\d+)-/i.exec(challenge.id)?.[1];
+  if (fromId) return String(Number(fromId));
   if (/^l1-/i.test(challenge.id)) return '1';
   const ps = challenge.problemStatement;
   const fromPs =
@@ -68,7 +70,7 @@ export function buildPanelRoadmapNodes(
         kind: 'lab',
         key: item.id,
         trackId: labTrackId(challenge),
-        title: challenge.title,
+        title: displayChallengeTitle(challenge.id, challenge.title),
         challenge,
         playable: Boolean(challenge.finalized),
         solved: Boolean(challenge.solved),
@@ -84,7 +86,7 @@ export function buildPanelRoadmapNodes(
       kind: 'lab',
       key: challenge.id,
       trackId: labTrackId(challenge),
-      title: challenge.title,
+      title: displayChallengeTitle(challenge.id, challenge.title),
       challenge,
       playable: Boolean(challenge.finalized),
       solved: Boolean(challenge.solved),

@@ -65,8 +65,10 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/monthly-paper', monthlyPaperRoutes);
 app.use('/api/papers', papersRoutes);
 
-// Live work / spend / admin — admin-only while ACCESS_LOCKED (set ACCESS_LOCKED=0 to reopen).
-app.use('/api/session', requireAdminWhenAccessLocked, sessionRoutes);
+// Sessions: assertLabUnlocked allows the public Git pilot while ACCESS_LOCKED
+// still blocks other tracks. Billing / admin / projects stay admin-only.
+app.use('/api/session', sessionRoutes);
+// Live spend / admin — admin-only while ACCESS_LOCKED (set ACCESS_LOCKED=0 to reopen).
 app.use('/api/quizzes', requireAdminWhenAccessLocked, quizzesRoutes);
 app.use('/api/admin', requireAdminWhenAccessLocked, adminRoutes);
 app.use('/api/billing', requireAdminWhenAccessLocked, billingRoutes);

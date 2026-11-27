@@ -62,63 +62,25 @@ export default function ProjectsPage(): JSX.Element {
   return <Navigate to={PROJECTS_PATH} replace />;
 }
 
+/** Pilot: every major tile is Coming soon (ignore ready/previewable). */
 export function MajorTiles(): JSX.Element {
   return (
     <section className="playgrounds-grid" aria-label="Majors">
-      {PROJECTS.map((project) => {
-          if (project.status !== 'ready' && project.previewable) {
-            return (
-              <Link
-                key={project.id}
-                to={`${MAJORS_PATH}/${project.id}`}
-                className="playground-tile playground-tile--soon playground-tile--preview"
-              >
-                <strong className="playground-tile-title">
-                  {project.name}
-                  <span className="playground-tile-soon">Coming soon</span>
-                  <NotifyButton kind="major" itemId={project.id} label={project.name} />
-                </strong>
-                <p className="project-tile-subtitle">{project.subtitle}</p>
-                <p className="playground-tile-blurb">{project.blurb}</p>
-                <span className="playground-tile-cta">
-                  Start {project.name} here
-                  <span aria-hidden>→</span>
-                </span>
-              </Link>
-            );
-          }
-          if (project.status !== 'ready') {
-            return (
-              <div key={project.id} className="playground-tile playground-tile--soon">
-                <strong className="playground-tile-title">
-                  {project.name}
-                  <span className="playground-tile-soon">Coming soon</span>
-                  <NotifyButton kind="major" itemId={project.id} label={project.name} />
-                </strong>
-                <p className="project-tile-subtitle">{project.subtitle}</p>
-                <p className="playground-tile-blurb">{project.blurb}</p>
-                <span className="playground-tile-cta">
-                  Start {project.name} here
-                  <span aria-hidden>→</span>
-                </span>
-              </div>
-            );
-          }
-          return (
-            <Link key={project.id} to={`${MAJORS_PATH}/${project.id}`} className="playground-tile">
-              <strong className="playground-tile-title">
-                {project.name}
-                {project.level && <span className="project-tile-level">{project.level}</span>}
-              </strong>
-              <p className="project-tile-subtitle">{project.subtitle}</p>
-              <p className="playground-tile-blurb">{project.blurb}</p>
-              <span className="playground-tile-cta">
-                Start {project.name} here
-                <span aria-hidden>→</span>
-              </span>
-            </Link>
-          );
-        })}
+      {PROJECTS.map((project) => (
+        <div key={project.id} className="playground-tile playground-tile--soon">
+          <strong className="playground-tile-title">
+            {project.name}
+            <span className="playground-tile-soon">Coming soon</span>
+            <NotifyButton kind="major" itemId={project.id} label={project.name} />
+          </strong>
+          <p className="project-tile-subtitle">{project.subtitle}</p>
+          <p className="playground-tile-blurb">{project.blurb}</p>
+          <span className="playground-tile-cta">
+            Start {project.name} here
+            <span aria-hidden>→</span>
+          </span>
+        </div>
+      ))}
     </section>
   );
 }

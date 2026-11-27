@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { PlayChapter, PlayChapterLab } from '../constants/playCatalog';
 import { MINORS_PATH } from '../constants/minors';
 import type { ChallengePublic } from '../types/domain';
+import { displayChallengeTitle } from '../utils/challengeTitle';
 import { IconCoins, IconLock } from './ChromeIcons';
 import { StatusBookIcon } from './TrackStatusIcons';
 
@@ -25,7 +26,7 @@ function isMinorLab(
 
 function labTitle(lab: PlayChapterLab, challenge: ChallengePublic | null): string {
   if (isPlaceholderLab(lab) || isMinorLab(lab)) return lab.title;
-  return challenge?.title || lab.challengeId;
+  return displayChallengeTitle(lab.challengeId, challenge?.title);
 }
 
 function labTokens(challenge: ChallengePublic | null): number {
