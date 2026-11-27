@@ -1320,17 +1320,7 @@ const ANIM_MAP: Record<
   'git-remotes': RemotesAnim,
   'git-hook': HookAnim,
   'git-hosts': HostsAnim,
-  'linux-terminal-shell-kernel': LINUX_ANIM_MAP['linux-terminal-shell-kernel'],
-  'linux-filesystem-tree': LINUX_ANIM_MAP['linux-filesystem-tree'],
-  'linux-absolute-vs-relative': LINUX_ANIM_MAP['linux-absolute-vs-relative'],
-  'linux-glob-expansion': LINUX_ANIM_MAP['linux-glob-expansion'],
-  'linux-find-funnel': LINUX_ANIM_MAP['linux-find-funnel'],
-  'linux-find-exec': LINUX_ANIM_MAP['linux-find-exec'],
-  'linux-less-window': LINUX_ANIM_MAP['linux-less-window'],
-  'linux-vi-modes': LINUX_ANIM_MAP['linux-vi-modes'],
-  'linux-grep-sieve': LINUX_ANIM_MAP['linux-grep-sieve'],
-  'linux-regex-read': LINUX_ANIM_MAP['linux-regex-read'],
-  'linux-pipe-flow': LINUX_ANIM_MAP['linux-pipe-flow'],
+  ...LINUX_ANIM_MAP,
 };
 
 export function ReadingFigureAnimationView({

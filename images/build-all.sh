@@ -25,7 +25,7 @@ tags_for() {
     order-reconciliation) echo "v1.0" ;;
     slow-order-processor) echo "1.0" ;;
     zombie-order-processor) echo "1.0" ;;
-    linux-lab) echo "v0.5" ;;
+    linux-lab) echo "v0.6" ;;
     docker-lab) echo "v0.2" ;;
     nri-cgroup-rw) echo "v0.1" ;;
     spark-yarn-lab) echo "v0.1" ;;

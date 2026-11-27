@@ -11,9 +11,6 @@ export type ProblemStatementTab =
   | 'cluster'
   | 'knobs'
   | 'solution'
-  | 'moat'
-  | 'visibility'
-  | 'review'
   | 'submissions'
   | 'notes'
   | 'resources'
@@ -278,29 +275,6 @@ export default function ProblemStatement({
     || (typeof ps.solutionWriteup === 'string' && ps.solutionWriteup.trim())
     || ''
   );
-
-  if (tab === 'moat') {
-    const moatText = typeof ps.moat === 'string' ? ps.moat.trim() : '';
-    return (
-      <div className="statement statement--tab">
-        <h2>Moat</h2>
-        <p className="dim" style={{ fontSize: 12, margin: '4px 0 12px' }}>
-          Problem-setter notes. Learners do not see this tab.
-        </p>
-        <hr className="statement-rule" aria-hidden="true" />
-        {moatText ? (
-          <MarkdownProse text={moatText} className="markdown-prose statement-description" />
-        ) : (
-          <div className="statement-empty">
-            <p>No moat notes yet.</p>
-            <p className="dim">
-              Capture what was in mind before this lab existed, and how you went about creating it.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
 
   if (tab === 'guide') {
     const guideText = typeof ps.guide === 'string' ? ps.guide.trim() : '';

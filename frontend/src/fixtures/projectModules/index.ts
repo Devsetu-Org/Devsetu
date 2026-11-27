@@ -75,6 +75,9 @@ import {
 import { LSM_TREE_OVERVIEW } from './lsmTreeOverview';
 import { B_TREE_OVERVIEW } from './bTreeOverview';
 import { CONSENSUS_OVERVIEW } from './consensusOverview';
+import { DS_FOUNDATIONS_OVERVIEW } from './dsFoundationsOverview';
+import { DS_FOUNDATIONS_FALLACIES_READING } from './dsFoundationsFallaciesReading';
+import { DS_FOUNDATIONS_CHAPTERS_GO } from './dsFoundationsChaptersGo';
 import { QUERY_ENGINE_OVERVIEW } from './queryEngineOverview';
 import { GIT_OVERVIEW } from './gitOverview';
 import { SHELL_OVERVIEW } from './shellOverview';
@@ -210,6 +213,7 @@ const MINOR_CHAPTER_CONTENT: ProjectModuleContent[] = [
   B_TREE_MUTATIONS_GO,
   B_TREE_MUTATIONS_PYTHON,
   B_TREE_MUTATIONS_CPP,
+  ...DS_FOUNDATIONS_CHAPTERS_GO,
   CONSENSUS_ELECTION_GO,
   CONSENSUS_ELECTION_PYTHON,
   CONSENSUS_ELECTION_CPP,
@@ -306,6 +310,8 @@ const MINOR_CHAPTER_BY_KEY = new Map<string, ProjectModuleContent>(
 
 /** Articles for `reading` chapters of minors, keyed `minorId/chapterId`. */
 const MINOR_READINGS = new Map<string, ChapterReading>([
+  ['ds-foundations/overview', DS_FOUNDATIONS_OVERVIEW],
+  ['ds-foundations/fallacies', DS_FOUNDATIONS_FALLACIES_READING],
   ['lsm-tree/overview', LSM_TREE_OVERVIEW],
   ['b-tree/overview', B_TREE_OVERVIEW],
   ['consensus/overview', CONSENSUS_OVERVIEW],

@@ -27,6 +27,14 @@ export function getAuthHeader(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+/** New-tab dashboards cannot send Authorization. Same-site cookie covers the page and its assets. */
+export function armDashboardCookie(): void {
+  const token = getToken();
+  if (!token || typeof document === 'undefined') return;
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `devsetu_ui=${encodeURIComponent(token)}; Path=/api/session; Max-Age=43200; SameSite=Lax${secure}`;
+}
+
 export function getCurrentUser(): UserRecord | null {
   try {
     const raw = readMigrating(localStorage, USER_KEY, LEGACY_USER_KEY);

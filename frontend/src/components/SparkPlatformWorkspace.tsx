@@ -34,14 +34,12 @@ import {
 } from '../constants/sparkKnobs';
 import BriefAdminEditor, { isEditableBriefTab } from './BriefAdminEditor';
 import ClusterSettingsPanel from './ClusterSettingsPanel';
-import ChallengeVisibilityPanel from './ChallengeVisibilityPanel';
-import ChallengeReviewPanel from './ChallengeReviewPanel';
 import SolutionGateModal, { hasAcknowledgedSolution } from './SolutionGateModal';
 import BriefBackButton from './BriefBackButton';
 import WorkspaceMobileSwitcher, { type WorkspaceMobilePane } from './WorkspaceMobileSwitcher';
 import DesktopOnlyNotice from './DesktopOnlyNotice';
 import { useAppState } from '../context/AppStateContext';
-import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi';
+import { isAdminUser, getCurrentUser } from '../services/authApi';
 import { IconPen, IconPlay, IconStop, IconSubmit } from './ChromeIcons';
 import { useIsNarrowUi } from '../hooks/useMediaQuery';
 import { useWorkspaceSync } from '../hooks/useWorkspaceSync';
@@ -436,7 +434,6 @@ export default function SparkPlatformWorkspace({
 }: SparkPlatformWorkspaceProps): JSX.Element | null {
   const { currentUser } = useAppState();
   const isAdmin = isAdminUser(currentUser) || isAdminUser(getCurrentUser());
-  const showReviewTab = isReviewStaff(currentUser) || isReviewStaff(getCurrentUser());
   const [authored, setAuthored] = useState<ChallengeFull | null>(null);
   const [adminEditing, setAdminEditing] = useState(false);
   const [adminWantEdit, setAdminWantEdit] = useState(false);
@@ -1104,9 +1101,6 @@ export default function SparkPlatformWorkspace({
         ...(hasClusterTab ? [['cluster', 'Cluster'] as [ProblemStatementTab, string]] : []),
         ...(hasKnobs ? [['knobs', 'Knobs'] as [ProblemStatementTab, string]] : []),
         ['solution', 'Solution'],
-        ...(isAdmin ? [['moat', 'Moat'] as [ProblemStatementTab, string]] : []),
-        ...(isAdmin ? [['visibility', 'Visibility'] as [ProblemStatementTab, string]] : []),
-        ...(showReviewTab ? [['review', 'Review'] as [ProblemStatementTab, string]] : []),
         ['submissions', 'Submissions'],
       ];
 
@@ -1141,7 +1135,7 @@ export default function SparkPlatformWorkspace({
                   type="button"
                   role="tab"
                   aria-selected={briefTab === id}
-                  className={`spark-brief-tab${briefTab === id ? ' active' : ''}${id === 'moat' || id === 'cluster' || id === 'visibility' || id === 'review' ? ' spark-brief-tab--setter' : ''}${id === 'visibility' || id === 'review' ? ' spark-brief-tab--admin-row' : ''}`}
+                  className={`spark-brief-tab${briefTab === id ? ' active' : ''}${id === 'cluster' ? ' spark-brief-tab--setter' : ''}`}
                   onClick={() => {
                     if (id === 'solution' && !hasAcknowledgedSolution(challenge.id)) {
                       setSolutionGateOpen(true);
@@ -1503,23 +1497,6 @@ export default function SparkPlatformWorkspace({
                   isAdmin={isAdmin}
                   onSaved={(next) => setAuthored(next)}
                 />
-              ) : briefTab === 'visibility' && isAdmin && challenge ? (
-                <ChallengeVisibilityPanel
-                  challengeId={challenge.id}
-                  visibleTo={(challenge.visibleTo as 'admin' | 'users' | 'reviewers') || 'admin'}
-                  visibilityNotes={challenge.visibilityNotes || ''}
-                  tokens={typeof challenge.tokens === 'number' ? challenge.tokens : 10}
-                  onSaved={({ visibleTo, visibilityNotes, tokens }) => {
-                    setAuthored({
-                      ...(challenge as ChallengeFull),
-                      visibleTo,
-                      visibilityNotes,
-                      tokens,
-                    });
-                  }}
-                />
-              ) : briefTab === 'review' && showReviewTab && challenge ? (
-                <ChallengeReviewPanel challengeId={challenge.id} />
               ) : briefTab === 'knobs' && hasKnobs ? (
                 <div className="play-playground-trail-pane">
                   <p className="play-playground-trail-help">

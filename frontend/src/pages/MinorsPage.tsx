@@ -231,8 +231,9 @@ function MinorDetail({
       </div>
 
       <p className="project-chapter-lock-note">
-        Each lab unlocks after you pass the one before it — a successful Run in Go or Python is
-        enough.
+        {minor.sequentialUnlock === false
+          ? 'Chapters are open for reading and Tasks. Runners unlock graded submission as each lab harness lands.'
+          : 'Each lab unlocks after you pass the one before it — a successful Run in Go or Python is enough.'}
       </p>
 
       <ChapterList
@@ -353,6 +354,7 @@ function MinorReading({
 
 export default function MinorsPage(): JSX.Element {
   const { minorId, chapterId } = useParams<{ minorId?: string; chapterId?: string }>();
+  const [params] = useSearchParams();
   const minor = getMinor(minorId);
   const [language, setLanguage] = useMinorLanguage(minor);
 
@@ -375,12 +377,16 @@ export default function MinorsPage(): JSX.Element {
     }
     const content = getMinorChapterContent(minor.id, chapter.id, language);
     if (!content) return <Navigate to={minorPath} replace />;
+    const taskParam = params.get('task');
+    const initialTaskId =
+      taskParam && content.tasks.some((t) => t.id === taskParam) ? taskParam : null;
     return (
       <ModuleWorkspace
         persistId={chapterPersistId(minor, chapter, language)}
         runScopeId={chapterRunScopeId(minor.id, chapter.id)}
         runLanguage={language}
         content={content}
+        initialTaskId={initialTaskId}
         earlierChapters={earlierChapters(minor, chapter, language)}
         trail={[
           { to: PROJECTS_PATH, label: 'Projects' },

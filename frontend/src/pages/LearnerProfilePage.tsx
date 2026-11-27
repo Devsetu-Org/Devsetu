@@ -5,6 +5,7 @@ import { LEADERBOARD_PATH } from '../constants/leaderboard';
 import { IconCoins } from '../components/ChromeIcons';
 import Avatar from '../components/Avatar';
 import ActivityHeatmap from '../components/ActivityHeatmap';
+import ProfileBadges from '../components/ProfileBadges';
 import LeaderboardSignInPrompt from '../components/LeaderboardSignInPrompt';
 import { useAppState } from '../context/AppStateContext';
 
@@ -92,6 +93,11 @@ export default function LearnerProfilePage(): JSX.Element {
           <section className="leaderboard-page-card learner-section" aria-labelledby="learner-activity">
             <h2 id="learner-activity" className="learner-section-title">Activity</h2>
             <ActivityHeatmap activity={profile.activity} />
+          </section>
+
+          <section className="leaderboard-page-card learner-section" aria-labelledby="learner-badges">
+            <h2 id="learner-badges" className="learner-section-title">Badges</h2>
+            <ProfileBadges badges={profile.badges} />
           </section>
 
           <section className="leaderboard-page-card learner-section" aria-labelledby="learner-labs">

@@ -1,0 +1,65 @@
+{
+  "id": "l2-every-cashier-tiny-desk",
+  "number": 912,
+  "finalized": true,
+  "title": "Every Cashier Has a Tiny Desk",
+  "description": "> **Who is asking**\n>\n> **Finance** (Vesper). They own a nightly store rollup on a **wide** orders extract. Numbers have been right. The job is late. On-call suggested more executors.\n\nThe planted job aggregates a wide fact. Executors are intentionally small. **AQE is off.** Open the slow stage: task durations are **similar**. Shuffle spill (and often GC) dominate. There is no single hot `store_id` owning the stage.\n\nThis is not the skew lab. More executors copy the same tight desk onto more machines.\n\n## Your task\n\n1. Run or open the planted job. Read stage metrics.\n2. In Investigation: state that tasks are even (not skew), and record spill (and GC if visible).\n3. Fix **memory shape only** within platform caps (executor memory \u2264 1g; fractions allowed). Same executor count.\n4. Re-run. Spill drops; wall clock drops; rollup still matches golden.\n\n## Rules\n\n- Config-only fix. Do not salt. Do not enable AQE. Do not add executors/cores. Do not sample or limit input.\n- Do not raise memory above the published cap.\n\n> **Done when**\n>\n> Correct rollup, memory within cap, same parallelism, spill and time budgets met, Investigation distinguishes spill from skew.\n\n**Runners and datasets ship later.** You can open the workspace and read the brief; Run/Submit are not graded yet.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "l1",
+    "performance",
+    "spill",
+    "memory",
+    "investigation"
+  ],
+  "category": "batch-processing",
+  "sandboxType": "spark-platform",
+  "play": {
+    "domainId": "data-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "AQE stays off for this chapter.",
+      "Fill Investigation before you call the job done.",
+      "Live Start ships when the lab is finalized."
+    ],
+    "overview": "Every Cashier Has a Tiny Desk",
+    "brief": "Every Cashier Has a Tiny Desk",
+    "solution": "",
+    "idLabel": "912",
+    "theory": ""
+  },
+  "visibleTo": "users",
+  "tokens": 10,
+  "platformSpec": {
+    "language": "python",
+    "starterFileName": "src/main.py",
+    "outputFormat": "parquet",
+    "gradeKeys": [
+      "store_id"
+    ],
+    "evalSolutionPath": "s3a://devlabs-data/challenges/l2-every-cashier-tiny-desk/eval/",
+    "inputPath": "s3a://devlabs-data/challenges/l2-every-cashier-tiny-desk/input/",
+    "limits": {
+      "driver": 1,
+      "driverMemory": "1g",
+      "executors": 2,
+      "executorCores": 1,
+      "executorMemory": "512m",
+      "aqe": false,
+      "shufflePartitions": 8,
+      "hardTimeoutSeconds": 300
+    },
+    "sparkConf": {
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.shuffle.partitions": "8"
+    },
+    "gradeChecks": [
+      "Brief review only \u2014 runners and goldens ship later"
+    ],
+    "chapter": "performance-optimization",
+    "kind": "investigation"
+  }
+}

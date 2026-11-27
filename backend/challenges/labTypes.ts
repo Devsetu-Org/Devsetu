@@ -6,6 +6,8 @@
  * from the pack's sandboxType:
  *   kubernetes — learner namespace ns-<user>, kubectl-only shell
  *   linux      — one systemd machine (pod `box`) in lx-<user>, shell inside it
+ *                (also used by Software Engineer Git labs; remotes under /srv/git,
+ *                and Databases labs; local PostgreSQL on the box)
  *   docker     — the same machine plus dockerd (pod `box`) in dk-<user>
  *   kafka      — three broker pods plus a shell pod in kf-<user> (workspace/kafkaBox)
  *   spark      — standalone or YARN cluster + shell in sp-<user> (workspace/sparkBox)
@@ -43,9 +45,17 @@ function boxFlavor(sandboxType: unknown): BoxFlavor | null {
   return BOX_FLAVORS.has(t) ? (t as BoxFlavor) : null;
 }
 
-/** backend/challenges/<linux|docker|kafka|spark|k8s>/<id>: setup.sh, grade.sh, solution/. */
+/** backend/challenges/<linux|docker|git|databases|kafka|spark|distributed-systems|k8s>/<id>: setup.sh, grade.sh, solution/. */
 function labPackDir(challengeId: string): string {
-  for (const track of ['linux', 'docker', 'kafka', 'spark']) {
+  for (const track of [
+    'linux',
+    'docker',
+    'git',
+    'databases',
+    'kafka',
+    'spark',
+    'distributed-systems',
+  ]) {
     const dir = path.join(__dirname, track, challengeId);
     if (fs.existsSync(dir)) return dir;
   }

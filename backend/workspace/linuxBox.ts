@@ -83,7 +83,9 @@ const FLAVORS: Record<BoxFlavor, Flavor> = {
     nsPrefix: 'lx-',
     component: 'linux-lab',
     pool: 'linux',
-    image: process.env.LINUX_LAB_IMAGE || 'devsetu/linux-lab:v0.5',
+    // v0.6+ includes git (required for SE Git labs; boxes have no egress for apt).
+    // Prefer LINUX_LAB_IMAGE (ECR in prod). Docker Hub push may be unavailable locally.
+    image: process.env.LINUX_LAB_IMAGE || '204098850303.dkr.ecr.ap-south-2.amazonaws.com/devlabs/linux-lab:v0.6',
     resources: {
       requests: { cpu: '25m', memory: '64Mi', ephemeral: '256Mi' },
       limits: { cpu: '250m', memory: '256Mi', ephemeral: '2Gi' },
@@ -272,15 +274,7 @@ spec:
   activeDeadlineSeconds: ${boxActiveDeadlineSeconds()}
   nodeSelector:
     devlabs.io/pool: ${f.pool}
-  # Fill the always-on base first: boxes are do-not-disrupt, so a box placed on an elastic
-  # node keeps that node alive until the box ends.
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - {key: devlabs.io/tier, operator: In, values: [base]}
+  # Linux + Docker are elastic-only (Karpenter NodePools); no managed-base preference.
   tolerations:
     - key: devlabs.io/pool
       value: ${f.pool}
@@ -309,7 +303,14 @@ ${securityContext}${readinessProbe}
 const ensuredNamespaces = new Set<string>();
 
 async function ensureNamespace(ns: string, flavor: BoxFlavor): Promise<void> {
-  if (ensuredNamespaces.has(ns)) return;
+  // Always re-apply: a prior process may have cached the name while the cluster
+  // deleted the namespace (pool sleep / cleanup). Skipping apply then fails pod
+  // create with "namespaces … not found" and surfaces as LAB_ENV_UNAVAILABLE.
+  if (ensuredNamespaces.has(ns)) {
+    const probe = await k8s.runKubectl(['get', 'ns', ns, '-o', 'name'], { timeoutMs: 15_000 });
+    if (probe.code === 0) return;
+    ensuredNamespaces.delete(ns);
+  }
   await k8s.kubectlOk(['apply', '-f', '-'], { input: namespaceYaml(ns, flavor), timeoutMs: 30_000 });
   ensuredNamespaces.add(ns);
 }
@@ -330,6 +331,34 @@ async function describeNotReady(ns: string): Promise<string> {
  * terminationGracePeriodSeconds.
  */
 const DELETE_GRACE_S = '1';
+
+/**
+ * linux-lab image ships passwordless sudo for the admin track. Git/DB/etc. do not
+ * need it — strip the drop-in and sudo group so `sudo su -` fails for the learner.
+ */
+function learnerMayUseSudo(challengeId: string, spec?: LinuxBoxSpec): boolean {
+  if (spec?.allowSudo === true) return true;
+  if (spec?.allowSudo === false) return false;
+  try {
+    const loader = require('../challenges/loader');
+    const cat = String(loader.getChallenge(challengeId)?.category || '');
+    return cat === 'linux' || cat === 'docker';
+  } catch {
+    return false;
+  }
+}
+
+async function revokeLearnerSudo(ns: string): Promise<void> {
+  const script = [
+    'rm -f /etc/sudoers.d/90-learner',
+    'gpasswd -d learner sudo 2>/dev/null || true',
+    'passwd -l root 2>/dev/null || true',
+  ].join('; ');
+  await k8s.runKubectl(
+    ['exec', '-n', ns, BOX_POD, '-c', 'box', '--', 'bash', '-lc', script],
+    { timeoutMs: 20_000 },
+  );
+}
 
 /** Delete any previous box and start a fresh one; resolves once systemd (and dockerd) are up. */
 async function recreateBox(
@@ -357,6 +386,9 @@ async function recreateBox(
   );
   if (ready.code !== 0) {
     throw new Error(`box not ready after ${READY_TIMEOUT_S}s: ${await describeNotReady(ns)}`);
+  }
+  if (flavor === 'linux' && !learnerMayUseSudo(challengeId, spec)) {
+    await revokeLearnerSudo(ns);
   }
 }
 

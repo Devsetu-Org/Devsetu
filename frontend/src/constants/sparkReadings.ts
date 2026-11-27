@@ -579,10 +579,10 @@ $SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
     eyebrow: 'Chapter 4',
     title: 'Platform automations',
     summary:
-      'Desired state, a provisioner that leaves a receipt, a guardrail that fails closed, drift before reconcile, and a request API other teams can call.',
+      'Desired state, a provisioner that leaves a receipt, a guardrail that fails closed, drift before reconcile, a request API, and an auto-tuner that right-sizes from the physical plan.',
     showBlogStamp: true,
     lede:
-      'A cluster you can repair by hand is a cluster that drifts the moment a second person repairs it differently. This chapter is the small control plane around Spark: a file that describes the shape, a tool that applies it, and a refusal path that leaves the cluster untouched.',
+      'A cluster you can repair by hand is a cluster that drifts the moment a second person repairs it differently. This chapter is the small control plane around Spark: a file that describes the shape, a tool that applies it, a refusal path that leaves the cluster untouched, and an auto-tuner that checks resources against the plan before it changes anything lasting.',
     relatedLabs: [],
     followOn: {
       eyebrow: 'Next chapter',
@@ -600,6 +600,7 @@ $SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
       'A guardrail **fails closed**. A bad executor size or a request for every core starts nothing and leaves the cluster as it was.',
       'Printing drift and repairing drift are two operations. The first one is not allowed to “help”.',
       'Other teams call an API. The API uses the same rules as the guardrail. A rejection writes an audit line, or the denial did not happen.',
+      'An **auto-tuner** reads allocated resources and params, validates the physical plan, then applies right-size changes. A gut edit to spark-submit is not the control plane.',
     ],
     sections: [
       {
@@ -687,6 +688,30 @@ $SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
         ],
       },
       {
+        id: 'auto-tuner',
+        title: 'An auto-tuner right-sizes from the plan',
+        body: [
+          'A guardrail refuses a bad ask. An **auto-tuner** goes one step further for a job that is allowed to run but is wasting the cluster: it checks the resources and params already allocated, validates the **physical plan**, and then applies the changes that make the next submit efficient.',
+          'The program is the control plane. It reads executor count, memory, cores, shuffle partitions, and join strategy from the lasting submit path (or the request file). It compares those to what the plan actually needs: a SortMergeJoin on a tiny side that should broadcast, two hundred shuffle partitions for a ten-megabyte stage, four 2 GB executors for a job that finishes in one task. Validation fails closed when the plan and the ask cannot be reconciled without breaking correctness. When they can, the tuner rewrites the lasting params and leaves a receipt the same way the provisioner does.',
+          'Hand-editing `spark-submit` flags for one night is not an auto-tuner. The next person will not see it, the next reconcile will not preserve it, and the history of why the shape changed lives only in someone’s memory. The lab is finishing the program so check → validate → right-size is one tool, not a runbook.',
+        ],
+        table: {
+          headers: ['Step', 'Reads', 'Writes'],
+          rows: [
+            ['Check', 'Allocated resources and Spark params', 'Nothing'],
+            ['Validate', 'Physical plan vs those params', 'Nothing (fail closed if unsafe)'],
+            ['Right-size', 'Platform shape + validated plan', 'Lasting submit path / request file + receipt'],
+          ],
+        },
+        callout: {
+          kind: 'idea',
+          title: 'Efficiency is not “more cores”',
+          body: [
+            'The tuner’s job is efficient use: fewer idle executors, a join strategy that matches sizes, shuffle partitions that match data volume. Raising executor count because the stage is slow is Chapter 5’s anti-pattern. The plan has to justify the change.',
+          ],
+        },
+      },
+      {
         id: 'automations-labs',
         title: 'What you are practicing',
         body: [
@@ -700,6 +725,11 @@ $SPARK_HOME/bin/spark-submit --master "$SPARK_MASTER_URL" ...`,
             ['Guardrail: refuse the bad request', '2 GB or “every core” starts nothing. The cluster is unchanged.'],
             ['Detect drift, then reconcile', 'Print the diff with no writes. Then repair from the file and wait.'],
             ['Self-service job request API', 'Bad body rejected with an audit line. Good body submits.'],
+            [
+              'Auto-tuner: right-size from the physical plan',
+              'Check resources and params, validate the plan, apply efficient lasting changes.',
+            ],
+            ['Submit through Livy instead of SSH', 'Same rules, different front door. No raw spark-submit over SSH.'],
           ],
         },
       },

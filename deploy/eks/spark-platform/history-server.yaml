@@ -1,0 +1,91 @@
+# History Server reading s3a event logs (no shared PVC — RWO breaks across nodes).
+# Placeholders: SPARK_IMAGE_PLACEHOLDER, EVENT_LOG_DIR_PLACEHOLDER,
+#   S3_ENDPOINT_PLACEHOLDER
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-history
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark-history
+    app.kubernetes.io/part-of: spark-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spark-history
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spark-history
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+        devlabs.io/pool: system
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      containers:
+        - name: history
+          image: SPARK_IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              export SPARK_HISTORY_OPTS="\
+                -Dspark.history.fs.logDirectory=${EVENT_LOG_DIR} \
+                -Dspark.history.ui.port=18080 \
+                -Dspark.history.retainedApplications=50 \
+                -Dspark.hadoop.fs.s3a.endpoint=${S3_ENDPOINT} \
+                -Dspark.hadoop.fs.s3a.path.style.access=false \
+                -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+                -Dspark.hadoop.fs.s3a.connection.ssl.enabled=true \
+                -Dspark.hadoop.fs.s3a.access.key=${AWS_ACCESS_KEY_ID} \
+                -Dspark.hadoop.fs.s3a.secret.key=${AWS_SECRET_ACCESS_KEY}"
+              exec /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
+          env:
+            - name: EVENT_LOG_DIR
+              value: EVENT_LOG_DIR_PLACEHOLDER
+            - name: S3_ENDPOINT
+              value: S3_ENDPOINT_PLACEHOLDER
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: spark-s3
+                  key: accessKey
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spark-s3
+                  key: secretKey
+          ports:
+            - name: http
+              containerPort: 18080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1280Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-history
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark-history
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: spark-history
+  ports:
+    - name: http
+      port: 18080
+      targetPort: 18080

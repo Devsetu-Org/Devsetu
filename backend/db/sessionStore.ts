@@ -146,6 +146,15 @@ async function restoreFromDB(): Promise<void> {
     }
 
     sessions.set(row.id, session);
+    // After a restart, give open tabs ~SESSION_ABANDON_MS to heartbeat again before
+    // the abandon sweeper treats the lab as closed-in-the-browser.
+    if (row.status === 'active' && (row.runtime === 'kubernetes' || row.runtime === 'spark-platform')) {
+      try {
+        require('../workspace/sessionExclusivity').heartbeat(row.id, null, true);
+      } catch {
+        /* exclusivity is optional at restore time */
+      }
+    }
   }
 
   console.log(`[sessionStore] restored ${sessions.size} sessions`);

@@ -21,9 +21,6 @@ def main() -> None:
 
     df = spark.read.parquet(INPUT_PATH)
 
-    # TODO: apply the column rules, then write Parquet to OUTPUT_PATH.
-    _ = F
-
     spark.stop()
 
 

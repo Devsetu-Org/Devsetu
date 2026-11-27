@@ -1,0 +1,65 @@
+{
+  "id": "l2-store-that-ate-the-shuffle",
+  "number": 910,
+  "finalized": true,
+  "title": "The Store That Ate the Shuffle",
+  "description": "> **Who is asking**\n>\n> **District** is Vesper\u2019s regional store-ops team. They own the overnight store rollup that joins orders to the store directory and sums revenue by `store_id`.\n\nThe join job finishes with the right totals on a quiet night. On a busy night it burns most of the batch window. Someone already said \u201cadd executors.\u201d Someone else said \u201cthe SQL is wrong.\u201d\n\nSetup leaves a planted job that joins a large orders fact to a small store dimension on `store_id`, then aggregates. **AQE is off.** When you open the slow shuffle/join stage, one task owns almost all of the wall clock. The other tasks are short.\n\nThat is not \u201cthe cluster is slow.\u201d One key owns the shuffle.\n\n## Your task\n\n1. Open the Spark UI for the planted run (or re-run once to reproduce).\n2. In Investigation, record: stage id, max vs typical task duration, and which `store_id` is the hot key (prove it \u2014 e.g. a count by `store_id`).\n3. Fix the join with **salting**: salt the large side, explode/replicate the small side across salt buckets, join on `(store_id, salt)`, then aggregate so totals match the unsalted semantics.\n4. Re-run. Prove the stage no longer has a single dominant task and the job finishes inside the time budget.\n5. Write the rollup to `OUTPUT_PATH`.\n\n## Rules\n\n- Keep every order row the original job would have kept. Do not filter away the hot store.\n- Salt is the graded path for this lab. Isolate + broadcast without salting is Lab 4.2.\n- Do not enable AQE. Do not raise executor count.\n- Output: one row per `store_id` with the contracted metrics.\n\n> **Done when**\n>\n> Correct rollup on disk, Investigation complete, no single task owning the stage, wall clock under budget.\n\n**Runners and datasets ship later.** You can open the workspace and read the brief; Run/Submit are not graded yet.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "l2",
+    "performance",
+    "skew",
+    "salt",
+    "investigation"
+  ],
+  "category": "batch-processing",
+  "sandboxType": "spark-platform",
+  "play": {
+    "domainId": "data-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "AQE stays off for this chapter.",
+      "Fill Investigation before you call the job done.",
+      "Live Start ships when the lab is finalized."
+    ],
+    "overview": "The Store That Ate the Shuffle",
+    "brief": "The Store That Ate the Shuffle",
+    "solution": "",
+    "idLabel": "910",
+    "theory": ""
+  },
+  "visibleTo": "users",
+  "tokens": 10,
+  "platformSpec": {
+    "language": "python",
+    "starterFileName": "src/main.py",
+    "outputFormat": "parquet",
+    "gradeKeys": [
+      "store_id"
+    ],
+    "evalSolutionPath": "s3a://devlabs-data/challenges/l2-store-that-ate-the-shuffle/eval/",
+    "inputPath": "s3a://devlabs-data/challenges/l2-store-that-ate-the-shuffle/input/",
+    "limits": {
+      "driver": 1,
+      "driverMemory": "1g",
+      "executors": 2,
+      "executorCores": 1,
+      "executorMemory": "512m",
+      "aqe": false,
+      "shufflePartitions": 20,
+      "hardTimeoutSeconds": 300
+    },
+    "sparkConf": {
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.shuffle.partitions": "20"
+    },
+    "gradeChecks": [
+      "Brief review only \u2014 runners and goldens ship later"
+    ],
+    "chapter": "performance-optimization",
+    "kind": "investigation"
+  }
+}

@@ -1,0 +1,48 @@
+---
+description: Structuring and voice rules for Linux track blogs (B0+)
+globs: frontend/src/constants/linuxReadings.ts,frontend/src/constants/linuxReadingsExtended.ts,frontend/src/components/LinuxReadingAnims.tsx
+alwaysApply: false
+---
+
+# Linux blogs (DevOps Engineer track)
+
+Apply when editing Linux reading copy or blog figures. Audience is beginners; scope stays teaching-complete, language stays plain.
+
+## Voice
+
+- Prefer everyday words over jargon. Introduce the idea first, then the Linux term (`who is running this` → later `process`; `sticky label on a file` → later `permission bit`).
+- Lede under the title sets *why / what this post covers* — never dump a wall of commands that belong later.
+- When a code sample introduces an opaque flag or path (`-R`, `/etc/passwd`, `SIGTERM`), explain each part in plain language next to the sample.
+- **Code blocks: max 3–4 commands.** Put a blank line between commands. Comment each non-obvious line. Prefer short subsection → small sample → next step.
+- Same content scope is fine; rewrite for clarity, not for denser expertise.
+- Human scenarios (Asha, a shared box, a night job) are fine when they teach. Do not copy lab UIDs, exact sudoers lines, cron schedules, package pins, or grader paths.
+
+## Structure
+
+- One job per `h2`: one question, one answer.
+- **Explain → figure → practice takeaway.** Plain prose first, then the diagram, then one short “what this means on a shared box” paragraph when useful.
+- Next-step sections are a short bridge only. Do not stack a second takeaway callout on top of Takeaways.
+- **Callout boxes: max 2 per blog.** Prefer tip / warn / idea that teach something body copy does not already say.
+- **Callout body: 2–3 sentences**, not a one-liner. State the rule, why it matters, and what to do (or what goes wrong if you ignore it).
+- Takeaways: 3–4 concrete bullets in beginner language.
+
+## Diagrams (`LinuxReadingAnims`)
+
+- Same dark primer / brand-green language as Git (`git-motion` + `linux-motion`).
+- Labels must match the reader’s world: `Your login`, `Team group`, `Service account` — not opaque ids without a gloss.
+- Side-by-side comparisons need a visible teaching asymmetry.
+- Caption restates the comparison in one skimable sentence.
+- Motion only when it teaches; still mode must remain readable.
+
+## Examples
+
+```text
+❌ Lede: Run useradd -m -G developers,adm ravi then usermod -L meera…
+✅ Lede: Shared boxes need logins, groups, and file permissions you can read at a glance.
+
+❌ Callout: one-liner tip / 4+ boxes per blog
+✅ Max 2 callouts per blog; each body is 2–3 sentences (rule + why + what to do)
+
+❌ Figure copy-pastes lab UIDs and the exact sudoers line from the grader
+✅ Figure shows primary vs extra groups with neutral names
+```

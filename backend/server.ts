@@ -13,7 +13,7 @@ const { WebSocketServer } = require('ws');
 const { runMigrations } = require('./db/migrate');
 const sessionStore = require('./db/sessionStore');
 const { loadChallengesFromDB, seedChallengesFromDisk } = require('./challenges/loader');
-const { seedManualCatalog } = require('./challenges/seedManualCatalog');
+const { seedManualCatalog, startPackWatcher } = require('./challenges/seedManualCatalog');
 const { VERIFIED_ROOT } = require('./sandbox/paths');
 
 const contactRoutes = require('./routes/contact');
@@ -136,6 +136,11 @@ async function start(): Promise<void> {
 
   if (process.env.K8S_LAB_KUBECONFIG || process.env.KUBECONFIG) {
     require('./workspace/k8sCapacity').start();
+    try {
+      require('./workspace/poolAutoscale').startPoolAutoscale();
+    } catch (e: unknown) {
+      console.warn('[boot] pool autoscale skipped:', (e as Error).message);
+    }
   }
 
   try {
@@ -164,6 +169,7 @@ async function start(): Promise<void> {
 
   console.log('[boot] loading challenges from db...');
   await loadChallengesFromDB();
+  startPackWatcher();
 
   try {
     const { syncSparkJobWatcherToPlatform } = require('./admin/settings');

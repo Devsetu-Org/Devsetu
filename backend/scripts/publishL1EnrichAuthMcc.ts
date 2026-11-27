@@ -36,10 +36,6 @@ def main() -> None:
     df = spark.read.parquet(INPUT_PATH)
     mcc = spark.read.parquet(DIM_PATH)
 
-    # TODO: keep approved auths, put published MCC names on them,
-    # keep unpublished codes with null names, write Parquet.
-    _ = F
-
     spark.stop()
 
 

@@ -114,7 +114,17 @@ Capstone: staging quota-blocked → switch to prod; team image + pullSecrets; ex
 
 The Spark Play shelf is a **chapter card grid** (`panel.chapters` in `playCatalog.ts`). Chapters 4–6 list planned lab titles as locked rows until packs exist. Optional pack stubs `spark-ch04`…`ch06` may still exist on disk but are not on the shelf.
 
-Chapter 4 (Platform Automations) includes a Livy placeholder — **Submit Through Livy Instead of SSH** — next to Self-Service Job Request API. Packs not built yet.
+Chapter 4 (Platform Automations) planned shelf rows (all placeholders until packs exist):
+
+1. Infra-as-Code for the Cluster Shape
+2. Automated Environment and Dependency Provision
+3. Guardrail: Refuse the Bad Request
+4. Detect Drift, Then Reconcile
+5. Self-Service Job Request API
+6. Auto-Tuner: Right-Size From the Physical Plan — write a program that checks allocated resources/params, validates the physical plan, and applies lasting right-size changes
+7. Submit Through Livy Instead of SSH
+
+Packs not built yet.
 
 ## Backlog pool
 

@@ -192,6 +192,10 @@ body.drawer-open .page {
   color: #fbbf24;
 }
 
+.widget[data-section="spark-de"] .widget-kicker {
+  color: #fdba74;
+}
+
 .widget[data-section="kafka"] .widget-kicker {
   color: #67e8f9;
 }

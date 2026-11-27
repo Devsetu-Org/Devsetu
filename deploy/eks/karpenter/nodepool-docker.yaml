@@ -1,7 +1,8 @@
-# Elastic Docker-box capacity on top of the labs-docker managed node group (the always-on
-# base, env.sh). Same pattern as labs-linux-elastic: Karpenter buys a node only when a box is
-# Pending (base full) and removes it once empty. Same label, taint and shape as the base;
-# tainted so nothing but Docker boxes and their NRI plugin lands here.
+# Docker-box capacity (elastic-only). Managed NG labs-docker stays at Desired=0;
+# this NodePool is the only Docker capacity. Karpenter buys a t4g.medium when a box is
+# Pending and removes it once empty. App pool-autoscale parks limits.cpu after idle grace.
+# Cap: limits.cpu "4" = up to 2 × t4g.medium. Same label/taint as the old base so NRI + seccomp
+# DaemonSets match; tainted so nothing but Docker boxes land here.
 #
 # A Docker box is a Linux box (user-namespaced, systemd as PID 1) that also runs dockerd and
 # the learner's containers: 256Mi / 100m requested, 512Mi / 1 CPU limit, and /var/lib/docker
@@ -97,7 +98,7 @@ spec:
           operator: In
           values: ["t4g.medium"]
       expireAfter: 720h
-  # Up to 2 extra t4g.medium (2 vCPU each) on top of the base.
+  # Up to 2 × t4g.medium (2 vCPU each) — elastic-only ceiling (no managed base).
   limits:
     cpu: "4"
   disruption:

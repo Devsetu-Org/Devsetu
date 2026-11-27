@@ -4,7 +4,8 @@ const SECTIONS = [
   { id: 'linux', title: 'Linux pool' },
   { id: 'docker', title: 'Docker pool' },
   { id: 'kafka', title: 'Kafka pool' },
-  { id: 'spark', title: 'Spark pool' },
+  { id: 'spark', title: 'Spark pool (Platforms)' },
+  { id: 'spark-de', title: 'Spark DE pool' },
   { id: 'projects', title: 'Projects pool' },
 ];
 
@@ -54,6 +55,7 @@ function sectionKicker(sectionId) {
   if (sectionId === 'docker') return 'Docker';
   if (sectionId === 'kafka') return 'Kafka';
   if (sectionId === 'spark') return 'Spark';
+  if (sectionId === 'spark-de') return 'Spark DE';
   if (sectionId === 'projects') return 'Projects';
   return 'System';
 }

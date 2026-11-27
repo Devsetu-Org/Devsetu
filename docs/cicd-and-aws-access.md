@@ -154,6 +154,24 @@ stay, so fix forward or roll back with the workflow.
   resource IDs are.
 - Actions are pinned to commit SHAs; Dependabot (`.github/dependabot.yml`) proposes updates weekly.
 
+## Pool autoscale (lab node groups)
+
+The App backend can wake/sleep learner capacity (`backend/workspace/poolAutoscale.ts`).
+
+- **Linux (elastic-only pilot):** kubectl only — patch Karpenter `labs-linux-elastic` `limits.cpu`. No extra IAM.
+- **Other tracks (`POOL_AUTOSCALE_ALL=1`):** needs `eks:UpdateNodegroupConfig` / `DescribeNodegroup` on lab nodegroups.
+
+Attach the policy document in `deploy/eks/iam/DevLabsEksNodegroupScale.json` to IAM user `devlabs-app-s3` (or the future backend role). It does **not** allow scaling `system-k8s`. Code also refuses to auto-sleep system.
+
+```bash
+aws iam put-user-policy \
+  --user-name devlabs-app-s3 \
+  --policy-name DevLabsEksNodegroupScale \
+  --policy-document file://deploy/eks/iam/DevLabsEksNodegroupScale.json
+```
+
+Also set `EKS_DEPLOY_ROOT` on the App host if `deploy/eks` is not next to the backend package (needed to re-apply NodePool / NRI manifests when missing).
+
 ## Not done yet
 
 - The backend still uses the static keys of IAM user `devlabs-app-s3`, which has **EKS cluster-admin**

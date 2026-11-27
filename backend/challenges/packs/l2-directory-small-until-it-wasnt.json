@@ -1,0 +1,66 @@
+{
+  "id": "l2-directory-small-until-it-wasnt",
+  "number": 914,
+  "finalized": true,
+  "title": "The Directory Was Small Until It Wasn\u2019t",
+  "description": "> **Who is asking**\n>\n> **Registry** (Helix). They enrich overnight auths with a merchant directory. Some nights the directory is tiny. Some nights it is a full publish and no longer fits a casual broadcast.\n\nTwo nights share the same enrich job shape: fact \u22c8 directory on a key.\n\n- **Night A (Run):** directory is small \u2192 **broadcast** is the right strategy.\n- **Night B (Submit, when live):** directory is large \u2192 broadcast is wrong; **sort-merge** (or non-broadcast) is required.\n\nAQE is off so the strategy does not quietly flip without you noticing.\n\n## Your task\n\n1. For the planted night, read the plan: broadcast hash join vs sort-merge (Exchange nodes).\n2. Choose the strategy that matches the sizes (hint and/or broadcast threshold / job conf).\n3. Write the enriched output with correct enrich semantics.\n4. Investigation: why broadcast was safe or unsafe on this night.\n\n## Rules\n\n- Correctness of the enrich and the join strategy are both graded.\n- Do not enable AQE.\n- Do not sample the directory to force a broadcast.\n- Do not broadcast a side that exceeds the published size policy for that night.\n\n> **Done when**\n>\n> Correct enriched file, plan matches the night\u2019s size policy, time budget met.\n\n**Runners and datasets ship later.** You can open the workspace and read the brief; Run/Submit are not graded yet.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "l1",
+    "performance",
+    "join",
+    "broadcast",
+    "investigation"
+  ],
+  "category": "batch-processing",
+  "sandboxType": "spark-platform",
+  "play": {
+    "domainId": "data-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "AQE stays off for this chapter.",
+      "Fill Investigation before you call the job done.",
+      "Live Start ships when the lab is finalized."
+    ],
+    "overview": "The Directory Was Small Until It Wasn\u2019t",
+    "brief": "The Directory Was Small Until It Wasn\u2019t",
+    "solution": "",
+    "idLabel": "914",
+    "theory": ""
+  },
+  "visibleTo": "users",
+  "tokens": 10,
+  "platformSpec": {
+    "language": "python",
+    "starterFileName": "src/main.py",
+    "outputFormat": "parquet",
+    "gradeKeys": [
+      "txn_id"
+    ],
+    "evalSolutionPath": "s3a://devlabs-data/challenges/l2-directory-small-until-it-wasnt/eval/",
+    "inputPath": "s3a://devlabs-data/challenges/l2-directory-small-until-it-wasnt/input/",
+    "limits": {
+      "driver": 1,
+      "driverMemory": "1g",
+      "executors": 2,
+      "executorCores": 1,
+      "executorMemory": "512m",
+      "aqe": false,
+      "shufflePartitions": 20,
+      "hardTimeoutSeconds": 300
+    },
+    "sparkConf": {
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.shuffle.partitions": "20"
+    },
+    "gradeChecks": [
+      "Brief review only \u2014 runners and goldens ship later"
+    ],
+    "chapter": "performance-optimization",
+    "kind": "investigation",
+    "dimPath": "s3a://devlabs-data/challenges/l2-directory-small-until-it-wasnt/dim/"
+  }
+}

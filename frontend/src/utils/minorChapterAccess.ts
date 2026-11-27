@@ -67,6 +67,7 @@ export function blockingChapters(
   chapter: ProjectModule,
   language: LanguageId,
 ): ProjectModule[] {
+  if (minor.sequentialUnlock === false) return [];
   const chapters = minor.chapters || [];
   const index = chapters.findIndex((c) => c.id === chapter.id);
   if (index <= 0) return [];

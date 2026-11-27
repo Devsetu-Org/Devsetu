@@ -20,6 +20,7 @@ import TrackLeaderboardModal from '../components/TrackLeaderboardModal';
 import MonthlyPaperCard, { MonthlyPaperBanner } from '../components/MonthlyPaperCard';
 import PlatformLeaderboardCard from '../components/PlatformLeaderboardCard';
 import TrackRoadmapModal from '../components/TrackRoadmapModal';
+import TrackBlogsModal from '../components/TrackBlogsModal';
 import PlayChapterShelf from '../components/PlayChapterShelf';
 import DevsetuLoader from '../components/DevsetuLoader';
 import { buildPanelRoadmapNodes } from '../lib/trackRoadmapNodes';
@@ -43,9 +44,16 @@ import type { ChallengePublic } from '../types/domain';
 import { isAdminUser, isReviewStaff, getCurrentUser } from '../services/authApi';
 import { ACCESS_LOCKED, ACCESS_LOCKED_OPEN_MSG } from '../constants/accessLock';
 import { visibilityMark } from '../constants/roles';
+import ProjectLabWorkspace from '../components/ProjectLabWorkspace';
+import { isProjectChallenge } from '../utils/projectLabContent';
 
 function panelLabCount(panel: PlayPanel): number {
   return panel.challengeIds.length;
+}
+
+/** Chapter shelf panels are browsable even when every lab is still a placeholder. */
+function panelHasChapterShelf(panel: PlayPanel): boolean {
+  return Boolean(panel.chapters?.length);
 }
 
 /** Same trail as a project page: Tracks / DevOps Engineer / Linux. */
@@ -93,7 +101,7 @@ interface LibraryViewProps {
  * from pack folders / solution filenames (*-l25.yaml).
  */
 function catalogIdLabel(challenge: ChallengePublic): string {
-  const fromK8sId = /^(?:k8s-platform|k8s|linux|docker|kafka|spark)-0*(\d+)-/i.exec(challenge.id)?.[1];
+  const fromK8sId = /^(?:k8s-platform|k8s|linux|docker|kafka|spark|git|db)-0*(\d+)-/i.exec(challenge.id)?.[1];
   if (fromK8sId) return String(Number(fromK8sId)); // "02" → "2", "25" → "25"
   if (/^l1-/i.test(challenge.id)) return '1';
   const ps = challenge.problemStatement;
@@ -124,6 +132,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
   const [kindFilter, setKindFilter] = useState<KindFilter>('lab');
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [blogsOpen, setBlogsOpen] = useState(false);
 
   const domainId =
     isPlayDomainId(params.domainId) && !getPlayDomain(params.domainId)?.comingSoon
@@ -357,7 +366,10 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
               <div className="play-paper-section-grid" aria-label="Track categories">
                 {PLAY_DOMAINS.map((d) => {
                   const count = domainLabCount(d);
-                  const empty = d.panels.length === 0 || count === 0;
+                  // Chapter-shelf domains (e.g. Distributed Systems) are browsable
+                  // before any pack challengeIds exist — same rule as panel tiles.
+                  const hasShelf = d.panels.some(panelHasChapterShelf);
+                  const empty = d.panels.length === 0 || (count === 0 && !hasShelf);
                   if (empty) {
                     return (
                       <div
@@ -408,11 +420,12 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
               >
                 {domain.panels.map((p) => {
                   const count = panelLabCount(p);
+                  const chapterCount = p.chapters?.length ?? 0;
                   const readingCount =
                     readingTrackForPanel(domain.id, p.id)
                       ?.listTrackItems()
                       .filter((item) => item.type === 'reading').length ?? 0;
-                  if (count === 0 && readingCount === 0) {
+                  if (count === 0 && readingCount === 0 && !panelHasChapterShelf(p)) {
                     return (
                       <div
                         key={p.id}
@@ -451,7 +464,9 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                       <span className="play-paper-section-kicker">
                         {count > 0
                           ? `${count} lab${count === 1 ? '' : 's'}`
-                          : `${readingCount} reading${readingCount === 1 ? '' : 's'}`}
+                          : chapterCount > 0
+                            ? `${chapterCount} chapter${chapterCount === 1 ? '' : 's'}`
+                            : `${readingCount} reading${readingCount === 1 ? '' : 's'}`}
                       </span>
                       <strong className="play-paper-section-title">{p.label}</strong>
                       <p className="play-paper-section-blurb">{p.blurb}</p>
@@ -473,7 +488,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 <div className="play-hub-title-row">
                   <h2 className="play-hub-title">{panel.label}</h2>
                   <div className="play-hub-title-actions">
-                    {!panel.chapters?.length && roadmapNodes.length > 0 && (
+                    {roadmapNodes.length > 0 && (
                       <button
                         type="button"
                         className="play-primer-link play-roadmap-link"
@@ -482,6 +497,17 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                         onClick={() => setRoadmapOpen(true)}
                       >
                         <RoadmapIcon className="play-primer-link-icon" title="" />
+                      </button>
+                    )}
+                    {readingTrack && roadmapNodes.some((n) => n.kind === 'reading') && (
+                      <button
+                        type="button"
+                        className="play-primer-link play-blogs-link"
+                        aria-label={`${panel.label} blogs`}
+                        data-tip="Blogs"
+                        onClick={() => setBlogsOpen(true)}
+                      >
+                        <StatusBookIcon className="play-primer-link-icon" title="" />
                       </button>
                     )}
                     {panel.challengeIds.length > 0 && (
@@ -515,6 +541,12 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                 nodes={roadmapNodes}
                 onClose={() => setRoadmapOpen(false)}
                 onSelectLab={onSelectChallenge}
+              />
+              <TrackBlogsModal
+                open={blogsOpen}
+                trackLabel={panel.label}
+                nodes={roadmapNodes}
+                onClose={() => setBlogsOpen(false)}
               />
 
               <section className="play-problems-toolbar">
@@ -555,17 +587,6 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                   byId={byId}
                   search={search}
                   onSelectChallenge={onSelectChallenge}
-                  showVisibilityMarks={showVisibilityMarks}
-                  readingFor={(chapter) => {
-                    const slug = chapter.readingSlug;
-                    if (!slug || !readingTrack) return null;
-                    const reading = readingTrack.getReading(slug);
-                    if (!reading) return null;
-                    return {
-                      href: readingTrack.readingPath(reading.slug),
-                      title: reading.title,
-                    };
-                  }}
                 />
               ) : (
                 <section className="play-problems-table-wrap" aria-label={`${panel.label} track`}>
@@ -732,12 +753,28 @@ export default function PlayPage(): JSX.Element {
     navigate(`${window.location.pathname}`, { replace: true });
   }, [labId, authMode, playState, challenges, challengesError, navigate]);
 
+  // Safety net: if ?lab= restore never leaves the shelf (blocked open, aborted
+  // attempt, etc.), drop the query after a few seconds instead of spinning forever.
+  useEffect(() => {
+    if (!labId || authMode !== 'interviewer') return;
+    if (playState !== 'library') return;
+    if (challenges.length === 0 && !challengesError) return;
+    const challenge = challenges.find((c) => c.id === labId);
+    if (!challenge || (challenge as { finalized?: boolean }).finalized === false) return;
+    const timer = window.setTimeout(() => {
+      navigate(window.location.pathname, { replace: true });
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [labId, authMode, playState, challenges, challengesError, navigate]);
+
   const challengesReady = challenges.length > 0 || Boolean(challengesError);
   const labInCatalog = Boolean(labId && challenges.some((c) => c.id === labId));
   // Only show the reopen splash while signed in and restore can actually run.
+  // startError means open was refused — show the shelf, not a forever spinner.
   const reopeningLab =
     authMode === 'interviewer'
     && Boolean(labId)
+    && !startError
     && (playState === 'library' || (playState === 'active' && !activeSession))
     && (!challengesReady || labInCatalog);
 
@@ -792,6 +829,14 @@ export default function PlayPage(): JSX.Element {
     if (isBoardChallenge(activeChallenge) || activeSession.runtime === 'board') {
       return (
         <BoardWorkspace
+          challenge={activeChallenge}
+          session={activeSession}
+        />
+      );
+    }
+    if (isProjectChallenge(activeChallenge) || activeSession.runtime === 'project') {
+      return (
+        <ProjectLabWorkspace
           challenge={activeChallenge}
           session={activeSession}
         />

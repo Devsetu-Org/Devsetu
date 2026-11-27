@@ -182,6 +182,7 @@ function normalizeFenceLang(raw: string): string {
   if (lang === 'ts') return 'typescript';
   if (lang === 'sh' || lang === 'bash' || lang === 'shell') return 'shell';
   if (lang === 'yml') return 'yaml';
+  if (lang === 'conf' || lang === 'cfg' || lang === 'properties') return 'ini';
   if (lang === 'text' || lang === 'plain' || lang === 'txt') return 'plaintext';
   return lang;
 }
@@ -283,7 +284,54 @@ function formatPythonLight(code: string): string {
 
 function fenceLabel(lang: string): string {
   if (lang === 'plaintext') return 'code';
+  if (lang === 'ini' || lang === 'conf') return 'conf';
   return lang;
+}
+
+/** Parse a ``` fence starting at `at`. Returns the node and index of the closing line. */
+function parseFenceAt(
+  lines: string[],
+  at: number,
+  key: number,
+  plainCode: boolean,
+): { node: React.ReactNode; end: number } | null {
+  const fenceOpen = lines[at]?.trim().match(/^```([\w+-]*)\s*$/);
+  if (!fenceOpen) return null;
+  const lang = normalizeFenceLang(fenceOpen[1] || '');
+  const body: string[] = [];
+  let i = at + 1;
+  while (i < lines.length && !/^\s*```/.test(lines[i])) {
+    body.push(lines[i]);
+    i += 1;
+  }
+  const content = formatFenceContent(body.join('\n'), lang);
+  const node = (plainCode || lang === 'plaintext')
+    ? (
+      <div key={key} className="markdown-code-block markdown-code-block--plain markdown-list-fence">
+        {lang !== 'plaintext' && (
+          <div className="markdown-code-toolbar">
+            <span className="markdown-code-lang">{fenceLabel(lang)}</span>
+          </div>
+        )}
+        <pre className="markdown-pre">
+          <code>{lang === 'yaml' ? highlightYaml(content) : content}</code>
+        </pre>
+      </div>
+    )
+    : (
+      <div key={key} className="markdown-code-block markdown-list-fence">
+        <div className="markdown-code-toolbar">
+          <span className="markdown-code-lang">{fenceLabel(lang)}</span>
+        </div>
+        <ReadOnlyCodePane
+          path={pathForFenceLang(lang)}
+          content={content}
+          language={lang === 'ini' || lang === 'conf' ? 'plaintext' : lang}
+          className="markdown-code-pane"
+        />
+      </div>
+    );
+  return { node, end: i };
 }
 
 function renderMarkdown(
@@ -298,46 +346,11 @@ function renderMarkdown(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const fenceOpen = line.trim().match(/^```([\w+-]*)\s*$/);
-
-    if (fenceOpen) {
-      const lang = normalizeFenceLang(fenceOpen[1] || '');
-      const body: string[] = [];
-      i += 1;
-      while (i < lines.length && !/^\s*```/.test(lines[i])) {
-        body.push(lines[i]);
-        i += 1;
-      }
-      const content = formatFenceContent(body.join('\n'), lang);
-      if (plainCode || lang === 'plaintext') {
-        elements.push(
-          <div key={key++} className="markdown-code-block markdown-code-block--plain">
-            {lang !== 'plaintext' && (
-              <div className="markdown-code-toolbar">
-                <span className="markdown-code-lang">{fenceLabel(lang)}</span>
-              </div>
-            )}
-            <pre className="markdown-pre">
-              <code>{lang === 'yaml' ? highlightYaml(content) : content}</code>
-            </pre>
-          </div>,
-        );
-        continue;
-      }
-      const path = pathForFenceLang(lang);
-      elements.push(
-        <div key={key++} className="markdown-code-block">
-          <div className="markdown-code-toolbar">
-            <span className="markdown-code-lang">{fenceLabel(lang)}</span>
-          </div>
-          <ReadOnlyCodePane
-            path={path}
-            content={content}
-            language={lang}
-            className="markdown-code-pane"
-          />
-        </div>,
-      );
+    const fence = parseFenceAt(lines, i, key, plainCode);
+    if (fence) {
+      elements.push(fence.node);
+      key += 1;
+      i = fence.end;
       continue;
     }
 
@@ -418,13 +431,90 @@ function renderMarkdown(
       i--;
       elements.push(<ul key={key++} className="markdown-list">{items}</ul>);
     } else if (/^\d+\.\s/.test(line)) {
+      // Keep one <ol> across blank lines, indented continuations, and fenced
+      // snippets under a step. Without this, a new <ol> restarts at 1.
+      const start = Number(line.match(/^(\d+)\./)?.[1] || 1);
       const items: React.ReactNode[] = [];
-      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-        items.push(<li key={key++}>{inlineMarkdown(lines[i].replace(/^\d+\.\s*/, ''))}</li>);
-        i++;
+      const isListContinuation = (at: number): boolean => {
+        if (at >= lines.length) return false;
+        if (/^\d+\.\s/.test(lines[at])) return true;
+        if (/^\s{2,}\S/.test(lines[at])) return true;
+        if (/^\s*```/.test(lines[at])) return true;
+        return false;
+      };
+      while (i < lines.length) {
+        while (i < lines.length && lines[i].trim() === '') {
+          let j = i + 1;
+          while (j < lines.length && lines[j].trim() === '') j += 1;
+          if (isListContinuation(j)) {
+            i += 1;
+            continue;
+          }
+          break;
+        }
+        if (i >= lines.length) break;
+        const itemMatch = lines[i].match(/^(\d+)\.\s+(.*)$/);
+        if (!itemMatch) break;
+        const itemNo = Number(itemMatch[1]);
+        const chunks: React.ReactNode[] = [];
+        if (itemMatch[2].trim()) {
+          chunks.push(
+            <span key={`t-${key}`}>{inlineMarkdown(itemMatch[2])}</span>,
+          );
+        }
+        i += 1;
+        const flushIndented = (indented: string[]): void => {
+          if (!indented.length) return;
+          chunks.push(
+            <pre key={`c-${key}-${chunks.length}`} className="markdown-pre markdown-list-pre">
+              <code>{indented.join('\n')}</code>
+            </pre>,
+          );
+        };
+        let indented: string[] = [];
+        while (i < lines.length) {
+          if (lines[i].trim() === '') {
+            let j = i + 1;
+            while (j < lines.length && lines[j].trim() === '') j += 1;
+            if (j < lines.length && (/^\s{2,}\S/.test(lines[j]) || /^\s*```/.test(lines[j]))) {
+              if (indented.length) indented.push('');
+              i += 1;
+              continue;
+            }
+            break;
+          }
+          const nestedFence = parseFenceAt(lines, i, key + chunks.length + 1, plainCode);
+          if (nestedFence) {
+            flushIndented(indented);
+            indented = [];
+            chunks.push(nestedFence.node);
+            i = nestedFence.end + 1;
+            continue;
+          }
+          if (/^\s{2,}\S/.test(lines[i])) {
+            indented.push(lines[i].replace(/^\s+/, ''));
+            i += 1;
+            continue;
+          }
+          break;
+        }
+        flushIndented(indented);
+        items.push(
+          <li key={key++} value={itemNo}>
+            {chunks}
+          </li>,
+        );
       }
-      i--;
-      elements.push(<ol key={key++} className="markdown-list markdown-list--ordered">{items}</ol>);
+      i -= 1;
+      elements.push(
+        <ol
+          key={key++}
+          className="markdown-list markdown-list--ordered"
+          start={start}
+        >
+          {items}
+        </ol>,
+      );
     } else if (/^!\[[^\]]*\]\([^)]+\)\s*$/.test(line.trim())) {
       const img = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
       if (img) {

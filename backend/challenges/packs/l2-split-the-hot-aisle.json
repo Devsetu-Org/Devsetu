@@ -1,0 +1,65 @@
+{
+  "id": "l2-split-the-hot-aisle",
+  "number": 911,
+  "finalized": true,
+  "title": "Split the Hot Aisle",
+  "description": "> **Who is asking**\n>\n> **District** again. Same overnight join shape. Platform policy for *this* ticket: **do not salt.** The hot store is a known VIP flagship \u2014 treat it as its own path.\n\nSame class of skew: one `store_id` owns the shuffle. The planted job is a naive join + rollup with AQE off. The graded repair is **isolate \u2192 broadcast the hot dimension row(s) \u2192 normal join on the cold keys \u2192 union \u2192 aggregate**.\n\nSalting will make the job fast and the totals right. It still **fails** this lab.\n\n## Your task\n\n1. Reproduce and confirm skew in the UI (one hot task).\n2. Identify the hot `store_id`.\n3. Split orders into hot and cold. Broadcast-join the hot slice to the matching store row(s). Join cold orders to the remaining stores without salt.\n4. Union, aggregate, write `OUTPUT_PATH`.\n5. Investigation must describe the split and which branch was broadcast.\n\n## Rules\n\n- No salt column, no `rand()`-driven salt, no explode of salt buckets for a salted join key.\n- No dropping the hot store. No AQE. No extra executors.\n- Totals must match a correct unsalted join.\n\n> **Done when**\n>\n> Correct output, isolate + broadcast shape, salt patterns absent, performance budget met.\n\n**Runners and datasets ship later.** You can open the workspace and read the brief; Run/Submit are not graded yet.\n",
+  "difficulty": "L2",
+  "tags": [
+    "spark",
+    "l2",
+    "performance",
+    "skew",
+    "broadcast",
+    "investigation"
+  ],
+  "category": "batch-processing",
+  "sandboxType": "spark-platform",
+  "play": {
+    "domainId": "data-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "AQE stays off for this chapter.",
+      "Fill Investigation before you call the job done.",
+      "Live Start ships when the lab is finalized."
+    ],
+    "overview": "Split the Hot Aisle",
+    "brief": "Split the Hot Aisle",
+    "solution": "",
+    "idLabel": "911",
+    "theory": ""
+  },
+  "visibleTo": "users",
+  "tokens": 10,
+  "platformSpec": {
+    "language": "python",
+    "starterFileName": "src/main.py",
+    "outputFormat": "parquet",
+    "gradeKeys": [
+      "store_id"
+    ],
+    "evalSolutionPath": "s3a://devlabs-data/challenges/l2-split-the-hot-aisle/eval/",
+    "inputPath": "s3a://devlabs-data/challenges/l2-split-the-hot-aisle/input/",
+    "limits": {
+      "driver": 1,
+      "driverMemory": "1g",
+      "executors": 2,
+      "executorCores": 1,
+      "executorMemory": "512m",
+      "aqe": false,
+      "shufflePartitions": 20,
+      "hardTimeoutSeconds": 300
+    },
+    "sparkConf": {
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.shuffle.partitions": "20"
+    },
+    "gradeChecks": [
+      "Brief review only \u2014 runners and goldens ship later"
+    ],
+    "chapter": "performance-optimization",
+    "kind": "investigation"
+  }
+}

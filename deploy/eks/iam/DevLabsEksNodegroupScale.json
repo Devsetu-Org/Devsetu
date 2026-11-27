@@ -1,0 +1,33 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DescribeLabNodegroups",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeNodegroup",
+        "eks:ListNodegroups"
+      ],
+      "Resource": [
+        "arn:aws:eks:ap-south-2:204098850303:cluster/devlabs",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/*"
+      ]
+    },
+    {
+      "Sid": "ScaleLabNodegroups",
+      "Effect": "Allow",
+      "Action": [
+        "eks:UpdateNodegroupConfig"
+      ],
+      "Resource": [
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-k8s/*",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-linux/*",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-docker/*",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-spark/*",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-spark-de/*",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-kafka/*",
+        "arn:aws:eks:ap-south-2:204098850303:nodegroup/devlabs/labs-projects/*"
+      ]
+    }
+  ]
+}

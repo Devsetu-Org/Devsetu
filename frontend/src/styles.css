@@ -7444,7 +7444,7 @@ button.play-primer-link {
   grid-template-columns: 1.5rem minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 12px 10px 12px 8px;
+  padding: 11px 10px 11px 8px;
   border: none;
   border-radius: 10px;
   background: transparent;
@@ -7502,7 +7502,7 @@ button.play-primer-link {
   overflow: hidden;
   font-size: 14px;
   font-weight: 560;
-  line-height: 1.35;
+  line-height: 1.2;
   color: #e8eaf2;
 }
 
@@ -7517,24 +7517,16 @@ button.play-primer-link {
 .play-chapter-lab-meta {
   grid-column: 3;
   display: grid;
-  grid-template-columns: 66px;
+  grid-template-columns: auto;
   justify-content: end;
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
   min-width: 0;
   justify-self: end;
 }
 
 .play-chapter-lab-meta--free {
-  grid-template-columns: 38px 66px;
-}
-
-.play-chapter-lab-meta--staff {
-  grid-template-columns: 22px 66px;
-}
-
-.play-chapter-lab-meta--free.play-chapter-lab-meta--staff {
-  grid-template-columns: 38px 22px 66px;
+  grid-template-columns: auto auto;
 }
 
 .play-chapter-lab-free {
@@ -13317,7 +13309,7 @@ button.play-primer-link {
   .play-chapter-lab {
     grid-template-columns: 1.25rem minmax(0, 1fr) auto;
     gap: 6px;
-    padding: 10px 6px 10px 4px;
+    padding: 9px 6px 9px 4px;
   }
 
   .play-chapter-lab-title {
@@ -13325,20 +13317,12 @@ button.play-primer-link {
   }
 
   .play-chapter-lab-meta {
-    grid-template-columns: 58px;
+    grid-template-columns: auto;
     column-gap: 6px;
   }
 
   .play-chapter-lab-meta--free {
-    grid-template-columns: 34px 58px;
-  }
-
-  .play-chapter-lab-meta--staff {
-    grid-template-columns: 18px 58px;
-  }
-
-  .play-chapter-lab-meta--free.play-chapter-lab-meta--staff {
-    grid-template-columns: 34px 18px 58px;
+    grid-template-columns: auto auto;
   }
 
   .play-chapter-lab-free {
@@ -30266,7 +30250,7 @@ button.k8s-lab-investigation-wizard-btn.is-primary:disabled {
   .play-chapter-lab {
     grid-template-columns: 1.15rem minmax(0, 1fr) auto;
     gap: 6px;
-    padding: 10px 4px 10px 2px;
+    padding: 9px 4px 9px 2px;
   }
 
   .play-chapter-lab-title {
@@ -30274,20 +30258,12 @@ button.k8s-lab-investigation-wizard-btn.is-primary:disabled {
   }
 
   .play-chapter-lab-meta {
-    grid-template-columns: 52px;
+    grid-template-columns: auto;
     column-gap: 5px;
   }
 
   .play-chapter-lab-meta--free {
-    grid-template-columns: 32px 52px;
-  }
-
-  .play-chapter-lab-meta--staff {
-    grid-template-columns: 16px 52px;
-  }
-
-  .play-chapter-lab-meta--free.play-chapter-lab-meta--staff {
-    grid-template-columns: 32px 16px 52px;
+    grid-template-columns: auto auto;
   }
 
   .play-problems-table-head,

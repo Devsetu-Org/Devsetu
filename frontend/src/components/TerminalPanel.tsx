@@ -12,13 +12,20 @@ function isKubectlTransportFault(line: string): boolean {
     || line.includes('error reading from error stream');
 }
 
+/**
+ * Hold incomplete lines that look like a kubectl transport fault mid-stream.
+ * Must not match short shell echo — `'error: …'.startsWith('e')` used to swallow
+ * typed `e` until the next keystroke (then flush as `ee` / `ex`).
+ */
 function mightBeTransportFault(partial: string): boolean {
   if (!partial || partial.length > 500) return false;
   if (isKubectlTransportFault(partial)) return true;
-  if (/^E\d{4} \d{2}:\d{2}:\d{2}/.test(partial)) return true;
-  if ('error: error reading from error stream:'.startsWith(partial)) return true;
+  // client-go klog: require the full EMMDD date before holding (never a lone "E").
+  if (/^E\d{4}( \d{0,2}(:\d{0,2}(:\d{0,2}(\.\d{0,9})?)?)?)?$/.test(partial)) return true;
   if (partial.startsWith('error: error reading')) return true;
-  return /^E\d{0,4}( \d{0,2}(:\d{0,2}(:\d{0,2}(\.\d{0,9})?)?)?)?$/.test(partial);
+  // Only buffer once the prefix is distinctive enough that shell typing cannot collide.
+  const faultMsg = 'error: error reading from error stream:';
+  return partial.length >= 'error: err'.length && faultMsg.startsWith(partial);
 }
 
 const THEME = {

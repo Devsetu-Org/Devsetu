@@ -1,0 +1,22 @@
+---
+description: Keep Linux blog examples generic — avoid lab copy-paste numbers and setups
+globs: frontend/src/constants/linuxReadings.ts,frontend/src/constants/linuxReadingsExtended.ts,frontend/src/components/LinuxReadingAnims.tsx
+alwaysApply: false
+---
+
+# Linux blogs: generic setups only
+
+Teaching copy and diagrams must stand alone. Do not explain concepts through planted lab answers.
+
+## Do not use in body, lede, figures, or callouts
+
+- Lab-matching numbers and setups a student could copy-paste: exact UIDs/GIDs from graders, exact sudoers command lists, crontab minute/hour lines graded by the lab, package pin versions, planted paths unique to a challenge.
+- Phrases that assume the reader is inside a challenge: “in this lab you will…”, “after these labs you are ready for the capstone…” inside concept sections.
+
+## Use instead
+
+- Generic shared-box situations: “a teammate needs a login”, “a service account that cannot log in”, “a night report that must survive logout”.
+- Neutral example values that **differ** from lab answers while teaching the same pattern.
+- Point to labs only at the edge: Related labs links, or one sentence like “Practice this on the next lab.”
+
+`relatedLabs` / `gatedByChallengeId` metadata may still reference challenge IDs — that is wiring, not teaching narrative.

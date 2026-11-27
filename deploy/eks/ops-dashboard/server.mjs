@@ -107,11 +107,11 @@ const ACTIONS = {
   recreate: {
     label: 'Recreate cluster + system platform',
     section: 'control-plane',
-    summary: 'Create/repair cluster; wake system; Kyverno + admission.',
+    summary: 'Create/repair cluster; wake system; Kyverno + admission + Karpenter controller.',
     description: [
       'Primary bring-up / repair path after destroy or for a missing cluster. Idempotent: if the cluster already exists it will not delete it; it ensures node groups, add-ons, access, and kubeconfig are present.',
-      'Creates managed NGs (system-k8s, labs-k8s, labs-linux, …) at Desired=0, ensures VPC CNI config (prefix delegation + network policy), EBS CSI Pod Identity, app Access Entry, and local (+ App EC2) kubeconfig. Then wakes system-k8s and runs addon-placement, Kyverno, and admission.',
-      'Does not install Karpenter — run Install Karpenter separately afterward. Skip the wake/platform half with EKS_SKIP_PLATFORM=1 if you only want an empty control plane. Long-running; needs AWS admin + Helm + kubectl. Confirm by typing recreate.',
+      'Creates managed NGs (system-k8s, labs-k8s, labs-linux, …) at Desired=0, ensures VPC CNI config (prefix delegation + network policy), EBS CSI Pod Identity, app Access Entry, and local (+ App EC2) kubeconfig. Then wakes system-k8s and runs addon-placement, Kyverno, admission, and the Karpenter controller (IAM + Helm; same as Karpenter controller only — no labs-elastic NodePool).',
+      'NodePools stay opt-in: run Install Karpenter for labs-elastic, or Linux/Docker/Spark elastic (up) as needed. Skip the wake/platform half with EKS_SKIP_PLATFORM=1 if you only want an empty control plane. Long-running; needs AWS admin + Helm + kubectl. Confirm by typing recreate.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-recreate.sh')],
     confirm: 'recreate',
@@ -134,7 +134,7 @@ const ACTIONS = {
     summary: 'Controller on system + labs-elastic NodePool.',
     description: [
       'Full Karpenter install for DevSetu. Deploys the upstream CloudFormation stack (node role, controller policies, interruption queue), Pod Identity for the controller ServiceAccount, an EC2_LINUX access entry so Karpenter-launched nodes can join, and discovery tags on subnets + the cluster security group.',
-      'Helm-installs the Karpenter controller into kube-system on system-k8s (replicas=1, CriticalAddonsOnly toleration). Then applies the labs-elastic EC2NodeClass + NodePool used as overflow for Kubernetes labs on top of the labs-k8s managed base.',
+      'Helm-installs the Karpenter controller into kube-system on system-k8s (replicas=1, CriticalAddonsOnly toleration). Then applies the labs-elastic EC2NodeClass + NodePool used as overflow for Kubernetes labs on top of the labs-k8s managed base. The controller itself is already installed by Recreate cluster + system platform — this tile mainly adds labs-elastic (or refreshes a full install).',
       'Balloon warm-pool Deployments are intentionally not applied right now (and leftovers are removed). Prerequisite: Ready system-k8s (Helm --wait). Linux and Docker overflow are separate NodePools (labs-linux-elastic, labs-docker-elastic) — run those elastic (up) actions yourself.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-karpenter.sh')],
@@ -144,8 +144,8 @@ const ACTIONS = {
     section: 'karpenter',
     summary: 'Install controller without labs-elastic.',
     description: [
-      'Same IAM / Helm / discovery path as Install Karpenter, but with EKS_KARPENTER_LABS_POOL=0 so labs-elastic and any labs balloons are skipped.',
-      'Use this when the cluster only needs Karpenter for Linux (or Docker/Spark) elastic NodePools, or when labs-k8s is not in play and you do not want a labs-elastic pool buying nodes.',
+      'Same IAM / Helm / discovery path as Install Karpenter, but with EKS_KARPENTER_LABS_POOL=0 so labs-elastic and any labs balloons are skipped. Recreate cluster + system platform already runs this step.',
+      'Use this to reinstall/upgrade the controller alone, or when you skipped platform on recreate (EKS_SKIP_PLATFORM=1) and still need Karpenter without labs-elastic.',
       'You can still apply Linux elastic (up) afterward; that NodePool is independent. Needs a Ready system node for the controller.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-karpenter.sh')],
@@ -178,8 +178,8 @@ const ACTIONS = {
     section: 'linux',
     summary: 'Wake labs-linux, plugins, and elastic.',
     description: [
-      'Convenience path after Linux sleep: scales labs-linux back to 1, waits for Ready, re-applies NRI + seccomp, then runs the elastic NodePool apply (same as up).',
-      'Use when Linux capacity was parked and you want both the always-on base and overflow restored in one action. If you only want the single managed node, prefer Linux base and skip up / wake’s elastic half.',
+      'Elastic-only wake (default): re-applies NRI + seccomp and labs-linux-elastic (same as up). Does not scale the managed labs-linux NG (Desired stays 0).',
+      'Set EKS_LINUX_WAKE_BASE=1 to also scale labs-linux to 1 (rollback). App pool-autoscale unparks the NodePool on lab start when POOL_AUTOSCALE=1.',
       'Needs AWS admin + kubectl; elastic restore needs Karpenter present.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-linux.sh'), 'wake'],
@@ -413,6 +413,92 @@ const ACTIONS = {
       'Confirm by typing down. Prefer Spark sleep when you only want to park capacity and keep the elastic pool definition installed.',
     ].join('\n\n'),
     argv: [path.join(EKS_ROOT, 'eks-spark.sh'), 'down'],
+    confirm: 'down',
+  },
+  'spark-de-base': {
+    label: 'Spark DE base',
+    section: 'spark-de',
+    summary: 'labs-spark-de Desired=1.',
+    description: [
+      'Creates the labs-spark-de managed node group and launch template if missing, scales it to Desired=1, and waits for a Ready node labeled pool=spark-de.',
+      'Same t4g.medium shape as Platforms Spark, but a separate pool so Data Engineer Spark labs (job authoring / perf) do not share nodes with Platforms Engineer Spark.',
+      'Not in EKS_NODEGROUPS — park with Spark DE sleep / down. Does not apply Karpenter overflow; run Spark DE up for that.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-de.sh'), 'base'],
+  },
+  'spark-de-up': {
+    label: 'Spark DE elastic (up)',
+    section: 'spark-de',
+    summary: 'Apply labs-spark-de-elastic NodePool only.',
+    description: [
+      'Applies only the Karpenter EC2NodeClass + NodePool labs-spark-de-elastic. When DE Spark labs are Pending because the managed base is full, Karpenter buys matching Graviton nodes (same pool label/taint as the base) and removes them once empty.',
+      'Does not scale the managed NG — run Spark DE base first. Prerequisite: Karpenter controller already installed (Install Karpenter).',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-de.sh'), 'up'],
+  },
+  'spark-de-wake': {
+    label: 'Spark DE wake',
+    section: 'spark-de',
+    summary: 'Wake labs-spark-de, then elastic.',
+    description: [
+      'Convenience path after Spark DE sleep: scales labs-spark-de back to 1, waits for Ready, then applies labs-spark-de-elastic.',
+      'Use when DE Spark capacity was parked and you want the always-on base (and overflow) restored. If you only want the single managed node, prefer Spark DE base.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-de.sh'), 'wake'],
+  },
+  'spark-de-sleep': {
+    label: 'Spark DE sleep',
+    section: 'spark-de',
+    summary: 'Park elastic and labs-spark-de → 0.',
+    description: [
+      'Parks Data Engineer Spark capacity without touching system-k8s, Platforms Spark, or the EKS control plane. First patches labs-spark-de-elastic cpu limit to 0 and deletes its NodeClaims, then scales labs-spark-de to Desired=0.',
+      'Open DE Spark labs will sit Pending / fail availability until capacity wakes again.',
+      'Bring capacity back with Spark DE wake (base + elastic) or Spark DE base alone if you do not need overflow.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-de.sh'), 'sleep'],
+  },
+  'spark-de-down': {
+    label: 'Spark DE down',
+    section: 'spark-de',
+    summary: 'Delete elastic NodePool; sleep NG.',
+    description: [
+      'Deletes the labs-spark-de-elastic NodePool/EC2NodeClass (Karpenter terminates those nodes), then sleeps labs-spark-de to Desired=0.',
+      'After this, DE Spark labs will not work until you run Spark DE base again (and up if you want elastic). Stronger than sleep alone because the elastic NodePool is removed from the cluster.',
+      'Confirm by typing down. Prefer Spark DE sleep when you only want to park capacity and keep the elastic pool definition installed.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-de.sh'), 'down'],
+    confirm: 'down',
+  },
+  'spark-platform-install': {
+    label: 'Spark Platform install',
+    section: 'spark-de',
+    summary: 'Operator + API + History on EKS (spark-de jobs).',
+    description: [
+      'Installs the Kubeflow Spark Operator, Platform API, and History Server into namespace spark. Controller/API/History sit on system-k8s; driver and executor pods are pinned to pool=spark-de via SPARK_NODE_POOL.',
+      'Event logs go to s3a://devlabs-data/spark-events/ (no PVC). Requires AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in the ops-dashboard process env (same keys as the App EC2 object store). Assumes arm64 images already on Hub — run Spark Platform deploy (build+install) once if tags are missing.',
+      'Prerequisite: Spark DE base (Ready node). After install, set SPARK_PLATFORM_API_URL on App EC2 to the Internal NLB hostname printed by status.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-platform.sh'), 'install'],
+  },
+  'spark-platform-status': {
+    label: 'Spark Platform status',
+    section: 'spark-de',
+    summary: 'Pods, Internal NLB URLs, /api/health.',
+    description: [
+      'Shows system + spark-de nodes, spark-namespace Deployments/Pods/Services, and the Internal NLB hostnames for SPARK_PLATFORM_API_URL / SPARK_HISTORY_UI_URL.',
+      'Health curl from the laptop may fail (private NLB); App EC2 in the same VPC should reach it.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-platform.sh'), 'status'],
+  },
+  'spark-platform-down': {
+    label: 'Spark Platform down',
+    section: 'spark-de',
+    summary: 'Uninstall Operator + Platform workloads.',
+    description: [
+      'Removes spark-platform-api, spark-history, the spark-s3 secret, and helm-uninstalls the Spark Operator release. Leaves the spark namespace and CRDs.',
+      'Does not park labs-spark-de — use Spark DE sleep for that. Confirm by typing down.',
+    ].join('\n\n'),
+    argv: [path.join(EKS_ROOT, 'eks-spark-platform.sh'), 'down'],
     confirm: 'down',
   },
   'projects-base': {

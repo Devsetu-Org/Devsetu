@@ -149,7 +149,8 @@ export type EnsureLearnerNamespaceOpts = {
 const provisionedNsAt = new Map<string, number>();
 /** ns → cached learner kubeconfig path + expiry. */
 const learnerKubeCache = new Map<string, { path: string; expiresAt: number }>();
-/** Process-lifetime cluster endpoint from controller kubeconfig (avoids repeated config view). */
+/** Cluster endpoint from controller kubeconfig. Invalidated when that file's mtime changes
+ * (EKS recreate rewrites the API hostname; a process-lifetime cache kept talking to the dead one). */
 let cachedClusterEndpoint:
   | {
       server: string;
@@ -157,6 +158,7 @@ let cachedClusterEndpoint:
       skipTls: boolean;
     }
   | null = null;
+let cachedClusterEndpointMtimeMs = Number.NaN;
 /** ns → challengeId → setup done (avoids repeated get ns). */
 const setupDoneCache = new Map<string, Map<string, boolean>>();
 
@@ -801,10 +803,27 @@ async function resolveClusterEndpoint(): Promise<{
   caData: string | null;
   skipTls: boolean;
 }> {
-  if (cachedClusterEndpoint) return cachedClusterEndpoint;
-
   // Prefer reading kubeconfig from disk (no aws get-token / API round-trip).
   const cfgPath = process.env.K8S_LAB_KUBECONFIG || process.env.KUBECONFIG;
+  let mtimeMs = Number.NaN;
+  if (cfgPath && fs.existsSync(cfgPath)) {
+    try {
+      mtimeMs = fs.statSync(cfgPath).mtimeMs;
+    } catch {
+      mtimeMs = Number.NaN;
+    }
+  }
+  if (
+    cachedClusterEndpoint
+    && Number.isFinite(mtimeMs)
+    && mtimeMs === cachedClusterEndpointMtimeMs
+  ) {
+    return cachedClusterEndpoint;
+  }
+  // Kubeconfig rewritten (typical after eks-recreate) — drop stale API hostname.
+  cachedClusterEndpoint = null;
+  cachedClusterEndpointMtimeMs = mtimeMs;
+
   let doc: {
     clusters?: Array<{
       name?: string;
@@ -866,6 +885,7 @@ async function resolveClusterEndpoint(): Promise<{
     caData: cluster?.['certificate-authority-data'] || null,
     skipTls,
   };
+  cachedClusterEndpointMtimeMs = mtimeMs;
   return cachedClusterEndpoint;
 }
 
@@ -1597,9 +1617,18 @@ async function controllerTokenKubeconfig(): Promise<string | null> {
   const token = await getControllerIamToken();
   if (!token) return null;
   const dest = path.join(CONTROLLER_KUBE_DIR, 'config');
-  if (controllerKubeconfigToken === token && fs.existsSync(dest)) return dest;
-
   const cluster = await resolveClusterEndpoint();
+  // Same IAM token can outlive an EKS recreate; rewrite if the API hostname moved.
+  if (controllerKubeconfigToken === token && fs.existsSync(dest)) {
+    try {
+      const raw = fs.readFileSync(dest, 'utf8');
+      const m = /^\s*server:\s*(\S+)\s*$/m.exec(raw);
+      if (m && m[1] === cluster.server) return dest;
+    } catch {
+      /* rewrite below */
+    }
+  }
+
   const clusterBlock = cluster.skipTls || !cluster.caData
     ? `    server: ${cluster.server}\n    insecure-skip-tls-verify: true`
     : `    server: ${cluster.server}\n    certificate-authority-data: ${cluster.caData}`;

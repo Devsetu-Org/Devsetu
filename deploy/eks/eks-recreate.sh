@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Recreate the DevSetu EKS cluster + node groups if missing, then wire app access + kubeconfig
 # (local, and on the App EC2 via SSM — skip with EKS_SKIP_EC2_KUBECONFIG=1).
-# Wakes system-k8s and installs add-on placement, Kyverno, and admission policies.
-# Karpenter is separate: ./deploy/eks/eks-karpenter.sh (needs system-k8s Ready).
+# Wakes system-k8s and installs add-on placement, Kyverno, admission, and the
+# Karpenter controller (IAM + Helm). Labs NodePools stay opt-in via
+# ./deploy/eks/eks-karpenter.sh (or per-pool scripts like eks-linux.sh up).
 # Skip platform with EKS_SKIP_PLATFORM=1 (lean Desired=0 recreate only).
 # Does NOT delete an existing healthy cluster — safe to re-run.
 #
@@ -20,14 +21,15 @@ source "$ROOT/env.sh"
 source "$ROOT/nodegroups.sh"
 eks_need_aws
 
-# Wake system-k8s, pin add-ons, then Kyverno / admission (Helm --wait needs a Ready system node).
+# Wake system-k8s, pin add-ons, then Kyverno / admission / Karpenter controller
+# (Helm --wait needs a Ready system node).
 ensure_platform() {
   if [[ "${EKS_SKIP_PLATFORM:-0}" == 1 ]]; then
     echo "==> skipped platform bring-up (EKS_SKIP_PLATFORM=1)"
     return
   fi
   if ! command -v helm >/dev/null 2>&1; then
-    echo "helm not found (needed for Kyverno). Install helm or set EKS_SKIP_PLATFORM=1" >&2
+    echo "helm not found (needed for Kyverno / Karpenter). Install helm or set EKS_SKIP_PLATFORM=1" >&2
     exit 1
   fi
   if ! command -v kubectl >/dev/null 2>&1; then
@@ -46,6 +48,10 @@ ensure_platform() {
   "$ROOT/eks-addon-placement.sh"
   "$ROOT/eks-kyverno.sh"
   "$ROOT/eks-admission.sh"
+  # Controller only — NodePools (labs-elastic, linux-elastic, …) are applied by
+  # eks-karpenter.sh / eks-linux.sh up / etc. when that pool is wanted.
+  echo "==> Karpenter controller (skip labs-elastic NodePool)"
+  EKS_KARPENTER_LABS_POOL=0 "$ROOT/eks-karpenter.sh"
 }
 
 create_cluster_if_needed() {
@@ -171,12 +177,13 @@ echo "==> recreate complete"
 if [[ "${EKS_SKIP_PLATFORM:-0}" == 1 ]]; then
   echo "    Platform skipped (EKS_SKIP_PLATFORM=1). Nodes still Desired=0 except any you wake yourself."
   echo "    Then: wake system-k8s → eks-addon-placement.sh → eks-kyverno.sh → eks-admission.sh"
+  echo "         → EKS_KARPENTER_LABS_POOL=0 ./deploy/eks/eks-karpenter.sh"
 else
-  echo "    system-k8s is up; add-ons pinned; Kyverno and admission policies installed."
+  echo "    system-k8s is up; add-ons pinned; Kyverno, admission, and Karpenter controller installed."
   echo "    labs-k8s / labs-linux are still Desired=0 unless you wake them."
 fi
 echo "    Next (as needed):"
-echo "      ./deploy/eks/eks-karpenter.sh         # controller + labs-elastic (run separately)"
+echo "      ./deploy/eks/eks-karpenter.sh         # also apply labs-elastic NodePool (controller already in)"
 echo "      ./deploy/eks/eks-wake.sh              # labs-k8s + labs-linux (system already up)"
 echo "      ./deploy/eks/eks-linux.sh base        # labs-linux + NRI + seccomp"
 echo "      ./deploy/eks/eks-linux.sh up          # optional labs-linux-elastic overflow"

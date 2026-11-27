@@ -16,14 +16,15 @@ Defaults match the live `devlabs` cluster in **ap-south-2** (see `env.sh`).
 | `eks-kyverno.sh` | Kyverno + learner `do-not-disrupt` policy | — |
 | `eks-admission.sh` | Policies that keep learner workloads inside lab quota / limits | — |
 | `eks-labs-sleep.sh` | Park k8s-lab capacity: balloons → 0, `labs-elastic` nodes removed, `labs-k8s` → **0** | Still pays |
-| `eks-linux.sh` | Linux-module capacity: `base` (managed NG `labs-linux` + NRI + seccomp; enough for labs), `up` (optional Karpenter `labs-linux-elastic` overflow), `seccomp` / `sleep` / `wake` / `spike` / `check` / `down` | — |
+| `eks-linux.sh` | Linux-module capacity (**elastic-only pilot**): `up` / `wake` apply Karpenter `labs-linux-elastic` + NRI/seccomp (managed `labs-linux` stays Desired=0; `base` or `EKS_LINUX_WAKE_BASE=1` for rollback), `sleep` / `spike` / `check` / `down`. App `poolAutoscale` can unpark/park the NodePool automatically. | — |
 | `eks-nodegroup-update.sh` | Roll learner node groups onto the current launch template and latest AMI (evicts their pods) | — |
-| `eks-docker.sh` | Docker-module capacity, same subcommands as `eks-linux.sh`: managed node group `labs-docker` (t4g.medium), Karpenter `labs-docker-elastic`, `nri-cgroup-rw-docker`, `devlabs/docker-box.json` seccomp (`seccomp`), and the Docker Hub pull-through mirror `dl-mirror/registry-mirror` (`docker/registry-mirror.yaml`) | — |
-| `eks-spark.sh` | Spark Labs capacity: `base` (managed node group `labs-spark`, t4g.medium), `up` (Karpenter `labs-spark-elastic`), `sleep` / `wake` / `down` | — |
+| `eks-docker.sh` | Docker-module capacity (**elastic-only**): `up` / `wake` apply Karpenter `labs-docker-elastic` + NRI/seccomp + registry mirror (managed `labs-docker` stays Desired=0; `EKS_DOCKER_WAKE_BASE=1` for rollback) | — |
+| `eks-spark.sh` | Platforms Spark Labs capacity: `base` (managed node group `labs-spark`, t4g.medium), `up` (Karpenter `labs-spark-elastic`), `sleep` / `wake` / `down` | — |
+| `eks-spark-de.sh` | Data Engineer Spark Labs capacity: `base` (`labs-spark-de`, t4g.medium), `up` (`labs-spark-de-elastic`), `sleep` / `wake` / `down`. Pool `spark-de` (separate from Platforms `spark`) | — |
 | `eks-kafka.sh` | Kafka-lab capacity: `base` (managed node group `labs-kafka`, t4g.medium), `up` (Karpenter `labs-kafka-elastic`), `trial` (three-broker spike + memory sample), `sleep` / `wake` / `down`. Footprint: `kafka/README.md` | — |
 | `eks-projects.sh` | Projects (minors/majors) code shells: `base` (managed NG `labs-projects`, **t4g.small**), `up` (Karpenter `labs-projects-elastic`), `spike` / `check` / `sleep` / `wake` / `down`. Image: `devsetu/projects-lab`. Notes: `projects/README.md` | — |
 | `eks-kubeconfig.sh` | Refresh `kube/k8s-lab.kubeconfig` | — |
-| `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig; wakes `system-k8s` and installs add-on placement + Kyverno + admission (`EKS_SKIP_PLATFORM=1` to skip). Run `eks-karpenter.sh` separately afterward. | Starts paying (system node once platform runs) |
+| `eks-recreate.sh` | Create cluster+NGs if missing, access, kubeconfig; wakes `system-k8s` and installs add-on placement + Kyverno + admission + **Karpenter controller** (`EKS_KARPENTER_LABS_POOL=0`). NodePools stay opt-in (`eks-karpenter.sh` / `eks-linux.sh up`, …). `EKS_SKIP_PLATFORM=1` skips platform. | Starts paying (system node once platform runs) |
 | `eks-destroy.sh` | Delete NGs + cluster | Stops paying |
 
 Also checked in:
@@ -113,6 +114,16 @@ the CNI won't reuse for 30 s: replacing 28 pods at once starts in ~8 s instead o
   Overflow `labs-spark-elastic` (`karpenter/nodepool-spark.yaml`, cpu limit 4 = two extra
   nodes) must match (`EKS_SPARK_*` in `env.sh`). Not in `EKS_NODEGROUPS`: park it with
   `eks-spark.sh sleep`. Spark pods must select and tolerate `devlabs.io/pool=spark`.
+- `labs-spark-de` — same t4g.medium / maxPods / disk shape as `labs-spark`, but
+  label/taint `devlabs.io/pool=spark-de`. Overflow `labs-spark-de-elastic`
+  (`karpenter/nodepool-spark-de.yaml`, `EKS_SPARK_DE_*`). Park with `eks-spark-de.sh sleep`.
+  DE Spark pods must select and tolerate `devlabs.io/pool=spark-de`.
+  Data Engineer Run/Submit uses Spark Platform on this pool:
+  `./deploy/eks/eks-spark-platform.sh deploy` (Operator + API + History on
+  system-k8s; jobs pinned via `SPARK_NODE_POOL=spark-de`; event logs on
+  `s3a://devlabs-data/spark-events/`). Ops dashboard: Spark Platform install /
+  status / down. Set `SPARK_PLATFORM_API_URL` on App EC2 to the Internal NLB
+  from `eks-spark-platform.sh status`.
 - `labs-kafka` — launch template `devlabs-labs-kafka` (`nodegroups.sh`): t4g.medium,
   `maxPods: 12`, `podPidsLimit: 1024`, `kubeReserved` 70m / 387Mi / 1Gi, 30 GiB gp3,
   label `devlabs.io/pool=kafka,devlabs.io/tier=base`, taint `devlabs.io/pool=kafka:NoSchedule`.
@@ -176,8 +187,9 @@ at 0, a Kubernetes scheduler bug can leave learner pods Pending for 5 minutes.
 
 The policy is a Kyverno `MutatingPolicy` compiled to a native
 `MutatingAdmissionPolicy`, so the API server applies it even while the Kyverno pod
-is down. `eks-recreate.sh` installs add-on placement → Kyverno → admission after waking
-`system-k8s`. Install Karpenter separately with `eks-karpenter.sh`.
+is down. `eks-recreate.sh` installs add-on placement → Kyverno → admission → Karpenter
+controller after waking `system-k8s`. Apply NodePools later with `eks-karpenter.sh`
+(labs-elastic) or the per-pool `up` scripts.
 
 ```bash
 kubectl get mutatingadmissionpolicy mpol-learner-pods-do-not-disrupt
@@ -225,8 +237,8 @@ kubectl -n ns-<user> describe resourcequota dl-lab-quota
 ```bash
 ./deploy/eks/eks-destroy.sh        # confirm by typing: devlabs
 # …later…
-./deploy/eks/eks-recreate.sh       # cluster, NGs, add-ons; wakes system; Kyverno + admission
-./deploy/eks/eks-karpenter.sh      # controller + labs-elastic (run separately; balloons off for now)
+./deploy/eks/eks-recreate.sh       # cluster, NGs, add-ons; wakes system; Kyverno + admission + Karpenter controller
+./deploy/eks/eks-karpenter.sh      # optional: also apply labs-elastic NodePool (balloons still off)
 ./deploy/eks/eks-wake.sh           # labs-k8s + labs-linux as needed
 # ./deploy/eks/eks-linux.sh base   # labs-linux + NRI + seccomp
 # ./deploy/eks/eks-linux.sh up     # optional elastic overflow

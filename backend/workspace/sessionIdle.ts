@@ -2,7 +2,12 @@
 
 /**
  * Close a lab after a fixed time from when the shell is ready (45 minutes by default).
- * Boot, image pull, and setup do not count. Typing and heartbeats do not add time.
+ * Boot, image pull, and setup do not count. Typing does not add time.
+ *
+ * Closing the browser tab only drops the tab lease — it used to leave the lab
+ * (and its Karpenter node) running until the 45m clock. After the last heartbeat
+ * goes quiet for SESSION_ABANDON_MS (default 2m), the lab is ended so nodes can sleep.
+ *
  * Kubernetes namespace labs park via endK8sSession. Linux and Docker sandboxes are
  * ephemeral: the pod is deleted and nothing is saved.
  */
@@ -10,6 +15,7 @@
 import type { GameSession } from '../types/domain';
 
 const sessionStore = require('../db/sessionStore');
+const sessionExclusivity = require('./sessionExclusivity');
 const sparkLifecycle = require('./sparkLifecycle');
 const boardLifecycle = require('./boardLifecycle');
 const k8sLifecycle = require('./k8sLifecycle');
@@ -20,10 +26,17 @@ const IDLE_MS = Math.max(
   60_000,
   Number(process.env.SESSION_IDLE_TIMEOUT_MS || 45 * 60 * 1000),
 );
+/** No tab heartbeat for this long → end the lab (covers close-tab without Leave). */
+const ABANDON_MS = Math.max(
+  60_000,
+  Number(process.env.SESSION_ABANDON_MS || 2 * 60 * 1000),
+);
 const SWEEP_MS = Math.max(
   15_000,
   Number(process.env.SESSION_IDLE_SWEEP_MS || 60_000),
 );
+
+const CLUSTER_RUNTIMES = new Set(['kubernetes', 'spark-platform']);
 
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 let ending = new Set<string>();
@@ -71,6 +84,7 @@ async function endSessionById(sessionId: string, reason: string): Promise<void> 
       `[session-idle] ended ${sessionId} runtime=${before.runtime || 'compose'} reason=${reason}`,
     );
     terminalEventBus.emit('session_end', { sessionId, reason, session });
+    sessionExclusivity.clearTracking(sessionId);
   } catch (err: unknown) {
     console.warn(
       `[session-idle] failed to end ${sessionId}: ${(err as Error).message || err}`,
@@ -83,9 +97,19 @@ async function endSessionById(sessionId: string, reason: string): Promise<void> 
 async function sweepOnce(): Promise<void> {
   const now = Date.now();
   const idle: string[] = [];
+  const abandoned: string[] = [];
   for (const session of sessionStore.all() as Array<GameSession & { lastActivityAt?: number | null }>) {
     if (session.status !== 'active') continue;
     if (session.runtime === 'kubernetes' && k8sLifecycle.isStartInFlight(session.id)) continue;
+
+    if (CLUSTER_RUNTIMES.has(String(session.runtime || ''))) {
+      const seen = sessionExclusivity.lastSeenAt(session.id);
+      if (seen != null && now - seen >= ABANDON_MS) {
+        abandoned.push(session.id);
+        continue;
+      }
+    }
+
     const opened = openedAt(session);
     if (opened > 0) {
       if (now - opened >= IDLE_MS) idle.push(session.id);
@@ -95,6 +119,9 @@ async function sweepOnce(): Promise<void> {
     const created = Number(session.startTime) || 0;
     if (created > 0 && now - created >= IDLE_MS) idle.push(session.id);
   }
+  for (const id of abandoned) {
+    await endSessionById(id, 'tab_closed');
+  }
   for (const id of idle) {
     await endSessionById(id, 'idle_timeout');
   }
@@ -103,7 +130,7 @@ async function sweepOnce(): Promise<void> {
 function startIdleWatcher(): void {
   if (sweepTimer) return;
   console.log(
-    `[session-idle] watcher on (timeout=${Math.round(IDLE_MS / 1000)}s sweep=${Math.round(SWEEP_MS / 1000)}s)`,
+    `[session-idle] watcher on (timeout=${Math.round(IDLE_MS / 1000)}s abandon=${Math.round(ABANDON_MS / 1000)}s sweep=${Math.round(SWEEP_MS / 1000)}s)`,
   );
   sweepTimer = setInterval(() => {
     void sweepOnce();
@@ -119,6 +146,7 @@ function stopIdleWatcher(): void {
 
 module.exports = {
   IDLE_MS,
+  ABANDON_MS,
   markLabClockStarted,
   openedAt,
   startIdleWatcher,
