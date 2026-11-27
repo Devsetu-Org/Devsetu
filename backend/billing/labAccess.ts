@@ -18,9 +18,14 @@ const PAID_TRACKS = new Set<string>([
   'kafka',
   'spark',
   'k8s-platform',
-  'git',
   'databases',
 ]);
+
+/**
+ * Subtracks open to every signed-in profile (no plan, no pilot lock).
+ * Git is the public pilot track; packs stay `visibleTo: users`.
+ */
+const OPEN_TRACKS = new Set<string>(['git']);
 
 /** First two labs of each paid subtrack in Play order. */
 const FREE_LAB_IDS = new Set<string>([
@@ -34,8 +39,6 @@ const FREE_LAB_IDS = new Set<string>([
   'kafka-02-open-a-topic-the-platform-way',
   'spark-01-stand-up-the-cluster-and-find-everything-on-disk',
   'spark-02-read-the-master-ui-and-a-worker-ui-as-instruments',
-  'git-01-first-commit-on-sprint-service',
-  'git-02-branch-for-the-flag-fix',
   'db-01-your-first-select',
   'db-02-where-with-multiple-conditions',
 ]);
@@ -46,6 +49,10 @@ const FREE_PROJECT_IDS = new Set<string>(['cinder']);
 function paidTrackOf(challenge: { category?: string | null } | null | undefined): string | null {
   const category = String(challenge?.category || '');
   return PAID_TRACKS.has(category) ? category : null;
+}
+
+function isOpenTrackLab(challenge: { category?: string | null } | null | undefined): boolean {
+  return OPEN_TRACKS.has(String(challenge?.category || ''));
 }
 
 function userIdOf(user: LabUser | null | undefined): string | null {
@@ -75,7 +82,6 @@ async function getFeatures(user: LabUser | null | undefined): Promise<Set<string
       'kafka',
       'spark',
       'k8s-platform',
-      'git',
       'databases',
     ]);
   }
@@ -114,6 +120,8 @@ function isLabLocked(
   challenge: { id: string; category?: string | null },
   unlocked: Set<string>,
 ): boolean {
+  // Public pilot tracks stay open even while ACCESS_LOCKED gates the rest.
+  if (isOpenTrackLab(challenge)) return false;
   const { isAccessLocked } = require('../accessLock');
   // While access is locked, free-lab bypass is off. Staff still get a full
   // unlocked set from getFeatures; everyone else sees every lab as locked.
@@ -128,6 +136,7 @@ async function assertLabUnlocked(
   user: LabUser | null | undefined,
   challenge: { id: string; category?: string | null },
 ): Promise<void> {
+  if (isOpenTrackLab(challenge)) return;
   const { isAccessLocked, ACCESS_LOCKED_MESSAGE } = require('../accessLock');
   if (isAccessLocked() && !(await isStaff(user))) {
     const err = new Error(ACCESS_LOCKED_MESSAGE) as Error & {
@@ -181,7 +190,9 @@ module.exports = {
   FREE_LAB_IDS,
   FREE_PROJECT_IDS,
   PAID_TRACKS,
+  OPEN_TRACKS,
   paidTrackOf,
+  isOpenTrackLab,
   unlockedTracks,
   hasPaidPlan,
   isLabLocked,
