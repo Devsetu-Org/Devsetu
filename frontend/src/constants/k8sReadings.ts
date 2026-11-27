@@ -57,14 +57,56 @@ export interface K8sReadingTable {
   rows: string[][];
 }
 
+/** Named CSS/SVG figure animation (e.g. Git blogs). Prefer over static image when set. */
+export type ReadingFigureAnimation =
+  | 'git-origin'
+  | 'git-three-trees'
+  | 'git-clone-push'
+  | 'git-branch-pointer'
+  | 'git-amend'
+  | 'git-merge-vs-rebase'
+  | 'git-merge-commit'
+  | 'git-fast-forward'
+  | 'git-merge-conflict'
+  | 'git-rebase-replay'
+  | 'git-rebase-squash'
+  | 'git-reflog'
+  | 'git-bisect'
+  | 'git-stash'
+  | 'git-cherry-pick'
+  | 'git-revert'
+  | 'git-tag'
+  | 'git-remotes'
+  | 'git-hook'
+  | 'git-hosts'
+  | 'linux-terminal-shell-kernel'
+  | 'linux-filesystem-tree'
+  | 'linux-absolute-vs-relative'
+  | 'linux-glob-expansion'
+  | 'linux-find-funnel'
+  | 'linux-find-exec'
+  | 'linux-less-window'
+  | 'linux-vi-modes'
+  | 'linux-grep-sieve'
+  | 'linux-regex-read'
+  | 'linux-pipe-flow';
+
 export interface K8sReadingFigure {
-  image: string;
+  /** Static image — omit when using `animation`. */
+  image?: string;
   imageAlt: string;
   caption: string;
   /** Display smaller via CSS (keeps full-res asset — no re-encode). */
   compact?: boolean;
   /** No frame/padding so dark sketches blend into the notebook. */
   flush?: boolean;
+  /** Named diagram (CSS/SVG) instead of a raster image. */
+  animation?: ReadingFigureAnimation;
+  /**
+   * When `animation` is set: `true` (default) loops motion; `false` keeps the same
+   * visual style frozen — use for comparison diagrams where motion adds little.
+   */
+  animate?: boolean;
 }
 
 export interface K8sReadingCallout {
