@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getAuthHeader } from './authApi';
 import type { ActivityDay } from '../components/ActivityHeatmap';
+import type { ProfileBadge } from '../components/ProfileBadges';
 
 export interface LeaderboardEntry {
   rank: number;
@@ -51,8 +52,25 @@ export async function fetchPlatformLeaderboard(limit = 10): Promise<PlatformLead
 export interface LearnerProfile extends PlatformLeaderboardEntry {
   participants: number;
   activity: ActivityDay[];
+  badges: ProfileBadge[];
   solvedLabs: { title: string; difficulty: string | null; tokens: number; solvedAt: number | null }[];
   paperQuizzes: { title: string; correct: number; total: number; tokens: number; takenAt: number | null }[];
+}
+
+function parseBadges(raw: unknown): ProfileBadge[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((b) => {
+      const row = b as Partial<ProfileBadge>;
+      const id = String(row?.id || '').trim();
+      const label = String(row?.label || '').trim();
+      const mark = String(row?.mark || '').trim();
+      if (!id || !label || !mark) return null;
+      const earnedAt =
+        typeof row.earnedAt === 'number' && Number.isFinite(row.earnedAt) ? row.earnedAt : null;
+      return { id, label, mark, earnedAt };
+    })
+    .filter((b): b is ProfileBadge => Boolean(b));
 }
 
 export async function fetchLearnerProfile(id: string): Promise<LearnerProfile> {
@@ -63,6 +81,7 @@ export async function fetchLearnerProfile(id: string): Promise<LearnerProfile> {
   return {
     ...data,
     activity: Array.isArray(data?.activity) ? data.activity : [],
+    badges: parseBadges(data?.badges),
     solvedLabs: Array.isArray(data?.solvedLabs) ? data.solvedLabs : [],
     paperQuizzes: Array.isArray(data?.paperQuizzes) ? data.paperQuizzes : [],
   };

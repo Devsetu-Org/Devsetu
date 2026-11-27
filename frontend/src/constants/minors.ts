@@ -24,6 +24,12 @@ export interface MinorEntry {
    * one on the chapter list; each language keeps its own saved progress.
    */
   languages?: LanguageId[];
+  /**
+   * When false, ready chapters open without clearing earlier ones.
+   * Default true (sequential unlock). Use for stories-first curricula while
+   * runners are still landing.
+   */
+  sequentialUnlock?: boolean;
 }
 
 const B_TREE_CHAPTERS: ProjectModule[] = [
@@ -386,6 +392,95 @@ const SEARCH_CHAPTERS: ProjectModule[] = [
   },
 ];
 
+const DS_FOUNDATIONS_CHAPTERS: ProjectModule[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    subtitle: 'Why Foundations before Simulation and protocols',
+    blurb:
+      'Fallacies, partial failure, time, consistency, CAP, and safety vs liveness — the vocabulary for the rest of Distributed Systems.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'fallacies',
+    label: 'Fallacies',
+    subtitle: 'The eight assumptions that break on a network',
+    blurb:
+      'Why the chapter exists, then four independent labs — each with its own starter.',
+    status: 'ready',
+    kind: 'reading',
+  },
+  {
+    id: 'fallacies-1.1',
+    label: '1.1 Unreliable, slow network',
+    subtitle: 'Bounded retries when trip hops drop',
+    blurb: 'CallOnce fails under loss. Implement Call with a fixed attempt budget.',
+    status: 'ready',
+  },
+  {
+    id: 'fallacies-1.2',
+    label: '1.2 Constrained network',
+    subtitle: 'Thin soft location spam',
+    blurb: 'Coalesce driver pins so soft traffic does not starve strong trip RPCs.',
+    status: 'ready',
+  },
+  {
+    id: 'fallacies-1.3',
+    label: '1.3 Changing, untrusted network',
+    subtitle: 'Reject stale and replayed mutations',
+    blurb: 'Accept strong trip mutations only when epoch/seq is strictly fresher.',
+    status: 'ready',
+  },
+  {
+    id: 'fallacies-1.4',
+    label: '1.4 Heterogeneous cluster',
+    subtitle: 'Per-class attempt budgets',
+    blurb: 'Rider, driver, and server get different retry budgets for different RTTs.',
+    status: 'ready',
+  },
+  {
+    id: 'partial-failure',
+    label: 'Partial failure',
+    subtitle: 'Silent, wrong-answer, gray, and detection',
+    blurb:
+      'Completed with no ack, stale matches, asymmetric rider/driver views, and a driver failure detector.',
+    status: 'ready',
+  },
+  {
+    id: 'time-ordering',
+    label: 'Time and ordering',
+    subtitle: 'Clocks, happens-before, and causality',
+    blurb:
+      'Phone clocks lie. Lamport and vector clocks order the Fleetline trip event log.',
+    status: 'ready',
+  },
+  {
+    id: 'consistency',
+    label: 'Consistency',
+    subtitle: 'What a client can assume about a read',
+    blurb:
+      'Linearizable trip ownership; weaker/eventual ETA and location; pick a model per field.',
+    status: 'ready',
+  },
+  {
+    id: 'cap',
+    label: 'CAP and PACELC',
+    subtitle: 'Tradeoffs under partition and in the common case',
+    blurb:
+      'CP on match so trips are not double-assigned; AP on the map; PACELC when the city is healthy.',
+    status: 'ready',
+  },
+  {
+    id: 'safety-liveness',
+    label: 'Safety vs liveness',
+    subtitle: 'Invariants, progress, and FLP intuition',
+    blurb:
+      'Never two drivers vs eventually matched — and why you cannot promise both under pure asynchrony.',
+    status: 'ready',
+  },
+];
+
 const CONSENSUS_CHAPTERS: ProjectModule[] = [
   {
     id: 'overview',
@@ -447,6 +542,23 @@ const CONSENSUS_CHAPTERS: ProjectModule[] = [
 ];
 
 export const MINORS: MinorEntry[] = [
+  {
+    id: 'ds-foundations',
+    name: 'DS Foundations',
+    subtitle: 'Why distributed systems break',
+    blurb:
+      'Fallacies, partial failure, time, consistency, CAP, and safety vs liveness — before you build quorum, Raft, or a simulator.',
+    about: [
+      'Platforms labs teach you to operate Kafka, Spark, and Kubernetes. This minor teaches the ideas underneath any multi-machine system: why networks lie, how failures are partial, how to order events without a global clock, and what consistency and CAP actually mean.',
+      'The spine is Fleetline (ridernet): a rideshare dispatch world where trip ownership is strong and map/ETA are soft. Fallacies labs are independent starters — free order does not leak another lab\'s solution.',
+    ],
+    language: 'Go',
+    facts: ['Fleetline', 'ridernet', `${DS_FOUNDATIONS_CHAPTERS.filter((c) => c.kind !== 'reading').length} coding chapters`],
+    status: 'ready',
+    sequentialUnlock: false,
+    chapters: DS_FOUNDATIONS_CHAPTERS,
+    languages: ['go'],
+  },
   {
     id: 'lsm-tree',
     name: 'LSM tree',

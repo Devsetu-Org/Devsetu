@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Managed node group helpers, sourced by eks-recreate.sh, eks-linux.sh, eks-docker.sh,
-# eks-spark.sh, eks-kafka.sh, and eks-projects.sh (after env.sh).
+# eks-spark.sh, eks-spark-de.sh, eks-kafka.sh, and eks-projects.sh (after env.sh).
 
 IFS=',' read -r -a SUBNETS <<< "$EKS_SUBNET_IDS"
 
@@ -40,6 +40,10 @@ ensure_nodegroup() {
     labs-spark)
       ensure_launch_template labs-spark
       node_args=(--launch-template "name=${EKS_SPARK_LAUNCH_TEMPLATE}")
+      ;;
+    labs-spark-de)
+      ensure_launch_template labs-spark-de
+      node_args=(--launch-template "name=${EKS_SPARK_DE_LAUNCH_TEMPLATE}")
       ;;
     labs-kafka)
       ensure_launch_template labs-kafka
@@ -100,6 +104,12 @@ ensure_launch_template() {
       name="$EKS_SPARK_LAUNCH_TEMPLATE"; max_pods="$EKS_SPARK_MAX_PODS"
       reserved="$EKS_SPARK_KUBE_RESERVED_MEMORY"; disk="$EKS_SPARK_DISK_GB"; pool=spark
       extra="      podPidsLimit: ${EKS_SPARK_POD_PIDS_LIMIT}
+"
+      ;;
+    labs-spark-de)
+      name="$EKS_SPARK_DE_LAUNCH_TEMPLATE"; max_pods="$EKS_SPARK_DE_MAX_PODS"
+      reserved="$EKS_SPARK_DE_KUBE_RESERVED_MEMORY"; disk="$EKS_SPARK_DE_DISK_GB"; pool=spark-de
+      extra="      podPidsLimit: ${EKS_SPARK_DE_POD_PIDS_LIMIT}
 "
       ;;
     labs-kafka)

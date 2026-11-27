@@ -1,9 +1,6 @@
 /** Linux track readings B3–B13 (labs 05+). Each post stands alone with its own story. */
 
 import type { K8sReading } from './k8sReadings';
-import groupsOnOneUserImg from '../assets/linux-readings/users-groups-and-permissions/groups-on-one-user.png';
-import whichBitsApplyImg from '../assets/linux-readings/users-groups-and-permissions/which-bits-apply.png';
-import pipeLeftToRightImg from '../assets/linux-readings/pipes-and-pipelines/pipe-left-to-right.png';
 
 export const LINUX_READINGS_EXTENDED: K8sReading[] = [
   {
@@ -60,9 +57,9 @@ export const LINUX_READINGS_EXTENDED: K8sReading[] = [
           'Only **stdout** flows through. **stderr**, the error stream, still prints on your screen. A typo in the first command shows up even when the rest of the pipe prints nothing. Read a pipeline from the left. Each command does one job.',
         ],
         figure: {
-          image: pipeLeftToRightImg,
+          animation: 'linux-pipe-flow',
           imageAlt:
-            'Hand-drawn sketch: grep passes its output to cut, and cut passes its output to sort. Errors point down and stay on the screen.',
+            'grep passes its output to cut, and cut passes its output to sort. Errors stay on the screen.',
           caption: 'Normal output moves to the next command. Errors stay on the screen.',
           flush: true,
         },
@@ -231,7 +228,8 @@ awk -F, 'NR>1 && $4=="successful" {sum += $5} END {print sum}' snacks.csv`,
           kind: 'tip',
           title: 'Debug a pipeline from the left',
           body: [
-            'Run only the first command. Add **`| head`** after each new stage so you see a **sample** before the full result flies by. Fix **`grep`** before you blame **`uniq`**. ',
+            'Run only the first command and check that its output looks right. Add **`| head`** after each new stage so you see a **sample** instead of thousands of lines.',
+            'When the final answer is wrong, fix the **leftmost** stage first — a bad **`grep`** poisons everything downstream, while **`uniq`** only counts what already arrived.',
           ],
         },
       },
@@ -327,9 +325,9 @@ awk -F, 'NR>1 && $4=="successful" {sum += $5} END {print sum}' snacks.csv`,
               language: 'shell',
               code: `whoami
 id asha
-# uid=1001(asha) gid=1001(asha) groups=1001(asha),4(adm),1002(developers)
+# uid=2101(asha) gid=2101(asha) groups=2101(asha),4(adm),2102(developers)
 id app
-# uid=999(app) gid=1002(developers) groups=1002(developers)`,
+# uid=2199(app) gid=2102(developers) groups=2102(developers)`,
             },
           },
           {
@@ -343,11 +341,11 @@ id app
             code: {
               language: 'shell',
               code: `getent passwd asha
-# asha:x:1001:1001:Asha Rao:/home/asha:/bin/bash
+# asha:x:2101:2101:Asha Rao:/home/asha:/bin/bash
 getent passwd app
-# app:x:999:1002:app:/opt/app:/usr/sbin/nologin
+# app:x:2199:2102:app:/opt/app:/usr/sbin/nologin
 getent group developers
-# developers:x:1002:asha`,
+# developers:x:2102:asha`,
             },
           },
         ],
@@ -356,17 +354,17 @@ getent group developers
           rows: [
             ['login', '`asha`', 'The name typed at a prompt'],
             ['password', '`x`', 'The hash is in `/etc/shadow`, readable by root'],
-            ['uid', '`1001`', 'The user number Linux checks'],
-            ['gid', '`1001`', 'Her primary group'],
+            ['uid', '`2101`', 'The user number Linux checks'],
+            ['gid', '`2101`', 'Her primary group'],
             ['comment', '`Asha Rao`', 'Usually the person’s name'],
             ['home', '`/home/asha`', 'Where a login starts'],
             ['shell', '`/bin/bash`', 'Program started at login. `app` has `/usr/sbin/nologin`'],
           ],
         },
         figure: {
-          image: groupsOnOneUserImg,
+          animation: 'linux-user-groups',
           imageAlt:
-            'Hand-drawn sketch: one login has a primary group from /etc/passwd and an extra group named team. adm and sudo are already on the box.',
+            'One login with a primary group from /etc/passwd and an extra team group; adm and sudo already on the box',
           caption:
             'The primary group comes from the user record. Extra groups are added. adm and sudo are already on the box.',
           flush: true,
@@ -375,12 +373,12 @@ getent group developers
           '**`adm`** and **`sudo`** are already on the box. **`adm`** can read system logs under **`/var/log`**, such as **`syslog`** and **`auth.log`**. The **`sudo`** group can run any command as root. Ravi will need **`adm`**. He does not get **`sudo`**.',
         ],
         tableAfter: {
-          headers: ['Field', '`developers:x:1002:asha`', 'What it is'],
+          headers: ['Field', '`developers:x:2102:asha`', 'What it is'],
           rows: [
             ['name', '`developers`', 'The group'],
             ['password', '`x`', 'Unused on a normal group'],
-            ['gid', '`1002`', 'The same number as app’s gid in `/etc/passwd`'],
-            ['members', '`asha`', 'Extra members only. app is in the group because its passwd gid is 1002'],
+            ['gid', '`2102`', 'The same number as app’s gid in `/etc/passwd`'],
+            ['members', '`asha`', 'Extra members only. app is in the group because its passwd gid is 2102'],
           ],
         },
       },
@@ -405,7 +403,7 @@ getent group developers
 sudo useradd -m -s /bin/bash -c 'Ravi Kumar' -G developers ravi
 sudo passwd ravi
 id ravi
-# uid=1003(ravi) gid=1003(ravi) groups=1003(ravi),1002(developers)`,
+# uid=2103(ravi) gid=2103(ravi) groups=2103(ravi),2102(developers)`,
             },
           },
           {
@@ -443,7 +441,8 @@ sudo -u ravi id`,
           kind: 'warn',
           title: '-G replaces the extra groups',
           body: [
-            '**`usermod -G developers ravi`** sets his extra groups to that list and nothing else. If he was in **`sudo`** or **`adm`**, he is out of them. **`-aG`** is the form that adds a group.',
+            '**`usermod -G developers ravi`** sets his extra groups to that list and nothing else. If he was in **`adm`**, he is out of it until you add it back.',
+            'Use **`usermod -aG group user`** when you mean “also join this group.” Append is the safe default on a box with many teams.',
           ],
         },
       },
@@ -477,7 +476,7 @@ sudo -l`,
             code: {
               language: 'text',
               filename: '/etc/sudoers.d/developers',
-              code: `%developers ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`,
+              code: `%developers ALL=(root) NOPASSWD: /usr/bin/systemctl restart inventory-api, /usr/bin/systemctl status inventory-api`,
             },
           },
         ],
@@ -502,7 +501,8 @@ sudo visudo -cf /etc/sudoers.d/developers`,
           kind: 'warn',
           title: 'sudo ignores a loose file',
           body: [
-            '**`root:root`** has to own the file, in mode **`440`**. Leave it at **`644`** and sudo skips the file: the rule never applies. **`visudo -cf`** checks the grammar. It does not check the owner or the mode.',
+            'The drop-in must be owned **`root:root`** with mode **`440`**. World- or group-writable sudoers files are ignored — your rule simply never applies, with no loud error at login.',
+            '**`visudo -cf`** checks grammar only. After you save, confirm ownership and mode with **`ls -l`** on the file under **`/etc/sudoers.d/`**.',
           ],
         },
       },
@@ -547,9 +547,9 @@ sudo visudo -cf /etc/sudoers.d/developers`,
           ],
         },
         figure: {
-          image: whichBitsApplyImg,
+          animation: 'linux-perm-bits',
           imageAlt:
-            'Hand-drawn sketch: the owner gets rw-, someone in the group gets r--, and everyone else gets ---. Linux uses only one of those sets.',
+            'Owner gets rw-, someone in the group gets r--, everyone else gets ---. Linux uses only one of those sets.',
           caption: 'Linux picks one set. Owner first, then the group, then everyone else.',
           flush: true,
         },
@@ -602,6 +602,7 @@ sudo chmod 600 /etc/app/signing.key`,
         after: [
           'The owner of a file can change its mode. Giving the file to another user takes root. **`chown user:group file`** sets both. **`chgrp developers file`** changes the group only, which you can do without root when you own the file and you are in the new group.',
           '**`chmod 640`** sets all nine letters. **`chmod g+w file`** adds one letter and leaves the rest. **`u`** is the owner, **`g`** the group, **`o`** others, **`a`** all three. **`+`** adds, **`-`** removes, **`=`** sets that trio to exactly those letters.',
+          '**`chmod -R`** applies one mode to every file and folder under a path. Keys and programs often need different modes than their parent directory — set modes on the paths that matter instead of one recursive sweep.',
           'Then check as the accounts that have to live with it. **`sudo -u`** runs one command as that user, with the groups they have now.',
         ],
         code: {
@@ -613,13 +614,6 @@ sudo -u ravi cat /etc/app/signing.key
 # Permission denied
 sudo -u nobody ls /etc/app
 # Permission denied`,
-        },
-        callout: {
-          kind: 'warn',
-          title: 'chmod -R uses one mode for everything',
-          body: [
-            '**`chmod -R`** walks into the directory and sets the same letters on every file and every folder. A folder needs **`x`** so people can enter. A key should not be executable. Set the mode on each path.',
-          ],
         },
       },
       {
@@ -677,6 +671,7 @@ sudo -u ravi rm /srv/team/notes.txt
         ],
         after: [
           'The leading digit is **`4`** for setuid, **`2`** for setgid, and **`1`** for the sticky bit. **`3770`** is **`2+1`**, then **`770`**. **`rws`** on a program is setuid: the program runs as the file’s owner. **`/usr/bin/sudo`** looks like this, which is why it can act as root. Setgid on a directory does a different job. It chooses the group of new files.',
+          '**umask** turns bits off from the default for new files (`666`) and directories (`777`). setgid chose the group; umask chose the letters on top of that. When the mode must be exact — as with a signing key — **`chmod`** the file after it exists.',
         ],
         tableAfter: {
           headers: ['What ls shows', 'Meaning'],
@@ -686,14 +681,6 @@ sudo -u ravi rm /srv/team/notes.txt
             ['`t` at the end', 'Sticky, and others can enter. `/tmp` is `drwxrwxrwt`'],
             ['`T` at the end', 'Sticky, and others cannot enter. `3770` is `drwxrws--T`'],
             ['`rws` on a program', 'setuid. The program runs as its owner. `sudo` is like this'],
-          ],
-        },
-        callout: {
-          kind: 'idea',
-          title: 'umask chooses the letters on a new file',
-          body: [
-            'A new file asks for **`666`**. A new directory asks for **`777`**. **umask** turns bits off. The examples used **`umask 007`**, so others got nothing and Ravi could not read **`draft.txt`**. A login on Ubuntu more often has umask **`002`**, which leaves a file at **`664`** (`rw-rw-r--`) and a directory at **`775`**.',
-            'setgid chose the group. umask chose the letters. The directory’s **`2770`** is not copied onto the file. When the mode has to be exact, as with the signing key, **`chmod`** it after it exists. A default ACL, next, replaces this umask calculation.',
           ],
         },
       },
@@ -722,13 +709,9 @@ sudo -u leela cat /srv/team/today.txt
 sudo -u leela touch /srv/team/nope.txt
 # Permission denied`,
         },
-        callout: {
-          kind: 'warn',
-          title: 'chmod rewrites the ACL mask',
-          body: [
-            '**`getfacl`** prints a **`mask`** line. Leela gets a permission only when her entry and the mask both allow it. **`chmod`** on a file that has an ACL writes the group digit into that mask. **`chmod 640`** sets the mask to **`r--`**. Her entry can still say **`rw-`**, and the effective right is read. **`getfacl`** marks the line **`#effective:r--`**. Run **`getfacl`** again after **`chmod`**.',
-          ],
-        },
+        after: [
+          '**`chmod`** on a path with an ACL rewrites the **mask** line. Leela’s effective rights are the intersection of her ACL entry and that mask — run **`getfacl`** again after **`chmod`** if something suddenly looks too tight.',
+        ],
       },
       {
         id: 'quick-reference',
@@ -746,7 +729,7 @@ sudo -u leela touch /srv/team/nope.txt
             ['Add a group and keep the others', '`sudo usermod -aG group user`'],
             ['Close a login and keep the home', '`sudo usermod -L -s /usr/sbin/nologin user`'],
             ['See whether the password is locked', '`passwd -S user`'],
-            ['Allow one group two commands', '`%group ALL=(root) NOPASSWD: /usr/bin/systemctl restart app, /usr/bin/systemctl status app`'],
+            ['Allow one group two commands', '`%group ALL=(root) NOPASSWD: /usr/bin/systemctl restart svc, /usr/bin/systemctl status svc`'],
             ['Check a sudoers file', '`sudo visudo -cf /etc/sudoers.d/name`'],
             ['See the mode as a number', "`stat -c '%a' file`"],
             ['Group can read, others cannot', '`chmod 640 file`'],
@@ -791,6 +774,13 @@ sudo -u leela touch /srv/team/nope.txt
           'A **program** is a file on disk, for example **`/opt/radio/bin/track-encoder`**. A **process** is one running copy of it, with its own memory, its own owner, and its own number, the **PID**. Start the same program twice and you get two processes with two PIDs.',
           'Every process was started by another process, its **parent**. The parent’s PID is the **PPID**. Follow the parents far enough and you reach PID **1** — **systemd** on most servers — which the kernel starts at boot.',
         ],
+        figure: {
+          animation: 'linux-process-pid',
+          imageAlt:
+            'A shell with PID 2401 starts a child process with its own PID; PPID points back at the parent.',
+          caption: 'Every running program gets a PID; its parent’s number is the PPID.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'pid-ppid',
@@ -813,7 +803,8 @@ echo $!
           kind: 'idea',
           title: 'Three jobs on the station PC',
           body: [
-            'Tonight three programs are running as the **`radio`** account. **`track-encoder`** is re-encoding the archive and will not stop. **`show-report`** is the overnight listenership report: it may keep running, but it must stay out of the way. **`stream-heartbeat`** must not be touched — that is what keeps the live stream marked healthy. The CPU graph is pinned. One of those three is the reason.',
+            'Tonight three programs run as **`radio`**: **`track-encoder`** (re-encoding the archive), **`show-report`** (overnight stats), and **`stream-heartbeat`** (must stay up for the live stream).',
+            'The CPU graph is pinned at 100%. Find which PID is hottest, record it, and stop only that process — not every program owned by **`radio`**.',
           ],
         },
       },
@@ -901,6 +892,7 @@ pidof sshd`,
         },
         after: [
           'The kernel also publishes one process as files under **`/proc/PID/`**. Nothing there is on disk. **`status`** has the name, state, owner, and memory. **`cmdline`** has the exact command, with words separated by null characters instead of spaces — feed it to **`tr`** so it reads normally. **`cwd`** points at the folder it is running in.',
+          'Match the **path or full command line**, not a short name: **`pgrep encoder`** can hit more than one program. Run **`pgrep -af`** and read every line before **`kill`** or **`pkill`**.',
         ],
         codes: [
           {
@@ -910,13 +902,6 @@ tr '\\0' ' ' < /proc/1842/cmdline
 ls -l /proc/1842/cwd`,
           },
         ],
-        callout: {
-          kind: 'warn',
-          title: 'Match the path, not a short name',
-          body: [
-            '**`pgrep encoder`** can match more than you meant. **`pgrep -f track-encoder`** matches the command line. Run **`pgrep -af`** first and read the lines before you act.',
-          ],
-        },
       },
       {
         id: 'stop-it',
@@ -925,6 +910,13 @@ ls -l /proc/1842/cwd`,
           'You do not stop a process directly. You send it a **signal** — a small numbered message the kernel delivers. Most signals can be **caught**, which lets the program clean up first. A couple cannot be caught at all.',
           'Despite the name, **`kill`** only sends a signal. With no options it sends **SIGTERM** (15): please exit. **`kill -9`** and **`kill -KILL`** are the same: **SIGKILL**, which the kernel enforces and the program cannot ignore. You can signal your own processes. Signalling another user’s process needs **`sudo`**.',
         ],
+        figure: {
+          animation: 'linux-signal-escalation',
+          imageAlt:
+            'kill without -9 sends SIGTERM for a clean exit; kill -9 sends SIGKILL when the process ignores TERM.',
+          caption: 'Send SIGTERM first, then SIGKILL only if the process ignores the polite ask.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'term-then-kill',
@@ -984,7 +976,8 @@ kill -CONT 1901`,
           kind: 'warn',
           title: 'Leave the workers that must stay',
           body: [
-            'On this box **`stream-heartbeat`** must keep running, and **`show-report`** must stay up too. Kill the PID you recorded for the hog. Do not **`pkill -f radio`** and hope — that pattern can match more than one program.',
+            '**`stream-heartbeat`** and **`show-report`** must keep running while you fix the hog. Signal the PID you recorded, not a broad pattern.',
+            '**`pkill -f radio`** can match every program under that account. Narrow **`pgrep -af`** output beats a risky blanket kill.',
           ],
         },
       },
@@ -1116,13 +1109,9 @@ tail -f ~/forecast-pack.log
             },
           },
         ],
-        callout: {
-          kind: 'idea',
-          title: 'Background is not enough',
-          body: [
-            'A job started with **`&`** still belongs to this shell. Close the terminal, or drop the SSH session, and that job dies. The next sections fix that.',
-          ],
-        },
+        after: [
+          'A job started with only **`&`** still belongs to this shell. Close the terminal or drop SSH and the job gets **SIGHUP** and often exits — the sections below fix that.',
+        ],
       },
       {
         id: 'job-control',
@@ -1130,6 +1119,13 @@ tail -f ~/forecast-pack.log
         body: [
           'Every command you start from a shell is a **job** of that shell, numbered **1**, **2**, **3**…. Refer to a job as **`%1`**, **`%2`**, and so on — that is not a PID. Before you rely on **`nohup`**, practise moving **`forecast-pack`** between foreground and background.',
         ],
+        figure: {
+          animation: 'linux-job-control',
+          imageAlt:
+            'A foreground job holds the prompt; a background job frees it while the same shell still owns the job.',
+          caption: 'Foreground owns the terminal; background frees the prompt while the job keeps running.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'ctrl-z-jobs-bg-fg',
@@ -1169,7 +1165,8 @@ fg
           kind: 'warn',
           title: 'jobs only knows this shell',
           body: [
-            '**`jobs`** is empty in a new login. After you log out and back in, find the pack with **`pgrep -af forecast-pack`**, the same way you find any other process.',
+            '**`jobs`** lists work started in **this** terminal session. A fresh SSH login shows an empty list even when the pack is still running on the box.',
+            'After you reconnect, find the process with **`pgrep -af forecast-pack`** and read **`~/forecast-pack.log`**, the same way you would track any other long job.',
           ],
         },
       },
@@ -1196,6 +1193,13 @@ pgrep -af forecast-pack
         body: [
           'Make the job ignore SIGHUP. Use **`nohup`** when you are **starting** the command. Use **`disown`** when it is **already running** without **`nohup`**.',
         ],
+        figure: {
+          animation: 'linux-nohup-detach',
+          imageAlt:
+            'A plain background job dies on logout from SIGHUP; nohup or tmux keeps the work running after you disconnect.',
+          caption: 'Logout sends SIGHUP — nohup or disown keeps the job alive when the terminal goes away.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'nohup',
@@ -1248,13 +1252,6 @@ pgrep -af forecast-pack
             },
           },
         ],
-        callout: {
-          kind: 'tip',
-          title: 'After you log back in',
-          body: [
-            '**`jobs`** will not list the pack. Use **`pgrep -af forecast-pack`** and **`tail -f ~/forecast-pack.log`**. Stop it with **`kill`** on that PID when the agronomist has the full file.',
-          ],
-        },
       },
       {
         id: 'tmux',
@@ -1512,6 +1509,13 @@ sudo systemctl reset-failed climate-panel`,
           'Your own units live in **`/etc/systemd/system/`**. Units from packages live in **`/lib/systemd/system/`**. Read those for examples. Do not edit them there — a package upgrade overwrites them.',
           'A unit file has three sections. **[Unit]** is what this is and when it may start. **[Service]** is how to run it. **[Install]** is where **`enable`** hooks it into boot.',
         ],
+        figure: {
+          animation: 'linux-systemd-unit',
+          imageAlt:
+            'A unit file feeds systemd, which supervises start, stop, and restart for the application process.',
+          caption: 'The unit file tells systemd how to start the app and what to do when it exits.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'the-unit-file',
@@ -1650,7 +1654,8 @@ sudo systemctl daemon-reload`,
           kind: 'warn',
           title: 'Do not copy the whole unit into /etc',
           body: [
-            'A full copy of the vendor file under **`/etc/systemd/system/`** replaces the package unit and is easy to get wrong on upgrade. A drop-in under **`.service.d/`** is the change that survives.',
+            'Copying the entire vendor unit into **`/etc/systemd/system/`** replaces the package copy and is painful to diff on upgrade.',
+            'Use a **drop-in** under **`…/name.service.d/`** for your overrides — **`systemctl edit`** writes there and keeps vendor updates mergeable.',
           ],
         },
       },
@@ -1660,6 +1665,13 @@ sudo systemctl daemon-reload`,
         body: [
           'Anything a service prints — normal lines and errors — lands in the **journal**, together with systemd’s own start and stop messages. **`journalctl`** reads it. You may need **`sudo`**, or membership in **`adm`** / **`systemd-journal`**, to see other services’ logs.',
         ],
+        figure: {
+          animation: 'linux-journal-flow',
+          imageAlt:
+            'Service output streams into the systemd journal; journalctl reads that unit’s log lines in one place.',
+          caption: 'journalctl -u shows one service’s lines from the journal instead of hunting log files.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'journal-unit',
@@ -1728,7 +1740,8 @@ curl http://127.0.0.1:8085/health`,
           kind: 'tip',
           title: 'daemon-reload vs restart',
           body: [
-            'Changed a **unit file** or a **drop-in**? **`daemon-reload`**, then **`restart`**. Changed only an **EnvironmentFile** or the app’s own config? **`restart`** is enough.',
+            'systemd reads unit files at **`daemon-reload`**. After you edit a **unit** or **drop-in**, run that, then **`restart`** the service so the new definition applies.',
+            'If you only changed an **EnvironmentFile** or the application’s own config on disk, **`restart`** alone is usually enough — no reload required.',
           ],
         },
       },
@@ -1786,9 +1799,9 @@ curl http://127.0.0.1:8085/health`,
           'Tonight the desk needs three repeating jobs:',
         ],
         bullets: [
-          '**Shelf inventory reconcile** at **02:30** as **`librarian`**. If the box was down at 02:30, it must catch up when the box comes back.',
-          '**Overdue digest** every **15 minutes** as **`desk`**.',
-          'Your **disk report** every morning at **07:00** as you.',
+          '**Shelf inventory reconcile** at **03:15** as **`librarian`**. If the box was down at 03:15, it must catch up when the box comes back.',
+          '**Overdue digest** every **20 minutes** as **`desk`**.',
+          'Your **disk report** every morning at **06:30** as you.',
         ],
         after: [
           'Linux gives you two schedulers. **cron** is one line per job, simple and everywhere. A **systemd timer** is more verbose, but you get journal logs, **`Persistent=`** catch-up after downtime, and **`systemctl list-timers`**. Reconciliation belongs on a timer. The digest and the disk report belong on cron.',
@@ -1808,6 +1821,13 @@ curl http://127.0.0.1:8085/health`,
         body: [
           'A crontab line is five time fields, then the command. The fields are **minute**, **hour**, **day of month**, **month**, **day of week**. **`*`** means every value. **`*/15`** means every 15 units.',
         ],
+        figure: {
+          animation: 'linux-cron-schedule',
+          imageAlt:
+            'Five cron fields (minute, hour, day of month, month, day of week) followed by the command path.',
+          caption: 'Five time fields, then the command — cron runs when the clock matches.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'user-crontab',
@@ -1819,7 +1839,7 @@ curl http://127.0.0.1:8085/health`,
               language: 'shell',
               code: `crontab -e
 # minute hour dom mon dow  command
-0 7 * * * /opt/library/bin/disk-report
+30 6 * * * /opt/library/bin/disk-report
 crontab -l`,
             },
           },
@@ -1831,7 +1851,7 @@ crontab -l`,
             ],
             code: {
               language: 'shell',
-              code: `echo '*/15 * * * * desk /opt/library/bin/overdue-digest' | sudo tee /etc/cron.d/overdue-digest
+              code: `echo '*/20 * * * * desk /opt/library/bin/overdue-digest' | sudo tee /etc/cron.d/overdue-digest
 sudo chmod 644 /etc/cron.d/overdue-digest
 # m h dom mon dow  user    command`,
             },
@@ -1851,7 +1871,8 @@ sudo chmod 644 /etc/cron.d/overdue-digest
           kind: 'warn',
           title: 'cron.d is not crontab -e',
           body: [
-            'A personal crontab has five time fields. A file in **`/etc/cron.d/`** has six fields before the command: the sixth is the **user**. Leave that column out and the line is wrong.',
+            'A personal crontab has five time fields, then the command — cron already runs it as your login.',
+            'A file in **`/etc/cron.d/`** adds a **user** column between the schedule and the command. Leave that column out and the line never runs as you expect.',
           ],
         },
       },
@@ -1859,7 +1880,7 @@ sudo chmod 644 /etc/cron.d/overdue-digest
         id: 'systemd-timers',
         title: 'systemd timer: catch up after downtime',
         body: [
-          'Shelf reconcile must run at **02:30**, and if the box was off at that minute, it must run when the box comes back. That is **`Persistent=true`** on a timer. Pair a **oneshot** service (run once and exit) with a timer that starts it.',
+          'Shelf reconcile must run at **03:15**, and if the box was off at that minute, it must run when the box comes back. That is **`Persistent=true`** on a timer. Pair a **oneshot** service (run once and exit) with a timer that starts it.',
         ],
         subsections: [
           {
@@ -1884,7 +1905,7 @@ ExecStart=/opt/library/bin/shelf-reconcile`,
             id: 'timer-unit',
             title: 'The timer',
             body: [
-              '**`OnCalendar=`** is the schedule. **`*-*-* 02:30:00`** means every day at 02:30. **`Persistent=true`** runs a missed start after the machine was down. **`WantedBy=timers.target`** is what **`enable`** hooks into.',
+              '**`OnCalendar=`** is the schedule. **`*-*-* 03:15:00`** means every day at 03:15. **`Persistent=true`** runs a missed start after the machine was down. **`WantedBy=timers.target`** is what **`enable`** hooks into.',
             ],
             code: {
               language: 'ini',
@@ -1893,7 +1914,7 @@ ExecStart=/opt/library/bin/shelf-reconcile`,
 Description=Nightly shelf inventory reconcile
 
 [Timer]
-OnCalendar=*-*-* 02:30:00
+OnCalendar=*-*-* 03:15:00
 Persistent=true
 
 [Install]
@@ -1911,7 +1932,7 @@ WantedBy=timers.target`,
               code: `sudo systemctl daemon-reload
 sudo systemctl enable --now shelf-reconcile.timer
 systemctl list-timers shelf-reconcile.timer
-systemd-analyze calendar '*-*-* 02:30:00'
+systemd-analyze calendar '*-*-* 03:15:00'
 sudo systemctl start shelf-reconcile.service
 journalctl -u shelf-reconcile.service -n 5`,
             },
@@ -1921,7 +1942,8 @@ journalctl -u shelf-reconcile.service -n 5`,
           kind: 'tip',
           title: 'Enable the timer, not the service',
           body: [
-            '**`systemctl enable shelf-reconcile.service`** does nothing useful here — the service has no **`[Install]`**. Enable **`shelf-reconcile.timer`**.',
+            'The oneshot **service** usually has no **`[Install]`** section — enabling it does not wire a schedule.',
+            'Enable **`shelf-reconcile.timer`** (often with **`--now`**) so systemd knows when to start the service and can catch up after downtime.',
           ],
         },
       },
@@ -1932,6 +1954,13 @@ journalctl -u shelf-reconcile.service -n 5`,
           '**`/var/log/checkout/checkout.log`** grows every few seconds and has never been rotated. On the last box, the disk filled and the self-checkout kiosk stopped writing.',
           '**logrotate** runs daily (from a timer or cron). It renames or copies the active log, compresses old copies, and deletes the oldest. Rules live in **`/etc/logrotate.d/`**. Read the files already there before you write your own.',
         ],
+        figure: {
+          animation: 'linux-logrotate',
+          imageAlt:
+            'A growing app.log becomes app.log.1, compresses to .gz, and older copies drop after the retain count.',
+          caption: 'Rotate renames the active log, compresses history, and deletes copies past the keep count.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'open-log',
@@ -1980,7 +2009,7 @@ ls /etc/logrotate.d/`,
           ],
         },
         after: [
-          'Dry-run first. Force a rotation only when the dry run is clean. Confirm **`checkout.log.1`** (or **`.1.gz`**) exists, and that new lines still land in **`checkout.log`**.',
+          'Dry-run first. Force a rotation only when the dry run is clean. Confirm **`checkout.log.1`** (or **`.1.gz`**) exists, and that new lines still land in **`checkout.log`**. The rule file under **`/etc/logrotate.d/`** should be owned by root; **`logrotate -d`** catches syntax errors before **`-f`**.',
         ],
         code: {
           language: 'shell',
@@ -2000,13 +2029,6 @@ sudo logrotate -f /etc/logrotate.d/checkout-desk
 ls -lh /var/log/checkout/
 tail -f /var/log/checkout/checkout.log`,
         },
-        callout: {
-          kind: 'warn',
-          title: 'Own the rule as root',
-          body: [
-            'The file under **`/etc/logrotate.d/`** should be owned by **root**. A dry run with **`logrotate -d`** reports errors before you force a rotation with **`-f`**.',
-          ],
-        },
       },
       {
         id: 'quick-reference',
@@ -2017,7 +2039,7 @@ tail -f /var/log/checkout/checkout.log`,
           rows: [
             ['Edit / list your crontab', '`crontab -e`, `crontab -l`'],
             ['System cron with a user', 'File in `/etc/cron.d/` (six fields: schedule, user, command), mode `644`'],
-            ['Check a calendar expression', "`systemd-analyze calendar '*-*-* 02:30:00'`"],
+            ['Check a calendar expression', "`systemd-analyze calendar '*-*-* 03:15:00'`"],
             ['Enable a timer', '`sudo systemctl daemon-reload`, then `sudo systemctl enable --now name.timer`'],
             ['See next runs', '`systemctl list-timers`'],
             ['Run the oneshot now', '`sudo systemctl start name.service`'],
@@ -2061,7 +2083,16 @@ tail -f /var/log/checkout/checkout.log`,
       {
         id: 'apt-basics',
         title: 'apt commands',
-        body: [],
+        body: [
+          'Refresh the index, install packages, inspect versions, and block surprise upgrades with **`apt-mark hold`**.',
+        ],
+        figure: {
+          animation: 'linux-package-install',
+          imageAlt:
+            'apt install resolves dependencies and installs binaries and configs after refreshing the package index.',
+          caption: 'apt update refreshes the catalog, then install pulls the package and its dependencies.',
+          flush: true,
+        },
         table: {
           headers: ['Command', 'Role'],
           rows: [
@@ -2078,6 +2109,13 @@ tail -f /var/log/checkout/checkout.log`,
         body: [
           '**`/etc/apt/preferences.d/`** files set **priorities** so a version or source wins. **`apt-cache policy`** confirms what will install. Pinning is for **controlled** environments — exhibits, kiosks, legacy apps.',
         ],
+        figure: {
+          animation: 'linux-pinning',
+          imageAlt:
+            'Without a pin, apt upgrades jump versions; pinning holds the package on the chosen release.',
+          caption: 'A pin keeps the installed version from drifting when routine upgrades run.',
+          flush: true,
+        },
       },
     ],
     takeaways: [
@@ -2108,6 +2146,13 @@ tail -f /var/log/checkout/checkout.log`,
           'Linux shows one tree starting at **`/`**, but several disks can sit under it. Each disk is a **filesystem** attached at a **mount point**. **`df`** asks a filesystem how much capacity is left. **`du`** walks files under a path and totals what it can see.',
           'Start with **`df -h`**. Read **Use%** and **Mounted on**. If only **`/var/cache/map-tiles`** is at 100%, cleaning **`/`** will not help. **`df -h path`** shows the filesystem that owns that path.',
         ],
+        figure: {
+          animation: 'linux-df-du',
+          imageAlt:
+            'df reports whole-mount free space; du totals file sizes under a directory path.',
+          caption: 'df asks the filesystem; du adds up the files you walk under a path.',
+          flush: true,
+        },
         code: {
           language: 'shell',
           code: `df -h
@@ -2137,7 +2182,8 @@ systemctl status tile-server
           kind: 'idea',
           title: 'Tonight on the tile cache',
           body: [
-            'The cache volume is small on purpose. Keep the live **`tile-server.log`** and the newest rotated copy (**`.1`**) for the timeline. Older rotations can go. The oversized **`debug-dump.bin`** must leave this volume. Something is still holding a **deleted** file open — that is why **`df`** and **`du`** disagree.',
+            'The cache volume is small on purpose. Keep the live **`tile-server.log`** and the newest rotated copy (**`.1`**) for the timeline; older rotations are fair game.',
+            'Move the oversized **`debug-dump.bin`** off this filesystem. If **`df`** still disagrees with **`du`**, something is holding a **deleted** file open — that gap is the next clue, not a reason to delete random trees.',
           ],
         },
       },
@@ -2146,6 +2192,7 @@ systemctl status tile-server
         title: 'Find what is using the space',
         body: [
           'Once you know the filesystem, walk it from broad to narrow with **`du`**. **`-h`** is readable units. **`-s`** is one total. **`-d1`** (or **`--max-depth=1`**) lists one level. **`-x`** stays on this filesystem so a separate **`/backup`** mount does not confuse the numbers.',
+          'Identify the mount and the largest paths before **`rm`**. Keep logs and dumps you need for the incident; delete only what you can name and justify.',
         ],
         subsections: [
           {
@@ -2180,13 +2227,6 @@ df -h /var/cache/map-tiles
             },
           },
         ],
-        callout: {
-          kind: 'warn',
-          title: 'Measure before you delete',
-          body: [
-            'Do not start with **`rm -rf`** because a filesystem is full. Identify the mount, identify the large path, keep the evidence you need, then remove what you can prove is safe.',
-          ],
-        },
       },
       {
         id: 'df-du-disagree',
@@ -2244,13 +2284,9 @@ findmnt --verify`,
             },
           },
         ],
-        callout: {
-          kind: 'idea',
-          title: 'Moving across mounts frees space',
-          body: [
-            'Moving the debug dump to **`/var/tmp/`** freed the cache volume because that path is another filesystem. Moving a file inside the same mount only renames it — **`df`** does not change.',
-          ],
-        },
+        after: [
+          'Moving the debug dump to **`/var/tmp/`** freed the cache volume because that path is on another filesystem. A rename inside the same mount does not change **`df`**.',
+        ],
       },
       {
         id: 'tar-and-links',
@@ -2258,6 +2294,13 @@ findmnt --verify`,
         body: [
           'A bad **tile-server** release is a different night, same toolkit. Releases live under **`/opt/tile-server/releases/`**. **`/opt/tile-server/current`** is a **symlink** to the live version. Fix the outage first: point **`current`** at the last good release. Then archive the bad folder with **`tar`**, restore an older backup if you need it, and wire config with links.',
         ],
+        figure: {
+          animation: 'linux-tar-flow',
+          imageAlt:
+            'Many files and folders pack into one tar archive, then unpack back into the same tree.',
+          caption: 'tar bundles a directory tree into one archive — create, list, then extract with -C.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'rollback-symlink',
@@ -2310,13 +2353,9 @@ ls -li /opt/tile-server/releases/v1.1/app.conf /var/backups/app.conf.v1.1
             },
           },
         ],
-        callout: {
-          kind: 'warn',
-          title: 'List before you extract as root',
-          body: [
-            'Inspect an unknown archive with **`tar -tzf`** and extract into an empty temporary directory first. Archives can contain surprising paths, ownership, or overwrites.',
-          ],
-        },
+        after: [
+          'List an unknown archive with **`tar -tzf`** and try a test extract into an empty directory before you unpack as root on a live path.',
+        ],
         table: {
           headers: ['Goal', 'Command shape'],
           rows: [
@@ -2397,7 +2436,8 @@ cat /etc/campus-kiosk/app.conf
           kind: 'idea',
           title: 'Bottom-up order',
           body: [
-            'Who am I on the network? What does the name resolve to? Is a process listening on the right port? Does the HTTP request work? Fix the first wrong answer before you invent a new theory.',
+            'Work in layers: address on this host, then name resolution, then listener, then the HTTP request. Each step must pass before the next one is meaningful.',
+            'Fix the first wrong answer before you change firewall rules or restart random services — most “mystery” outages are DNS or a wrong port, not a deep app bug.',
           ],
         },
       },
@@ -2430,6 +2470,13 @@ awk '/^nameserver/{print $2; exit}' /etc/resolv.conf`,
           '**`getent hosts`** uses the same resolver path most programs use: usually **`/etc/hosts` first**, then DNS (**`hosts: files dns`** in **`nsswitch.conf`**). That is what the kiosk app sees.',
           '**`dig`** asks DNS only and skips **`/etc/hosts`**. Empty **`dig`** plus a wrong **`getent`** answer means the lie is in **`/etc/hosts`**.',
         ],
+        figure: {
+          animation: 'linux-dns-path',
+          imageAlt:
+            'A hostname resolves to an IP address before traffic routes to the listener on the target host.',
+          caption: 'Name resolution comes first — fix DNS or hosts before you blame the service.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'getent-vs-dig',
@@ -2465,7 +2512,8 @@ getent hosts id.campus.local
           kind: 'warn',
           title: 'A working IP can hide a DNS problem',
           body: [
-            'If **`curl http://127.0.0.1:8443/health`** works but **`curl http://id.campus.local:8443/health`** does not, the listener is fine. Fix the name.',
+            'If **`curl http://127.0.0.1:8443/health`** succeeds but the hostname fails, the service and port are fine — the client is using the wrong IP for the name.',
+            'Compare **`getent hosts`** with **`dig +short`** and fix **`/etc/hosts`** or DNS before you touch application code.',
           ],
         },
       },
@@ -2475,6 +2523,13 @@ getent hosts id.campus.local
         body: [
           'A port is not a program. A process **listens** on an address and port. **`ss -tlnp`** lists TCP listeners and the owning process. Check the destination — tonight, this kiosk host.',
         ],
+        figure: {
+          animation: 'linux-listen-connect',
+          imageAlt:
+            'A server process listens on a TCP port while a client opens a connection to that address.',
+          caption: 'Something must listen on the port before a client connection can succeed.',
+          flush: true,
+        },
         subsections: [
           {
             id: 'ss',
@@ -2596,13 +2651,9 @@ curl -sI https://deb.debian.org | head -1`,
             },
           },
         ],
-        callout: {
-          kind: 'warn',
-          title: 'Do not flush a remote firewall to “test”',
-          body: [
-            'A broad reset can lock you out of SSH or expose every debug port. Add the narrow rule, check syntax, then load.',
-          ],
-        },
+        after: [
+          'On a remote box, allow **SSH** before you set a default-drop policy. Check with **`nft -c -f`**; do not “test” by flushing the whole ruleset and locking yourself out.',
+        ],
       },
       {
         id: 'quick-reference',
@@ -2653,6 +2704,13 @@ curl -sI https://deb.debian.org | head -1`,
           'When you run **`ssh student@server`**, the `ssh` **client** on your machine opens an encrypted connection to the SSH **server** (`sshd`) on the remote machine. After authentication, the server starts a shell as the requested user. Commands run on the remote machine, not on your laptop.',
           'SSH protects the connection from being read or changed in transit. It still has to answer two identity questions: **is this really the server I intended to reach?** and **am I allowed to log in as this user?** Host keys answer the first; a password or user key answers the second.',
         ],
+        figure: {
+          animation: 'linux-ssh-login',
+          imageAlt:
+            'SSH client connects, verifies the server, proves the user holds the private key, then starts a remote shell.',
+          caption: 'SSH checks the host, authenticates you, then runs commands on the remote machine.',
+          flush: true,
+        },
         flows: [
           {
             title: 'One SSH login',
@@ -2689,7 +2747,8 @@ ssh-keygen -R server.example         # remove old entry only after verification`
           kind: 'warn',
           title: 'Do not blindly accept a changed host key',
           body: [
-            'Confirm why it changed and compare the new fingerprint through a separate trusted channel. Deleting `known_hosts` removes the warning, not the risk.',
+            'A “REMOTE HOST IDENTIFICATION HAS CHANGED” warning means the key no longer matches what your client stored — sometimes a rebuilt server, sometimes something worse.',
+            'Confirm the new fingerprint through a separate trusted channel before you edit **`known_hosts`**. Deleting the old line silences the warning; it does not prove the server is real.',
           ],
         },
       },
@@ -2700,6 +2759,13 @@ ssh-keygen -R server.example         # remove old entry only after verification`
           'A password proves identity by sending knowledge of one secret through the encrypted connection. It is easy for a person to use, but weak passwords can be guessed and automation has to store the password somewhere.',
           'A key login uses a **key pair**. The public key is installed on the server. The private key remains with the client. During login, the client proves it possesses the private key without sending that private key across the network.',
         ],
+        figure: {
+          animation: 'linux-ssh-keys',
+          imageAlt:
+            'The private key stays on the laptop; the public key line is installed in authorized_keys on the server.',
+          caption: 'Generate a pair — install only the public key on the server; never copy the private key.',
+          flush: true,
+        },
         table: {
           headers: ['Item', 'Where it belongs', 'Can it be shared?'],
           rows: [
@@ -2729,7 +2795,8 @@ cat ~/.ssh/devsetu_lab.pub             # safe public line to install`,
           kind: 'warn',
           title: 'The file without .pub is private',
           body: [
-            'Never paste it into chat, tickets, logs, or source control. If a private key may have leaked, remove its public key from every server and create a new pair.',
+            'The file **without** **`.pub`** is the private half. Never paste it into chat, tickets, logs, or source control — only the **`.pub`** line belongs on servers.',
+            'If a private key may have leaked, remove its public line from every **`authorized_keys`** and generate a new pair.',
           ],
         },
       },
@@ -2831,13 +2898,9 @@ scp student@server.example:/var/log/app.log .
 scp -r release/ student@server.example:/opt/app/
 rsync -av --progress release/ student@server.example:/opt/app/`,
         },
-        callout: {
-          kind: 'tip',
-          title: 'Watch the trailing slash in rsync',
-          body: [
-            '`rsync release/ host:/opt/app/` copies the **contents** of `release`. Without the source slash, it creates `/opt/app/release`.',
-          ],
-        },
+        after: [
+          'In **`rsync`**, a trailing slash on the source (`release/`) copies **contents** into the destination. Without it, rsync creates a `release` folder under the target path.',
+        ],
       },
       {
         id: 'automation',
@@ -2899,9 +2962,8 @@ sudo journalctl -u sshd -n 50 --no-pager  # many other distributions`,
     takeaways: [
       'SSH verifies both sides: the client checks the server’s **host key**, and the server authenticates the requested **user**.',
       '**`ssh-keygen`** creates a pair. Install only the **public** `.pub` line in `authorized_keys`; the private key never leaves its protected client or secret store.',
-      'Use **`~/.ssh/config`** for repeatable host settings and **`ssh-agent`** to cache an unlocked human key in memory.',
+      'Use **`~/.ssh/config`** and **`ssh-agent`** for repeat connections; automation gets its own user and key with the smallest practical permissions.',
       'When login fails, use **`ssh -v`** and check the remote user, offered identity, `authorized_keys`, ownership, and permissions.',
-      'Automation gets a dedicated user and key with the smallest practical permissions—not a copied personal key.',
     ],
     relatedLabsIntro: '',
     relatedLabs: [
@@ -2926,6 +2988,13 @@ sudo journalctl -u sshd -n 50 --no-pager  # many other distributions`,
           'A script is a text file of commands Bash runs top to bottom. Put the steps in a file when the same check must run from a deploy pipeline, cron, or another engineer’s hands — and when the **exit code** must say pass or fail without eyeballing JSON.',
           'The first line is the **shebang**: **`#!/bin/bash`** or **`#!/usr/bin/env bash`**. Make the file executable once with **`chmod +x`**, then run it with **`./name`** or put it on your **`PATH`**.',
         ],
+        figure: {
+          animation: 'linux-script-flow',
+          imageAlt:
+            'A bash script runs top to bottom from shebang through commands to an exit code.',
+          caption: 'The shell reads the file top to bottom — shebang, steps, then an exit code.',
+          flush: true,
+        },
         code: {
           language: 'shell',
           code: `cat > /tmp/hello.sh <<'EOF'
@@ -2939,7 +3008,8 @@ chmod +x /tmp/hello.sh
           kind: 'tip',
           title: 'Unix line endings',
           body: [
-            'A script copied from Windows can fail with **`bash\\r: No such file or directory`**. Save with LF endings, or run **`dos2unix`**.',
+            'A script copied from Windows can fail with **`bash\\r: No such file or directory`** because CRLF endings confuse the shell.',
+            'Save with **LF** line endings in your editor, or run **`dos2unix`** on the file before you **`chmod +x`** and ship it.',
           ],
         },
       },
@@ -2950,6 +3020,13 @@ chmod +x /tmp/hello.sh
           'Assign with **no spaces** around **`=`**. Read with **`"$name"`** or **`"${name}"`**. Double quotes keep the value one argument after spaces. Single quotes stay literal. Unquoted expansions split on spaces — quote by default.',
           '**`$1`** is the first argument, **`$#`** is how many you got, **`"$@"`** is all of them as separate words. **`\${1:-default}`** uses a default when the argument is missing or empty.',
         ],
+        figure: {
+          animation: 'linux-bash-quotes',
+          imageAlt:
+            'Unquoted variable expansion splits on spaces; double quotes keep the value as one argument.',
+          caption: 'Double quotes keep one word — unquoted expansions split on spaces.',
+          flush: true,
+        },
         code: {
           language: 'shell',
           code: `name="desk api"
@@ -2976,13 +3053,9 @@ fi`,
             },
           },
         ],
-        callout: {
-          kind: 'warn',
-          title: 'Make "$var" a reflex',
-          body: [
-            'A file named **`report 0002 (retry).csv`** becomes several arguments when **`$f`** is unquoted. Write **`"$f"`** unless you deliberately want splitting or globs.',
-          ],
-        },
+        after: [
+          'Quote variables by default: **`"$f"`** keeps one filename one argument, even when the name contains spaces or parentheses.',
+        ],
       },
       {
         id: 'exit-and-tests',
@@ -3138,13 +3211,9 @@ fold-reports
             },
           },
         ],
-        callout: {
-          kind: 'tip',
-          title: 'local inside functions',
-          body: [
-            'Declare scratch variables with **`local`** inside a function so they do not overwrite names in the rest of the script.',
-          ],
-        },
+        after: [
+          'Inside a function, declare scratch names with **`local`** so they do not clobber variables in the caller or the main script body.',
+        ],
       },
       {
         id: 'safer-debug',

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import LabYamlEditor from './LabYamlEditor';
 import { IconFolderOpen } from './ChromeIcons';
@@ -7,7 +7,6 @@ import {
   deleteK8sFile,
   deleteK8sFolder,
   listK8sDir,
-  listK8sFolders,
   readK8sFile,
   renameK8sEntry,
   saveK8sFile,
@@ -122,7 +121,6 @@ export default function K8sLabFileEditor({
   toggleHint,
 }: K8sLabFileEditorProps): JSX.Element {
   const canUseApi = labReady && Boolean(sessionId) && !sessionId.startsWith('pending-k8s-');
-  const folderListId = useId();
   const dirKey = `${DIR_KEY_PREFIX}${challengeId || 'lab'}`;
 
   const [bufs, setBufs] = useState<FileBuf[]>(() => loadDrafts(challengeId));
@@ -132,10 +130,8 @@ export default function K8sLabFileEditor({
 
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [dir, setDir] = useState<string>(() => normalizeRel(readSession(dirKey) || '') ?? '');
-  const [pathInput, setPathInput] = useState(() => displayDir(dir));
   const [listing, setListing] = useState<K8sLabDirListing | null>(null);
   const [dirMissing, setDirMissing] = useState(false);
-  const [allFolders, setAllFolders] = useState<string[]>([]);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderValue, setNewFolderValue] = useState('');
 
@@ -172,7 +168,6 @@ export default function K8sLabFileEditor({
     } catch {
       /* quota */
     }
-    setPathInput(displayDir(dir));
   }, [dir, dirKey]);
 
   /** Re-list the open folder plus every folder with an open file, then reconcile buffers. */
@@ -185,7 +180,6 @@ export default function K8sLabFileEditor({
         if (isNotFound(e)) return null;
         throw e;
       })));
-      setAllFolders(await listK8sFolders(sessionId));
     } catch (e) {
       flash('error', errorMessage(e, 'Could not load files'));
       return;
@@ -273,16 +267,6 @@ export default function K8sLabFileEditor({
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [anyDirty]);
-
-  const openDir = (raw: string) => {
-    const next = normalizeRel(raw);
-    if (next === null) {
-      flash('error', 'Folder names may use letters, digits, ".", "_" and "-" (no leading dot).');
-      return;
-    }
-    setNewFolderOpen(false);
-    setDir(next);
-  };
 
   const openExplorerAtHome = () => {
     setDir('');
@@ -556,46 +540,6 @@ export default function K8sLabFileEditor({
           if (e.key === 'Escape' && !newFolderOpen) setExplorerOpen(false);
         }}
       >
-        <form
-          className="k8s-explorer-path"
-          onSubmit={(e) => {
-            e.preventDefault();
-            openDir(pathInput);
-          }}
-        >
-          <input
-            list={folderListId}
-            value={pathInput}
-            spellCheck={false}
-            placeholder="~/folder"
-            aria-label="Folder path"
-            disabled={!canUseApi}
-            onChange={(e) => {
-              const v = e.target.value;
-              setPathInput(v);
-              const rel = normalizeRel(v);
-              // Picking an entry from the dropdown opens it straight away.
-              if (rel !== null && rel !== dir && (rel === '' ? v.trim() === '~' : allFolders.includes(rel))) {
-                setDir(rel);
-              }
-            }}
-            onFocus={(e) => e.target.select()}
-          />
-          <datalist id={folderListId}>
-            <option value="~" />
-            {allFolders.map((f) => <option key={f} value={`~/${f}`} />)}
-          </datalist>
-          <button
-            type="button"
-            className="k8s-explorer-close"
-            onClick={() => setExplorerOpen(false)}
-            title="Close explorer"
-            aria-label="Close explorer"
-          >
-            ×
-          </button>
-        </form>
-
         <div className="k8s-explorer-toolbar">
           <span className="k8s-explorer-dir" title={displayDir(dir)}>{displayDir(dir)}</span>
           <button type="button" className="k8s-explorer-icon" onClick={newFile} title="New file" aria-label="New file">
@@ -623,6 +567,15 @@ export default function K8sLabFileEditor({
             aria-label="Refresh"
           >
             ↻
+          </button>
+          <button
+            type="button"
+            className="k8s-explorer-close"
+            onClick={() => setExplorerOpen(false)}
+            title="Close explorer"
+            aria-label="Close explorer"
+          >
+            ×
           </button>
         </div>
 

@@ -3,16 +3,6 @@
 import { PLAY_DOMAINS } from './playCatalog';
 import type { K8sReading, K8sTrackItem } from './k8sReadings';
 import { LINUX_READINGS_EXTENDED } from './linuxReadingsExtended';
-import terminalShellKernelImg from '../assets/linux-readings/meet-your-linux-machine/terminal-shell-kernel.png';
-import filesystemTreeImg from '../assets/linux-readings/meet-your-linux-machine/filesystem-tree.png';
-import absoluteVsRelativeImg from '../assets/linux-readings/meet-your-linux-machine/absolute-vs-relative.png';
-import globExpansionImg from '../assets/linux-readings/files-and-folders/glob-expansion.png';
-import findFunnelImg from '../assets/linux-readings/files-and-folders/find-funnel.png';
-import findExecImg from '../assets/linux-readings/files-and-folders/find-exec.png';
-import lessWindowImg from '../assets/linux-readings/reading-and-searching-text/less-window.png';
-import viTwoModesImg from '../assets/linux-readings/reading-and-searching-text/vi-two-modes.png';
-import grepSieveImg from '../assets/linux-readings/reading-and-searching-text/grep-sieve.png';
-import readingARegexImg from '../assets/linux-readings/reading-and-searching-text/reading-a-regex.png';
 
 export const LINUX_LABS_PATH = '/track/devops-engineer/linux';
 export const LINUX_READINGS_BASE = `${LINUX_LABS_PATH}/read`;
@@ -45,8 +35,8 @@ export const LINUX_READINGS: K8sReading[] = [
           kind: 'idea',
           title: 'A server is a computer that serves others',
           body: [
-            'A **server** answers other computers all day: websites, apps, databases. It usually sits in a data center with no screen and no keyboard. People connect over the network and work at a text prompt.',
-            'Most servers run Linux. That is the Linux this track teaches.',
+            'A **server** answers other computers all day: websites, apps, databases. It usually sits in a data center with no screen and no keyboard.',
+            'People connect over the network and work at a text prompt. Most servers in this track run Linux — that is the environment these posts teach.',
           ],
         },
       },
@@ -143,9 +133,9 @@ export const LINUX_READINGS: K8sReading[] = [
           },
         ],
         figure: {
-          image: terminalShellKernelImg,
+          animation: 'linux-terminal-shell-kernel',
           imageAlt:
-            'Hand-drawn sketch: a person types into a terminal; inside it the shell reads the line and the kernel runs programs and reads files',
+            'Three layers: terminal (the window), shell (reads the line), kernel (does the work), with a command flowing through',
           caption: 'You type in the terminal. The shell reads the line. The kernel does the work.',
           flush: true,
         },
@@ -180,9 +170,9 @@ pwd
           'Each folder under `/` has a job. The same jobs show up on almost every Linux machine. Disks, running programs, and settings are reached through this tree, so the same listing tools work on all of them.',
         ],
         figure: {
-          image: filesystemTreeImg,
+          animation: 'linux-filesystem-tree',
           imageAlt:
-            'Hand-drawn tree: the root folder / with branches to /etc, /home, /var, /opt, /tmp, /usr, /dev and /proc',
+            'Filesystem tree from / with branches to /etc, /home, /var, /opt, /tmp, /usr, /dev and /proc',
           caption: 'One tree. Every folder has a job.',
           flush: true,
         },
@@ -235,7 +225,8 @@ pwd
           kind: 'tip',
           title: 'A name that starts with a dot is hidden',
           body: [
-            'A name like **`~/.ssh`** is a normal file in this tree. **`ls`** skips names that start with a dot. **`ls -a`** includes them. When you expect a file and **`ls`** does not show it, ask for the hidden names.',
+            'A name like **`~/.ssh`** is a normal file in this tree. A plain **`ls`** skips names that start with a dot, so configs and keys disappear until you ask for them.',
+            'Run **`ls -a`** when you expect a file and the folder looks empty. Labs and servers both hide “dot files” this way — the habit matters more than memorizing every hidden path.',
           ],
         },
       },
@@ -247,9 +238,9 @@ pwd
           'A **relative** path starts where you are. From **`/var/lib`**, that same file is **`../log/docks.log`**. **`..`** means one folder up. Move to another folder and the relative path changes. The absolute path does not.',
         ],
         figure: {
-          image: absoluteVsRelativeImg,
+          animation: 'linux-absolute-vs-relative',
           imageAlt:
-            'Hand-drawn comparison: absolute path /var/log/docks.log from the root, and relative path ../log/docks.log from /var/lib',
+            'Comparison: absolute path /var/log/docks.log from the root, and relative path ../log/docks.log from /var/lib',
           caption: 'Absolute starts at the root. Relative starts where you stand.',
           flush: true,
         },
@@ -298,7 +289,8 @@ pwd
           kind: 'tip',
           title: 'You do not need to memorize everything',
           body: [
-            'Linux ships **help on the machine** (`--help`, `man`). Learn a small set of habits and know **where to look** when you forget a flag — memorizing every option is not the goal.',
+            'Linux ships **help on the machine**: **`command --help`** for a short summary, **`man command`** for the full manual. Press **`q`** to leave **`man`**. Tab completion fills in paths and command names when you only remember the start.',
+            'Learn a small set of habits — **`pwd`**, **`ls -a`**, **`--help`** — and know where to look when you forget a flag. Memorizing every option is not the goal.',
           ],
         },
       },
@@ -322,8 +314,16 @@ pwd
 cd ~/projects
 cd ..
 ls
-ls -l
-ls -a`,
+ls -l`,
+            },
+          },
+          {
+            id: 'ls-hidden',
+            title: 'Hidden names in a listing',
+            body: ['Names that start with a dot are hidden from a plain **`ls`**. Add **`-a`** when you expect them.'],
+            code: {
+              language: 'shell',
+              code: `ls -a`,
             },
           },
         ],
@@ -457,32 +457,23 @@ rmdir ~/projects/old`,
           ],
         },
         figure: {
-          image: globExpansionImg,
+          animation: 'linux-glob-expansion',
           imageAlt:
-            'Hand-drawn flow: you type cp *.jpg photos/, the shell expands it to cp fox.jpg owl.jpg deer.jpg photos/, then cp copies',
+            'Flow: you type cp *.jpg photos/, the shell expands it to cp fox.jpg owl.jpg deer.jpg photos/, then cp copies',
           caption: 'You write a pattern. The shell writes the list. The command never sees the star.',
           flush: true,
         },
         after: [
           '**`[!...]` in more detail:** the brackets always stand for **exactly one** character. Without `!`, that character must be one of the ones listed; with `!` as the first thing inside, it must be anything **except** those. So `[!0-9]*` reads as “one non-digit, then anything” — every name that does not start with a number.',
           '**`{a,b}` in more detail:** braces are about **building words**, not finding files. The shell copies the text around the braces once per comma-separated option: `report.{pdf,txt}` becomes `report.pdf report.txt` even if neither file exists. That makes braces handy for creating several folders at once, and when the result contains a glob (`*.{pdf,txt}` → `*.pdf *.txt`), each glob is then expanded as usual.',
+          '**Glob gotchas:** case matters (`*.pdf` does not match `Slides.PDF`), hidden names are skipped (`*` never matches dot files), and when nothing matches bash may pass the pattern through unchanged — then **`rm`** fails with “No such file”. Preview with **`ls`** using the same pattern before **`rm`** or **`mv**`.',
         ],
         code: {
           language: 'shell',
           code: `ls *.pdf             # report.pdf  slides.pdf
 ls photo-?.jpg       # photo-1.jpg  photo-2.jpg
-ls photo-[12].jpg    # photo-1.jpg  photo-2.jpg
-ls [!0-9]*.txt       # notes.txt  (2024-summary.txt starts with a digit)
-ls *.{pdf,txt}       # report.pdf  slides.pdf  notes.txt  2024-summary.txt
+ls *.{pdf,txt}       # report.pdf  slides.pdf  notes.txt
 mkdir {jan,feb,mar}  # runs: mkdir jan feb mar`,
-        },
-        callout: {
-          kind: 'warn',
-          title: 'Three things that trip everyone up',
-          body: [
-            '**Case matters**: `*.pdf` does not match `Slides.PDF`. **Hidden files are skipped**: `*` does not match names starting with a dot. **No match, no expansion**: if nothing matches, bash passes the pattern through unchanged and you get `cannot stat \'*.png\': No such file or directory`.',
-            'Before **`rm`** or **`mv`** with a glob, run **`ls`** with the same pattern so you see the list first.',
-          ],
         },
       },
       {
@@ -528,13 +519,9 @@ mv holiday\\ photo.jpg ~/pictures/   # backslash escapes the space
 img='holiday photo.jpg'             # store the name in a variable
 mv "$img" ~/pictures/               # double quotes keep it one name`,
         },
-        callout: {
-          kind: 'warn',
-          title: 'Always quote variables',
-          body: [
-            'Writing `$file` without quotes works until the day a name contains a space, and then the command acts on the wrong files. Make `"$file"` a reflex.',
-          ],
-        },
+        after: [
+          'Write **`"$file"`** by default. Unquoted **`$file`** splits on spaces; one awkward filename can turn a single path into several wrong arguments.',
+        ],
       },
       {
         id: 'what-is-find',
@@ -545,9 +532,9 @@ mv "$img" ~/pictures/               # double quotes keep it one name`,
           'The sign in front of a number is the part people reverse. **`+`** means more than. **`-`** means less than. **`-size +10M`** is larger than 10 megabytes. **`-mtime -2`** was changed within the last 2 days. **`-mtime +2`** was changed more than 2 days ago. Quote the pattern (`-name \'*.conf\'`) so the shell does not expand the star in the folder you are standing in.',
         ],
         figure: {
-          image: findFunnelImg,
+          animation: 'linux-find-funnel',
           imageAlt:
-            'Hand-drawn funnel: every file in the folder falls through filters for name, size and age; two matches come out',
+            'Funnel: every file in the folder falls through filters for type, size and age; matching files come out',
           caption:
             'Example: `find ~/projects -type f -size +1M -mtime -7` — start at `~/projects`, keep only **files** (`-type f`) larger than 1 MiB (`-size +1M`) touched in the last 7 days (`-mtime -7`).',
           flush: true,
@@ -614,9 +601,9 @@ find /tmp -type d -empty                       # empty folders in /tmp`,
           'Printing paths is the default **action**. The point of filtering first is that you can **keep working on that same set**: run another command on each match (`-exec`), delete them (`-delete`), or copy them — instead of copying paths by hand. Think of **`find`** as “build a list, then do something with the list.”',
         ],
         figure: {
-          image: findExecImg,
+          animation: 'linux-find-exec',
           imageAlt:
-            'Hand-drawn sketch: find results a.raw b.raw c.raw fed into the template mv {} rejects/, producing one mv per file',
+            'Find results a.raw b.raw c.raw fed into the template mv {} rejects/, producing one mv per file',
           caption: '{} is replaced by each file. Print first, act second.',
           flush: true,
         },
@@ -636,13 +623,9 @@ find /tmp -type d -empty                       # empty folders in /tmp`,
 find ~/projects -name '*.tmp' -exec rm {} \\;                    # 2. delete each match
 find ~/Downloads -name '*.pdf' -exec cp {} ~/projects/docs/ \\;  # copy each PDF into docs`,
         },
-        callout: {
-          kind: 'warn',
-          title: 'Run it without the action first',
-          body: [
-            'A `find` that deletes or moves the wrong files does it to all of them, instantly. Run the same command with just the tests, read the list, then add `-delete` or `-exec`.',
-          ],
-        },
+        after: [
+          'Run the same **`find`** with only the tests (no **`-delete`** or **`-exec`**) and read the path list before you attach an action — a mistake then hits every match at once.',
+        ],
       },
       {
         id: 'when-not-find',
@@ -845,9 +828,9 @@ tail -n 5 file.txt > end.txt`,
           },
         ],
         figure: {
-          image: lessWindowImg,
+          animation: 'linux-less-window',
           imageAlt:
-            'Hand-drawn sketch: a tall log file with a small window over part of it. Space and b move the window. Slash searches, G jumps to the end, F follows new lines.',
+            'A tall log file with a small window over part of it. Space and b move the window. Slash searches, G jumps to the end, F follows new lines.',
           caption: 'less shows a window onto the file. It does not load the whole file, and it does not change it.',
           flush: true,
         },
@@ -899,9 +882,9 @@ Esc
           },
         ],
         figure: {
-          image: viTwoModesImg,
+          animation: 'linux-vi-modes',
           imageAlt:
-            'Hand-drawn sketch: Normal mode on the left, where keys are commands, and Insert mode on the right, where keys are text. Esc returns to Normal. i or o enters Insert.',
+            'Normal mode on the left, where keys are commands, and Insert mode on the right, where keys are text. Esc returns to Normal. i or o enters Insert.',
           caption: 'Normal mode runs commands. Insert mode types text. Esc always gets you back.',
           flush: true,
         },
@@ -982,7 +965,8 @@ sed 's/^# //' app.conf`,
           kind: 'warn',
           title: 'Preview before -i',
           body: [
-            'A wrong pattern with **`-i`** changes the real file immediately. Print the result first, then add **`-i`**.',
+            'Without **`-i`**, **`sed`** only prints the result and leaves the file untouched. That is your safety check: run once, read the output, then decide.',
+            'A wrong pattern with **`-i`** rewrites the real file immediately. Add **`-i`** only when the screen shows the file you want.',
           ],
         },
       },
@@ -1006,8 +990,18 @@ sed 's/^# //' app.conf`,
               code: `grep -i error app.log
 grep -c error app.log
 grep -n 'user=ada' app.log
-grep -v '^#' app.conf
-grep -B2 -A2 retry app.log
+grep -v '^#' app.conf`,
+            },
+          },
+          {
+            id: 'grep-context-search',
+            title: 'Context and searching a tree',
+            body: [
+              '**`-B`**, **`-A`**, and **`-C`** keep lines around each match. **`-r`** searches under a folder; **`-l`** prints only filenames that matched.',
+            ],
+            code: {
+              language: 'shell',
+              code: `grep -B2 -A2 retry app.log
 grep -rl retry /etc/app/`,
             },
           },
@@ -1029,9 +1023,9 @@ grep -oE 'id=[0-9]+' app.log`,
           },
         ],
         figure: {
-          image: grepSieveImg,
+          animation: 'linux-grep-sieve',
           imageAlt:
-            'Hand-drawn sieve: lines from a log fall through grep, and only the matching lines come out the bottom.',
+            'Lines from a log fall through grep, and only the matching lines come out.',
           caption: 'Lines go in. Only the matching lines come out. The file is unchanged.',
           flush: true,
         },
@@ -1058,9 +1052,9 @@ grep -oE 'id=[0-9]+' app.log`,
           'Sometimes you are looking for a **shape** rather than a fixed word — “any 5xx error code” or “lines that start with today’s date.” A **regular expression** (regex) describes that shape. Use **`grep -E`** and put the pattern in **single quotes** so the shell leaves it alone.',
         ],
         figure: {
-          image: readingARegexImg,
+          animation: 'linux-regex-read',
           imageAlt:
-            'Hand-drawn sketch: a regex read left to right, each piece labeled as start of line, literal text, one or more letters, or end of line.',
+            'A regex read left to right, each piece labeled as start of line, literal text, digit groups, and separators.',
           caption: 'Read a pattern from the left. Each piece matches one part of the line.',
           flush: true,
         },
@@ -1085,7 +1079,8 @@ grep -E 'code=5[0-9]{2}' /var/log/app.log  # any 5xx code: 500, 502, 503…`,
           kind: 'warn',
           title: 'Regex is not a glob',
           body: [
-            'Globs like **`*.log`** are expanded by the **shell** to match **file names**. Regex is read by **`grep`** to match **text inside lines** — there **`*`** means “repeat the previous item,” not “anything.”',
+            'Globs like **`*.log`** are expanded by the **shell** before a command runs, and they match **file names** in a folder.',
+            'Regex is read by **`grep`** to match **text inside lines**. There **`*`** means “repeat the previous piece,” not “anything.” Quote regex patterns so the shell does not treat **`*`** as a glob.',
           ],
         },
       },
@@ -1144,6 +1139,11 @@ export function getLinuxReading(slug: string | null | undefined): K8sReading | n
   if (!slug) return null;
   const target = LINUX_READING_ALIASES[slug] ?? slug;
   return LINUX_READINGS.find((r) => r.slug === target || r.id === target) || null;
+}
+
+/** Ordered blog list (B0 → last) for Next-blog navigation. */
+export function listLinuxReadings(): K8sReading[] {
+  return LINUX_READINGS;
 }
 
 /** Readings inserted at the start of the Linux track (before lab 0). */

@@ -188,6 +188,12 @@ export interface LinuxBoxSpec {
    * seccomp profile, shrinking the kernel attack surface for the untrusted free tier.
    */
   unprivileged?: boolean;
+  /**
+   * Whether `learner` may use passwordless sudo. Defaults to true only for
+   * linux/docker curriculum boxes (admin track). Git/DB/other boxes strip sudo
+   * after boot so `sudo su -` fails.
+   */
+  allowSudo?: boolean;
   resources?: {
     requests?: { cpu?: string; memory?: string };
     limits?: { cpu?: string; memory?: string };
@@ -372,6 +378,13 @@ export interface ChallengeFull extends ChallengePublic {
   sparkPlatform?: SparkPlatformSpec | null;
   /** Mapped from platform_spec when sandboxType is kubernetes, linux, docker, or kafka. */
   k8sPlatform?: K8sPlatformSpec | null;
+  /** Mapped from platform_spec.project when sandboxType is project. */
+  projectPlatform?: {
+    minorId: string;
+    chapterId: string;
+    taskId?: string;
+    language?: string;
+  } | null;
   /** Full spec (with gold) in cache; public APIs strip gold. */
   boardSpec?: BoardSpec | PublicBoardSpec | null;
 }

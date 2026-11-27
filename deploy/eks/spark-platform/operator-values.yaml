@@ -1,0 +1,32 @@
+# Spark Operator on EKS — pinned to system-k8s (CriticalAddonsOnly).
+# Driver/executor pods are scheduled onto spark-de by the Platform API
+# (SPARK_NODE_POOL), not by the operator itself.
+controller:
+  replicas: 1
+  nodeSelector:
+    kubernetes.io/os: linux
+    devlabs.io/pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+
+webhook:
+  enable: true
+  replicas: 1
+  nodeSelector:
+    kubernetes.io/os: linux
+    devlabs.io/pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+
+spark:
+  jobNamespaces:
+    - spark
+  serviceAccount:
+    create: true
+    name: spark
+
+prometheus:
+  metrics:
+    enable: false

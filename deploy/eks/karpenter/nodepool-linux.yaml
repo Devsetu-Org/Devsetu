@@ -1,8 +1,10 @@
-# Elastic Linux-box capacity on top of the labs-linux managed node group (the always-on
-# base, env.sh). Karpenter buys a node only when a box is Pending (base full) and removes it
-# once empty. Same label, taint and shape as the base, so the NRI plugin and boxes treat the
-# two alike; boxes prefer the base (devlabs.io/tier=base, linuxBox.ts). Tainted so
-# Kubernetes-lab pods and balloons never land here.
+# Linux-box capacity (elastic-only pilot). Managed NG labs-linux stays at Desired=0;
+# this NodePool is the only Linux capacity. Karpenter buys a t4g.medium when a box is
+# Pending and removes it once empty (WhenEmpty). App pool-autoscale parks by setting
+# limits.cpu to "0" after 30m idle, and restores this limit on lab start.
+# Same label/taint shape as the old managed base so NRI + seccomp DaemonSets and boxes
+# keep matching. Tainted so Kubernetes-lab pods and balloons never land here.
+# Cap: limits.cpu "4" = up to 2 × t4g.medium (2 vCPU each).
 #
 # Boxes run user-namespaced (hostUsers: false), which needs containerd 2 and a kernel with
 # idmapped mounts; AL2023 provides both. Graviton only (images are multi-arch).
@@ -101,7 +103,7 @@ spec:
           operator: In
           values: ["t4g.medium"]
       expireAfter: 720h
-  # Up to 2 extra t4g.medium (2 vCPU each) on top of the base.
+  # Up to 2 × t4g.medium (2 vCPU each) — elastic-only ceiling (no managed base).
   limits:
     cpu: "4"
   disruption:

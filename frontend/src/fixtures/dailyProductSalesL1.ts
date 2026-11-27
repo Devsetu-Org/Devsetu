@@ -32,10 +32,6 @@ def write_result_json(spark: SparkSession, rows: list, output_path: str) -> None
 def main() -> None:
     spark = SparkSession.builder.appName("daily-product-sales").getOrCreate()
 
-    # TODO: discover INPUT_PATH parquet, validate, aggregate, then:
-    # write_result_json(spark, rows, OUTPUT_PATH)
-    # Each row must include the graded columns (see eval solution schema).
-
     spark.stop()
 
 

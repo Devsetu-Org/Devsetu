@@ -306,6 +306,8 @@ interface ProjectBriefColumnProps {
   runHistory: ProjectRunHistoryEntry[];
   selectedRunId: string | null;
   onOpenRun: (runId: string) => void;
+  /** When set (e.g. from `?task=1.1`), open Tasks with that TODO expanded. */
+  initialTaskId?: string | null;
 }
 
 /**
@@ -322,8 +324,13 @@ const ProjectBriefColumn = React.memo(function ProjectBriefColumn({
   runHistory,
   selectedRunId,
   onOpenRun,
+  initialTaskId = null,
 }: ProjectBriefColumnProps): JSX.Element {
-  const [briefTab, setBriefTab] = useState<BriefTab>('theory');
+  const resolvedInitialTask =
+    initialTaskId && content.tasks.some((t) => t.id === initialTaskId) ? initialTaskId : null;
+  const [briefTab, setBriefTab] = useState<BriefTab>(() =>
+    resolvedInitialTask ? 'tasks' : 'theory',
+  );
   const [theoryPage, setTheoryPage] = useState(0);
   const [theoryMarkdown, setTheoryMarkdown] = useState(() =>
     loadSavedTheory(persistId, content.theory),
@@ -333,8 +340,9 @@ const ProjectBriefColumn = React.memo(function ProjectBriefColumn({
     loadSavedTheory(persistId, content.theory),
   );
   const [theoryCopyStatus, setTheoryCopyStatus] = useState<string | null>(null);
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(() => resolvedInitialTask);
   const briefBodyRef = useRef<HTMLDivElement | null>(null);
+  const focusedInitialTask = useRef<string | null>(null);
 
   const theorySections = useMemo(() => splitTheory(theoryMarkdown), [theoryMarkdown]);
   const todoBriefs = useMemo(() => extractTodoBriefs(theoryMarkdown), [theoryMarkdown]);
@@ -343,14 +351,25 @@ const ProjectBriefColumn = React.memo(function ProjectBriefColumn({
 
   useEffect(() => {
     const nextTheory = loadSavedTheory(persistId, content.theory);
-    setBriefTab('theory');
+    const task =
+      initialTaskId && content.tasks.some((t) => t.id === initialTaskId) ? initialTaskId : null;
+    setBriefTab(task ? 'tasks' : 'theory');
     setTheoryPage(0);
     setTheoryMarkdown(nextTheory);
     setTheoryDraft(nextTheory);
     setTheoryEditing(false);
     setTheoryCopyStatus(null);
-    setExpandedTaskId(null);
-  }, [persistId, content.theory]);
+    setExpandedTaskId(task);
+    focusedInitialTask.current = null;
+  }, [persistId, content.theory, content.tasks, initialTaskId]);
+
+  useEffect(() => {
+    if (!expandedTaskId || focusedInitialTask.current === expandedTaskId) return;
+    const task = content.tasks.find((t) => t.id === expandedTaskId);
+    if (!task) return;
+    focusedInitialTask.current = expandedTaskId;
+    onFocusFile(task.file);
+  }, [expandedTaskId, content.tasks, onFocusFile]);
 
   useEffect(() => {
     if (theoryPage > 0 && theoryPage >= theorySections.length) {
@@ -701,6 +720,8 @@ interface ModuleWorkspaceProps {
   runScopeId?: string;
   /** Language of the workspace files currently open (shown on new runs). */
   runLanguage?: LanguageId | null;
+  /** Open Tasks with this TODO expanded (from track shelf `?task=`). */
+  initialTaskId?: string | null;
 }
 
 export function ModuleWorkspace({
@@ -712,6 +733,7 @@ export function ModuleWorkspace({
   earlierChapters,
   runScopeId,
   runLanguage = null,
+  initialTaskId = null,
 }: ModuleWorkspaceProps): JSX.Element {
   // Callers build this list on every render; only persistId and content key a reset.
   const earlierRef = useRef(earlierChapters);
@@ -1053,6 +1075,7 @@ export function ModuleWorkspace({
             gate={gate}
             isNarrow={isNarrow}
             onCollapse={onCollapseBrief}
+            initialTaskId={initialTaskId}
             onFocusFile={onFocusFile}
             runHistory={runHistory}
             selectedRunId={viewingRunId}

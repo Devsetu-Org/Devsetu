@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Linux-module infrastructure on the devlabs cluster. Idempotent.
 #
-# Capacity: an always-on managed node group (labs-linux) plus optional Karpenter overflow
-# (labs-linux-elastic). NRI + seccomp are DaemonSets on every node with
-# devlabs.io/pool=linux (managed base and elastic alike).
+# Capacity (lean / elastic-only pilot): Karpenter labs-linux-elastic is the Linux pool.
+# Managed NG labs-linux stays at Desired=0 for rollback (`base` still works). NRI + seccomp
+# are DaemonSets on every node with devlabs.io/pool=linux.
 #
 #   base     create labs-linux + launch template if missing, scale to 1, install NRI + seccomp
-#            (AWS admin for the NG; kubectl for the plugins)
-#   up       apply labs-linux-elastic only (needs Karpenter from eks-karpenter.sh)
+#            (rollback / emergency warm base; AWS admin for the NG)
+#   up       apply labs-linux-elastic (needs Karpenter from eks-karpenter.sh) + plugins
 #   sleep    park Linux capacity: elastic limit → 0 and its nodes removed, labs-linux → 0
-#   wake     labs-linux → 1, re-apply NRI + seccomp, then `up` (restores elastic)
+#   wake     elastic-only: `up` + plugins (does not scale labs-linux). Set
+#            EKS_LINUX_WAKE_BASE=1 to also wake the managed base (old behaviour).
 #   spike    base + start the phase-0 spike boxes (deploy/eks/linux/spike.yaml), then check
 #   check    re-run the capability checks against running spike boxes
 #   seccomp  (re)install only the box seccomp profiles
@@ -102,10 +103,13 @@ sleep_linux() {
 }
 
 wake_linux() {
-  eks_need_aws
-  EKS_WAKE_NODEGROUPS=labs-linux "$ROOT/eks-wake.sh"
-  echo "==> waiting for a Ready labs-linux node"
-  kubectl wait --for=condition=Ready node -l devlabs.io/pool=linux --timeout=10m
+  # Default: elastic-only (no managed base). App pool-autoscale does the same unpark.
+  if [[ "${EKS_LINUX_WAKE_BASE:-0}" == "1" ]]; then
+    eks_need_aws
+    EKS_WAKE_NODEGROUPS=labs-linux "$ROOT/eks-wake.sh"
+    echo "==> waiting for a Ready labs-linux node"
+    kubectl wait --for=condition=Ready node -l devlabs.io/pool=linux --timeout=10m
+  fi
   plugins
   up
 }

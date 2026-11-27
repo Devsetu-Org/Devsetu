@@ -4,12 +4,40 @@ import {
   K8S_BLOG_STAMP_SRC,
   type K8sReadingCodeBlock,
   type K8sReadingFlow,
+  type K8sReadingFollowOn,
   type K8sReadingSection,
   type K8sReadingTable,
 } from '../constants/k8sReadings';
-import { READING_TRACKS, type ReadingTrackId } from '../constants/readingTracks';
+import { READING_TRACKS, type ReadingTrack, type ReadingTrackId } from '../constants/readingTracks';
 import { ReadingFigureAnimationView } from '../components/GitReadingAnims';
 import ReadOnlyCodePane from '../components/ReadOnlyCodePane';
+
+/** Explicit followOn wins; otherwise derive Next from an ordered blog list (Linux). */
+function resolveFollowOn(
+  track: ReadingTrack,
+  reading: { id: string; followOn?: K8sReadingFollowOn },
+): K8sReadingFollowOn | null {
+  if (reading.followOn) return reading.followOn;
+  const ordered = track.listReadings?.() ?? [];
+  if (ordered.length === 0) return null;
+  const idx = ordered.findIndex((r) => r.id === reading.id);
+  if (idx < 0) return null;
+  const next = ordered[idx + 1];
+  if (next) {
+    return {
+      eyebrow: 'Next',
+      title: 'Next blog',
+      intro: 'Continue with the next reading on this track.',
+      links: [{ label: next.title, href: track.readingPath(next.slug) }],
+    };
+  }
+  return {
+    eyebrow: 'Next',
+    title: 'Back to the track',
+    intro: 'You finished the blogs on this track. Open the labs shelf to practice.',
+    links: [{ label: `${track.label} labs`, href: track.labsPath }],
+  };
+}
 
 function RichTextInline({ text }: { text: string }): JSX.Element {
   // Order matters: **`code`** / *`code`* before **bold** / *italic*, then `code`.
@@ -338,6 +366,7 @@ export default function K8sReadingPage({
   }
 
   const tocSections = reading.sections.filter((s) => s.title);
+  const followOn = resolveFollowOn(track, reading);
 
   return (
     <div className="app-page spark-primer-page">
@@ -381,7 +410,7 @@ export default function K8sReadingPage({
         ))}
         <a href="#takeaways">Takeaways</a>
         {reading.relatedLabs.length > 0 ? <a href="#related">Related labs</a> : null}
-        {reading.followOn ? <a href="#next">{reading.followOn.title}</a> : null}
+        {followOn ? <a href="#next">{followOn.title}</a> : null}
       </nav>
 
       {reading.sections.map((section) => (
@@ -426,15 +455,15 @@ export default function K8sReadingPage({
           </ul>
         </section>
       ) : null}
-      {reading.followOn ? (
+      {followOn ? (
         <section id="next" className="spark-primer-section spark-primer-next">
-          <p className="spark-primer-section-eyebrow">{reading.followOn.eyebrow}</p>
-          <h2 className="spark-primer-section-title">{reading.followOn.title}</h2>
+          <p className="spark-primer-section-eyebrow">{followOn.eyebrow}</p>
+          <h2 className="spark-primer-section-title">{followOn.title}</h2>
           <p className="spark-primer-copy">
-            <RichText text={reading.followOn.intro} />
+            <RichText text={followOn.intro} />
           </p>
           <ul className="spark-primer-links">
-            {reading.followOn.links.map((link) => (
+            {followOn.links.map((link) => (
               <li key={link.href}>
                 <Link to={link.href}>{link.label}</Link>
               </li>

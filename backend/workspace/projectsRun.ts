@@ -459,6 +459,21 @@ async function executeRun(
     await ensureNamespace(run.ns);
     if (signal.aborted) throw runError(499, 'CANCELLED', 'Run cancelled.');
 
+    try {
+      const poolAutoscale = require('./poolAutoscale');
+      appendLog(run, 'Ensuring projects capacity…\n');
+      await poolAutoscale.ensurePoolAwake('projects', {
+        onPhase: (msg: string) => appendLog(run, `${msg}\n`),
+      });
+    } catch (err) {
+      throw runError(
+        (err as { status?: number }).status || 503,
+        (err as { code?: string }).code || 'LAB_ENV_UNAVAILABLE',
+        (err as Error).message || 'Projects lab machines are offline.',
+      );
+    }
+    if (signal.aborted) throw runError(499, 'CANCELLED', 'Run cancelled.');
+
     appendLog(run, 'Waiting for runner pod…\n');
     await createPod(run.ns, run.persistId, run.id);
     if (signal.aborted) throw runError(499, 'CANCELLED', 'Run cancelled.');

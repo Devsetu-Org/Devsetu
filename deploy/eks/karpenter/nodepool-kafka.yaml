@@ -98,9 +98,9 @@ spec:
           operator: In
           values: ["t4g.medium"]
       expireAfter: 720h
-  # Up to 2 extra t4g.medium (2 vCPU each) on top of the base.
+  # Up to 1 extra t4g.medium (2 vCPU) on top of the base (lean launch cap).
   limits:
-    cpu: "4"
+    cpu: "2"
   disruption:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 5m

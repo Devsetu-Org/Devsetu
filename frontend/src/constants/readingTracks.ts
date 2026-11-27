@@ -11,6 +11,7 @@ import {
 import {
   getLinuxReading,
   linuxReadingPath,
+  listLinuxReadings,
   listLinuxTrackItems,
   LINUX_LABS_PATH,
 } from './linuxReadings';
@@ -53,6 +54,8 @@ export interface ReadingTrack {
   getReading: (slug: string | null | undefined) => K8sReading | null;
   readingPath: (slug: string) => string;
   listTrackItems: () => K8sTrackItem[];
+  /** Ordered blogs for auto Next footer (Linux). Other tracks omit this. */
+  listReadings?: () => K8sReading[];
 }
 
 export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
@@ -81,6 +84,7 @@ export const READING_TRACKS: Record<ReadingTrackId, ReadingTrack> = {
     getReading: getLinuxReading,
     readingPath: linuxReadingPath,
     listTrackItems: listLinuxTrackItems,
+    listReadings: listLinuxReadings,
   },
   docker: {
     id: 'docker',

@@ -1,0 +1,65 @@
+{
+  "id": "l2-two-hundred-tasks-quiet-night",
+  "number": 913,
+  "finalized": true,
+  "title": "Two Hundred Tasks for a Quiet Night",
+  "description": "> **Who is asking**\n>\n> **Analytics** (Helix). They run a small overnight aggregate for a QA board. The logic is trivial. The stage graph looks busy. The clock disagrees with how little data there is.\n\n**Run night:** `spark.sql.shuffle.partitions` is left large (e.g. 200) on a tiny dataset \u2014 hundreds of near-empty tasks; scheduling overhead dominates.\n\n**Submit night (when live):** partitions may be set too low on a larger drop so each task is huge. Same skill: right-size shuffle partitions for the data.\n\n## Your task\n\n1. Run the planted aggregate. Open the shuffle stage.\n2. Investigation: how many tasks, roughly how much data per task, too many or too few.\n3. Set a sane shuffle partition count for this workload (lasting conf or job-local).\n4. Re-run under the time budget with correct output.\n\n## Rules\n\n- Do not change the business logic of the aggregate.\n- Do not enable AQE (coalesce would cheat the lesson).\n- Do not add executors as the primary fix.\n- Do not shrink input to make it fast.\n\n> **Done when**\n>\n> Correct aggregate, partitions appropriate to the planted night, time budget met.\n\n**Runners and datasets ship later.** You can open the workspace and read the brief; Run/Submit are not graded yet.\n",
+  "difficulty": "L1",
+  "tags": [
+    "spark",
+    "l1",
+    "performance",
+    "shuffle",
+    "partitions",
+    "investigation"
+  ],
+  "category": "batch-processing",
+  "sandboxType": "spark-platform",
+  "play": {
+    "domainId": "data-engineer",
+    "panelId": "spark"
+  },
+  "problemStatement": {
+    "hints": [
+      "AQE stays off for this chapter.",
+      "Fill Investigation before you call the job done.",
+      "Live Start ships when the lab is finalized."
+    ],
+    "overview": "Two Hundred Tasks for a Quiet Night",
+    "brief": "Two Hundred Tasks for a Quiet Night",
+    "solution": "",
+    "idLabel": "913",
+    "theory": ""
+  },
+  "visibleTo": "users",
+  "tokens": 10,
+  "platformSpec": {
+    "language": "python",
+    "starterFileName": "src/main.py",
+    "outputFormat": "parquet",
+    "gradeKeys": [
+      "store_id"
+    ],
+    "evalSolutionPath": "s3a://devlabs-data/challenges/l2-two-hundred-tasks-quiet-night/eval/",
+    "inputPath": "s3a://devlabs-data/challenges/l2-two-hundred-tasks-quiet-night/input/",
+    "limits": {
+      "driver": 1,
+      "driverMemory": "1g",
+      "executors": 2,
+      "executorCores": 1,
+      "executorMemory": "1g",
+      "aqe": false,
+      "shufflePartitions": 200,
+      "hardTimeoutSeconds": 300
+    },
+    "sparkConf": {
+      "spark.sql.adaptive.enabled": "false",
+      "spark.sql.shuffle.partitions": "200"
+    },
+    "gradeChecks": [
+      "Brief review only \u2014 runners and goldens ship later"
+    ],
+    "chapter": "performance-optimization",
+    "kind": "investigation"
+  }
+}

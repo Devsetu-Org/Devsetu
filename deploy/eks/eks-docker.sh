@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# Docker-module infrastructure on the devlabs cluster. Idempotent. Same shape as eks-linux.sh:
-# an always-on managed node group (labs-docker) plus a Karpenter NodePool for overflow
-# (labs-docker-elastic), and the in-cluster Docker Hub mirror the boxes pull through.
+# Docker-module infrastructure (elastic-only pilot). Karpenter labs-docker-elastic is the
+# Docker pool; managed NG labs-docker stays at Desired=0 for rollback (`base` still works).
+# Registry mirror runs on system-k8s.
 #
-#   base     create labs-docker + launch template if missing, scale to 1, install NRI + seccomp
-#            and the registry mirror (AWS admin for the NG; kubectl for the plugins)
-#   up       apply labs-docker-elastic only (needs Karpenter from eks-karpenter.sh)
-#   sleep    park Docker capacity: elastic limit → 0 and its nodes removed, labs-docker → 0
-#            (plugins, including the mirror and its cache, stay)
-#   wake     labs-docker → 1, re-apply NRI + seccomp + mirror, then `up` (restores elastic)
+#   base     create labs-docker + scale to 1 + plugins (rollback / emergency warm base)
+#   up       apply labs-docker-elastic (needs Karpenter) + plugins/mirror
+#   sleep    park: elastic limit → 0 + NodeClaims removed; labs-docker → 0
+#   wake     elastic-only: plugins + `up`. Set EKS_DOCKER_WAKE_BASE=1 for managed base too.
 #   spike    base + start the phase-0 spike box (deploy/eks/docker/spike.yaml), then check
 #   check    re-run the capability checks against the running spike box
 #   seccomp  (re)install only the docker-box seccomp profile
@@ -117,10 +115,12 @@ sleep_docker() {
 }
 
 wake_docker() {
-  eks_need_aws
-  EKS_WAKE_NODEGROUPS=labs-docker "$ROOT/eks-wake.sh"
-  echo "==> waiting for a Ready labs-docker node"
-  kubectl wait --for=condition=Ready node -l devlabs.io/pool=docker --timeout=10m
+  if [[ "${EKS_DOCKER_WAKE_BASE:-0}" == "1" ]]; then
+    eks_need_aws
+    EKS_WAKE_NODEGROUPS=labs-docker "$ROOT/eks-wake.sh"
+    echo "==> waiting for a Ready labs-docker node"
+    kubectl wait --for=condition=Ready node -l devlabs.io/pool=docker --timeout=10m
+  fi
   plugins
   up
 }

@@ -1,0 +1,113 @@
+# Spark Platform API on EKS. Placeholders filled by eks-spark-platform.sh:
+#   IMAGE_PLACEHOLDER, SPARK_IMAGE_PLACEHOLDER, HISTORY_UI_PLACEHOLDER,
+#   S3_ENDPOINT_PLACEHOLDER, EVENT_LOG_DIR_PLACEHOLDER
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-platform-api
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark-platform-api
+    app.kubernetes.io/part-of: spark-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spark-platform-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spark-platform-api
+    spec:
+      serviceAccountName: spark-platform-api
+      nodeSelector:
+        kubernetes.io/os: linux
+        devlabs.io/pool: system
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      containers:
+        - name: api
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPARK_NAMESPACE
+              value: spark
+            - name: SPARK_NODE_POOL
+              value: spark-de
+            - name: SPARK_EVENT_LOG_DIR
+              value: EVENT_LOG_DIR_PLACEHOLDER
+            - name: SPARK_HISTORY_UI_URL
+              value: HISTORY_UI_PLACEHOLDER
+            - name: SPARK_IMAGE
+              value: SPARK_IMAGE_PLACEHOLDER
+            - name: SPARK_VERSION
+              value: "3.5.3"
+            - name: SPARK_DRIVER_SA
+              value: spark
+            - name: SPARK_JOB_HARD_TIMEOUT_SECONDS
+              value: "600"
+            - name: SPARK_JOB_WATCH_INTERVAL_SECONDS
+              value: "5"
+            - name: SPARK_JOB_WATCHER_ENABLED
+              value: "true"
+            # Same bucket DevLabs uses for challenge data (AWS S3 ap-south-2).
+            - name: SPARK_MINIO_ENDPOINT
+              value: S3_ENDPOINT_PLACEHOLDER
+            - name: SPARK_S3A_SSL
+              value: "true"
+            - name: SPARK_S3A_PATH_STYLE
+              value: "false"
+            - name: SPARK_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spark-s3
+                  key: accessKey
+            - name: SPARK_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spark-s3
+                  key: secretKey
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+# ClusterIP for in-cluster callers; Internal NLB for App EC2 (same VPC).
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-platform-api
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark-platform-api
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: spark-platform-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

@@ -149,4 +149,59 @@ async function seedManualCatalog(): Promise<void> {
   }
 }
 
-module.exports = { seedManualCatalog, loadPackRows };
+/**
+ * Watch packs/*.json and re-seed + reload cache so Description edits show up
+ * without a process restart. Debounced (editors often rewrite files twice).
+ * On by default (local .env often sets NODE_ENV=production). Off with DEVLABS_HOT_PACKS=0.
+ */
+function startPackWatcher(): void {
+  const flag = String(process.env.DEVLABS_HOT_PACKS || '').trim().toLowerCase();
+  if (flag === '0' || flag === 'false' || flag === 'no') return;
+
+  const packsDir = path.join(__dirname, 'packs');
+  if (!fs.existsSync(packsDir)) return;
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let running = false;
+  let queued = false;
+
+  const run = async (): Promise<void> => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    try {
+      console.log('[challenges] pack change detected — reseeding catalog');
+      await seedManualCatalog();
+    } catch (e: unknown) {
+      console.warn('[challenges] pack reseed failed:', (e as Error).message);
+    } finally {
+      running = false;
+      if (queued) {
+        queued = false;
+        void run();
+      }
+    }
+  };
+
+  const schedule = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void run();
+    }, 400);
+  };
+
+  try {
+    fs.watch(packsDir, { persistent: false }, (_event: string, filename: string | null) => {
+      if (filename && !filename.endsWith('.json')) return;
+      schedule();
+    });
+    console.log(`[challenges] watching packs for hot reload: ${packsDir}`);
+  } catch (e: unknown) {
+    console.warn('[challenges] pack watcher unavailable:', (e as Error).message);
+  }
+}
+
+module.exports = { seedManualCatalog, loadPackRows, startPackWatcher };

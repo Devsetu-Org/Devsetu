@@ -7,6 +7,7 @@ const { requireInterviewer } = require('../auth/middleware');
 const { sanitizeOwner } = require('../workspace/workspaceStore');
 const pool = require('../db/pool');
 const { isAvatarId, parseTzOffset, activityFor } = require('../profile/activity');
+const { badgesForUser } = require('../profile/badges');
 
 const router = express.Router();
 
@@ -15,15 +16,21 @@ function userId(req: ExpressRequest): string {
   return user?.sub || user?.userId || user?.id || '';
 }
 
-/** GET /api/profile/me?tz=<getTimezoneOffset minutes> — avatar and activity for the signed-in user. */
+/** GET /api/profile/me?tz=<getTimezoneOffset minutes> — avatar, activity, and track badges. */
 router.get('/me', requireInterviewer, async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => {
   try {
     const id = userId(req);
-    const { rows } = await pool.query(`SELECT avatar FROM users WHERE id = $1`, [id]);
+    const owner = sanitizeOwner(id);
     const tz = parseTzOffset((req.query as Record<string, unknown>).tz);
+    const [{ rows }, activity, badges] = await Promise.all([
+      pool.query(`SELECT avatar FROM users WHERE id = $1`, [id]),
+      activityFor(owner, tz),
+      badgesForUser(id),
+    ]);
     res.json({
       avatar: (rows[0] as { avatar?: string | null } | undefined)?.avatar ?? null,
-      activity: await activityFor(sanitizeOwner(id), tz),
+      activity,
+      badges,
     });
   } catch (e) {
     next(e);

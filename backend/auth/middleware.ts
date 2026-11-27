@@ -10,6 +10,27 @@ function bearer(req: ExpressRequest): string | null {
   return h.slice('Bearer '.length).trim();
 }
 
+/** Set by the lab before window.open. A new tab cannot send Authorization. */
+const UI_COOKIE = 'devsetu_ui';
+
+function uiCookieToken(req: ExpressRequest): string | null {
+  const raw = String(req.headers.cookie || '');
+  if (!raw) return null;
+  for (const part of raw.split(';')) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    if (trimmed.slice(0, eq) !== UI_COOKIE) continue;
+    try {
+      const value = decodeURIComponent(trimmed.slice(eq + 1)).trim();
+      return value || null;
+    } catch (_e) {
+      return null;
+    }
+  }
+  return null;
+}
+
 function adminEmails(): string[] {
   return String(process.env.ADMIN_EMAILS || '')
     .split(/[,;\s]+/)
@@ -161,7 +182,19 @@ function requireAdminWhenAccessLocked(
     return;
   }
 
-  const token = bearer(req);
+  const path = String(req.originalUrl || req.url || '');
+  // Pack reseed from CLI / registerChallengePack (header token, no JWT).
+  if (path.includes('/admin/challenges/reload')) {
+    const expected = String(process.env.CHALLENGE_RELOAD_TOKEN || 'devlabs-reload').trim();
+    const provided = String(req.headers['x-devlabs-reload-token'] || '').trim();
+    if (expected && provided && provided === expected) {
+      next();
+      return;
+    }
+  }
+  // Spark (and other) dashboards are a full page load. The SPA token lives in
+  // localStorage, so the tab only carries the short-lived cookie set on open.
+  const token = bearer(req) || (path.includes('/spark-ui/') ? uiCookieToken(req) : null);
   if (!token) {
     res.status(403).json({ error: ACCESS_LOCKED_MESSAGE, code: 'ACCESS_LOCKED' });
     return;

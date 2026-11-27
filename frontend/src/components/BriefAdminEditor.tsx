@@ -12,7 +12,6 @@ const EDITABLE_TABS: ChallengeContentTab[] = [
   'spec',
   'knobs',
   'solution',
-  'moat',
 ];
 
 export function isEditableBriefTab(tab: string): tab is ChallengeContentTab {
@@ -53,7 +52,6 @@ function draftForTab(
   const ps = asRecord(challenge.problemStatement);
   if (tab === 'description') return challenge.description || '';
   if (tab === 'theory') return typeof ps.theory === 'string' ? ps.theory : '';
-  if (tab === 'moat') return typeof ps.moat === 'string' ? ps.moat : '';
   if (tab === 'data') return JSON.stringify(ps.data ?? { overview: '', datasets: [] }, null, 2);
   if (tab === 'spec') {
     return JSON.stringify(specPayload(challenge, platform || ({} as SparkPlatformSpec)), null, 2);
@@ -109,7 +107,7 @@ export default function BriefAdminEditor({
     onEditingChange?.(true);
   }, [forceEdit]);
 
-  const markdownTabs = tab === 'description' || tab === 'theory' || tab === 'moat';
+  const markdownTabs = tab === 'description' || tab === 'theory';
   const formatLabel = markdownTabs ? 'Markdown' : 'JSON';
 
   const cancel = (): void => {

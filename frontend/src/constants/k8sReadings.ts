@@ -89,7 +89,27 @@ export type ReadingFigureAnimation =
   | 'linux-vi-modes'
   | 'linux-grep-sieve'
   | 'linux-regex-read'
-  | 'linux-pipe-flow';
+  | 'linux-pipe-flow'
+  | 'linux-user-groups'
+  | 'linux-perm-bits'
+  | 'linux-process-pid'
+  | 'linux-signal-escalation'
+  | 'linux-job-control'
+  | 'linux-nohup-detach'
+  | 'linux-systemd-unit'
+  | 'linux-journal-flow'
+  | 'linux-cron-schedule'
+  | 'linux-logrotate'
+  | 'linux-package-install'
+  | 'linux-pinning'
+  | 'linux-df-du'
+  | 'linux-tar-flow'
+  | 'linux-listen-connect'
+  | 'linux-dns-path'
+  | 'linux-ssh-keys'
+  | 'linux-ssh-login'
+  | 'linux-script-flow'
+  | 'linux-bash-quotes';
 
 export interface K8sReadingFigure {
   /** Static image — omit when using `animation`. */

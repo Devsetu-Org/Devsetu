@@ -3,7 +3,7 @@
  * or other live content. Flip to false (and ACCESS_LOCKED=0 on the backend)
  * when the pilot opens to a wider audience.
  */
-export const ACCESS_LOCKED = true;
+export const ACCESS_LOCKED = false;
 
 export const WAITLIST_PATH = '/waitlist';
 

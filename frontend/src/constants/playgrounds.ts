@@ -34,7 +34,7 @@ export const PLAYGROUNDS: PlaygroundEntry[] = [
   {
     id: 'airflow',
     label: 'Airflow',
-    blurb: 'DAG orchestration and dependency-aware scheduling.',
+    blurb: 'You author the DAG. Dependencies, schedules, retries, and sensors — the scheduler is already running.',
     to: null,
     facts: [],
   },

@@ -20,7 +20,8 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes /usr/bin/man \
     acl attr tar gzip zip unzip bzip2 xz-utils rsync \
     iproute2 iputils-ping dnsutils netcat-openbsd curl wget traceroute nftables iptables \
     openssh-server openssh-client \
-    jq gawk sed grep findutils \
+    jq gawk sed grep findutils git \
+    postgresql postgresql-contrib \
   && rm -rf /var/lib/apt/lists/*
 
 # Units that need hardware or a real console never start in a pod; masking them keeps

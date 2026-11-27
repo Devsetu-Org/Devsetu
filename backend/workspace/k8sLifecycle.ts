@@ -84,7 +84,7 @@ function beginBootPhase(owner: string, challengeId: string, openSeq: number): vo
     }
   }
   bootPhases.set(owner, { steps: [], current: null, restoresSave, openSeq });
-  noteBootPhase(owner, 'Creating your machine');
+  // First message comes from requirePool ("Waking machines…") or provision ("Creating…").
 }
 
 function bootPhaseOf(owner: string, openSeq: number, challengeId: string | null): {
@@ -255,25 +255,65 @@ const CAPACITY_FAILURE = /exceeded quota|Unschedulable|Insufficient (cpu|memory)
 /**
  * Whether the challenge's node pool can run labs right now; the message is
  * shown on a locked lab. Role-agnostic: admins get the same answer as learners.
+ * With pool-autoscale, a parked elastic_only pool is still "available" (start will wake it).
  */
-async function labAvailability(challengeId: string): Promise<{ available: boolean; message: string | null }> {
+async function labAvailability(challengeId: string): Promise<{
+  available: boolean;
+  message: string | null;
+  waking?: boolean;
+}> {
   const flavor = boxFlavorOf(challengeId);
   const pool = isKafkaLab(challengeId)
     ? kafkaBox.POOL
     : isSparkLab(challengeId)
       ? sparkBox.POOL
       : (flavor ? linuxBox.poolFor(flavor) : undefined);
-  // Fresh read — do not serve a stale "up" after the pool was drained.
+  const poolAutoscale = require('./poolAutoscale');
+  const poolName = pool || 'labs';
   capacity.invalidatePool(pool);
+  if (poolAutoscale.isWaking(poolName)) {
+    return {
+      available: true,
+      waking: true,
+      message: 'Waking machines… Your lab will start when capacity is ready.',
+    };
+  }
+  if (await poolAutoscale.poolCapacityReady(poolName)) {
+    return { available: true, message: null };
+  }
+  // Autoscale can wake elastic_only / base pools on start — treat as available.
+  if (typeof poolAutoscale.AUTOSCALE === 'function' ? poolAutoscale.AUTOSCALE() : false) {
+    const { getPool } = require('./labPools');
+    const def = getPool(poolName);
+    if (def && def.mode !== 'always_on') {
+      return { available: true, waking: false, message: null };
+    }
+  }
   const available = await capacity.poolUp(pool);
   return { available, message: available ? null : LAB_CAPACITY_DOWN_MSG };
 }
 
-/** Refuse start when the pool has no Ready node. No admin / staff bypass. */
-async function requirePool(ns: string, challengeId: string, pool?: string): Promise<void> {
+/** Ensure the pool is awake (auto-wake when enabled), then refuse if still down. */
+async function requirePool(
+  ns: string,
+  challengeId: string,
+  pool?: string,
+  onPhase?: (message: string) => void,
+): Promise<void> {
+  const poolName = pool || 'labs';
+  const poolAutoscale = require('./poolAutoscale');
+  try {
+    await poolAutoscale.ensurePoolAwake(poolName, { onPhase });
+    return;
+  } catch (err) {
+    console.warn(
+      `[k8s] ${ns}: ensurePoolAwake(${poolName}) failed for ${challengeId}: ${(err as Error).message || err}`,
+    );
+    if ((err as { code?: string }).code === 'LAB_ENV_UNAVAILABLE') throw err;
+  }
   capacity.invalidatePool(pool);
   if (await capacity.poolUp(pool)) return;
-  console.warn(`[k8s] ${ns}: node pool ${pool || 'labs'} has no nodes and cannot add any, refusing to open ${challengeId}`);
+  console.warn(`[k8s] ${ns}: node pool ${poolName} has no nodes and cannot add any, refusing to open ${challengeId}`);
   throw labCapacityDown();
 }
 
@@ -287,7 +327,8 @@ function ensureProvisioned(
   const flavor = boxFlavorOf(challengeId);
   const kafka = isKafkaLab(challengeId);
   const spark = isSparkLab(challengeId);
-  const onPhase = (flavor || kafka || spark) && owner
+  // Every cluster lab (including sandboxType=kubernetes) drives the vertical boot stepper.
+  const onPhase = owner
     ? (message: string) => noteBootPhase(owner, message)
     : undefined;
   return withNsLock(ns, async () => {
@@ -299,7 +340,7 @@ function ensureProvisioned(
             ? provisionKafka(ns, challengeId, onPhase)
             : spark
               ? provisionSpark(ns, challengeId, onPhase)
-              : provision(ns, challengeId, forceSetup)
+              : provision(ns, challengeId, forceSetup, onPhase)
       );
       if (!signal) return await run();
       if (signal.aborted) throw k8s.startSuperseded();
@@ -330,7 +371,7 @@ async function provisionBox(
   onPhase?: (message: string) => void,
 ): Promise<boolean> {
   const spec = platformSpecOf(challengeId);
-  await requirePool(ns, challengeId, linuxBox.poolFor(flavor));
+  await requirePool(ns, challengeId, linuxBox.poolFor(flavor), onPhase);
   onPhase?.('Creating your machine');
   linuxBox.discardBoxWork(ns, challengeId);
   try {
@@ -375,7 +416,7 @@ async function provisionKafka(
   if (shape !== 'kafka-3' && shape !== 'kafka-zk-3') {
     throw Object.assign(new Error(`Kafka lab shape ${shape} is not available yet`), { status: 400 });
   }
-  await requirePool(ns, challengeId, kafkaBox.POOL);
+  await requirePool(ns, challengeId, kafkaBox.POOL, onPhase);
   onPhase?.('Creating your machine');
   try {
     await kafkaBox.recreate(ns, challengeId, onPhase);
@@ -407,7 +448,7 @@ async function provisionSpark(
   if (shape !== 'spark-3' && shape !== 'spark-2' && shape !== 'yarn-2' && shape !== 'spark-k8s') {
     throw Object.assign(new Error(`Spark lab shape ${shape} is not available yet`), { status: 400 });
   }
-  await requirePool(ns, challengeId, sparkBox.POOL);
+  await requirePool(ns, challengeId, sparkBox.POOL, onPhase);
   const daemonMode = String((spec as { daemonMode?: string }).daemonMode || 'auto') === 'manual'
     ? 'manual'
     : 'auto';
@@ -527,11 +568,14 @@ async function provision(
   ns: string,
   challengeId: string,
   forceSetup: boolean,
+  onPhase?: (message: string) => void,
 ): Promise<boolean> {
   const spec = platformSpecOf(challengeId);
-  await requirePool(ns, challengeId);
+  await requirePool(ns, challengeId, undefined, onPhase);
+  onPhase?.('Creating your namespace');
   await ensureCleanSlate(ns, challengeId, forceSetup, spec);
   // The session is already active, so this reserves the lab's slots before setup runs.
+  onPhase?.('Waiting for capacity');
   if (!(await capacity.waitForReservation(ns))) throw labCapacityDown();
 
   if (!forceSetup) {
@@ -539,6 +583,7 @@ async function provision(
     const restored = await k8s.restoreChallengeSnapshot(ns, challengeId);
     if (restored) {
       await k8s.markChallengeSetup(ns, challengeId);
+      onPhase?.('Starting lab pods');
       await capacity.waitForPodsScheduled(ns);
       return true;
     }
@@ -547,6 +592,7 @@ async function provision(
     // or timed-out seed). setup.sh is idempotent (kubectl apply).
   }
 
+  onPhase?.('Preparing the lab');
   const script = spec.setup?.script || 'setup.sh';
   // Postgres image pulls (C9+) often exceed the old 90s default.
   const result = await k8s.runChallengeScript(ns, challengeId, script, {
@@ -562,6 +608,7 @@ async function provision(
   }
   await k8s.markChallengeSetup(ns, challengeId);
   // The start response (and so the terminal) waits until setup pods have a node.
+  onPhase?.('Starting lab pods');
   await capacity.waitForPodsScheduled(ns);
   return true;
 }
@@ -665,17 +712,19 @@ async function startK8sSession({
   const flavor = boxFlavorOf(challengeId);
   const kafka = isKafkaLab(challengeId);
   const spark = isSparkLab(challengeId);
-  // Refuse before any boot-phase UI. Otherwise a down pool still shows
-  // "Creating your machine" and can leave Pending pods.
-  if (flavor || kafka || spark) {
+  // Boot phase first so "Waking machines…" is visible while ensurePoolAwake runs
+  // (Linux, Docker, Kafka, Spark, k8s-platform, and devops Kubernetes).
+  beginBootPhase(owner, challengeId, openSeq);
+  {
     const pool = kafka
       ? kafkaBox.POOL
       : spark
         ? sparkBox.POOL
-        : linuxBox.poolFor(flavor!);
-    await requirePool(owner, challengeId, pool);
+        : flavor
+          ? linuxBox.poolFor(flavor)
+          : 'labs';
+    await requirePool(owner, challengeId, pool, (message) => noteBootPhase(owner, message));
   }
-  if (flavor || kafka || spark) beginBootPhase(owner, challengeId, openSeq);
   const ns = namespaceForChallenge(challengeId, userId || candidateName, userName || candidateName);
 
   const existing = await findExistingK8sSession(challengeId, owner);

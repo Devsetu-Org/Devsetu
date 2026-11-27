@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppState } from '../context/AppStateContext';
 import { isAdminUser, saveUsername } from '../services/authApi';
-import { IconCoins } from '../components/ChromeIcons';
+import { IconBadge, IconCoins } from '../components/ChromeIcons';
 import SubscriptionsPanel from '../components/SubscriptionsPanel';
 import Avatar, { AvatarPicker } from '../components/Avatar';
 import ActivityHeatmap, { type ActivityDay } from '../components/ActivityHeatmap';
+import ProfileBadges, { type ProfileBadge } from '../components/ProfileBadges';
 import { fetchMyProfile, saveAvatar } from '../services/profileApi';
 
 export type ProfileSection = 'overview' | 'subscriptions' | 'privacy';
@@ -31,6 +32,7 @@ export default function ProfilePage(): JSX.Element {
   };
   const [avatar, setAvatar] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityDay[] | null>(null);
+  const [badges, setBadges] = useState<ProfileBadge[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState(currentUser?.username || '');
   const [usernameError, setUsernameError] = useState<string | null>(null);
@@ -72,8 +74,13 @@ export default function ProfilePage(): JSX.Element {
         if (cancelled) return;
         setAvatar(p.avatar);
         setActivity(p.activity);
+        setBadges(p.badges);
       })
-      .catch(() => { if (!cancelled) setActivity([]); });
+      .catch(() => {
+        if (cancelled) return;
+        setActivity([]);
+        setBadges([]);
+      });
     return () => { cancelled = true; };
   }, [currentUser?.email]);
 
@@ -291,6 +298,22 @@ export default function ProfilePage(): JSX.Element {
               <p className="profile-shelf-count" aria-label={`${tokenCount} tokens`}>
                 {tokenCount}
               </p>
+            </section>
+
+            <section className="profile-shelf profile-shelf--badges" aria-labelledby="profile-badges-heading">
+              <div className="profile-shelf-icon" aria-hidden="true">
+                <IconBadge />
+              </div>
+              <div className="profile-shelf-copy">
+                <h2 id="profile-badges-heading" className="profile-shelf-title">
+                  Badges
+                </h2>
+                <p className="profile-shelf-lead">Track seals — earned when you finish every lab</p>
+              </div>
+              <p className="profile-shelf-count" aria-label={`${badges?.length ?? 0} badges`}>
+                {badges?.length ?? '—'}
+              </p>
+              <ProfileBadges badges={badges} loading={badges == null} />
             </section>
           </aside>
         ) : (

@@ -24,10 +24,13 @@ export EKS_APP_USER_NAME="${EKS_APP_USER_NAME:-devlabs-app-s3}"
 # Comma-separated managed node groups (both Graviton / arm64)
 #   system-k8s — add-ons / platform; tainted so learner pods stay off
 #   labs-k8s   — learner workloads, always-on base (lab images are multi-arch)
-#   labs-linux — Linux-module learner machines (boxes), always-on base; tainted so only boxes land
+#   labs-linux — Linux-module NG (Desired=0 in elastic-only pilot; tainted so only boxes land)
+# labs-linux stays in EKS_NODEGROUPS for sleep/destroy, but is not woken by default:
+# Linux capacity is elastic-only (labs-linux-elastic / pool-autoscale).
 export EKS_NODEGROUPS="${EKS_NODEGROUPS:-system-k8s,labs-k8s,labs-linux}"
-# Which groups to wake by default
-export EKS_WAKE_NODEGROUPS="${EKS_WAKE_NODEGROUPS:-system-k8s,labs-k8s,labs-linux}"
+# Default wake: system only. linux / k8s / docker are Karpenter elastic-only
+# (managed NGs stay Desired=0; pool-autoscale + NodePools own capacity).
+export EKS_WAKE_NODEGROUPS="${EKS_WAKE_NODEGROUPS:-system-k8s}"
 # Overrides every group's desired/min/max when set (otherwise per-group values below)
 export EKS_WAKE_DESIRED="${EKS_WAKE_DESIRED:-}"
 export EKS_WAKE_MIN="${EKS_WAKE_MIN:-}"
@@ -98,6 +101,19 @@ export EKS_SPARK_POD_PIDS_LIMIT="${EKS_SPARK_POD_PIDS_LIMIT:-1024}"
 # Shuffle spill and Spark image layers live on the node disk.
 export EKS_SPARK_DISK_GB="${EKS_SPARK_DISK_GB:-50}"
 export EKS_SPARK_LAUNCH_TEMPLATE="${EKS_SPARK_LAUNCH_TEMPLATE:-${EKS_CLUSTER_NAME:-devlabs}-labs-spark}"
+
+# Data Engineer Spark labs (job authoring / perf): separate pool from Platforms Spark.
+# Same t4g.medium shape; label/taint spark-de. Managed by eks-spark-de.sh only.
+# Overflow: labs-spark-de-elastic (karpenter/nodepool-spark-de.yaml).
+export EKS_SPARK_DE_INSTANCE_TYPE="${EKS_SPARK_DE_INSTANCE_TYPE:-t4g.medium}"
+export EKS_SPARK_DE_AMI_TYPE="${EKS_SPARK_DE_AMI_TYPE:-AL2023_ARM_64_STANDARD}"
+export EKS_SPARK_DE_DESIRED="${EKS_SPARK_DE_DESIRED:-1}"
+export EKS_SPARK_DE_MAX="${EKS_SPARK_DE_MAX:-1}"
+export EKS_SPARK_DE_MAX_PODS="${EKS_SPARK_DE_MAX_PODS:-8}"
+export EKS_SPARK_DE_KUBE_RESERVED_MEMORY="${EKS_SPARK_DE_KUBE_RESERVED_MEMORY:-$(( 11 * EKS_SPARK_DE_MAX_PODS + 255 ))Mi}"
+export EKS_SPARK_DE_POD_PIDS_LIMIT="${EKS_SPARK_DE_POD_PIDS_LIMIT:-1024}"
+export EKS_SPARK_DE_DISK_GB="${EKS_SPARK_DE_DISK_GB:-50}"
+export EKS_SPARK_DE_LAUNCH_TEMPLATE="${EKS_SPARK_DE_LAUNCH_TEMPLATE:-${EKS_CLUSTER_NAME:-devlabs}-labs-spark-de}"
 
 # Kafka labs: one pod per learner (three brokers, or one). One always-on base node;
 # Karpenter adds the rest (labs-kafka-elastic, karpenter/nodepool-kafka.yaml). Keep
@@ -173,6 +189,7 @@ eks_ng() {
     labs-linux) prefix=LINUX ;;
     labs-docker) prefix=DOCKER ;;
     labs-spark) prefix=SPARK ;;
+    labs-spark-de) prefix=SPARK_DE ;;
     labs-kafka) prefix=KAFKA ;;
     labs-projects) prefix=PROJECTS ;;
     *) echo "unknown nodegroup: $ng (add it to eks_ng in env.sh)" >&2; return 1 ;;
@@ -188,6 +205,7 @@ eks_ng() {
         labs-linux) echo "devlabs.io/pool=linux,devlabs.io/tier=base" ;;
         labs-docker) echo "devlabs.io/pool=docker,devlabs.io/tier=base" ;;
         labs-spark) echo "devlabs.io/pool=spark,devlabs.io/tier=base" ;;
+        labs-spark-de) echo "devlabs.io/pool=spark-de,devlabs.io/tier=base" ;;
         labs-kafka) echo "devlabs.io/pool=kafka,devlabs.io/tier=base" ;;
         labs-projects) echo "devlabs.io/pool=projects,devlabs.io/tier=base" ;;
         *) echo "devlabs.io/pool=system" ;;
@@ -201,6 +219,7 @@ eks_ng() {
         labs-linux) echo "key=devlabs.io/pool,value=linux,effect=NO_SCHEDULE" ;;
         labs-docker) echo "key=devlabs.io/pool,value=docker,effect=NO_SCHEDULE" ;;
         labs-spark) echo "key=devlabs.io/pool,value=spark,effect=NO_SCHEDULE" ;;
+        labs-spark-de) echo "key=devlabs.io/pool,value=spark-de,effect=NO_SCHEDULE" ;;
         labs-kafka) echo "key=devlabs.io/pool,value=kafka,effect=NO_SCHEDULE" ;;
         labs-projects) echo "key=devlabs.io/pool,value=projects,effect=NO_SCHEDULE" ;;
         *) echo "" ;;

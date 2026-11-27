@@ -7,6 +7,7 @@ const express = require('express');
 const { requireInterviewer } = require('../auth/middleware');
 const { getMonthlyPaper } = require('../papers/monthlyPapers');
 const { parseTzOffset, activityFor } = require('../profile/activity');
+const { badgesForUser } = require('../profile/badges');
 const { sanitizeOwner } = require('../workspace/workspaceStore');
 const pool = require('../db/pool');
 const loader = require('../challenges/loader');
@@ -235,7 +236,7 @@ router.get('/platform/:id', requireInterviewer, async (req: ExpressRequest, res:
     const row = rows[index];
 
     const tz = parseTzOffset((req.query as Record<string, unknown>).tz);
-    const [labs, papers, activity] = await Promise.all([
+    const [labs, papers, activity, badges] = await Promise.all([
       pool.query(
         `WITH solves AS (
            SELECT challenge_id, MIN(submitted_at) AS solved_at
@@ -265,6 +266,7 @@ router.get('/platform/:id', requireInterviewer, async (req: ExpressRequest, res:
         [row.user_id],
       ),
       activityFor(row.user_id, tz),
+      badgesForUser(row.user_id),
     ]);
 
     type LabRow = { challenge_id: string; solved_at: string | number; tokens: number };
@@ -274,6 +276,7 @@ router.get('/platform/:id', requireInterviewer, async (req: ExpressRequest, res:
       ...platformEntry(row, index, requesterId(req)),
       participants: rows.length,
       activity,
+      badges,
       solvedLabs: (labs.rows as LabRow[]).map((l) => {
         const challenge = loader.getChallenge(l.challenge_id);
         return {

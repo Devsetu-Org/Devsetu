@@ -79,15 +79,21 @@ function isKubectlTransportFault(line: string): boolean {
     || line.includes('error reading from error stream');
 }
 
-/** True when `partial` is the start of a transport-fault line and not yet complete. */
+/**
+ * True when `partial` is the start of a transport-fault line and not yet complete.
+ * Must not match short shell echo — `'error: …'.startsWith('e')` used to swallow
+ * typed `e` until the next keystroke (then flush as `ee` / `ex`).
+ */
 function mightBeTransportFault(partial: string): boolean {
   if (!partial || partial.length > 500) return false;
   if (isKubectlTransportFault(partial)) return true;
-  // client-go klog prefix, e.g. "E1023 14:56:31.392467   97433 v2.go:151]"
-  if (/^E\d{4} \d{2}:\d{2}:\d{2}/.test(partial)) return true;
-  if ('error: error reading from error stream:'.startsWith(partial)) return true;
+  // client-go klog: require the full EMMDD date before holding (never a lone "E").
+  // e.g. "E1023 14:56:31.392467   97433 v2.go:151]"
+  if (/^E\d{4}( \d{0,2}(:\d{0,2}(:\d{0,2}(\.\d{0,9})?)?)?)?$/.test(partial)) return true;
   if (partial.startsWith('error: error reading')) return true;
-  return /^E\d{0,4}( \d{0,2}(:\d{0,2}(:\d{0,2}(\.\d{0,9})?)?)?)?$/.test(partial);
+  // Only buffer once the prefix is distinctive enough that shell typing cannot collide.
+  const faultMsg = 'error: error reading from error stream:';
+  return partial.length >= 'error: err'.length && faultMsg.startsWith(partial);
 }
 
 function killPty(child: IPty): void {
@@ -509,43 +515,59 @@ async function startKubectlShell(
   let containerName: string | null = null;
   let displayHome = labHome;
   let child: IPty;
+  const spawnHostBash = (): IPty => (
+    // Non-login / non-rc shell so host profiles cannot overwrite KUBECONFIG.
+    pty.spawn('/bin/bash', ['--noprofile', '--norc'], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd: labHome,
+      env: {
+        ...shellEnv,
+        PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
+        HOME: labHome,
+        KUBECONFIG: kubeconfigPath,
+      },
+    })
+  );
   try {
     if (labShell.enabled()) {
-      const started = await labShell.startShellContainer({
-        sessionId,
-        userName,
-        ns,
-        challengeId,
-        labHome,
-        kubeconfigPath,
-        env: shellEnv,
-      });
-      containerName = started.name;
-      displayHome = started.home;
-      if (ws.readyState !== ws.OPEN) {
-        labShell.stopShellContainer(started.name);
-        return null;
+      try {
+        const started = await labShell.startShellContainer({
+          sessionId,
+          userName,
+          ns,
+          challengeId,
+          labHome,
+          kubeconfigPath,
+          env: shellEnv,
+        });
+        containerName = started.name;
+        displayHome = started.home;
+        if (ws.readyState !== ws.OPEN) {
+          labShell.stopShellContainer(started.name);
+          return null;
+        }
+        child = pty.spawn('docker', labShell.execArgs(started.name), {
+          name: 'xterm-256color',
+          cols,
+          rows,
+          env: { PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin', TERM: 'xterm-256color' },
+        });
+      } catch (err: unknown) {
+        // Local/dev: image or Docker network missing — still open a usable kubectl shell.
+        console.warn(
+          `[k8s-terminal] session=${sessionId} lab shell container failed (${(err as Error).message}); falling back to host bash`,
+        );
+        if (containerName) {
+          labShell.stopShellContainer(containerName);
+          containerName = null;
+        }
+        displayHome = labHome;
+        child = spawnHostBash();
       }
-      child = pty.spawn('docker', labShell.execArgs(started.name), {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        env: { PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin', TERM: 'xterm-256color' },
-      });
     } else {
-      // Non-login / non-rc shell so host profiles cannot overwrite KUBECONFIG.
-      child = pty.spawn('/bin/bash', ['--noprofile', '--norc'], {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd: labHome,
-        env: {
-          ...shellEnv,
-          PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
-          HOME: labHome,
-          KUBECONFIG: kubeconfigPath,
-        },
-      });
+      child = spawnHostBash();
     }
   } catch (err: unknown) {
     if (containerName) labShell.stopShellContainer(containerName);

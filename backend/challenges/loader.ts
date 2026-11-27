@@ -2,12 +2,79 @@
 
 import type { ChallengeRow, ChallengePublic, ChallengeFull } from '../types/domain';
 
+const fs = require('fs');
+const path = require('path');
 const pool = require('../db/pool');
 const { LINUX_BLOG_PLAYGROUND_ID, isLinuxBlogPlayground } = require('./linuxPlayground');
 const { publicBoardSpec, parseBoardSpec } = require('../workspace/boardGrade');
 const { isClusterLabType } = require('./labTypes');
 
 const cache = new Map<string, ChallengeFull>();
+
+/**
+ * Pack JSON is the authoring source of truth. DB is seeded on boot; without a
+ * hot overlay, Description edits sit invisible until restart. On by default
+ * (local .env often sets NODE_ENV=production). Disable with DEVLABS_HOT_PACKS=0.
+ */
+function hotPacksEnabled(): boolean {
+  const flag = String(process.env.DEVLABS_HOT_PACKS || '').trim().toLowerCase();
+  if (flag === '0' || flag === 'false' || flag === 'no') return false;
+  if (flag === '1' || flag === 'true' || flag === 'yes') return true;
+  return true;
+}
+
+function packFilePath(challengeId: string): string {
+  return path.join(__dirname, 'packs', `${challengeId}.json`);
+}
+
+/** Merge live pack fields over a cached challenge (sync read; packs are small). */
+function overlayPackFromDisk(c: ChallengeFull): ChallengeFull {
+  if (!hotPacksEnabled() || !c?.id) return c;
+  const file = packFilePath(c.id);
+  if (!fs.existsSync(file)) return c;
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!raw || typeof raw !== 'object') return c;
+    const sandbox = raw.sandboxType || c.sandboxType;
+    const platformSpec = raw.platformSpec && typeof raw.platformSpec === 'object'
+      ? raw.platformSpec
+      : null;
+    const next: ChallengeFull = {
+      ...c,
+      title: typeof raw.title === 'string' ? raw.title : c.title,
+      description: typeof raw.description === 'string' ? raw.description : c.description,
+      difficulty: typeof raw.difficulty === 'string' ? raw.difficulty : c.difficulty,
+      tags: Array.isArray(raw.tags) ? raw.tags : c.tags,
+      category: typeof raw.category === 'string' ? raw.category : c.category,
+      finalized: raw.finalized === true,
+      sandboxType: sandbox,
+      problemStatement:
+        raw.problemStatement && typeof raw.problemStatement === 'object'
+          ? raw.problemStatement
+          : c.problemStatement,
+    };
+    if (typeof raw.tokens === 'number' && Number.isFinite(raw.tokens) && raw.tokens >= 0) {
+      next.tokens = Math.trunc(raw.tokens);
+    }
+    if (platformSpec) {
+      if (sandbox === 'spark-platform') {
+        next.sparkPlatform = platformSpec as ChallengeFull['sparkPlatform'];
+      } else if (isClusterLabType(sandbox)) {
+        next.k8sPlatform = platformSpec as ChallengeFull['k8sPlatform'];
+      } else if (sandbox === 'project') {
+        next.projectPlatform =
+          (platformSpec as { project?: ChallengeFull['projectPlatform'] }).project
+          || (platformSpec as ChallengeFull['projectPlatform']);
+      } else if (sandbox === 'board') {
+        next.boardSpec = parseBoardSpec(platformSpec);
+      }
+    }
+    return next;
+  } catch (e: unknown) {
+    console.warn(`[challenges] hot pack overlay failed for ${c.id}: ${(e as Error).message}`);
+    return c;
+  }
+}
 
 function publicFields(row: ChallengeRow): ChallengePublic {
   const { parseVisibleTo } = require('./access');
@@ -43,6 +110,11 @@ function fullFields(row: ChallengeRow): ChallengeFull {
     k8sPlatform: isClusterLabType(sandbox)
       ? (platformSpec as ChallengeFull['k8sPlatform'])
       : null,
+    projectPlatform:
+      sandbox === 'project' && platformSpec && typeof platformSpec === 'object'
+        ? ((platformSpec as { project?: ChallengeFull['projectPlatform'] }).project
+            || (platformSpec as ChallengeFull['projectPlatform']))
+        : null,
     boardSpec,
   };
 }
@@ -93,16 +165,18 @@ const LINUX_BLOG_PLAYGROUND: ChallengeFull = {
     box: { hostname: 'playground', unprivileged: true },
     setup: { script: 'setup.sh' },
   },
+  projectPlatform: null,
   boardSpec: null,
 };
 
 function getChallenge(id: string): ChallengeFull | null {
   if (isLinuxBlogPlayground(id)) return LINUX_BLOG_PLAYGROUND;
-  return cache.get(id) || null;
+  const c = cache.get(id);
+  return c ? overlayPackFromDisk(c) : null;
 }
 
 function listChallenges(): ChallengeFull[] {
-  return Array.from(cache.values());
+  return Array.from(cache.values()).map(overlayPackFromDisk);
 }
 
 function contentSourceOf(c: ChallengeFull): string | null {
@@ -128,6 +202,7 @@ function listPublicChallenges(): Record<string, unknown>[] {
     problemStatement: c.problemStatement,
     sparkPlatform: c.sparkPlatform || null,
     k8sPlatform: c.k8sPlatform || null,
+    projectPlatform: c.projectPlatform || null,
     boardSpec: publicBoardSpec(c.boardSpec || null),
   }));
 }
@@ -154,6 +229,7 @@ function getPublicChallenge(id: string): Record<string, unknown> | null {
     validationSpec: c.validationSpec,
     sparkPlatform: c.sparkPlatform || null,
     k8sPlatform: c.k8sPlatform || null,
+    projectPlatform: c.projectPlatform || null,
     boardSpec: publicBoardSpec(c.boardSpec || null),
   };
 }

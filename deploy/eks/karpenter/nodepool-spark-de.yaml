@@ -1,0 +1,105 @@
+# Elastic Data Engineer Spark capacity on top of the labs-spark-de managed node
+# group (always-on base, env.sh). Same shape as labs-spark-elastic / t4g.medium,
+# but labeled and tainted spark-de so Platforms Spark and DE Spark do not share
+# nodes. Karpenter buys a node when a DE Spark pod is Pending and removes it
+# when empty.
+#
+# t4g.medium is 2 vCPU / 4 GiB. Perf labs (skew / spill) use fat Parquet and
+# local shuffle spill — disk matches platforms Spark (50 GiB). maxPods 8 =
+# 4 DaemonSets + 4 slots; memory is the real cap.
+# Keep maxPods / kubeReserved / podPidsLimit / disk in sync with EKS_SPARK_DE_* in env.sh.
+#
+# Pods must select and tolerate devlabs.io/pool=spark-de or they stay Pending.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: labs-spark-de-elastic
+spec:
+  role: KarpenterNodeRole-devlabs
+  amiSelectorTerms:
+    - alias: al2023@latest
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: devlabs
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: devlabs
+  kubelet:
+    maxPods: 8
+    kubeReserved:
+      cpu: 70m
+      memory: 343Mi
+      ephemeral-storage: 1Gi
+  userData: |
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+    --BOUNDARY
+    Content-Type: application/node.eks.aws
+
+    apiVersion: node.eks.aws/v1alpha1
+    kind: NodeConfig
+    spec:
+      kubelet:
+        config:
+          podPidsLimit: 1024
+    --BOUNDARY
+    Content-Type: text/x-shellscript; charset="us-ascii"
+
+    #!/bin/bash
+    # Nothing in the labs uses io_uring, and it is a frequent source of kernel privilege
+    # escalation bugs reachable from containers. Same as the managed groups (nodegroups.sh).
+    printf 'kernel.io_uring_disabled = 2\n' > /etc/sysctl.d/90-devlabs-learner.conf
+    sysctl -p /etc/sysctl.d/90-devlabs-learner.conf
+    --BOUNDARY--
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 1
+    httpTokens: required
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+  tags:
+    devlabs.io/pool: spark-de
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: labs-spark-de-elastic
+spec:
+  template:
+    metadata:
+      labels:
+        devlabs.io/pool: spark-de
+        devlabs.io/tier: elastic
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: labs-spark-de-elastic
+      taints:
+        - key: devlabs.io/pool
+          value: spark-de
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["t4g.medium"]
+      expireAfter: 720h
+  # Up to 1 extra t4g.medium (2 vCPU) on top of the base (lean launch cap).
+  limits:
+    cpu: "2"
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m

@@ -24,6 +24,8 @@ const LEASE_TTL_MS = Math.max(20_000, Number(process.env.SESSION_TAB_LEASE_MS ||
 
 type Lease = { clientId: string; seenAt: number };
 const leases = new Map<string, Lease>();
+/** Last successful tab heartbeat (or start claim). Used to end labs after the browser leaves. */
+const lastSeen = new Map<string, number>();
 
 type HttpError = Error & { status?: number; code?: string; details?: Record<string, unknown> };
 
@@ -127,10 +129,16 @@ function onLeaseMoved(listener: LeaseMovedListener): void {
 
 /** Claim / refresh this tab's lease. Returns false when another live tab holds it. */
 function heartbeat(sessionId: string, clientId: string | null, force = false): boolean {
-  if (!clientId) return true;
+  if (!clientId) {
+    // Start paths without a client still count as "someone is here" until a tab claims.
+    lastSeen.set(sessionId, Date.now());
+    return true;
+  }
   if (!force && leaseHeldByOther(sessionId, clientId)) return false;
   const prev = leases.get(sessionId);
-  leases.set(sessionId, { clientId, seenAt: Date.now() });
+  const now = Date.now();
+  leases.set(sessionId, { clientId, seenAt: now });
+  lastSeen.set(sessionId, now);
   if (prev && prev.clientId !== clientId) {
     for (const listener of leaseMovedListeners) {
       try {
@@ -153,6 +161,17 @@ function release(sessionId: string, clientId?: string | null): void {
   if (!lease) return;
   if (clientId && lease.clientId !== clientId) return;
   leases.delete(sessionId);
+  // Keep lastSeen: the abandon sweeper ends the lab shortly after the tab is gone.
+}
+
+function lastSeenAt(sessionId: string): number | null {
+  const at = lastSeen.get(sessionId);
+  return typeof at === 'number' && Number.isFinite(at) ? at : null;
+}
+
+function clearTracking(sessionId: string): void {
+  leases.delete(sessionId);
+  lastSeen.delete(sessionId);
 }
 
 module.exports = {
@@ -162,4 +181,6 @@ module.exports = {
   isLeaseHolder,
   onLeaseMoved,
   release,
+  lastSeenAt,
+  clearTracking,
 };

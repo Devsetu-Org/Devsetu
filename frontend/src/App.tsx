@@ -80,12 +80,14 @@ import {
 import { SPARK_PLAYGROUND_CHALLENGE_ID } from './constants/playgroundDatasets';
 import { PRICING_PATH } from './constants/pricing';
 import { hideAppSplash } from './utils/appSplash';
+import { isProjectChallenge, resolveProjectLabContent } from './utils/projectLabContent';
 import {
   catalogLabPath,
   catalogPathForChallenge,
   isPlayDomainId,
   looksLikePlaySessionId,
-} from './constants/playCatalog';import type {
+} from './constants/playCatalog';
+import type {
   AuthMode,
   PlayState,
   WorkspaceTab,
@@ -262,7 +264,14 @@ export default function App(): React.JSX.Element | null {
 
   /** Leaving the UI used to drop client state only — end on the server so K8s can park/wipe. */
   const endActiveSessionBestEffort = useCallback((session: ActiveSession | null): Promise<void> => {
-    if (!session?.id || session.id.startsWith('pending-k8s-')) return Promise.resolve();
+    if (
+      !session?.id
+      || session.id.startsWith('pending-k8s-')
+      || session.id.startsWith('project-')
+      || session.runtime === 'project'
+    ) {
+      return Promise.resolve();
+    }
     return endSession(session.id).then(
       () => undefined,
       (err: unknown) => {
@@ -414,6 +423,12 @@ export default function App(): React.JSX.Element | null {
     opts?: { force?: boolean; start?: boolean },
   ) => Promise<void>>(async () => {});
 
+  /** Drop ?lab= so PlayPage cannot sit on "Reopening lab" after an open is refused. */
+  const clearLabDeepLink = (): void => {
+    if (!new URLSearchParams(window.location.search).has('lab')) return;
+    navigate(window.location.pathname, { replace: true });
+  };
+
   const handleSelectChallenge = async (
     challenge: ChallengePublic | ChallengeFull,
     opts: { force?: boolean; start?: boolean } = {},
@@ -430,13 +445,16 @@ export default function App(): React.JSX.Element | null {
     }
     if (ACCESS_LOCKED && !isAdminUser(currentUser)) {
       setStartError(ACCESS_LOCKED_OPEN_MSG);
+      clearLabDeepLink();
       return;
     }
     if ((challenge as ChallengePublic).locked) {
       if (ACCESS_LOCKED) {
         setStartError(ACCESS_LOCKED_OPEN_MSG);
+        clearLabDeepLink();
         return;
       }
+      clearLabDeepLink();
       navigate(PRICING_PATH);
       return;
     }
@@ -484,20 +502,65 @@ export default function App(): React.JSX.Element | null {
       } catch (e) {
         if (attempt.stale()) return;
         attempt.settle();
-        const err = e as { response?: { data?: { error?: string } }; message?: string };
-        setActiveChallenge(null);
-        setActiveSession(null);
-        setPlayState('library');
-        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
         const labConflictHit = labConflictFromError(e);
         if (labConflictHit) {
           setLabConflict({ challenge, conflict: labConflictHit });
           return;
         }
+        const err = e as { response?: { data?: { error?: string } }; message?: string };
+        setActiveChallenge(null);
+        setActiveSession(null);
+        setPlayState('library');
+        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
         setStartError(
           err?.response?.data?.error
             || err.message
             || 'Failed to start board session',
+        );
+      }
+      return;
+    }
+
+    // Project labs: coding-minor ModuleWorkspace (editor), no Linux/K8s box.
+    if (isProjectChallenge(challenge)) {
+      try {
+        const full = await fetchChallenge(challenge.id);
+        if (attempt.stale()) return;
+        if (!resolveProjectLabContent(full) && !resolveProjectLabContent(challenge)) {
+          throw new Error('Missing project lab content (minor chapter)');
+        }
+        attempt.settle();
+        setActiveChallenge(full);
+        setActiveSession({
+          id: `project-${full.id}`,
+          startTime: Date.now(),
+          recovered: false,
+          terminalWsUrl: null,
+          metricsWsUrl: null,
+          portMap: null,
+          services: [],
+          terminalService: null,
+          runtime: 'project',
+          labReady: true,
+        });
+        setActiveTab('editor');
+        openingSessionRef.current = `project-${full.id}`;
+        setPlayState('active');
+        const labShelfUrl = catalogLabPath(full.id, full.sandboxType, full.tags);
+        pendingStartPathRef.current = labShelfUrl.split('?')[0];
+        navigate(labShelfUrl, { replace: true });
+      } catch (e) {
+        if (attempt.stale()) return;
+        attempt.settle();
+        const err = e as { response?: { data?: { error?: string } }; message?: string };
+        setActiveChallenge(null);
+        setActiveSession(null);
+        setPlayState('library');
+        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), {
+          replace: true,
+        });
+        setStartError(
+          err?.response?.data?.error || err.message || 'Failed to open project lab',
         );
       }
       return;
@@ -553,16 +616,16 @@ export default function App(): React.JSX.Element | null {
       } catch (e) {
         if (attempt.stale()) return;
         attempt.settle();
-        const err = e as { response?: { data?: { error?: string } }; message?: string };
-        setActiveChallenge(null);
-        setActiveSession(null);
-        setPlayState('library');
-        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
         const labConflictHit = labConflictFromError(e);
         if (labConflictHit) {
           setLabConflict({ challenge, conflict: labConflictHit });
           return;
         }
+        const err = e as { response?: { data?: { error?: string } }; message?: string };
+        setActiveChallenge(null);
+        setActiveSession(null);
+        setPlayState('library');
+        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
         setStartError(
           err?.response?.data?.error
             || err.message
@@ -671,6 +734,8 @@ export default function App(): React.JSX.Element | null {
             || (res.session as { k8sNamespace?: string } | undefined)?.k8sNamespace
             || null,
           labReady: true,
+          // Keep the openSeq so the paced boot stepper can finish matching backend phases.
+          bootSeq: attempt.openSeq,
         });
         setActiveChallenge(hydrated);
         openingSessionRef.current = res.sessionId;
@@ -685,20 +750,35 @@ export default function App(): React.JSX.Element | null {
           lockLab(err?.response?.data?.error || null);
           return;
         }
-        setActiveChallenge(null);
-        setActiveSession(null);
-        setPlayState('library');
-        navigate(catalogPathForChallenge(challenge.id, challenge.sandboxType, challenge.tags), { replace: true });
+        // Another lab (or tab) is open — keep this lab's brief on screen and ask.
         const labConflictHit = labConflictFromError(e);
         if (labConflictHit) {
+          setActiveSession({
+            ...pendingSession,
+            machineCheck: null,
+            labReady: false,
+            notStarted: true,
+          });
+          setPlayState('active');
+          openingSessionRef.current = pendingId;
+          navigate(labShelfUrl, { replace: true });
           setLabConflict({ challenge, conflict: labConflictHit });
           return;
         }
-        setStartError(
-          err?.response?.data?.error
-            || err.message
-            || 'Failed to start Kubernetes lab session',
-        );
+        // Keep the boot stepper up with the failure — do not bounce to "Start machine"
+        // while a pod may still be Running from the failed open.
+        const setupMsg = String(err?.response?.data?.error || err.message || '').trim();
+        const shortMsg = setupMsg
+          ? (setupMsg.length > 280 ? `${setupMsg.slice(0, 277)}…` : setupMsg)
+          : 'Could not finish starting this lab.';
+        setActiveSession({
+          ...pendingSession,
+          machineCheck: 'failed',
+          machineCheckMessage: shortMsg,
+        });
+        setPlayState('active');
+        openingSessionRef.current = pendingId;
+        navigate(labShelfUrl, { replace: true });
       }
       return;
     }
@@ -1205,6 +1285,43 @@ export default function App(): React.JSX.Element | null {
   ]);
 
   /**
+   * Pack JSON is hot-overlaid on the backend. Refetch the open challenge so
+   * Description/title updates without a full page reload (authoring + local
+   * NODE_ENV=production setups).
+   */
+  useEffect(() => {
+    const id = activeChallenge?.id;
+    if (!id || (playState !== 'active' && playState !== 'loading')) return undefined;
+    let cancelled = false;
+    const tick = async (): Promise<void> => {
+      try {
+        const full = await fetchChallenge(id);
+        if (cancelled) return;
+        setActiveChallenge((prev) => {
+          if (!prev || prev.id !== id) return prev;
+          if (
+            prev.title === full.title
+            && prev.description === full.description
+            && JSON.stringify(prev.problemStatement) === JSON.stringify(full.problemStatement)
+            && prev.difficulty === full.difficulty
+          ) {
+            return prev;
+          }
+          return { ...prev, ...full };
+        });
+      } catch {
+        /* ignore — backend may be restarting */
+      }
+    };
+    void tick();
+    const timer = window.setInterval(() => { void tick(); }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeChallenge?.id, playState]);
+
+  /**
    * The lab's fixed time ran out: keep the brief up and replace the shell with
    * a screen to start again. Returns false for other runtimes, which keep the ended dialog.
    */
@@ -1452,7 +1569,7 @@ export default function App(): React.JSX.Element | null {
           <Route path="track/spark-playground" element={<ContentOpenRoute><SparkPlaygroundPage /></ContentOpenRoute>} />
           <Route
             path="track/data-engineer/spark/intro"
-            element={<Navigate to="/track/platforms-engineer/spark" replace />}
+            element={<Navigate to="/track/data-engineer/spark" replace />}
           />
           <Route
             path="track/devops-engineer/kubernetes/intro"
@@ -1485,6 +1602,10 @@ export default function App(): React.JSX.Element | null {
           <Route
             path="track/platforms-engineer/spark/read/:readingSlug"
             element={<ContentOpenRoute><K8sReadingPage trackId="spark" /></ContentOpenRoute>}
+          />
+          <Route
+            path="track/software-engineer/git/read/:readingSlug"
+            element={<ContentOpenRoute><K8sReadingPage trackId="git" /></ContentOpenRoute>}
           />
           <Route path="track/:domainId/:panelId/leaderboard" element={<TrackLeaderboardPage />} />
           <Route path="track/:domainId" element={<PlayPage />} />
@@ -1524,7 +1645,7 @@ export default function App(): React.JSX.Element | null {
         cancelLabel="Cancel"
         onCancel={() => setLabConflict(null)}
         onConfirm={() => {
-          if (labConflict) void handleSelectChallenge(labConflict.challenge, { force: true });
+          if (labConflict) void handleSelectChallenge(labConflict.challenge, { force: true, start: true });
         }}
       >
         {labConflict?.conflict.code === 'LAB_OPEN_IN_OTHER_TAB' ? (
@@ -1582,6 +1703,8 @@ export default function App(): React.JSX.Element | null {
               ? 'Your cluster will be stopped. Applications running in this lab are removed.'
               : activeChallenge?.sandboxType === 'k8s-platform'
                 ? 'Your cluster will be stopped. Everything in this lab is removed.'
+                : activeChallenge?.sandboxType === 'kubernetes'
+                  ? 'Your lab namespace will be cleaned up and the machines can sleep. Work in this session is removed.'
                 : isBoxChallenge(activeChallenge)
               ? 'Your machine will be stopped. All unsaved progress will be removed.'
               : 'You will leave this lab. Unsaved changes on the machine may be lost.'}

@@ -14,6 +14,7 @@ const k8sLifecycle = require('../workspace/k8sLifecycle');
 const k8sCapacity = require('../workspace/k8sCapacity');
 const k8sGrade = require('../workspace/k8sGrade');
 const k8sLabFiles = require('../workspace/k8sLabFiles');
+const boxLabFiles = require('../workspace/boxLabFiles');
 const linuxBox = require('../workspace/linuxBox');
 const { isBoxLabType } = require('../challenges/labTypes');
 const { isLinuxBlogPlayground } = require('../challenges/linuxPlayground');
@@ -113,7 +114,7 @@ function getK8sSession(id: string, res: ExpressResponse): GameSession | null {
   return session;
 }
 
-/** Kubernetes-flavor labs only: learner kubectl and the lab-home file editor have no box-lab counterpart. */
+/** Kubernetes-flavor labs only (host lab-home / learner kubectl). Linux boxes use box file APIs. */
 function getKubectlLabSession(id: string, res: ExpressResponse): GameSession | null {
   const session = getK8sSession(id, res);
   if (!session) return null;
@@ -122,6 +123,33 @@ function getKubectlLabSession(id: string, res: ExpressResponse): GameSession | n
     return null;
   }
   return session;
+}
+
+/** Active k8s session whose files the browser editor can open (kubectl home or linux box ~). */
+function getEditorLabSession(id: string, res: ExpressResponse): {
+  session: GameSession;
+  ns: string;
+  mode: 'k8s' | 'linux';
+} | null {
+  const session = getK8sSession(id, res);
+  if (!session) return null;
+  const sandboxType = loader.getChallenge(String(session.challengeId || ''))?.sandboxType;
+  if (sandboxType === 'linux') {
+    return {
+      session,
+      ns: String(session.k8sNamespace || session.workspacePrefix),
+      mode: 'linux',
+    };
+  }
+  if (isBoxLabType(sandboxType)) {
+    res.status(409).json({ error: 'Editor is not available in this lab type yet' });
+    return null;
+  }
+  return {
+    session,
+    ns: String(session.k8sNamespace || session.workspacePrefix),
+    mode: 'k8s',
+  };
 }
 
 function parseSparkKnobs(raw: unknown): Record<string, string> | undefined {
@@ -647,22 +675,22 @@ router.get('/:id/k8s/submissions', requireSessionAccess, async (req: ExpressRequ
 });
 
 function sendLabFileError(e: unknown, res: ExpressResponse, next: ExpressNextFunction): void {
-  if (e instanceof k8sLabFiles.LabFileError) {
+  if (e instanceof k8sLabFiles.LabFileError || e instanceof boxLabFiles.LabFileError) {
     res.status((e as { status: number }).status).json({ error: (e as Error).message });
     return;
   }
   next(e);
 }
 
-// Editor files in the learner's lab home (the terminal's working directory).
-type LabFilesHandler = (ns: string, req: ExpressRequest) => unknown;
+// Editor files: kubectl lab home on the host, or ~/ inside a linux box pod.
+type LabFilesHandler = (ctx: { ns: string; mode: 'k8s' | 'linux' }, req: ExpressRequest) => unknown | Promise<unknown>;
 
 function labFilesRoute(handler: LabFilesHandler) {
-  return (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
+  return async (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): Promise<void> => {
     try {
-      const session = getKubectlLabSession(req.params.id, res);
-      if (!session) return;
-      res.json(handler(String(session.k8sNamespace || session.workspacePrefix), req));
+      const ctx = getEditorLabSession(req.params.id, res);
+      if (!ctx) return;
+      res.json(await handler({ ns: ctx.ns, mode: ctx.mode }, req));
     } catch (e) {
       sendLabFileError(e, res, next);
     }
@@ -673,40 +701,69 @@ function bodyOf(req: ExpressRequest): Record<string, unknown> {
   return (req.body as Record<string, unknown>) || {};
 }
 
+const filesApi = {
+  listDir: (ctx: { ns: string; mode: 'k8s' | 'linux' }, dir: unknown) => (
+    ctx.mode === 'linux' ? boxLabFiles.listDir(ctx.ns, dir) : k8sLabFiles.listDir(ctx.ns, dir)
+  ),
+  listAllFolders: (ctx: { ns: string; mode: 'k8s' | 'linux' }) => (
+    ctx.mode === 'linux' ? boxLabFiles.listAllFolders(ctx.ns) : k8sLabFiles.listAllFolders(ctx.ns)
+  ),
+  createFolder: (ctx: { ns: string; mode: 'k8s' | 'linux' }, path: unknown) => (
+    ctx.mode === 'linux' ? boxLabFiles.createFolder(ctx.ns, path) : k8sLabFiles.createFolder(ctx.ns, path)
+  ),
+  readFile: (ctx: { ns: string; mode: 'k8s' | 'linux' }, path: unknown) => (
+    ctx.mode === 'linux' ? boxLabFiles.readFile(ctx.ns, path) : k8sLabFiles.readFile(ctx.ns, path)
+  ),
+  writeFile: (ctx: { ns: string; mode: 'k8s' | 'linux' }, path: unknown, content: unknown) => (
+    ctx.mode === 'linux' ? boxLabFiles.writeFile(ctx.ns, path, content) : k8sLabFiles.writeFile(ctx.ns, path, content)
+  ),
+  renameEntry: (ctx: { ns: string; mode: 'k8s' | 'linux' }, from: unknown, to: unknown) => (
+    ctx.mode === 'linux' ? boxLabFiles.renameEntry(ctx.ns, from, to) : k8sLabFiles.renameEntry(ctx.ns, from, to)
+  ),
+  deleteFolder: async (ctx: { ns: string; mode: 'k8s' | 'linux' }, path: unknown) => {
+    if (ctx.mode === 'linux') await boxLabFiles.deleteFolder(ctx.ns, path);
+    else k8sLabFiles.deleteFolder(ctx.ns, path);
+  },
+  deleteFile: async (ctx: { ns: string; mode: 'k8s' | 'linux' }, path: unknown) => {
+    if (ctx.mode === 'linux') await boxLabFiles.deleteFile(ctx.ns, path);
+    else k8sLabFiles.deleteFile(ctx.ns, path);
+  },
+};
+
 router.get('/:id/k8s/files', requireSessionAccess, labFilesRoute(
-  (ns, req) => k8sLabFiles.listDir(ns, req.query.dir),
+  async (ctx, req) => filesApi.listDir(ctx, req.query.dir),
 ));
 
 router.get('/:id/k8s/folders', requireSessionAccess, labFilesRoute(
-  (ns) => ({ folders: k8sLabFiles.listAllFolders(ns) }),
+  async (ctx) => ({ folders: await filesApi.listAllFolders(ctx) }),
 ));
 
 router.post('/:id/k8s/folders', requireSessionAccess, express.json({ limit: '16kb' }), labFilesRoute(
-  (ns, req) => ({ path: k8sLabFiles.createFolder(ns, bodyOf(req).path) }),
+  async (ctx, req) => ({ path: await filesApi.createFolder(ctx, bodyOf(req).path) }),
 ));
 
 router.get('/:id/k8s/file', requireSessionAccess, labFilesRoute(
-  (ns, req) => k8sLabFiles.readFile(ns, req.query.path),
+  async (ctx, req) => filesApi.readFile(ctx, req.query.path),
 ));
 
 router.put('/:id/k8s/file', requireSessionAccess, express.json({ limit: '512kb' }), labFilesRoute(
-  (ns, req) => ({ file: k8sLabFiles.writeFile(ns, bodyOf(req).path, bodyOf(req).content) }),
+  async (ctx, req) => ({ file: await filesApi.writeFile(ctx, bodyOf(req).path, bodyOf(req).content) }),
 ));
 
 router.post('/:id/k8s/files/rename', requireSessionAccess, express.json({ limit: '16kb' }), labFilesRoute(
-  (ns, req) => k8sLabFiles.renameEntry(ns, bodyOf(req).from, bodyOf(req).to),
+  async (ctx, req) => filesApi.renameEntry(ctx, bodyOf(req).from, bodyOf(req).to),
 ));
 
 router.delete('/:id/k8s/folders', requireSessionAccess, labFilesRoute(
-  (ns, req) => {
-    k8sLabFiles.deleteFolder(ns, req.query.path);
+  async (ctx, req) => {
+    await filesApi.deleteFolder(ctx, req.query.path);
     return { ok: true };
   },
 ));
 
 router.delete('/:id/k8s/file', requireSessionAccess, labFilesRoute(
-  (ns, req) => {
-    k8sLabFiles.deleteFile(ns, req.query.path);
+  async (ctx, req) => {
+    await filesApi.deleteFile(ctx, req.query.path);
     return { ok: true };
   },
 ));
@@ -1226,7 +1283,7 @@ router.post('/:id/end', async (req: ExpressRequest, res: ExpressResponse, next: 
     }
 
     terminalEventBus.emit('session_end', { sessionId });
-    sessionExclusivity.release(sessionId);
+    sessionExclusivity.clearTracking(sessionId);
 
     res.json({
       sessionId,

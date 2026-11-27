@@ -29,7 +29,16 @@ export interface ValidationSpec {
  * shared spark-platform batch runtime). Linux, Docker, Kafka, and Spark run on the
  * kubernetes session runtime.
  */
-export type SandboxType = 'compose' | 'spark-platform' | 'board' | 'kubernetes' | 'linux' | 'docker' | 'kafka' | 'spark';
+export type SandboxType =
+  | 'compose'
+  | 'spark-platform'
+  | 'board'
+  | 'kubernetes'
+  | 'linux'
+  | 'docker'
+  | 'kafka'
+  | 'spark'
+  | 'project';
 
 export interface K8sPlatformSpec {
   quota?: { pods?: string; cpu?: string; memory?: string };
@@ -204,6 +213,13 @@ export interface ChallengePublic {
   sparkPlatform?: SparkPlatformSpec | null;
   k8sPlatform?: K8sPlatformSpec | null;
   boardSpec?: PublicBoardSpec | null;
+  /** Present when sandboxType === 'project' — opens ModuleWorkspace from a minor chapter. */
+  projectPlatform?: {
+    minorId: string;
+    chapterId: string;
+    taskId?: string;
+    language?: string;
+  } | null;
 }
 
 export type BoardLaneId = string;
@@ -325,6 +341,8 @@ export interface ChallengeFull extends ChallengePublic {
   /** Present when sandboxType is 'kubernetes' or 'linux'. */
   k8sPlatform?: K8sPlatformSpec | null;
   boardSpec?: PublicBoardSpec | null;
+  /** Present when sandboxType === 'project'. */
+  projectPlatform?: ChallengePublic['projectPlatform'];
 }
 
 // ── App-level state types ─────────────────────────────────────────────────────

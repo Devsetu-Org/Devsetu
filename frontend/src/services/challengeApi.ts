@@ -62,8 +62,7 @@ export type ChallengeContentTab =
   | 'spec'
   | 'cluster'
   | 'knobs'
-  | 'solution'
-  | 'moat';
+  | 'solution';
 
 export async function saveChallengeContent(
   id: string,
