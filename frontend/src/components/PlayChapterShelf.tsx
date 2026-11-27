@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { PlayChapter, PlayChapterLab } from '../constants/playCatalog';
 import { MINORS_PATH } from '../constants/minors';
 import type { ChallengePublic } from '../types/domain';
-import { visibilityMark } from '../constants/roles';
 import { IconCoins, IconLock } from './ChromeIcons';
 import { StatusBookIcon } from './TrackStatusIcons';
 
@@ -46,6 +45,7 @@ interface PlayChapterShelfProps {
   byId: Map<string, ChallengePublic>;
   search: string;
   onSelectChallenge: (challenge: ChallengePublic) => void | Promise<void>;
+  /** @deprecated Visibility letters no longer show on chapter rows. */
   showVisibilityMarks?: boolean;
   readingFor?: (chapter: PlayChapter) => ChapterReadingLink | null;
 }
@@ -55,7 +55,6 @@ export default function PlayChapterShelf({
   byId,
   search,
   onSelectChallenge,
-  showVisibilityMarks = false,
   readingFor,
 }: PlayChapterShelfProps): JSX.Element {
   const navigate = useNavigate();
@@ -165,7 +164,6 @@ export default function PlayChapterShelf({
                 const solved = Boolean(challenge?.solved);
                 const showFree = lab.free && !billingLocked;
                 const tokens = labTokens(challenge);
-                const vis = challenge ? visibilityMark(challenge.visibleTo) : null;
 
                 return (
                   <li key={lab.key}>
@@ -208,25 +206,10 @@ export default function PlayChapterShelf({
                         </span>,
                         <span
                           key="meta"
-                          className={[
-                            'play-chapter-lab-meta',
-                            showFree && !solved ? 'play-chapter-lab-meta--free' : '',
-                            showVisibilityMarks && vis ? 'play-chapter-lab-meta--staff' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                          className={`play-chapter-lab-meta${showFree && !solved ? ' play-chapter-lab-meta--free' : ''}`}
                         >
                           {showFree && !solved ? (
                             <span className="play-chapter-lab-free">Free</span>
-                          ) : null}
-                          {showVisibilityMarks && vis ? (
-                            <span
-                              className={`play-visibility-badge play-visibility-badge--${vis.key}`}
-                              title={vis.label}
-                              aria-label={vis.label}
-                            >
-                              {vis.letter}
-                            </span>
                           ) : null}
                           {challenge ? (
                             <span className="play-problem-tokens" title={`${tokens} tokens`}>
