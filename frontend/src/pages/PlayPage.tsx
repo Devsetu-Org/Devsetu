@@ -46,6 +46,7 @@ import { ACCESS_LOCKED, ACCESS_LOCKED_OPEN_MSG } from '../constants/accessLock';
 import { visibilityMark } from '../constants/roles';
 import ProjectLabWorkspace from '../components/ProjectLabWorkspace';
 import { isProjectChallenge } from '../utils/projectLabContent';
+import { displayChallengeTitle } from '../utils/challengeTitle';
 
 function panelLabCount(panel: PlayPanel): number {
   return panel.challengeIds.length;
@@ -663,7 +664,7 @@ function LibraryView({ challenges, challengesError, startError, onSelectChalleng
                                 {trackId}
                               </span>
                               <span className="play-problem-title">
-                                {challenge.title}
+                                {displayChallengeTitle(challenge.id, challenge.title)}
                                 {locked ? (
                                   <span className="play-problem-lock" aria-label="Locked">
                                     <IconLock size={13} />
