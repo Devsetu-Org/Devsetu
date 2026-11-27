@@ -1,0 +1,46 @@
+---
+description: Structuring and voice rules for Software Engineering Git blogs (B0+)
+globs: frontend/src/constants/gitReadings.ts,frontend/src/components/GitReadingAnims.tsx
+alwaysApply: false
+---
+
+# Git blogs (Software Engineer track)
+
+Apply when editing Git reading copy or blog figures. Audience is beginners; scope stays teaching-complete, language stays plain.
+
+## Voice
+
+- Prefer everyday words over jargon. Introduce the idea first, then the Git term (`saved version` → later `commit`; `fingerprint` → later `hash`).
+- Lede under the title sets *why / what this post covers* — never jump into commands (`git add`, branches, push) that belong in a later blog.
+- When a code sample introduces an opaque address or flag (`user@host:path.git`, `-u`, `-x`, `HEAD~1`), explain each part in plain language next to the sample.
+- **Code blocks: max 3–4 commands.** Put a blank line between commands. Comment each non-obvious line (`# create the tag on the current tip`). Prefer bisect-manual style: short subsection → small sample → next step — not one long fence.
+- Same content scope is fine; rewrite for clarity, not for denser expertise.
+
+## Structure
+
+- One job per `h2`: one question, one answer. Do not merge origin story + design list + next steps into one section.
+- **Explain → figure → practice takeaway.** Plain prose first, then the diagram, then one short “what this means if Wi‑Fi drops / on a team” paragraph when useful.
+- Next-step sections are a short bridge paragraph only. Do not stack a second takeaway callout on top of Takeaways.
+- **Callout boxes: max 2 per blog.** Prefer tip / warn / idea that teach something body copy does not already say. Skip decorative summary chips (`The job, in one line`, `Origin → ship a change`).
+- **Callout body: 2–3 sentences**, not a one-liner. State the rule, why it matters, and what to do (or what goes wrong if you ignore it). Fold extra tips into section body instead of adding a third box.
+- Takeaways: 3–4 concrete bullets in beginner language.
+
+## Diagrams (`GitReadingAnims`)
+
+- Labels must match the reader’s world: `Your laptop`, `Teammate`, `Shared Remote (e.g. GitHub)`, `v1`/`v2` — not opaque `C1` or unexplained “working copy only”.
+- Side-by-side comparisons need a visible teaching asymmetry (e.g. server holds history / laptops don’t vs every laptop holds history + offline `+v4`).
+- Caption restates the comparison in one skimable sentence.
+- Defer clone / stage / commit / push / three-trees visuals to the blog that teaches that loop (usually B2+; B1 is hosts).
+
+## Examples
+
+```text
+❌ Lede: Before `git add` and branches, why invent a tool like this…
+✅ Lede: Before learning any commands, why does Git exist at all?
+
+❌ Callout: Origin → ship a change / one-liner tip / 4+ boxes per blog
+✅ Max 2 callouts per blog; each body is 2–3 sentences (rule + why + what to do)
+
+❌ Diagram: “you / working copy only” vs abstract C1–C3 clones
+✅ Diagram: Central Server (only history) vs Shared Remote + laptops with full v1–v3 and offline +v4
+```

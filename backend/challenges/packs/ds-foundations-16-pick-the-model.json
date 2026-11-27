@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-16-pick-the-model",
+  "number": 716,
+  "finalized": true,
+  "title": "Capstone: Pick the Model",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nProduct asks: \"Can we make the whole trip object linearizable?\" You answer with a table, not a vibe.\n\n**YOUR TASK:**\n\nImplement Lab 4.4 (`TODO(4.4)`).\n\nFill and wire:\n\n| Field | Model | Why |\n| --- | --- | --- |\n| Trip owner / lifecycle | | |\n| Cancel | | |\n| ETA | | |\n| Location / nearby | | |\n\nWrong model for ownership fails. Over-strong model for location fails a latency budget assertion.\n\n**SPEC:**\n\n- Explicit per-field model map\n- Ownership remains linearizable / strong\n- Location/nearby remain weaker or eventual\n- Closes Consistency\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-consistency",
+    "l2",
+    "design",
+    "capstone"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Wrong model for ownership fails.",
+      "Over-strong model for location fails a latency budget.",
+      "Table: field → model → why.",
+      "Reuse 4.1–4.3 primitives."
+    ],
+    "overview": "Assign a consistency model per Fleetline field and defend it.",
+    "brief": "Wire owner, cancel, ETA, and location each to the right model.",
+    "solution": "",
+    "idLabel": "16",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "consistency",
+      "taskId": "4.4",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

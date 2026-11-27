@@ -1,0 +1,59 @@
+{
+  "id": "git-16-sync-shared-feature-after-rejected-push",
+  "number": 615,
+  "finalized": true,
+  "title": "Bring Priya's Invite Branch Into Yours",
+  "description": "**SITUATION:**\n\nForgeboard is adding **workspace invites**. On this team nobody shares one long-lived feature branch — each developer owns a branch named for the feature and themselves.\n\nYou are on `feature/workspace-invites-ada` in `~/sprint-service` with your work: a preview path helper in `src/invites.py` and a draft README note for the preview banner. Priya finished her side on `feature/workspace-invites-priya` — an invite redeem audit helper in `src/invite_audit.py` plus README docs for eight-character redeem codes and `/invites/redeem` — then left for vacation. That branch is on the forge only; you will not see it locally until you **fetch**.\n\nJordan asked you to pull her finished branch into yours so the invite work lives in one place for review: fetch her branch, bring it into `feature/workspace-invites-ada`, keep **both** README notes if they conflict, and push **your** branch. Do not change `main`, and leave her remote branch as she left it.\n\nYour identity (Ada Learner) is already configured. Start on `feature/workspace-invites-ada` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. **Fetch** from `origin` and find `feature/workspace-invites-priya`.\n2. Bring Priya's branch into `feature/workspace-invites-ada` (merge or rebase). Keep your `src/invites.py` and her `src/invite_audit.py`. If `README.md` conflicts, keep both the eight-character redeem note and your preview-banner docs, then finish the integrate.\n3. Push `feature/workspace-invites-ada` to `origin`. Do not push or update `main`. Leave a clean working tree.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "fetch",
+    "merge",
+    "rebase",
+    "collaboration",
+    "chapter-collaboration"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git fetch origin && git branch -a — look for origin/feature/workspace-invites-priya",
+      "On your branch: git merge origin/feature/workspace-invites-priya (or rebase onto it). Code files should merge cleanly.",
+      "If README.md conflicts, keep Priya's eight-character redeem note and your preview-banner docs; remove conflict markers.",
+      "git push -u origin feature/workspace-invites-ada. Leave main and her remote branch alone."
+    ],
+    "overview": "Priya finished `feature/workspace-invites-priya` and left. Fetch it into `feature/workspace-invites-ada`, keep both code files and both README notes, push your branch.",
+    "brief": "Fetch `feature/workspace-invites-priya` into your ada branch, resolve README (keep both notes), push `feature/workspace-invites-ada`. Leave `main` alone.",
+    "solution": "# Solution — Bring Priya's Invite Branch Into Yours\n\nPriya finished `feature/workspace-invites-priya` and left. Integrate that tip into `feature/workspace-invites-ada`, keep both code helpers and both README notes, push **your** branch. Leave `main` alone.\n\n## 1. Fetch her branch\n\n```bash\ncd ~/sprint-service\ngit fetch origin\ngit branch -a\ngit log --oneline --graph --all --decorate\n```\n\n## 2. Bring her work into yours\n\n```bash\ngit switch feature/workspace-invites-ada\ngit merge origin/feature/workspace-invites-priya\n```\n\n`src/invites.py` and `src/invite_audit.py` should merge cleanly. `README.md` may conflict.\n\n## 3. Resolve README — keep both docs\n\nCombine Priya's eight-character redeem note **and** your preview-banner docs. Remove every conflict marker.\n\n```bash\nnano README.md\ngit add README.md\ngit commit   # finish the merge (or git rebase --continue if you rebased)\n```\n\n## 4. Push your branch\n\n```bash\ngit push -u origin feature/workspace-invites-ada\n```\n\nDo not push `main`, and do not rewrite her remote branch.\n",
+    "idLabel": "16",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

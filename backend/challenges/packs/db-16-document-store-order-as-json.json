@@ -1,0 +1,51 @@
+{
+  "id": "db-16-document-store-order-as-json",
+  "number": 635,
+  "finalized": true,
+  "title": "Document Store: Order as JSON",
+  "description": "**SITUATION:**\n\nThe order page always reads one order with everything on it. The team prototypes a document model using PostgreSQL `jsonb` in a table `order_docs(id, doc jsonb)` (the same ideas as a MongoDB collection). Insert a nested order and query by nested fields.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Insert the nested order document from your ticket as **one row** of `order_docs`.\n2. Write a query returning the `order_id` of orders in the ticket's city that contain the ticket's SKU.\n3. Save it to `~/answers/query.sql`.\n\n**SPEC:**\n\n- `order_docs` has exactly one new document for the ticket's order id, with the nested `customer` and a 2-element `items` array\n- Query output: one column, `doc ->> 'order_id'`\n- Matches orders where `customer.city` equals the ticket city AND some item has the ticket sku\n- The new document must appear in the result\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "jsonb",
+    "document",
+    "nosql"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`INSERT INTO order_docs (doc) VALUES ('{...}');` — copy the JSON from the ticket.",
+      "`doc #>> '{customer,city}' = 'Pune'`",
+      "`doc -> 'items' @> '[{\"sku\": \"SKU-003\"}]'`"
+    ],
+    "overview": "Document Store: Order as JSON",
+    "brief": "Document Store: Order as JSON",
+    "solution": "## 1. Why a document?\n\nThe order page reads one order with its customer and items every time. In a relational schema that is four tables and joins; as a **document** it is one row (one read) holding the nested structure. The price: the customer's name/city is copied into each order document (denormalised), and cross-order analytics are harder.\n\n`jsonb` stores JSON in a binary, indexable form. A `MongoDB` collection is the same idea.\n\n## 2. Insert the nested order\n\nUse the values from **your** ticket:\n\n```sql\nINSERT INTO order_docs (doc) VALUES ('{\n  \"order_id\": 9421,\n  \"status\": \"pending\",\n  \"total\": 487.00,\n  \"customer\": { \"id\": 7, \"name\": \"Ada Learner\", \"city\": \"Pune\" },\n  \"items\": [\n    { \"sku\": \"SKU-003\", \"qty\": 2, \"price\": 199.00 },\n    { \"sku\": \"SKU-947\", \"qty\": 1, \"price\": 89.00 }\n  ]\n}');\n```\n\nItems live **inside** the document as an array, not in another table.\n\n## 3. Query by nested fields\n\n```sql\nSELECT doc ->> 'order_id'\nFROM order_docs\nWHERE doc #>> '{customer,city}' = 'Pune'\n  AND doc -> 'items' @> '[{\"sku\": \"SKU-003\"}]';\n```\n\n- `->` returns JSON, `->>` returns text; `#>>` follows a path.\n- `@>` means \"contains\": the items array contains an object with that `sku`. Extra keys (qty, price) are allowed.\n- The row you inserted must be in the result.\n\n## 4. (Optional) make it fast\n\n```sql\nCREATE INDEX order_docs_doc_gin ON order_docs USING gin (doc jsonb_path_ops);\n```\n\nA GIN index accelerates `@>` lookups across all documents.\n\n## 5. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "16",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

@@ -1,0 +1,62 @@
+{
+  "id": "git-02-branch-for-the-flag-fix",
+  "number": 601,
+  "finalized": true,
+  "title": "Branch the Flag Fix into Atomic Commits",
+  "description": "**SITUATION:**\n\nForgeboard ships from `main`. That branch stays deployable — nobody lands work straight on it, even a one-line config rescue.\n\nSomeone set `agentic_sprints_default = full` on `main`, so **every** enterprise got the full agentic-sprint toolkit. Early access was supposed to stay tenant-by-tenant. You already fixed the default back to `beta` in your working tree, and while you were in there you also documented how to run the service in `README.md` and added a version banner in `src/main.py`. All three edits are still uncommitted — one giant dirty diff on top of a broken `main`.\n\nCore will not take a dump onto `main`, and they will not take a single \"stuff\" commit either. Open a short-lived fix branch, turn the mess into **three** commits a reviewer can skim (one story each), push that branch to the team remote, and leave `main` exactly where you found it.\n\nYour identity (`Ada Learner`) is already configured. `origin` already points at `git.forgeboard.internal`.\n\n**YOUR TASK:**\n\n1. In `~/sprint-service`, create a branch named `fix/agentic-default` from `main` (your dirty edits travel with you).\n2. On that branch, create **exactly three** commits — one per file — covering `config/app.conf`, `README.md`, and `src/main.py`, each with a clear, specific subject.\n3. Push `fix/agentic-default` to `origin`. Do not push or update `main`. Leave a clean working tree without losing or altering any edit.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "branches",
+    "commits",
+    "staging",
+    "history",
+    "config",
+    "chapter-commits-and-branches"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "Start with `git status` and `git diff` so you see every dirty file.",
+      "Branch first: `git switch -c fix/agentic-default`. Uncommitted edits come with you.",
+      "Do not commit on `main`. `git show main:config/app.conf` should still show `agentic_sprints_default = full`.",
+      "Stage one file at a time — avoid `git add .` so each commit stays one story.",
+      "`git diff --staged` shows exactly what the next commit will contain.",
+      "When the three commits look right: `git push -u origin fix/agentic-default`. Do not push `main`."
+    ],
+    "overview": "Open a fix branch, land three atomic commits, push the branch, and leave main untouched.",
+    "brief": "Open a fix branch, land three atomic commits, push the branch, and leave main untouched.",
+    "solution": "# Solution — Branch the Flag Fix into Atomic Commits\n\n## 1. Look around\n\n```bash\ncd ~/sprint-service\ngit status\ngit diff --stat\ngit remote -v\ngrep agentic_sprints_default config/app.conf\n```\n\n`main` still has the bug committed. Your working tree already holds three uncommitted edits. `origin` is the team forge.\n\n## 2. Branch first\n\n```bash\ngit switch -c fix/agentic-default\ngit branch --show-current\n```\n\n## 3. One commit per file\n\n```bash\ngit add config/app.conf\ngit diff --staged\ngit commit -m \"Keep agentic sprints default on beta for tenant rollouts\"\n\ngit add README.md\ngit commit -m \"Document how to run sprint-service locally\"\n\ngit add src/main.py\ngit commit -m \"Add version constant and print it in the banner\"\n```\n\n## 4. Push the fix branch (not main)\n\n```bash\ngit push -u origin fix/agentic-default\ngit status\ngit log --stat --oneline --all --graph\ngit show main:config/app.conf | grep agentic_sprints_default\n```\n\nIf a commit grabbed too much: `git reset --soft HEAD~1` (or `git reset HEAD~1`), then stage more carefully.\n",
+    "idLabel": "02",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

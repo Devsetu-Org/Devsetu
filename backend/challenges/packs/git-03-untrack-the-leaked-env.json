@@ -1,0 +1,58 @@
+{
+  "id": "git-03-untrack-the-leaked-env",
+  "number": 602,
+  "finalized": true,
+  "title": "Untrack the Leaked Local Env",
+  "description": "**SITUATION:**\n\nYou are continuing work on `fix/agentic-default` in `~/sprint-service` — the branch holding your change that sets Forgeboard's global agentic-sprints default back to beta. While testing the service locally for a tenant, a local environment file named `.env.local` was accidentally committed and pushed to this branch.\n\nThat `.env.local` file holds machine-specific settings — a local API key override and a debug tenant flag. Personal settings and keys like that must never be tracked in Git, because anyone who clones the repository or reviews your branch would receive them. Running sprint-service locally also created a generated cache file at `.cache/board.json`. It is currently untracked, and build or runtime cache files like that should never end up in a commit by accident.\n\nCore will not approve a branch that tracks local secret files. You still need `.env.local` on your own machine to keep testing locally, so do not delete the file from disk — instead, stop Git from tracking it in the repository, and tell Git to ignore both `.env.local` and the `.cache/` directory going forward so neither can slip into future commits. Commit that cleanup on `fix/agentic-default` and push the branch to the team remote for review.\n\nYour identity (Ada Learner) is already configured, and `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Configure Git to ignore both `.env.local` and the `.cache/` directory, and remove `.env.local` from tracking without deleting it from disk.\n2. Commit that cleanup on `fix/agentic-default` and push the branch to `origin` for review. Do not push or update `main`. Leave a clean working tree with `.env.local` still on disk.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "gitignore",
+    "rm-cached",
+    "secrets",
+    "agentic-default",
+    "chapter-commits-and-branches"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "`git ls-files .env.local` — tracked. `git rm --cached .env.local` — untrack without deleting.",
+      "Add `.env.local` and `.cache/` to `.gitignore`.",
+      "Commit the cleanup, then push `fix/agentic-default`. Leave main alone."
+    ],
+    "overview": "Local secrets and cache leaked onto `fix/agentic-default`. Untrack `.env.local`, ignore it and `.cache/`, push — leave `main` alone.",
+    "brief": "Untrack `.env.local`, ignore `.env.local` and `.cache/`, commit and push `fix/agentic-default`. Leave `main` alone.",
+    "solution": "# Solution — Untrack the Leaked Local Env\n\n`.env.local` is committed on `fix/agentic-default`; `.cache/` should never be added. Untrack, ignore, commit, push. Leave `main` alone.\n\n## 1. See the leak\n\n```bash\ncd ~/sprint-service\ngit ls-files .env.local\nls -la .env.local .cache\n```\n\n## 2. Ignore\n\n```bash\ncat >> .gitignore <<'EOF'\n.env.local\n.cache/\nEOF\n```\n\n## 3. Untrack without deleting\n\n```bash\ngit rm --cached .env.local\n```\n\n## 4. Commit and push\n\n```bash\ngit add .gitignore\ngit commit -m \"Stop tracking local env used for agentic debug\"\ngit push origin fix/agentic-default\n```\n",
+    "idLabel": "03",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 5
+}

@@ -1,0 +1,59 @@
+{
+  "id": "git-01-first-commit-on-sprint-service",
+  "number": 600,
+  "finalized": true,
+  "title": "Clone, Commit, and Push",
+  "description": "**SITUATION:**\n\nYou just joined Forgeboard as an intern on the **Core** team. Everyone contributes to the same codebase — sprint-service — hosted at `git.forgeboard.internal`. Your laptop does not have a copy yet; you need to clone it into your home directory before you can change anything.\n\nForgeboard supports **agentic sprints** as well as classic ones. The feature is still in **beta**, so every enterprise only gets a limited option set. Yesterday Core decided to roll the **full** toolkit out to two early-access enterprises and watch how it goes: `helix-robotics` and `lumen-retail`.\n\nJordan asked you to flip those two tenants to `full` in `config/app.conf`, commit the change, and push it on `main` so the rest of Core can see it. Leave every other line alone — including the global default and every other tenant.\n\nNothing is under `~/sprint-service` until you clone. Configure your Git identity before you commit.\n\n**YOUR TASK:**\n\n1. From your home directory, clone the team repo at `learner@git.forgeboard.internal:/srv/git/sprint-service.git` so you have `~/sprint-service`.\n2. Set your Git identity to name `Ada Learner` and email `ada@forgeboard.internal`.\n3. In `config/app.conf`, under `[agentic_sprints.tenants]`, set `helix-robotics` and `lumen-retail` to `full`. Leave every other line alone.\n4. Commit that change with a short message that says what you changed, then push it to `origin` on `main`. Leave a clean working tree.\n",
+  "difficulty": "L0",
+  "tags": [
+    "git",
+    "l0",
+    "commits",
+    "clone",
+    "push",
+    "config",
+    "chapter-commits-and-branches"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "From home: `cd ~` then `git clone learner@git.forgeboard.internal:/srv/git/sprint-service.git` (creates `~/sprint-service`).",
+      "Git won't commit until it knows your name: `git config --global user.name \"Ada Learner\"`, then the same for `user.email` (`ada@forgeboard.internal`).",
+      "Before you commit, `git diff` should show exactly two changed lines under `[agentic_sprints.tenants]` (`helix-robotics` and `lumen-retail`).",
+      "After `git commit`, run `git push origin main`. Submit checks the team remote on git.forgeboard.internal, not only your laptop copy."
+    ],
+    "overview": "Clone sprint-service from `git.forgeboard.internal`, set identity, flip `helix-robotics` and `lumen-retail` to `full`, commit, and push on `main`.",
+    "brief": "Clone, set identity, flip two early-access tenants to `full`, commit, push `main`.",
+    "solution": "# Solution — Clone, Commit, and Push\n\nCore's git host is **git.forgeboard.internal**. Clone over SSH, change config, commit, and push.\n\n## 1. Clone into your home directory\n\nNothing is pre-placed under `~/sprint-service`. Clone from home so Git creates the folder:\n\n```bash\ncd ~\ngit clone learner@git.forgeboard.internal:/srv/git/sprint-service.git\ncd sprint-service\ngit remote -v\ngit log --oneline\n```\n\nOne commit from Priya. `origin` points at `learner@git.forgeboard.internal:...`.\n\n## 2. Configure your identity\n\nGit refuses to commit without a name and email:\n\n```bash\ngit config --global user.name \"Ada Learner\"\ngit config --global user.email \"ada@forgeboard.internal\"\ngit config --global --list | grep user\n```\n\n## 3. Edit the config\n\nFlip only **helix-robotics** and **lumen-retail** to `full`. Leave `agentic_sprints_default` and every other tenant on `beta`.\n\n```bash\nnano config/app.conf\ngit diff\n```\n\n`git diff` should show exactly two changed lines under `[agentic_sprints.tenants]`.\n\n## 4. Stage, commit, and push\n\n```bash\ngit add config/app.conf\ngit commit -m \"Enable full agentic sprints for early-access enterprises\"\ngit push origin main\ngit status\ngit log --oneline\n```\n\nThen **Submit**. The grader checks identity, your local commit, that only those two tenant flags changed, and that **remote `main` matches your HEAD**.\n",
+    "idLabel": "01",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 5
+}

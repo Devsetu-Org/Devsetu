@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-18-ap-reconcile",
+  "number": 718,
+  "finalized": true,
+  "title": "AP and Reconciliation",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\n**Nearby drivers / ETA** stay available under partition (**AP**). West shows five cars; East shows three different ones. Riders still see *something*. When the partition heals, reconcile.\n\nYou must not \"reconcile\" by also merging conflicting **owners** — that stays CP from 5.1.\n\n**YOUR TASK:**\n\nImplement Lab 5.2 (`TODO(5.2)`).\n\n1. Soft reads succeed on both sides during partition (possibly divergent).\n2. On heal, merge location sets with a stated rule.\n3. Assert ownership never takes the AP path.\n\n**SPEC:**\n\n- Soft reads available on both sides under partition\n- Post-heal convergence for soft state\n- Ownership remains CP / fail-closed\n- Document the merge rule\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-cap",
+    "l2",
+    "cap",
+    "ap",
+    "reconcile"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Soft reads succeed on both sides during partition.",
+      "Ownership must never take the AP path.",
+      "Merge rule e.g. last-write-wins per driver id with vector/meta.",
+      "Divergent maps are OK temporarily."
+    ],
+    "overview": "Keep nearby/ETA available under partition; reconcile soft state on heal.",
+    "brief": "AP path for map reads with a stated merge rule on heal.",
+    "solution": "",
+    "idLabel": "18",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "cap",
+      "taskId": "5.2",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

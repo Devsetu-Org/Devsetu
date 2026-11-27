@@ -1,0 +1,59 @@
+{
+  "id": "git-13-blame-who-changed-this-line",
+  "number": 612,
+  "finalized": true,
+  "title": "Blame the Notify Batch Multiplier",
+  "description": "**SITUATION:**\n\nWhen a card moves on a Forgeboard sprint board, **board-notify** queues a Slack ping for watchers. sprint-service does not flush the whole queue at once. On a timer it runs a **notify cycle**: one cycle does **one batch** — take up to N waiting events and send **one Slack webhook for each**. So batch size N is how many Slack messages that cycle is allowed to send:\n\n`N = BASE_BATCH × NOTIFY_BATCH_MULTIPLIER`\n\nA small multiplier (for peak board-load hours) raises N so the queue drains a bit faster. It does not resend the same card, and it does not mean nine separate cycles at once — only a larger N in that one batch.\n\nThis morning the multiplier is wrong. With `NOTIFY_BATCH_MULTIPLIER` at 9.0, each cycle is allowed to send roughly **nine times** as many Slack messages as usual. Slack is rate-limiting those webhooks, deliveries fail, and #incidents is filling up with the failures.\n\nJordan traced the blast to one line in `src/board_notify.py` under `~/sprint-service`:\n\n`NOTIFY_BATCH_MULTIPLIER = 9.0  # peak board-load hours`\n\nOther people edited the same file later — including lines next to this one — so the file's overall history will not point at the right person. Jordan needs whoever **last changed that line**, so she can ping them for a revert. She handed you the follow-up: find that author. Investigation only — do not change the repo.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`.\n\n**YOUR TASK:**\n\n1. Find the commit that last modified the `NOTIFY_BATCH_MULTIPLIER` line in `src/board_notify.py` (whole-file history will mislead you).\n2. Confirm that commit actually changed that line, then write the author's email to `~/answers/author-email`.\n3. Leave the repository untouched — HEAD, history, and a clean working tree stay as you found them.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "blame",
+    "log",
+    "investigation",
+    "chapter-history-and-recovery"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "`git blame -e src/board_notify.py` annotates every line with the last author email.",
+      "Narrow with: `git blame -e -L '/^NOTIFY_BATCH_MULTIPLIER/,+1' src/board_notify.py`",
+      "Later commits changed other lines in the file; blame already accounts for that. The first commit of the file is not the answer.",
+      "Write only the email into `~/answers/author-email`. Leave the repo untouched."
+    ],
+    "overview": "Each notify cycle sends up to N = BASE_BATCH × NOTIFY_BATCH_MULTIPLIER Slack messages. The multiplier is 9.0 — find who last changed that line in `src/board_notify.py`. Do not change the repo.",
+    "brief": "Find who last changed the `NOTIFY_BATCH_MULTIPLIER` line in `src/board_notify.py`. Write their email to `~/answers/author-email`. Do not change the repo.",
+    "solution": "# Solution — Blame the Notify Batch Multiplier\n\nOps is seeing ~9× notify batch sizes. Jordan handed you finding who last changed `NOTIFY_BATCH_MULTIPLIER` — line history, not whole-file history. Investigation only; do not edit the repo.\n\n## 1. Blame the file\n\n```bash\ncd ~/sprint-service\ngit blame -e src/board_notify.py\n```\n\n```text\n^a1b2c3d (<priya@forgeboard.internal> ... 1) \"\"\"Sprint board notify batching…\"\"\"\n...\n5e6f7a8b (<someone@forgeboard.internal> ... 5) NOTIFY_BATCH_MULTIPLIER = 9.0  # peak board-load hours\n```\n\nEach line shows the commit that last changed **that line**.\n\n## 2. Narrow it down\n\n```bash\ngit blame -e -L '/^NOTIFY_BATCH_MULTIPLIER/,+1' src/board_notify.py\n```\n\n## 3. Confirm with the commit\n\n```bash\ngit show <sha>\ngit log -L '/^NOTIFY_BATCH_MULTIPLIER/,+1:src/board_notify.py'\n```\n\nYou will see the line go `1.0` → `1.2` → `9.0`; the last commit in that chain is your answer.\n\n## 4. Write the answer\n\n```bash\ngit log -1 --format=%ae <sha> > ~/answers/author-email\ncat ~/answers/author-email\n```\n\n## Traps\n\n- The author of the **first** commit created the file, not the bad value.\n- Another person edited the **neighbouring** lines later — whole-file `git log` is misleading; line-level blame is precise.\n",
+    "idLabel": "13",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 5
+}

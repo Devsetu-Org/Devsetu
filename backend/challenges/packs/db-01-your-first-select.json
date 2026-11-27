@@ -1,0 +1,50 @@
+{
+  "id": "db-01-your-first-select",
+  "number": 620,
+  "finalized": true,
+  "title": "Your First SELECT",
+  "description": "**SITUATION:**\n\nOps pings the backend channel: \"What did we take on yesterday?\" The QuickBite orders live in a PostgreSQL database on your dev box. Your ticket names one business date for **this** session.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Open `psql` and explore the `orders` table (`\\d orders`).\n2. Write a `SELECT` that returns every order created on the ticket's business date.\n3. Save it to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `id`, `status`, `total`\n- Whole calendar day: from 00:00 up to (not including) the next midnight\n- Sorted by `id` ascending\n- Read-only: do not change data\n- File: `~/answers/query.sql`\n",
+  "difficulty": "L0",
+  "tags": [
+    "databases",
+    "l0",
+    "sql",
+    "select",
+    "filter"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`created_at` is a `timestamp`. A date filter must cover the whole day.",
+      "`\\d orders` shows the column names and types.",
+      "Write `ORDER BY id` — the grader compares rows in order."
+    ],
+    "overview": "Your First SELECT",
+    "brief": "Your First SELECT",
+    "solution": "## 1. Read the ticket\n\n```bash\ncat ~/ticket/TASK.md\n```\n\nNote the business date. It is different in every session.\n\n## 2. Look around\n\n```bash\npsql\n```\n\n```sql\n\\dt\n\\d orders\nSELECT * FROM orders LIMIT 5;\n```\n\n`created_at` is a `timestamp`, so \"the whole day\" means from midnight up to (but not including) the next midnight.\n\n## 3. Write the query\n\nReplace the date with the one from your ticket:\n\n```sql\nSELECT id, status, total\nFROM orders\nWHERE created_at >= DATE '2026-11-03'\n  AND created_at <  DATE '2026-11-03' + 1\nORDER BY id;\n```\n\n`created_at::date = '2026-11-03'` also returns the right rows. The range form is the habit to build: it lets Postgres use an index on `created_at` later.\n\n## 4. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "01",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

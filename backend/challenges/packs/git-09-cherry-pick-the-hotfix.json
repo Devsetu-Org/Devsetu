@@ -1,0 +1,61 @@
+{
+  "id": "git-09-cherry-pick-the-hotfix",
+  "number": 608,
+  "finalized": true,
+  "title": "Land the Nightly Crash Hotfix on Release 2.1",
+  "description": "**SITUATION:**\n\nProduction still runs `release/2.1`. Overnight the nightly board-summary job crashed on empty sprint boards and paged on-call — and tonight's run will crash again unless the right fix lands on that release line.\n\nSomeone already hot-patched `release/2.1` with a **temporary** batch helper in `src/sprints.py` that just returns the card count — no empty-board guard. That is not safe for production. Priya fixed it properly this morning: clamp the batch size so an empty board cannot blow up. She committed it on `main` as a `HOTFIX`: … but two **unreleased** capacity-planning commits sit under that tip. Those must **not** ship in 2.1.\n\nOps needs **only** her production-safe clamp on `release/2.1` before tonight's deploy — not the capacity work under it on `main`, and not the release line's naive temporary helper. Bringing all of `main` onto the release would break the freeze. Get her fix onto the release tip. If Git stops because both sides touched the same helper, keep **Priya's safe empty-board clamp**, clear the conflict, finish applying the fix, then update `origin` so Ops can see it. Do not change or push `main`.\n\nYou are Ada Learner. Open `~/sprint-service` — you start on `main`. `origin` is `git.forgeboard.internal`.\n\n**YOUR TASK:**\n\n1. Find the hotfix commit on `main` (subject starts with `HOTFIX`:).\n2. Get **only** that fix onto `release/2.1` — the release tip should gain one new commit and must not pick up unreleased capacity work.\n3. If Git stops on `src/sprints.py`, resolve using the situation (keep Priya's safe clamp; remove conflict markers), then finish applying the fix.\n4. Update `origin` with the new `release/2.1` tip so Ops can deploy. Do not push `main`.\n5. Leave the working tree clean; leave `main` untouched. Optionally write the hotfix SHA (from `main`) to `~/answers/hotfix-sha`.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "cherry-pick",
+    "release",
+    "hotfix",
+    "conflict",
+    "push",
+    "chapter-merging-and-rebasing"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git log --oneline main — find the commit whose subject starts with HOTFIX: (the empty-board batch clamp). Capacity commits sit under it; you want only the hotfix.",
+      "git switch release/2.1 then git cherry-pick <sha>. Merging main would bring src/capacity.py into the release — that fails the lab.",
+      "The pick will stop on src/sprints.py: release already has a temporary helper, the HOTFIX rewrites the same function. Keep Priya's safe empty-board clamp (if card_count <= 0 → return 1; else min with the batch cap). Remove every <<<<<<< ======= >>>>>>> marker, git add src/sprints.py, then git cherry-pick --continue.",
+      "After the pick, origin still has the old release tip. Publish with: git push origin release/2.1. Plain push is enough — the tip only moved forward.",
+      "Leave main exactly as you found it — do not push or rewrite it. Optional: echo the hotfix SHA into ~/answers/hotfix-sha."
+    ],
+    "overview": "Tonight's board-summary job will crash again unless Priya's empty-board hotfix replaces the naive temporary helper on `release/2.1` — without capacity work from `main` — then update origin for Ops.",
+    "brief": "Get only the HOTFIX empty-board clamp from `main` onto `release/2.1` (resolve the sprints.py conflict keeping her safe clamp), update origin for Ops, leave `main` alone.",
+    "solution": "# Solution — Cherry-Pick the Nightly Crash Hotfix\n\nProduction runs `release/2.1`. That line already has a temporary `digest_batch_size` with no empty-board guard. Priya's real fix is on `main` (`HOTFIX:` …) but two unreleased capacity commits sit under it — merge would drag those into 2.1. Cherry-pick **only** the hotfix onto the release tip; Git will stop on `src/sprints.py`. Keep her safe clamp, continue, then push `release/2.1` so Ops can pick it up. Leave `main` alone.\n\n## 1. Find the hotfix\n\n```bash\ncd ~/sprint-service\ngit log --oneline main\n```\n\nCopy the SHA whose subject starts with `HOTFIX:`.\n\n## 2. Cherry-pick onto the release branch\n\n```bash\ngit switch release/2.1\ngit cherry-pick <hotfix-sha>\n```\n\nGit stops on `src/sprints.py` — release's temporary helper vs Priya's clamp.\n\n## 3. Resolve the conflict\n\nKeep **Priya's** production-safe empty-board clamp (`if card_count <= 0: return 1`, then `min(card_count, …)`). Drop the temporary `return card_count` helper. Delete every conflict marker.\n\n```bash\nnano src/sprints.py\ngrep -nE '^(<<<<<<<|=======|>>>>>>>)' src/sprints.py   # should print nothing\ngit add src/sprints.py\ngit cherry-pick --continue\nls src/   # no capacity.py\n```\n\nExactly one new commit on the release tip beyond the pre-pick tip. New SHA is expected — that is normal for a cherry-pick.\n\n## 4. Push the release tip\n\nA local cherry-pick does not update the forge. Ops needs `release/2.1` on `origin` before tonight's deploy. Plain push — the tip only moved forward:\n\n```bash\ngit push origin release/2.1\n```\n\nDo **not** push or rewrite `main`.\n\n## 5. Optional\n\n```bash\nmkdir -p ~/answers\necho <hotfix-sha> > ~/answers/hotfix-sha\n```\n\n## Notes\n\n- Merging `main` into `release/2.1` fails the lab — unreleased capacity lands with it.\n- Keeping the release's temporary helper fails — the empty board still crashes.\n- Leave `main` exactly as you found it.\n- This lab has no pull-request UI; the push is the finish line.\n",
+    "idLabel": "09",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

@@ -1,0 +1,51 @@
+{
+  "id": "db-15-schema-migration-add-a-column",
+  "number": 634,
+  "finalized": true,
+  "title": "Schema Migration: Add a Column",
+  "description": "**SITUATION:**\n\nRiders keep missing customers' delivery notes. Product approved a new `delivery_instructions` field on every order. You will ship it the right way: as a migration script that can be re-run.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Write `~/answers/migration.sql` that adds `orders.delivery_instructions TEXT` if it does not exist.\n2. Backfill pending orders with the text from your ticket.\n3. Apply it with `psql -f` and verify.\n\n**SPEC:**\n\n- Column `delivery_instructions`, type `TEXT`, nullable, no default\n- Every `pending` order has the ticket's text; every other order stays `NULL`\n- Uses `IF NOT EXISTS`; running it twice succeeds\n- No existing order data changes\n- The grader drops the column, replays your file, and runs it a second time\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "migration",
+    "ddl",
+    "alter-table"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_instructions TEXT;`",
+      "`UPDATE orders SET delivery_instructions = '...' WHERE status = 'pending';`",
+      "Run the file twice: the second run must not error."
+    ],
+    "overview": "Schema Migration: Add a Column",
+    "brief": "Schema Migration: Add a Column",
+    "solution": "## 1. What a migration is\n\nA migration is a **script under version control** that moves the schema from one state to the next, so every environment (your laptop, staging, prod) gets the same change in the same order. You never hand-edit production in a psql prompt and forget what you did.\n\n## 2. Write it re-runnable\n\nUse the backfill text from your ticket:\n\n```sql\n-- 2026-11: add delivery instructions\nBEGIN;\n\nALTER TABLE orders\n  ADD COLUMN IF NOT EXISTS delivery_instructions TEXT;\n\nUPDATE orders\nSET delivery_instructions = 'Leave at the gate'\nWHERE status = 'pending';\n\nCOMMIT;\n```\n\n- `ADD COLUMN IF NOT EXISTS` makes the DDL a no-op on the second run.\n- `TEXT`, nullable, no default: existing rows get `NULL` instantly, with no table rewrite.\n- The `UPDATE` is idempotent: running it again writes the same value to the same rows.\n- Wrapping it in `BEGIN`/`COMMIT` means a failure halfway does not leave a half-migrated table (Postgres DDL is transactional).\n\n## 3. Apply and verify\n\n```bash\nnano ~/answers/migration.sql\npsql -f ~/answers/migration.sql\npsql -f ~/answers/migration.sql     # run it again: must not error\n```\n\n```sql\n\\d orders\nSELECT status, count(*), count(delivery_instructions) FROM orders GROUP BY status;\n```\n\nOnly the `pending` row counts should be non-zero in the last column. Then **Submit**.\n",
+    "idLabel": "15",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

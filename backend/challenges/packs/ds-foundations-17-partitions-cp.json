@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-17-partitions-cp",
+  "number": 717,
+  "finalized": true,
+  "title": "Partitions and CP",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nA fiber cut isolates Region West from Region East. Both still have riders and drivers. If both keep matching independently, one trip gets two drivers. If both stop, nobody rides.\n\nFor **trip assignment**, Fleetline chooses **CP**: prefer refusing a match over double-assigning.\n\n**YOUR TASK:**\n\nImplement Lab 5.1 (`TODO(5.1)`).\n\n1. Partition the lab into two sides; only one side may successfully `MatchDriver` for a given trip.\n2. Minority side fails closed on strong mutations.\n3. Some clients correctly see unavailability.\n\n**SPEC:**\n\n- Never two owners for one trip across the partition\n- Minority MatchDriver fails closed\n- Soft map behavior is out of scope until 5.2\n- Document which side is primary / majority\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-cap",
+    "l2",
+    "cap",
+    "cp",
+    "partition"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Only one side may successfully MatchDriver for a given trip.",
+      "Minority returns unavailable / try again.",
+      "Never two owners across the partition.",
+      "Availability of Match may drop — that is the CP choice."
+    ],
+    "overview": "Under partition, refuse MatchDriver on the minority rather than double-assign.",
+    "brief": "Fail closed on strong match mutations in a minority partition.",
+    "solution": "",
+    "idLabel": "17",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "cap",
+      "taskId": "5.1",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

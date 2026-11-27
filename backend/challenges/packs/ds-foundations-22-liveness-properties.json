@@ -1,0 +1,44 @@
+{
+  "id": "ds-foundations-22-liveness-properties",
+  "number": 722,
+  "finalized": true,
+  "title": "Liveness Properties",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\n**Liveness:** something good eventually happens. \"A willing rider gets matched when the network allows\" is liveness. \"Always match within 30s\" is a real-time SLO — related, not identical.\n\n**YOUR TASK:**\n\nImplement Lab 6.2 (`TODO(6.2)`).\n\n1. Progress test: with a live driver and fair-enough delivery, Requested becomes Assigned within a bound.\n2. Counterexample schedule where messages are forever delayed and progress fails.\n3. Distinguish SLO (wall-clock) from eventual progress (logical).\n\n**SPEC:**\n\n- Fair schedule reaches Assigned\n- Adversarial delay schedule does not\n- Document the fairness assumption\n- Do not claim unconditional 30s matches\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-safety-liveness",
+    "l2",
+    "progress"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Liveness needs assumptions; finite traces alone cannot prove it.",
+      "SLO (wall-clock) is a cousin, not pure liveness.",
+      "Fair delivery + live driver → Assigned within a bound.",
+      "Forever-delayed messages → progress fails."
+    ],
+    "overview": "Under fairness assumptions, Requested trips eventually Assign.",
+    "brief": "Progress test plus a forever-delayed counterexample schedule.",
+    "solution": "",
+    "idLabel": "22",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "safety-liveness",
+      "taskId": "6.2",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

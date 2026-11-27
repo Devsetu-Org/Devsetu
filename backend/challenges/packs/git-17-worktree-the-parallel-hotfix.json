@@ -1,0 +1,58 @@
+{
+  "id": "git-17-worktree-the-parallel-hotfix",
+  "number": 616,
+  "finalized": true,
+  "title": "Parallel Webhook Hotfix with a Worktree",
+  "description": "**SITUATION:**\n\nForgeboard is adding **outbound webhooks** so enterprise tenants can push card events into their own tools. You are on `feature/webhook-delivery` in `~/sprint-service` with committed delivery scaffolding plus an **uncommitted** retry-backoff edit in `src/webhooks.py`. The backoff constants are still placeholders; Product has not signed off, so leave that dirty tree exactly where it is.\n\nOps needs webhook calls to fail fast after **30 seconds**. On `main`, `webhook_timeout_seconds` is still 0 under `[webhooks]`, so hung receivers hold worker threads until the deploy pages. Jordan asked you to open a short fix branch **from today's `main`** (not from the feature), set only that timeout to 30, and push the fix for review. The fix should carry exactly one new commit beyond `main` — the config change — and must not include the backoff WIP. Do not change `main` yourself.\n\nYou need both checkouts at once: keep the feature WIP open in `~/sprint-service`, and land the hotfix in a **second working copy** of the same repo (same Git database, different directory). When the fix is pushed, remove that extra copy and end back on the feature with your WIP still dirty.\n\nYour identity (Ada Learner) is already configured. Start on `feature/webhook-delivery` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Leave the uncommitted `src/webhooks.py` edit on `feature/webhook-delivery` exactly as it is — do **not** commit it and do **not** switch that tree away from the feature.\n2. Add a second working copy based on `main`, on a new branch named `fix/webhook-timeout-30` (a path such as `~/sprint-webhook-fix` is fine). In that copy, set `webhook_timeout_seconds` to 30, commit only that config change, and push the branch for review.\n3. Remove the extra working copy and return to `~/sprint-service` on `feature/webhook-delivery` with the same dirty WIP. Leave `main` untouched locally and on the remote.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "worktree",
+    "hotfix",
+    "collaboration",
+    "chapter-collaboration"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git worktree add -b fix/webhook-timeout-30 ~/sprint-webhook-fix main",
+      "In ~/sprint-webhook-fix: set webhook_timeout_seconds = 30, commit, git push -u origin fix/webhook-timeout-30",
+      "Back in ~/sprint-service: git worktree remove ~/sprint-webhook-fix (or remove --force if needed)",
+      "Leave main alone. The feature tree in ~/sprint-service should still show the dirty backoff edit when you finish."
+    ],
+    "overview": "Dirty webhook backoff WIP stays on `feature/webhook-delivery`. Second working copy lands and pushes `fix/webhook-timeout-30` from `main`, then you remove it — WIP intact, main untouched.",
+    "brief": "Keep WIP on `feature/webhook-delivery`. Second working copy: `fix/webhook-timeout-30` (timeout 30), push, remove the copy. Leave `main` alone.",
+    "solution": "# Solution — Parallel Webhook Hotfix with a Worktree\n\nDirty webhook backoff WIP stays on `feature/webhook-delivery`. Ops needs `webhook_timeout_seconds = 30` on a fix branch for review. Use a **second worktree** so both checkouts exist at once — hotfix in one directory, WIP untouched in the other.\n\n## 1. See the dirty tree\n\n```bash\ncd ~/sprint-service\ngit status\ngit branch --show-current   # feature/webhook-delivery\n```\n\n## 2. Add a worktree from main\n\n```bash\ngit worktree add -b fix/webhook-timeout-30 ~/sprint-webhook-fix main\n```\n\n## 3. Ship the hotfix in the worktree\n\n```bash\ncd ~/sprint-webhook-fix\nnano config/app.conf   # webhook_timeout_seconds = 30\ngit add config/app.conf\ngit commit -m \"Set webhook timeout to 30 seconds\"\ngit push -u origin fix/webhook-timeout-30\n```\n\n## 4. Remove the worktree and return\n\n```bash\ncd ~/sprint-service\ngit worktree remove ~/sprint-webhook-fix\ngit status\n```\n",
+    "idLabel": "17",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

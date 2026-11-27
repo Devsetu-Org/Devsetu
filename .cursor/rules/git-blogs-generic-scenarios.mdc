@@ -1,0 +1,41 @@
+---
+description: Keep Git blog explanations generic — never lean on lab/challenge storylines
+globs: frontend/src/constants/gitReadings.ts,frontend/src/components/GitReadingAnims.tsx
+alwaysApply: false
+---
+
+# Git blogs: generic scenarios only
+
+Teaching copy and diagrams must stand alone. Do not explain concepts through the planted lab story, challenge IDs, or repo-specific plot.
+
+## Do not use in body, lede, figures, or callouts
+
+- Challenge / lab plot details: sprint service, order-processor, flag fix, agentic branch, board-summary hotfix, release/2.1 Ops deploy, leaked env, etc.
+- Challenge-flavored file or config names: `feature_login_default`, planted paths unique to a lab.
+- **Lab-matching numbers and setups** a student could copy-paste: same tag/version (`v2.2.0`, `hotfix/2.1.1`), ticket prefix (`FB-`), conflict values (`channel = slack|email`), branch/doc names that are one-word swaps of the lab, identical hook regexes, or the same commit subjects as graders.
+- Phrases that assume the reader is inside a challenge: “in this lab you will…”, “the labs make you prove…”, “after these labs you are ready for the capstone…” inside concept sections.
+- Wiring teaching examples to `gatedByChallengeId` / related-lab labels beyond a short, generic “Related labs” / “Practice next” pointer.
+
+## Use instead
+
+- Generic team situations: “a shared project on GitHub”, “you and a teammate”, “a bug fix while someone else ships a feature”, “a release branch vs main”.
+- Neutral names in snippets with **different** values from the labs: `my-project`, `fix/rollout-guard`, `settings/flags.toml`, `release/3.4`, `v4.0.0` / `hotfix/3.9.1`, `TKT-42` — teach the pattern, not the lab answer.
+- Point to labs only at the edge: Related labs links, or one sentence like “Practice this loop in the next lab” with no challenge plot.
+
+## Examples
+
+```text
+❌ Someone flipped `feature_login_default` to `full` on main — rescue it for the flag-fix lab…
+✅ A bad default landed on `main`. Open a short-lived fix branch so deployable `main` stays clean while you repair it.
+
+❌ In the next lab you land tonight’s board-summary hotfix on `release/2.1` so Ops can deploy…
+✅ Cherry-pick lets you copy one commit onto a release branch without bringing every unreleased change from `main`.
+
+❌ Blog uses `git tag -a v2.2.0` and `hotfix/2.1.1` when the lab grades those exact names…
+✅ Blog uses `v4.0.0` / `hotfix/3.9.1`; labs keep their own versions.
+
+❌ These ideas show up on the planted order-processor repo…
+✅ (Omit from concept copy; leave planting to the lab brief.)
+```
+
+`relatedLabs` / `gatedByChallengeId` metadata may still reference challenge IDs — that is wiring, not teaching narrative.

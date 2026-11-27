@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-03-changing-untrusted-network",
+  "number": 703,
+  "finalized": true,
+  "title": "The Changing, Untrusted Network",
+  "description": "**SITUATION:**\n\nYou are on the **Fleetline** dispatch team. The path between phone and dispatch is not a fixed, trusted LAN.\n\nA buggy or malicious client can **replay** an old `ConfirmPickup`. Soft updates can arrive late and look like they belong to a session that already ended. If every byte is treated as gospel, a stale confirm can resurrect a cancelled trip.\n\nFleetline assumed a secure, unchanging topology. Neither is true.\n\nThis lab is **standalone**. You implement a freshness guard — not retries.\n\n**YOUR TASK:**\n\nImplement `Guard.Accept` in `internal/session/accept.go`.\n\n```\nAccept(tripID string, sessionEpoch, seq uint64) bool\n```\n\n1. First accept for a trip succeeds and records `(sessionEpoch, seq)`.\n2. Later accepts require a strictly newer pair: higher epoch, or same epoch with higher seq.\n3. Identical or behind pairs return false.\n\n**SPEC:**\n\n- First mutation per trip → true\n- Replay / behind → false\n- Newer seq or newer epoch → true\n- Trips are independent\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** (`make test`) in the editor.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-fallacies",
+    "l1",
+    "replay",
+    "session",
+    "fallacies"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Store the last accepted (epoch, seq) per tripID.",
+      "Strictly newer means epoch > prev, or epoch == prev and seq > prev.",
+      "Equal pairs are replays — reject them."
+    ],
+    "overview": "Stale sessions and replayed confirms must not corrupt trip ownership. Guard.Accept fences them.",
+    "brief": "Implement Guard.Accept: reject stale or replayed strong mutations.",
+    "solution": "",
+    "idLabel": "03",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "fallacies-1.3",
+      "taskId": "1.3",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

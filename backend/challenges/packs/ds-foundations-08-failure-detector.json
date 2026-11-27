@@ -1,0 +1,46 @@
+{
+  "id": "ds-foundations-08-failure-detector",
+  "number": 708,
+  "finalized": true,
+  "title": "Capstone: The Failure Detector",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nDispatch must decide: is this driver still there? A perfect detector is impossible on an asynchronous network. A useful one is not.\n\nToo aggressive and you reassign on every cellular spike (safety risk — two drivers). Too timid and riders wait on a ghost.\n\n**YOUR TASK:**\n\nImplement Lab 2.4 (`TODO(2.4)`).\n\n1. A timeout-based failure detector with heartbeat / lease on the driver session.\n2. Crashed drivers are eventually suspected.\n3. Delayed-but-alive drivers should not constantly flap under the lab delay profile.\n\nDocument the tradeoff: faster detection vs false suspects. This foreshadows safety vs liveness.\n\n**SPEC:**\n\n- Missing heartbeats beyond the lease → suspect\n- Alive-but-delayed under the lab profile should not flap every tick\n- Suspicion is not the same as hard delete of trip ownership (reassign policy is separate)\n- Closes Partial Failure\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-partial-failure",
+    "l1",
+    "failure-detector",
+    "partial-failure",
+    "capstone"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Heartbeats or leases on the driver session.",
+      "Too aggressive → flapping reassigns (safety risk).",
+      "Too timid → riders wait on a ghost.",
+      "A perfect detector is impossible on a fully async network."
+    ],
+    "overview": "Suspect vanished drivers without flapping on cellular delay.",
+    "brief": "Build a timeout/lease detector for driver presence.",
+    "solution": "",
+    "idLabel": "08",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "partial-failure",
+      "taskId": "2.4",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

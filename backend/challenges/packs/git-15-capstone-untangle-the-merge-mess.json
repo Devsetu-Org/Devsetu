@@ -1,0 +1,60 @@
+{
+  "id": "git-15-capstone-untangle-the-merge-mess",
+  "number": 614,
+  "finalized": true,
+  "title": "Capstone: Untangle the Invite Merge Mess",
+  "description": "**SITUATION:**\n\nA colleague left `~/sprint-service` in a bad state right as Product is locking **workspace invites** for the next enterprise rollout.\n\n**HEAD is detached** — they checked out a commit instead of a branch and made a commit (Document workspace invites in README) that no branch points to. From there they started merging `feature/workspace-invites` and stopped on a conflict in `config/app.conf`. Leftover files from the failed attempt are still on disk (`config/app.conf.orig`, `config/app.conf.rej`).\n\n`main` itself still points at its hotfix tip. Ops signed off on `invite_link_ttl_hours = 168` (a full week) — not either side of the conflict — and that value must win. Jordan asked you to untangle the mess so `main` ends clean with the hotfix, the invites feature, and the orphaned README commit.\n\nYour identity (Ada Learner) is already configured. Start in `~/sprint-service` (**detached HEAD**, merge in progress).\n\n**YOUR TASK:**\n\n1. Resolve the conflict in `config/app.conf` with `invite_link_ttl_hours = 168`, keep `workers = 4` and the `[invites]` redeem settings, finish the merge, and remove leftover `.orig` / `.rej` files so they are not committed.\n2. Re-attach to `main` so it contains the hotfix, the whole workspace-invites feature, and the README commit. End on `main` with a clean working tree — no merge in progress, no conflict markers.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "capstone",
+    "detached-head",
+    "merge",
+    "recovery",
+    "chapter-collaboration"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "git status and git log --oneline --graph --all show detached HEAD and the merge in progress.",
+      "In config/app.conf set invite_link_ttl_hours = 168 (Ops), keep workers = 4 and redeem settings; git add and commit to finish the merge.",
+      "Delete config/app.conf.orig and config/app.conf.rej so they never land on main.",
+      "Move the recovered tip onto main (e.g. git branch -f main HEAD && git switch main) so main is not left detached."
+    ],
+    "overview": "Detached HEAD, half-finished invites merge, orphaned README commit, leftover `.orig`/`.rej`. End clean on `main` with `invite_link_ttl_hours` = 168.",
+    "brief": "Untangle detached HEAD + invites merge conflict. TTL 168 on `main`, keep hotfix and feature history, clean tree.",
+    "solution": "## 1. Diagnose\n\n```bash\ncd ~/sprint-service\ngit status\ngit log --oneline --graph --all\n```\n\nYou will see: HEAD detached, `MERGE_HEAD` present, `config/app.conf` unmerged, two untracked leftover files, and a commit not reachable from any branch.\n\n## 2. Resolve the conflict\n\n```bash\ncat config/app.conf\n```\n\nKeep a single `invite_link_ttl_hours = 168` under `[invites]`, keep `workers = 4` and `redeem_code_length = 8`, and delete all marker lines.\n\n```bash\nnano config/app.conf\ngrep -n '<<<<<<<\\|=======\\|>>>>>>>' config/app.conf || echo \"no markers\"\n```\n\n## 3. Clean up leftovers\n\n```bash\nrm config/app.conf.orig config/app.conf.rej\n```\n\n## 4. Finish the merge\n\n```bash\ngit add -A\ngit commit --no-edit\ngit log --oneline --graph --all\n```\n\nThe merge commit's first parent is the orphaned \"Document workspace invites in README\" commit, so it is now in this line of history.\n\n## 5. Re-attach `main`\n\n```bash\ngit switch -C main          # point main at this commit and check it out\ngit branch --show-current   # main\n```\n\n`main`'s old tip (the hotfix) is an ancestor of the merge, so nothing is lost.\n\n## 6. Verify\n\n```bash\ngit status\ngit log --oneline --graph\ngit show main:config/app.conf\nls config                   # no .orig / .rej\n```\n\n## Lessons\n\n- A detached HEAD is fine for looking around; commit there and you must save the work (`git switch -c <branch>`).\n- `git merge --abort` is the escape hatch for an unfinished merge; `git reflog` finds commits that no branch references.\n- Never commit `*.orig` / `*.rej` leftovers.\n",
+    "idLabel": "15",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 120
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

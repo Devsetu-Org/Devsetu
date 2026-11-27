@@ -1,0 +1,57 @@
+{
+  "id": "git-20-block-bad-commits-with-a-hook",
+  "number": 619,
+  "finalized": true,
+  "title": "Block Bad Commits with a Hook",
+  "description": "**SITUATION:**\n\nCore reviews sprint-service history by ticket. Lately the log is full of subjects like \"fix stuff\" and \"update readme\" — nobody can tell which Forgeboard ticket a change belongs to. Jordan set a team rule: every commit subject must start with a ticket id — `FB-` followed by digits — then a short summary. Example: `FB-1842 Document invite hook policy in README`.\n\nGit will not enforce that on its own. A **commit-msg hook** is a small script Git runs after you write the message and before it creates the commit. If the script exits non-zero, the commit is rejected. Hooks live under `.git/hooks/` in your local clone (they are not pushed with the branch), and the file must be executable.\n\nJordan asked you to install a local `commit-msg` hook that rejects subjects missing the `FB-<number>` prefix, prove it works on a bad and a good subject, then land a real commit that passes the hook on `fix/hook-ticket-prefix` and push that branch for review. Do not change `main` yourself.\n\nSmoke files are already on disk to help you try the hook: `~/hook-smoke-bad.txt` and `~/hook-smoke-good.txt`.\n\nYour identity (Ada Learner) is already configured. Start on `fix/hook-ticket-prefix` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Create an executable `.git/hooks/commit-msg` that rejects subjects which do not start with `FB-<number>`.\n2. Confirm the hook rejects a bad subject and accepts a good one.\n3. Make at least one commit on `fix/hook-ticket-prefix` whose subject starts with `FB-<number>`.\n4. Push `fix/hook-ticket-prefix` to `origin` and leave a clean working tree. Do not push or update `main`.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "hooks",
+    "commit-msg",
+    "chapter-releases-hooks-remotes"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "Write `.git/hooks/commit-msg` — Git passes the path to the commit message file as `$1`. Exit non-zero to reject.",
+      "`chmod +x .git/hooks/commit-msg` — hooks must be executable.",
+      "Subject pattern: start with `FB-` and digits, e.g. `FB-1842 …`.",
+      "Commit on `fix/hook-ticket-prefix` and `git push -u origin fix/hook-ticket-prefix`. Do not use `--no-verify`."
+    ],
+    "overview": "Install a local `commit-msg` hook that requires `FB-<number>` subjects, smoke-test it, commit on `fix/hook-ticket-prefix`, push — leave `main` alone.",
+    "brief": "Executable `.git/hooks/commit-msg` for `FB-<number>`; valid commit on `fix/hook-ticket-prefix`; push. Leave `main` alone.",
+    "solution": "# Solution — Block Bad Commits with a Hook\n\n```bash\ncd ~/sprint-service\ncat > .git/hooks/commit-msg <<'HOOK'\n#!/bin/bash\nsubject=\"$(head -n 1 \"$1\")\"\nif ! echo \"$subject\" | grep -Eq '^FB-[0-9]+'; then\n  echo \"commit-msg hook: subject must start with FB-<number>\" >&2\n  exit 1\nfi\nHOOK\nchmod +x .git/hooks/commit-msg\n# edit, commit with FB-1842 …, push fix/hook-ticket-prefix\n```\n",
+    "idLabel": "20",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

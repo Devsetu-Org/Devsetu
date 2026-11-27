@@ -1,0 +1,50 @@
+{
+  "id": "db-04-left-join-find-orphan-records",
+  "number": 623,
+  "finalized": true,
+  "title": "LEFT JOIN: Find Orphan Records",
+  "description": "**SITUATION:**\n\nFinance cannot reconcile: some rows in `orders` point at customers that do not exist. The old import tool left them behind — some have a `NULL` `customer_id`, others a dangling id. Find them all.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Use a `LEFT JOIN` from `orders` to `customers`.\n2. Keep only the rows where the customer side is missing (`IS NULL`).\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `id`, `customer_id`, `total`\n- Orders with no matching customer row — both `NULL` and dangling ids\n- Sorted by `id` ascending\n- Must use `LEFT JOIN` and `IS NULL`\n- Read-only\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "left-join",
+    "data-quality"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`FROM orders o LEFT JOIN customers c ON c.id = o.customer_id`",
+      "`WHERE c.id IS NULL` keeps only unmatched orders.",
+      "The ticket says how many orphan-looking rows to expect."
+    ],
+    "overview": "LEFT JOIN: Find Orphan Records",
+    "brief": "LEFT JOIN: Find Orphan Records",
+    "solution": "## 1. Why an inner join can't find them\n\nAn inner join keeps only rows that match on both sides, so orders with no customer vanish. A `LEFT JOIN` keeps **every** order and fills the customer columns with `NULL` when nothing matches.\n\n## 2. Anti-join pattern\n\n```sql\nSELECT o.id, o.customer_id, o.total\nFROM orders o\nLEFT JOIN customers c ON c.id = o.customer_id\nWHERE c.id IS NULL\nORDER BY o.id;\n```\n\n- Test the **right-hand** side (`c.id IS NULL`), not `o.customer_id IS NULL`. Orders whose `customer_id` is a dangling number (say `90042`) still have a non-null `customer_id`, but no customer row.\n- `NOT EXISTS (SELECT 1 FROM customers ...)` is an equivalent anti-join; this lab asks for the LEFT JOIN form.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql\n```\n\nThen **Submit**.\n",
+    "idLabel": "04",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

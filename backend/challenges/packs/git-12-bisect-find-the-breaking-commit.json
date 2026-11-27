@@ -1,0 +1,59 @@
+{
+  "id": "git-12-bisect-find-the-breaking-commit",
+  "number": 611,
+  "finalized": true,
+  "title": "Bisect the Broken Board Status Check",
+  "description": "**SITUATION:**\n\nForgeboard has a **staging** environment — a pre-production copy of the product where QA signs off before anything reaches customers. Staging is updated from `main`. A **staging deploy** means rolling the current `main` tip into that pre-production environment, not into production.\n\nBefore each staging deploy, Ops runs `./check.sh` in `~/sprint-service`. That script is the Sprint Service health check: exit 0 means the service looks healthy, exit 1 means it does not. On today's `main` it prints FAIL and exits 1, so staging stays red and QA cannot sign off.\n\nTag `v1.0` is an earlier tip on this same history where `./check.sh` still passed. It is not a separate product you are shipping; it is the last commit Ops trusts as \"check was green.\" Between v1.0 and today's `main`, about eighteen other commits landed.\n\nJordan skimmed the range while looking at the failing check. She is sure **exactly one** of those commits spilled the break — the rest look like unrelated noise — but she forgot to pin which commit it was before jumping to the next fire.\n\nShe handed you the follow-up: find that first bad commit's SHA so she can revert **just that change**. Git can binary-search the range for you; you do not need to read every subject.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`.\n\n**YOUR TASK:**\n\n1. Confirm `./check.sh` fails on today's `main`, and that tag v1.0 is the last known good tip.\n2. Binary-search between v1.0 (good) and main (bad) to find the first commit that makes `./check.sh` fail.\n3. Write that commit's SHA to `~/answers/bad-commit`.\n4. End the search so you are back on `main` with a clean working tree. Do not rewrite main.\n",
+  "difficulty": "L2",
+  "tags": [
+    "git",
+    "l2",
+    "bisect",
+    "debugging",
+    "history",
+    "chapter-history-and-recovery"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "Start a search with `git bisect start`, mark today's tip bad (`git bisect bad`), mark `v1.0` good (`git bisect good v1.0`).",
+      "`git bisect run ./check.sh` lets Git check out midpoints and run the health check for you until it prints the first bad commit.",
+      "Save that SHA to `~/answers/bad-commit`, then `git bisect reset` so you are back on main.",
+      "Write only the SHA — no extra words. Do not rewrite main."
+    ],
+    "overview": "Sprint Service health check (`./check.sh`) fails on today's `main` but passed at v1.0. Jordan forgot to pin the single bad commit — find its SHA so she can revert just that change.",
+    "brief": "Between v1.0 (good) and main (bad), find the single first commit that makes `./check.sh` fail. Write its SHA to `~/answers/bad-commit`.",
+    "solution": "# Solution — Bisect the Broken Board Status Check\n\n`./check.sh` is the Sprint Service health check. It fails on today's `main` but still passed at tag `v1.0`. Jordan is sure exactly one commit spilled the break; find that first bad SHA with bisect instead of reading ~18 commits by hand.\n\n## 1. Reproduce\n\n```bash\ncd ~/sprint-service\n./check.sh                 # FAIL on today's main\ngit tag                    # v1.0 = last known good\n```\n\n## 2. Bisect (automated)\n\n```bash\ngit bisect start\ngit bisect bad                 # HEAD is broken\ngit bisect good v1.0           # v1.0 was fine\ngit bisect run ./check.sh\n```\n\nAfter a few automatic checkouts Git prints `<sha> is the first bad commit`.\n\n## Manual alternative\n\n```bash\ngit bisect start\ngit bisect bad\ngit bisect good v1.0\n./check.sh && git bisect good || git bisect bad   # repeat until Git announces the culprit\n```\n\n## 3. Record and clean up\n\n```bash\ngit rev-parse refs/bisect/bad > ~/answers/bad-commit\ngit bisect reset\ngit branch --show-current    # main\n```\n\n## Why it is fast\n\nWith ~18 candidates and a single breaker, bisect needs at most a handful of `./check.sh` runs instead of reading every commit.\n",
+    "idLabel": "12",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 120
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

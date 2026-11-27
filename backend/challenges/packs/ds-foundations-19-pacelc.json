@@ -1,0 +1,44 @@
+{
+  "id": "ds-foundations-19-pacelc",
+  "number": 719,
+  "finalized": true,
+  "title": "PACELC and Real Systems",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nEven with no partition, every read can choose: wait for a fresh quorum (**C**) or return a fast local answer (**L**). Product wants sub-100 ms \"cars nearby\" and sticky match acknowledgements. One global consistency slider cannot do both.\n\n**YOUR TASK:**\n\nImplement Lab 5.3 (`TODO(5.3)`).\n\n1. Two read paths when healthy: `ReadOwner` (favor C) vs `ReadNearby` (favor L).\n2. Latency-favoring path wins a budget test; consistency-favoring path wins a freshness test.\n3. Short mapping of Fleetline choices to PACELC letters.\n\n**SPEC:**\n\n- ReadOwner freshness over speed\n- ReadNearby speed over linearizable freshness\n- Explicit PACELC letters for match vs map\n- No partition required in this lab's happy path\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-cap",
+    "l2",
+    "pacelc"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "PACELC: if Partition then A/C else Latency/Consistency.",
+      "ReadOwner waits for freshness; ReadNearby returns fast local.",
+      "Latency path wins a budget test; consistency path wins a freshness test.",
+      "One global slider cannot do both."
+    ],
+    "overview": "When healthy: favor C on owner reads, L on nearby reads.",
+    "brief": "Two healthy-case read paths: ReadOwner (C) vs ReadNearby (L).",
+    "solution": "",
+    "idLabel": "19",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "cap",
+      "taskId": "5.3",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

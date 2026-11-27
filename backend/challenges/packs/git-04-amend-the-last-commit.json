@@ -1,0 +1,59 @@
+{
+  "id": "git-04-amend-the-last-commit",
+  "number": 603,
+  "finalized": true,
+  "title": "Amend the Tip on fix/agentic-default",
+  "description": "**SITUATION:**\n\nThis lab picks up where lab 2 left off. Open `~/sprint-service` and you should already be on `fix/agentic-default`. That branch has **three** commits ahead of `main` (config → `beta`, README run notes, version banner), and those commits are **already on `origin`** — same as after you ran `git push -u origin fix/agentic-default` in lab 2. Local `main` still has the bug: `agentic_sprints_default = full`. Do not touch `main`.\n\nIn standup, someone asked for the short write-up that belongs with that default flip — why Core keeps the global default on beta, and why the rescue stayed on a fix branch instead of landing on `main`. You agreed, then pushed the branch without the file. It is sitting in your working tree untracked: `docs/agentic-default.md`. `git status` will show it; `git show --stat HEAD` will show a tip that does not include it yet.\n\nIf you make a **fourth** commit (“add forgotten writeup”), the branch history stops looking like three clean stories and starts looking like a cleanup afterthought. Instead, **amend the tip**: fold `docs/agentic-default.md` into the last of those three commits so the log still has exactly three entries, and the tip finally matches what you meant to ship.\n\nAmending only rewrites your **local** tip. Because that tip was already published, `origin/fix/agentic-default` still points at the old commit until you update it. A plain first-style push will not fast-forward after a rewrite — you must get the new tip onto the remote so `origin/fix/agentic-default` matches your new HEAD. Leave `main` alone on both sides.\n\nYour identity (`Ada Learner`) is already configured. `origin` is `git.forgeboard.internal`.\n\n**YOUR TASK:**\n\n1. Confirm you are on `fix/agentic-default`, that you have exactly three commits ahead of `main`, and that `docs/agentic-default.md` is still untracked.\n2. Stage only the writeup `docs/agentic-default.md`.\n3. Fold the writeup into the **existing tip** on this branch — do not add a fourth commit. Keep one clear subject in the same theme (not a “forgot the doc” follow-up).\n4. Confirm you still have exactly three commits and a clean working tree, then **push the rewritten tip to `origin`** so `origin/fix/agentic-default` matches your new HEAD (a plain push will not fast-forward after a tip rewrite).\n5. Leave local and remote `main` exactly as they are.\n",
+  "difficulty": "L0",
+  "tags": [
+    "git",
+    "l0",
+    "amend",
+    "commits",
+    "branches",
+    "chapter-commits-and-branches"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "Confirm with `git log --oneline main..HEAD` and `git status`, then `git add docs/agentic-default.md` before amending.",
+      "Start on `fix/agentic-default`: check the branch, the three commits ahead of `main`, and the untracked writeup.",
+      "Fold `docs/agentic-default.md` into the tip — the branch should still have exactly three commits, not four.",
+      "Amend changes the tip SHA. Origin still has the old tip until you update it — submit checks that origin/fix/agentic-default matches your new HEAD.",
+      "Leave `main` alone locally and on origin."
+    ],
+    "overview": "Amend the forgotten writeup into the already-pushed `fix/agentic-default` tip, then push the rewritten tip to `origin` — still three commits, main untouched.",
+    "brief": "Amend the forgotten writeup into the already-pushed `fix/agentic-default` tip, then push the rewritten tip to `origin` — still three commits, main untouched.",
+    "solution": "# Solution — Amend the Tip on fix/agentic-default\n\n## 1. Inspect\n\n```bash\ncd ~/sprint-service\ngit branch --show-current     # fix/agentic-default\ngit status                    # docs/agentic-default.md untracked\ngit log --oneline main..HEAD  # three commits, already on origin\ngit show --stat HEAD\n```\n\n## 2. Fold the writeup into the tip\n\n```bash\ngit add docs/agentic-default.md\ngit commit --amend --no-edit\ngit log --oneline main..HEAD  # still three commits, new tip SHA\n```\n\n## 3. Publish the rewritten tip\n\nPlain `git push` is rejected — the old tip is already on origin. Update **your** fix branch:\n\n```bash\ngit push --force-with-lease origin fix/agentic-default\ngit status\ngit log --oneline --all --graph\n```\n\nLeave `main` alone.\n\n## Rule of thumb\n\nAmend rewrites the tip. After that tip was already pushed on an unmerged fix branch, update origin with `--force-with-lease`. Never plain `--force`, and never rewrite `main`.\n",
+    "idLabel": "03",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 5
+}

@@ -1,0 +1,47 @@
+{
+  "id": "ds-foundations-01-unreliable-slow-network",
+  "number": 701,
+  "finalized": true,
+  "title": "The Unreliable, Slow Network",
+  "description": "**SITUATION:**\n\nYou are on the **Fleetline** dispatch team. Fleetline is a rideshare product, in the same family as Uber or Lyft: a rider asks for a car, a driver gets assigned, and the trip moves through a few clear steps until pickup.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now. When the rider app or the driver app needs to change that state, it sends an RPC to dispatch and waits for a reply.\n\nThe rider app and the driver app both call that same dispatch service. Opening a trip is not one call. It is a short chain of RPCs:\n\n1. Request the trip\n2. Match a driver\n3. Confirm pickup\n4. Mark the car en route\n5. Mark the driver arrived\n\nOn a laptop, with the app and dispatch on the same machine, a single RPC looks fine. You send something like `MatchDriver`, you get a reply, and you move on.\n\nIn the city that story breaks. The phone and dispatch sit on opposite sides of a flaky link. A message can vanish. A reply can take tens of milliseconds even when nothing is dropped. \"I sent MatchDriver\" no longer means \"dispatch got it,\" and it no longer means \"I will hear back soon.\"\n\n`netsim` can **drop** a request or a reply, and can **delay** delivery before the handler runs. That is enough to break a naive client — and enough to prove a fix.\n\nTwo assumptions fail here:\n\n1. **The network is reliable.** Packets disappear. A client that tries once will fail often under loss.\n2. **Latency is zero.** Even when nothing is dropped, five hops in a row each wait for the one-way delay. A ~50 ms delay turns into hundreds of milliseconds before any business logic runs.\n\n**YOUR TASK:**\n\nThe starter already has a naive path, `CallOnce`: one `Network.Call`, then an error if it returns false. Leave that alone. It is the control that shows the fallacy.\n\nYour job is `Client.Call` in `internal/client/client.go`. That client is how the apps reach dispatch over `netsim`.\n\n1. Retry a dropped RPC up to `maxAttempts` times (the tests use 5).\n2. Each attempt calls `c.net.Call(method, args, reply)`.\n3. If an attempt returns true, the reply is filled — return nil.\n4. If every attempt returns false, return an error that says retries were exhausted.\n\n`OpenTrip` is already written. It runs the five hops above through your `Call`. You do not rewrite it. After your retries work, run the tests and notice that under delay (with loss off) the wall time still grows with five serial hops.\n\nYou do **not** need exponential backoff in this lab. You do **not** need idempotency keys yet. Fixed, bounded retry is enough.\n\n**SPEC:**\n\n- `Call` attempts the RPC at most `maxAttempts` times\n- Success: `Network.Call` returns true → return nil\n- Exhaustion: every attempt failed → error text mentions retry, attempt, or exhaust\n- Under about 20% loss, most hops succeed with a budget of 5 attempts\n- Under 100% loss, `Call` fails with that clear error (it must not hang or pretend success)\n- With loss off and ~50 ms one-way delay, one `OpenTrip` takes at least ~150 ms\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor to verify locally. The Submit harness lands next.\n",
+  "difficulty": "L0",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "fallacies",
+    "rpc",
+    "retries",
+    "l0",
+    "chapter-fallacies"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "CallOnce must stay as a single Network.Call — it documents the fallacy.",
+      "Loop 1..maxAttempts. Each iteration calls c.net.Call(method, args, reply).",
+      "On true, return nil. On false, continue. After the loop, return an error containing retry/exhaust/attempt.",
+      "OpenTrip already issues five TripHop calls through your Call — you do not rewrite it for Lab 1.1.",
+      "Timeouts are already inside netsim (it sleeps on delay). You add retries, not a second sleep."
+    ],
+    "overview": "Fleetline trip hops cross a flaky, slow network. Replace the naive one-shot RPC with bounded retries, and watch five serial hops compound delay.",
+    "brief": "Implement Client.Call with bounded retries when netsim drops a trip hop.",
+    "solution": "",
+    "idLabel": "01",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "fallacies-1.1",
+      "taskId": "1.1",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

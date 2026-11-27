@@ -1,0 +1,59 @@
+{
+  "id": "git-19-sync-fork-with-upstream",
+  "number": 618,
+  "finalized": true,
+  "title": "Sync Your Fork with Upstream",
+  "description": "**SITUATION:**\n\nYou keep a **personal fork** of sprint-service for experiments. On this laptop that fork is what Git calls `origin`. The **Forgeboard org** project — the shared copy everyone treats as source of truth — is ahead of you: someone already landed an invite audit helper (`src/invite_audit.py`) on org `main`, and your fork's `main` does not have it yet.\n\nGit only knows about remotes you configure. Right now you only have `origin` (your fork). The org project is not hooked up yet. The usual name for \"the project I forked from\" is `upstream`. You need to add that remote, bring org `main` into your local `main`, then push so **your fork** on `origin` catches up — otherwise work from your fork stays based on stale history.\n\nDo **not** push commits onto the org `upstream` `main`. That remote rejects it on purpose. Your write target is only `origin`.\n\nOne more mess on the laptop: you once pushed `feature/card-colors` while trying board card colors, then deleted that branch on the fork. Your laptop still lists `origin/feature/card-colors` as a remote-tracking branch. After you sync, clean that stale pointer so your remote branch list matches what is actually on the fork.\n\nJordan asked you to wire up `upstream`, fast-forward your `main` to the org tip, publish that tip to your fork, and prune the ghost branch. Leave a clean working tree.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`; `origin` already points at your fork on `git.forgeboard.internal`.\n\n**YOUR TASK:**\n\n1. Add the Forgeboard org repo as a remote named `upstream` (`learner@git.forgeboard.internal:/srv/git/forgeboard-sprint-service.git`).\n2. Fetch from `upstream` and update your local `main` so it matches `upstream/main` (fast-forward only — you have no local commits to keep).\n3. Push the synced `main` to `origin` so your fork catches up. Do not push to `upstream`.\n4. Prune stale remote-tracking branches so `origin/feature/card-colors` is gone. End on `main` with a clean working tree.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "remote",
+    "upstream",
+    "fetch",
+    "prune",
+    "chapter-releases-hooks-remotes"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "`git remote add upstream learner@git.forgeboard.internal:/srv/git/forgeboard-sprint-service.git` then `git fetch upstream`.",
+      "`git merge --ff-only upstream/main` (or rebase) while on main, then `git push origin main`.",
+      "Do not push to upstream — push your fork only.",
+      "`git fetch --prune origin` drops remote-tracking branches deleted on the fork."
+    ],
+    "overview": "Your fork (`origin`) lags the org repo. Add `upstream`, fast-forward `main` from org, push the fork, prune deleted `origin/feature/card-colors`.",
+    "brief": "Add `upstream`, ff-only sync `main` from org, push `origin`, prune stale `origin/feature/card-colors`.",
+    "solution": "# Solution — Sync Your Fork with Upstream\n\n`origin` is your fork (behind). The Forgeboard org repo is not configured yet — add it as `upstream`, fast-forward local `main`, push the fork, then prune a branch already deleted on `origin`.\n\n```bash\ncd ~/sprint-service\ngit remote -v\ngit remote add upstream learner@git.forgeboard.internal:/srv/git/forgeboard-sprint-service.git\ngit fetch upstream\ngit switch main\ngit merge --ff-only upstream/main\ngit push origin main\ngit fetch --prune origin\ngit branch -r   # origin/feature/card-colors should be gone\n```\n\nDo not `git push upstream main` — the org remote rejects it.\n",
+    "idLabel": "19",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

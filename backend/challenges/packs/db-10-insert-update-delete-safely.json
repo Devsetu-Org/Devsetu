@@ -1,0 +1,52 @@
+{
+  "id": "db-10-insert-update-delete-safely",
+  "number": 629,
+  "finalized": true,
+  "title": "INSERT, UPDATE, DELETE Safely",
+  "description": "**SITUATION:**\n\nOps has three data fixes for `orders`: a phone order to add, one order to confirm, and cancelled orders to retire. Do them in `psql` so each statement touches exactly the rows it should.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. `INSERT` the phone order from the ticket with `RETURNING id`, and save the id to `~/answers/new_order_id.txt`.\n2. `UPDATE` the one order named in the ticket to `confirmed`.\n3. Soft-delete every cancelled order by setting `deleted_at` (no `DELETE`).\n\n**SPEC:**\n\n- New order: ticket customer, `status = 'pending'`, ticket total\n- `~/answers/new_order_id.txt` contains the id returned by `RETURNING`\n- The named order has `status = 'confirmed'`; no other order changes status\n- All `cancelled` orders have `deleted_at` set; non-cancelled orders keep `deleted_at IS NULL`\n- No row is physically removed\n- Graded on the database state\n",
+  "difficulty": "L1",
+  "tags": [
+    "databases",
+    "l1",
+    "sql",
+    "insert",
+    "update",
+    "soft-delete",
+    "returning"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`INSERT INTO orders (customer_id, status, total) VALUES (...) RETURNING id;`",
+      "`UPDATE orders SET status = 'confirmed' WHERE id = ...;` should report `UPDATE 1`.",
+      "`UPDATE orders SET deleted_at = now() WHERE status = 'cancelled' AND deleted_at IS NULL;`"
+    ],
+    "overview": "INSERT, UPDATE, DELETE Safely",
+    "brief": "INSERT, UPDATE, DELETE Safely",
+    "solution": "Read your ticket for the customer, total, order number.\n\n```bash\npsql\n```\n\n## 1. INSERT ... RETURNING\n\n```sql\nINSERT INTO orders (customer_id, status, total)\nVALUES (17, 'pending', 640)\nRETURNING id;\n```\n\n`RETURNING` hands back the generated id without a second query. Save just the number:\n\n```bash\necho 221 > ~/answers/new_order_id.txt\n```\n\n## 2. UPDATE exactly one row\n\nLook first:\n\n```sql\nSELECT id, status FROM orders WHERE id = 57;\n```\n\nThen change it:\n\n```sql\nUPDATE orders SET status = 'confirmed' WHERE id = 57 RETURNING id, status;\n```\n\nYou should see `UPDATE 1`. If you see anything else, `ROLLBACK` if you opened a transaction.\n\n## 3. Soft delete\n\n```sql\nBEGIN;\nSELECT count(*) FROM orders WHERE status = 'cancelled' AND deleted_at IS NULL;\nUPDATE orders SET deleted_at = now()\nWHERE status = 'cancelled' AND deleted_at IS NULL;\n-- check the row count Postgres reports, then:\nCOMMIT;\n```\n\nA soft delete keeps the row (history, refunds, audits) and hides it from the app with a timestamp. `DELETE FROM orders ...` would lose that history.\n\n## 4. Verify\n\n```sql\nSELECT count(*) FROM orders WHERE status = 'cancelled' AND deleted_at IS NULL;  -- 0\nSELECT count(*) FROM orders WHERE status <> 'cancelled' AND deleted_at IS NOT NULL;  -- 0\n```\n\nThen **Submit**.\n",
+    "idLabel": "10",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

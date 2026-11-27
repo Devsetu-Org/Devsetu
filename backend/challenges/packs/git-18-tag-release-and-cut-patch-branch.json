@@ -1,0 +1,58 @@
+{
+  "id": "git-18-tag-release-and-cut-patch-branch",
+  "number": 617,
+  "finalized": true,
+  "title": "Tag 2.2.0 and Cut a 2.1 Patch Branch",
+  "description": "**SITUATION:**\n\nYou have **two issues** in hand today in `~/sprint-service`. They are independent — you can finish either one first — and both need to be done.\n\n**Issue 1 — today's 2.2.0 cut.** Ops is ready to ship sprint-service **2.2.0** from current `main`. The new 2.2 features and the `VERSION` bump already landed on that tip, but nobody marked the release. Without an annotated tag named `v2.2.0` on today's `main` tip (and that tag on the forge), deploy tooling will not pick up 2.2.0.\n\n**Issue 2 — a real 2.1 patch.** One customer is still running sprint-service **2.1**. On that release, `check_interval_seconds` under `[health]` is `0`, so health checks never run. Support needs that set to **60**, and `VERSION` bumped to **2.1.1**, on a patch branch — not on today's `main` (which already has 2.2 work the customer must not receive). The older annotated tag `v2.1.0` is already on the remote. Cut `hotfix/2.1.1` from that tag, land the fix in a commit, and push the branch.\n\nJordan asked you to clear both queues: tag and publish `v2.2.0` for the new cut, and ship the 2.1.1 patch from `v2.1.0`. Leave the `main` tip where it is — do not push new commits onto `main`.\n\nYour identity (Ada Learner) is already configured. Start on `main` in `~/sprint-service`; `origin` already points at the team forge.\n\n**YOUR TASK:**\n\n1. Create an annotated tag `v2.2.0` on the current `main` tip with a clear message, and push that tag to `origin`.\n2. Create branch `hotfix/2.1.1` from tag `v2.1.0` (not from today's `main`). On that branch, set `check_interval_seconds` to 60, set `VERSION` to `2.1.1`, commit the patch, and push the branch to `origin`.\n3. Leave `main`'s tip unchanged locally and on the remote.\n",
+  "difficulty": "L1",
+  "tags": [
+    "git",
+    "l1",
+    "tags",
+    "release",
+    "hotfix",
+    "chapter-releases-hooks-remotes"
+  ],
+  "category": "git",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "git"
+  },
+  "problemStatement": {
+    "hints": [
+      "`git tag -a v2.2.0 -m \"sprint-service 2.2.0\"` then `git push origin v2.2.0`.",
+      "`git switch -c hotfix/2.1.1 v2.1.0` — branch from the old tag, not from main.",
+      "On the hotfix: set `check_interval_seconds = 60` and `VERSION` to `2.1.1`, commit, then `git push -u origin hotfix/2.1.1`.",
+      "Do not move main. Confirm with `git log --oneline main` and `git show hotfix/2.1.1:VERSION`."
+    ],
+    "overview": "Two independent tasks: annotate+push `v2.2.0` on today's `main` tip; cut `hotfix/2.1.1` from `v2.1.0`, patch health interval + VERSION 2.1.1, push. Leave `main` alone.",
+    "brief": "Tag `v2.2.0` + push; from `v2.1.0` cut `hotfix/2.1.1`, fix health=60 and VERSION=2.1.1, push. Leave `main` alone.",
+    "solution": "# Solution — Tag 2.2.0 and Cut a 2.1 Patch Branch\n\nTwo independent jobs. Order does not matter.\n\n## 1. Annotate and push today's tip\n\n```bash\ncd ~/sprint-service\ngit tag -a v2.2.0 -m \"sprint-service 2.2.0\"\ngit show v2.2.0\ngit push origin v2.2.0\n```\n\n## 2. Cut hotfix/2.1.1 from v2.1.0 and land the patch\n\n```bash\ngit switch -c hotfix/2.1.1 v2.1.0\n# edit config/app.conf → check_interval_seconds = 60\n# edit VERSION → 2.1.1\ngit add config/app.conf VERSION\ngit commit -m \"Fix health check interval for 2.1.1\"\ngit push -u origin hotfix/2.1.1\n```\n\nLeave `main` alone.\n",
+    "idLabel": "18",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box"
+    },
+    "boot": {
+      "heading": "Starting your Git lab",
+      "phases": [
+        "Waking machines…",
+        "Creating your machine",
+        "Waiting for your machine to start",
+        "Preparing the lab"
+      ]
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 60
+    }
+  },
+  "visibleTo": "users",
+  "tokens": 10
+}

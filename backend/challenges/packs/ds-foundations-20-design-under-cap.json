@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-20-design-under-cap",
+  "number": 720,
+  "finalized": true,
+  "title": "Capstone: Design Under CAP",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nIncident tabletop: \"West is dark to East for 90 seconds.\" Simulate it. Show what riders and drivers experience for match vs map.\n\n**YOUR TASK:**\n\nImplement Lab 5.4 (`TODO(5.4)`).\n\nOne scenario harness: partition → load → heal → checks.\n\nPass: no double match; soft reads available; post-heal convergence; document which ops returned errors on purpose.\n\n**SPEC:**\n\n- Integrates 5.1–5.3\n- No double-assign under partition\n- Soft AP + reconcile on heal\n- Closes CAP / PACELC\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L2",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-cap",
+    "l2",
+    "capstone",
+    "partition"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "Pass: no double match; soft reads available; post-heal convergence.",
+      "Document intentional errors on the minority.",
+      "Fail if you assign on both sides to fake availability.",
+      "Tabletop the UX on each side."
+    ],
+    "overview": "City-split scenario: CP match, AP map, sane heal.",
+    "brief": "Run partition → load → heal with the checks from 5.1–5.3.",
+    "solution": "",
+    "idLabel": "20",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "cap",
+      "taskId": "5.4",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

@@ -1,0 +1,45 @@
+{
+  "id": "ds-foundations-09-clocks-that-lie",
+  "number": 709,
+  "finalized": true,
+  "title": "Clocks That Lie and Clocks That Do Not",
+  "description": "**SITUATION:**\n\nYou are still on the **Fleetline** dispatch team.\n\n**What the dispatch service is.** Dispatch is Fleetline's backend for trips. It is not the map, not payments, and not the driver chat. It is the service that **owns trip state**: who requested the ride, which driver was matched, and what step the trip is on right now.\n\nTrip events carry `device_wall_time` from phones. Rider taps Request at 09:00:01 on a skew-fast phone. Driver confirms at 08:59:59 on a skew-slow phone. Sorting by device time invents a timeline where confirm happened before request.\n\nFleetline assumed time was synchronized. Phone clocks lie.\n\n**YOUR TASK:**\n\nImplement Lab 3.1 (`TODO(3.1)`).\n\n1. Detect impossible orders under skew when causal edges are known (request→reply, Assigned before Completed).\n2. Prefer server-receive time or logical time over raw device time for ordering decisions.\n3. Skewed fixtures must fail a wall-clock-only checker; your ordering respects the edges.\n\n**SPEC:**\n\n- Illegal lifecycle under skew is flagged when edges are known\n- Wall-clock-only sort of the fixture is rejected\n- Ordering used for audit prefers non-device clocks\n- No Lamport/vector yet — that is 3.2 / 3.3\n\n> **Note:** Graded Submit for this lab is not live yet. Use **Run** in the editor when verify commands exist; otherwise read the brief and explore the starter. The harness lands next.\n",
+  "difficulty": "L1",
+  "tags": [
+    "distributed-systems",
+    "foundations",
+    "chapter-time-ordering",
+    "l1",
+    "clocks",
+    "skew"
+  ],
+  "category": "distributed-systems",
+  "sandboxType": "project",
+  "play": {
+    "domainId": "distributed-systems-engineer",
+    "panelId": "foundations"
+  },
+  "problemStatement": {
+    "hints": [
+      "A reply cannot precede its request.",
+      "Completed before Assigned is illegal given causal edges.",
+      "Prefer server-receive or logical time over device_wall_time.",
+      "Skewed fixtures should fail a naive wall-clock sort."
+    ],
+    "overview": "Device wall clocks invent illegal trip orders under skew.",
+    "brief": "Detect impossible orders and prefer logical or server-receive time.",
+    "solution": "",
+    "idLabel": "09",
+    "theory": ""
+  },
+  "platformSpec": {
+    "project": {
+      "minorId": "ds-foundations",
+      "chapterId": "time-ordering",
+      "taskId": "3.1",
+      "language": "go"
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 5
+}

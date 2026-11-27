@@ -1,0 +1,51 @@
+{
+  "id": "db-14-n-plus-one-one-query-instead-of-fifty",
+  "number": 633,
+  "finalized": true,
+  "title": "N+1: One Query Instead of Fifty",
+  "description": "**SITUATION:**\n\nThe order-history API loads a customer's 50 orders, then runs one query per order for its items: 51 round-trips for one page. Run `~/legacy/load_orders.sh <customer>` to see the count, then replace it with a single statement.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. Run the legacy script for your ticket's customer and note `queries issued: 51`.\n2. Write one SQL statement returning the customer's orders together with their items.\n3. Save it to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `order_id`, `status`, `sku`, `qty`, `price`\n- One row per order/item pair for the ticket's customer\n- All 50 orders appear, including orders with no items (item columns empty)\n- Exactly **one** SQL statement in the file\n- Read-only\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "n-plus-one",
+    "join",
+    "performance"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`FROM orders o LEFT JOIN order_items i ON i.order_id = o.id WHERE o.customer_id = ...`",
+      "Alias `o.id AS order_id`.",
+      "Count semicolons: the grader requires a single statement."
+    ],
+    "overview": "N+1: One Query Instead of Fifty",
+    "brief": "N+1: One Query Instead of Fifty",
+    "solution": "## 1. See the N+1\n\n```bash\n~/legacy/load_orders.sh 17\n# ... last line: queries issued: 51\n```\n\nOne query lists the 50 orders, then one query per order fetches its items: 1 + N round-trips. Over a network each costs a latency hit, so 51 queries is slow even though each is \"fast\".\n\n## 2. Let the database join\n\nUse your customer id from the ticket:\n\n```sql\nSELECT o.id AS order_id,\n       o.status,\n       i.sku,\n       i.qty,\n       i.price\nFROM orders o\nLEFT JOIN order_items i ON i.order_id = o.id\nWHERE o.customer_id = 17;\n```\n\n- `LEFT JOIN` keeps orders that have **no** items (their item columns are `NULL`). An inner `JOIN` would silently drop them, and the order list would be wrong.\n- The result has one row per order/item pair; your application groups rows by `order_id`.\n- Put `ORDER BY o.id` on it if the page needs a stable order. The grader does not care about order here.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql | head\n```\n\nThe file must hold exactly one statement. Then **Submit**.\n",
+    "idLabel": "14",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}

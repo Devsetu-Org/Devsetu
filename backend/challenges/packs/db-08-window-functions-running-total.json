@@ -1,0 +1,50 @@
+{
+  "id": "db-08-window-functions-running-total",
+  "number": 627,
+  "finalized": true,
+  "title": "Window Functions: Running Total",
+  "description": "**SITUATION:**\n\nThe loyalty team wants to see how three customers' spend builds up order by order. `GROUP BY` would collapse the lines; a window function keeps every order and adds the running total.\n\nYour ticket is at `~/ticket/TASK.md`. Connect with `psql` (database `quickbite`, role `learner`).\n\n**YOUR TASK:**\n\n1. For the three customers in your ticket, list every non-cancelled order.\n2. Add a running total of each customer's spend ordered by `created_at`.\n3. Save the SQL to `~/answers/query.sql`.\n\n**SPEC:**\n\n- Columns, in order: `customer_id`, `order_id`, `total`, `running_total`\n- Non-cancelled orders of the three ticket customers only\n- `running_total` = `SUM(total) OVER (PARTITION BY customer_id ORDER BY created_at)`\n- Sorted by `customer_id`, then `created_at` ascending\n- Read-only\n",
+  "difficulty": "L2",
+  "tags": [
+    "databases",
+    "l2",
+    "sql",
+    "window-functions",
+    "running-total"
+  ],
+  "category": "databases",
+  "sandboxType": "linux",
+  "play": {
+    "domainId": "software-engineer",
+    "panelId": "databases"
+  },
+  "problemStatement": {
+    "hints": [
+      "You are the `learner` Linux user on a dev box with PostgreSQL running locally. Run `psql` to open the `quickbite` database (PGDATABASE is already set).",
+      "Read `~/ticket/TASK.md` first: dates, thresholds and ids are different in every session.",
+      "`SUM(total) OVER (PARTITION BY customer_id ORDER BY created_at)`",
+      "`WHERE status <> 'cancelled' AND customer_id IN (...)`",
+      "Final `ORDER BY customer_id, created_at`."
+    ],
+    "overview": "Window Functions: Running Total",
+    "brief": "Window Functions: Running Total",
+    "solution": "## 1. Why not GROUP BY?\n\n`GROUP BY customer_id` gives one row per customer. A **window function** computes an aggregate over a set of related rows but **keeps every row**.\n\n## 2. SUM() OVER (PARTITION BY ... ORDER BY ...)\n\n```sql\nSELECT customer_id,\n       id AS order_id,\n       total,\n       SUM(total) OVER (\n         PARTITION BY customer_id\n         ORDER BY created_at\n       ) AS running_total\nFROM orders\nWHERE status <> 'cancelled'\n  AND customer_id IN (4, 17, 33)\nORDER BY customer_id, created_at;\n```\n\n- `PARTITION BY customer_id` restarts the running total for each customer.\n- `ORDER BY created_at` inside `OVER` sets the accumulation order. With an `ORDER BY`, the default frame is \"start of partition up to the current row\".\n- The `WHERE` clause filters rows **before** the window runs, so cancelled orders never count toward the total.\n- The final `ORDER BY` is separate: it sorts the output.\n\nUse the three customer ids from **your** ticket.\n\n## 3. Save and test\n\n```bash\nnano ~/answers/query.sql\npsql -f ~/answers/query.sql | head -20\n```\n\nThen **Submit**.\n",
+    "idLabel": "08",
+    "theory": ""
+  },
+  "platformSpec": {
+    "box": {
+      "hostname": "dev-box",
+      "unprivileged": true
+    },
+    "setup": {
+      "script": "setup.sh"
+    },
+    "grade": {
+      "script": "grade.sh",
+      "timeoutSeconds": 90
+    }
+  },
+  "visibleTo": "admin",
+  "tokens": 10
+}
