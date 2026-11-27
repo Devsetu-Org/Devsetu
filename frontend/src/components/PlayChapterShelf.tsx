@@ -23,9 +23,17 @@ function isMinorLab(
   return 'minorId' in lab && 'chapterId' in lab;
 }
 
+/** When a pack is admin-only, the catalog omits it — don't show raw ids on the shelf. */
+function humanizeChallengeId(id: string): string {
+  const body = id.replace(/^[a-z][a-z0-9]*-\d{2}-/, '');
+  const words = (body && body !== id ? body : id).split('-').filter(Boolean);
+  if (!words.length) return id;
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 function labTitle(lab: PlayChapterLab, challenge: ChallengePublic | null): string {
   if (isPlaceholderLab(lab) || isMinorLab(lab)) return lab.title;
-  return challenge?.title || lab.challengeId;
+  return challenge?.title || humanizeChallengeId(lab.challengeId);
 }
 
 function labTokens(challenge: ChallengePublic | null): number {
