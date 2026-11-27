@@ -310,8 +310,9 @@ export const LAB_COMING_SOON_MSG = 'Coming soon';
 
 /**
  * Public (non-admin) users cannot start Linux, Docker, Kubernetes, Kafka, Spark, or platform
- * terminals yet. Admins may open the start path for testing when the pool is
- * up — but pool capacity still applies to admins the same as everyone else.
+ * terminals yet. Git is the open pilot track (same category as backend OPEN_TRACKS).
+ * Admins may open the start path for testing when the pool is up — but pool capacity
+ * still applies to admins the same as everyone else.
  * This gate is only Coming soon, never a capacity bypass.
  */
 export function isPublicLabComingSoon(
@@ -319,6 +320,8 @@ export function isPublicLabComingSoon(
   user?: Parameters<typeof isAdminUser>[0],
 ): boolean {
   if (!isKubernetesChallenge(challenge)) return false;
+  // Git packs use sandboxType linux; do not treat them as Coming soon.
+  if (String(challenge?.category || '').toLowerCase() === 'git') return false;
   return !isAdminUser(user) && !isAdminUser(getCurrentUser());
 }
 
