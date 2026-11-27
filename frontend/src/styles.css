@@ -8088,6 +8088,8 @@ button.play-primer-link {
   --gm-fill: rgba(16, 185, 129, 0.14);
   --gm-accent: #34d399;
   --gm-warn: #f87171;
+  /* Wide design width; narrow viewports zoom the whole figure to fit. */
+  --gm-design-w: 640px;
   color: var(--gm-ink);
   font-family: var(--primer-sans, ui-sans-serif, system-ui, sans-serif);
   min-height: 200px;
@@ -8504,27 +8506,116 @@ button.play-primer-link {
   animation: gm-pulse 2s ease-in-out infinite;
 }
 
-@media (max-width: 860px) {
-  .git-motion--origin .git-motion-compare {
-    grid-template-columns: 1fr;
+/*
+ * All blog figures: keep the wide layout; on narrow cards, zoom the whole
+ * figure so relative sizes stay the same. --gm-design-w must be >= the
+ * natural fixed content width or overflow:hidden clips the sides.
+ */
+.git-motion--origin,
+.git-motion--hosts,
+.git-motion--hook {
+  --gm-design-w: 720px;
+}
+
+/* Fixed-size rows (circles / forge cards) — measure content, then add padding. */
+.git-motion--trees,
+.git-motion--remotes {
+  --gm-design-w: 660px;
+}
+
+.git-motion--clone-push {
+  --gm-design-w: 620px;
+}
+
+.git-motion--stash,
+.git-motion--merge-conflict,
+.git-motion--rebase-squash,
+.git-motion--merge-rebase,
+.git-motion--fast-forward {
+  --gm-design-w: 580px;
+}
+
+/* Wide SVG scenes are min(100%, 460–500); leave room for figure padding. */
+.git-motion--cherry,
+.git-motion--rebase-replay,
+.git-motion--merge-commit,
+.git-motion--bisect,
+.git-motion--revert,
+.git-motion--reflog {
+  --gm-design-w: 540px;
+}
+
+.git-motion--branch,
+.git-motion--amend,
+.git-motion--tag {
+  --gm-design-w: 520px;
+}
+
+/* Linux figures share .git-motion + the same zoom container. */
+.linux-motion--stack,
+.linux-motion--glob,
+.linux-motion--pipe,
+.linux-motion--paths,
+.linux-motion--find-exec,
+.linux-motion--vi,
+.linux-motion--grep {
+  --gm-design-w: 600px;
+}
+
+.linux-motion--fs-tree,
+.linux-motion--funnel,
+.linux-motion--less,
+.linux-motion--regex,
+.linux-motion--groups,
+.linux-motion--perms {
+  --gm-design-w: 580px;
+}
+
+.spark-primer-figure-anim:has(.git-motion) {
+  container-type: inline-size;
+  container-name: gm-fig;
+  overflow: hidden;
+}
+
+@container gm-fig (max-width: 820px) {
+  .git-motion {
+    width: var(--gm-design-w);
+    max-width: none;
+    box-sizing: border-box;
+    zoom: calc(100cqw / var(--gm-design-w));
   }
 
-  .git-motion--origin .git-motion-pivot {
-    flex-direction: row;
-    padding: 4px 0;
+  /* Avoid mid-zoom wrapping that would fight the fixed design width. */
+  .git-motion--clone-push .git-motion-forge,
+  .git-motion--remotes .git-motion-remotes,
+  .linux-motion-stack,
+  .linux-motion-flow {
+    flex-wrap: nowrap;
   }
 
-  .git-motion--origin .git-motion-pivot-line {
-    width: auto;
-    height: 2px;
-    flex: 1;
-    min-height: 0;
+  .linux-motion-paths {
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .linux-motion-tree-branches {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@supports not (zoom: 1) {
+  @container gm-fig (max-width: 820px) {
+    .git-motion {
+      zoom: unset;
+      transform: scale(calc(100cqw / var(--gm-design-w)));
+      transform-origin: top left;
+      margin-bottom: calc((100cqw / var(--gm-design-w) - 1) * 360px);
+    }
   }
 }
 
 /* —— Three trees: three circles + clean command labels —— */
 .git-motion--trees {
-  padding: 18px 12px 22px;
+  padding: 18px 20px 22px;
 }
 
 .git-motion--trees .git-motion-circles {
@@ -8651,35 +8742,11 @@ button.play-primer-link {
   animation: gm-chip-in-circle 5.2s ease-in-out 3.4s infinite;
 }
 
-@media (max-width: 640px) {
-  .git-motion--trees .git-motion-circles {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .git-motion--trees .git-motion-arrow {
-    width: auto;
-    height: 48px;
-    flex-direction: row;
-    gap: 10px;
-  }
-
-  .git-motion--trees .git-motion-arrow i {
-    width: 2px;
-    height: 22px;
-  }
-
-  .git-motion--trees .git-motion-arrow i::after {
-    right: 50%;
-    top: auto;
-    bottom: -1px;
-    transform: translateX(50%) rotate(135deg);
-  }
-}
-
 /* —— Clone / push: forge host ↔ local clone —— */
 .git-motion--clone-push {
   gap: 14px;
+  padding-left: 18px;
+  padding-right: 18px;
 }
 
 .git-motion--clone-push .git-motion-forge {
@@ -8687,7 +8754,7 @@ button.play-primer-link {
   align-items: stretch;
   justify-content: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .git-motion--clone-push .git-motion-forge-node {
@@ -8821,69 +8888,6 @@ button.play-primer-link {
   }
 }
 
-@media (max-width: 640px) {
-  .git-motion--clone-push .git-motion-forge {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .git-motion--clone-push .git-motion-forge-path {
-    min-height: 72px;
-    width: 100%;
-  }
-
-  .git-motion--clone-push .git-motion-forge-wire {
-    width: 64px;
-    height: 2px;
-  }
-
-  .git-motion--clone-push .git-motion-forge-packet {
-    left: 22px;
-    top: 50%;
-    margin-left: 0;
-    margin-top: -5px;
-    animation-name: gm-forge-packet-h;
-  }
-}
-
-@keyframes gm-forge-packet-h {
-  0%,
-  12% {
-    left: 22px;
-    background: #38bdf8;
-    opacity: 0;
-  }
-  18% {
-    opacity: 1;
-  }
-  38% {
-    left: calc(100% - 32px);
-    background: #38bdf8;
-    opacity: 1;
-  }
-  42% {
-    opacity: 0;
-  }
-  55% {
-    left: calc(100% - 32px);
-    background: #6ee7b7;
-    opacity: 0;
-  }
-  60% {
-    opacity: 1;
-  }
-  82% {
-    left: 22px;
-    background: #6ee7b7;
-    opacity: 1;
-  }
-  88%,
-  100% {
-    left: 22px;
-    opacity: 0;
-  }
-}
-
 /* —— Branch: feat tag slides; C4 pops in —— */
 .git-motion--branch .git-motion-stage {
   min-height: 150px;
@@ -8948,12 +8952,17 @@ button.play-primer-link {
 }
 
 /* —— Remotes: upstream → laptop → origin —— */
+.git-motion--remotes {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
 .git-motion--remotes .git-motion-remotes {
   display: flex;
   align-items: stretch;
   justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .git-motion--remotes .git-motion-forge-node {
@@ -9023,25 +9032,6 @@ button.play-primer-link {
 
 .git-motion--remotes .git-motion-forge-flow[data-dir='push'] {
   color: rgba(110, 231, 183, 0.9);
-}
-
-@media (max-width: 720px) {
-  .git-motion--remotes .git-motion-remotes {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .git-motion--remotes .git-motion-remotes-path {
-    flex-direction: row;
-    min-width: 0;
-    width: min(100%, 220px);
-  }
-
-  .git-motion--remotes .git-motion-forge-wire {
-    width: auto;
-    height: 2px;
-    flex: 1;
-  }
 }
 
 /* —— Hosts: laptop + popular Git hosts —— */
@@ -9115,12 +9105,6 @@ button.play-primer-link {
 
 .git-motion--hosts .git-motion-hosts-card[data-host='bitbucket'] {
   border-color: rgba(96, 165, 250, 0.4);
-}
-
-@media (max-width: 640px) {
-  .git-motion--hosts .git-motion-hosts-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* —— Hook: blocked vs allowed subject —— */
@@ -9197,23 +9181,6 @@ button.play-primer-link {
   font-size: 11px;
   font-weight: 750;
   color: #6ee7b7;
-}
-
-@media (max-width: 720px) {
-  .git-motion--hook .git-motion-compare--hook {
-    grid-template-columns: 1fr;
-  }
-
-  .git-motion--hook .git-motion-pivot {
-    flex-direction: row;
-  }
-
-  .git-motion--hook .git-motion-pivot-line {
-    width: auto;
-    height: 2px;
-    flex: 1;
-    min-height: 0;
-  }
 }
 
 /* —— Amend: tip tag hops; orphan drifts away —— */
@@ -9521,12 +9488,6 @@ button.play-primer-link {
   animation: gm-phase-3 6s ease-in-out infinite;
 }
 
-@media (max-width: 560px) {
-  .git-motion--stash .git-motion-stash {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Compare grid used by merge / FF / decision figures */
 .git-motion-compare {
   display: grid;
@@ -9534,12 +9495,6 @@ button.play-primer-link {
   gap: 12px;
   width: min(100%, 560px);
   margin: 0 auto;
-}
-
-@media (max-width: 720px) {
-  .git-motion-compare {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* —— Shared SVG commit-graph language (merge family) —— */
@@ -9934,12 +9889,6 @@ button.play-primer-link {
   font-size: 11px;
 }
 
-@media (max-width: 640px) {
-  .git-motion--merge-conflict .git-motion-conflict {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* —— Rebase replay: SVG phases synced to steps —— */
 .git-motion--rebase-replay {
   padding-top: 8px;
@@ -10098,12 +10047,6 @@ button.play-primer-link {
 .git-motion--rebase-squash .git-motion-squash-mid small {
   font-size: 10px;
   color: var(--gm-muted);
-}
-
-@media (max-width: 560px) {
-  .git-motion--rebase-squash .git-motion-squash {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Frozen diagrams: same style, no looping motion */
@@ -10773,6 +10716,7 @@ button.play-primer-link {
   align-items: stretch;
   justify-content: center;
   gap: 0;
+  flex-wrap: nowrap;
   min-height: 168px;
   margin-top: 4px;
 }
@@ -11178,90 +11122,7 @@ button.play-primer-link {
   }
 }
 
-@media (max-width: 640px) {
-  .linux-motion-stack {
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .linux-motion-bridge {
-    width: auto;
-    height: 44px;
-    flex-direction: row;
-    gap: 10px;
-  }
-
-  .linux-motion-bridge i {
-    width: 2px;
-    height: 20px;
-  }
-
-  .linux-motion-bridge i::after {
-    right: 50%;
-    top: auto;
-    bottom: -1px;
-    transform: translateX(50%) rotate(135deg);
-  }
-
-  .linux-motion--stack .linux-motion-cmd-chip[data-chip='flow'] {
-    bottom: auto;
-    animation: lm-cmd-flow-v 5.4s ease-in-out infinite;
-  }
-
-  .linux-motion-tree-branches {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .linux-motion-paths {
-    grid-template-columns: 1fr;
-  }
-
-  .linux-motion-path-pivot {
-    padding: 4px 0;
-  }
-}
-
-@keyframes lm-cmd-flow-v {
-  0%,
-  8% {
-    top: 8%;
-    bottom: auto;
-    left: 50%;
-    opacity: 0;
-    transform: translateX(-50%) scale(0.9);
-  }
-  18%,
-  28% {
-    top: 18%;
-    bottom: auto;
-    left: 50%;
-    opacity: 1;
-    transform: translateX(-50%) scale(1);
-  }
-  42%,
-  52% {
-    top: 48%;
-    bottom: auto;
-    left: 50%;
-    opacity: 1;
-  }
-  66%,
-  76% {
-    top: 78%;
-    bottom: auto;
-    left: 50%;
-    opacity: 1;
-  }
-  88%,
-  100% {
-    top: 92%;
-    bottom: auto;
-    left: 50%;
-    opacity: 0;
-    transform: translateX(-50%) scale(0.92);
-  }
-}
+/* Linux motion keeps the wide row layout; narrow cards zoom via gm-fig. */
 
 @media (prefers-reduced-motion: reduce) {
   .linux-motion .linux-motion-layer,
@@ -11916,38 +11777,6 @@ button.play-primer-link {
   opacity: 0;
 }
 
-@media (max-width: 640px) {
-  .linux-motion-exec,
-  .linux-motion-vi,
-  .linux-motion-sieve {
-    grid-template-columns: 1fr;
-  }
-
-  .linux-motion-flow-arrow {
-    width: auto;
-    height: 36px;
-    flex-direction: row;
-  }
-
-  .linux-motion-flow-arrow i {
-    width: 2px;
-    height: 16px;
-  }
-
-  .linux-motion-flow-arrow i::after {
-    right: 50%;
-    top: auto;
-    bottom: -1px;
-    transform: translateX(50%) rotate(135deg);
-  }
-
-  .linux-motion-pipe-join {
-    width: 100%;
-    height: 36px;
-    transform: rotate(90deg);
-  }
-}
-
 .spark-primer-table-wrap {
   margin: 14px 0 4px;
   overflow-x: auto;
@@ -12250,12 +12079,19 @@ button.play-primer-link {
     padding-right: 12px;
   }
 
-  /* Flush diagrams still go edge-to-edge. */
+  /* Static flush diagrams still go edge-to-edge. */
   .spark-primer-figure--flush {
     margin-left: -18px;
     margin-right: -12px;
     width: calc(100% + 30px);
     max-width: none;
+  }
+
+  /* Motion figures keep the same left/right gutters as the copy. */
+  .spark-primer-figure--flush:has(.spark-primer-figure-anim) {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
 
   .spark-primer-notebook--stamped .spark-primer-header {

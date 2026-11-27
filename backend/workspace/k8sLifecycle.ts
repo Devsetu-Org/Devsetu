@@ -382,8 +382,10 @@ async function provisionBox(
     throw labEnvUnavailable();
   }
   onPhase?.('Preparing the lab');
+  // Setup itself should be seconds once the box is Ready. Long hangs are bugs
+  // (forge/sshd/kubectl), not slow work — keep a tight budget so we fail loud.
   const result = await k8s.runChallengeScript(ns, challengeId, spec.setup?.script || 'setup.sh', {
-    timeoutMs: 180_000,
+    timeoutMs: 120_000,
     env: linuxBox.scriptEnv(),
   });
   if (result.code !== 0) {

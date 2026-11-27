@@ -708,10 +708,11 @@ function BootLog({
         : k8sLab
           ? K8S_BOOT_PHASES
           : BOOT_PHASES);
-  // Preflight availability check (before any backend boot phase). Stay on the
-  // first step — never jump to "Creating…" then snap back to "Waking…".
-  const hold = machineCheck === 'checking' || machineCheck === 'failed';
-  const holdIndex = 0;
+  // Preflight availability check only (before any backend boot phase). Mid-boot
+  // failures (e.g. setup.sh timeout) must stay on the real step — never snap
+  // back to "Waking machines…".
+  const preflightHold = machineCheck === 'checking';
+  const bootFailed = machineCheck === 'failed';
   // No backend phase yet → all upcoming. Never invent "Creating your machine".
   const rawCurrent = phase.current === 'Waking machines...' ? WAKE_PHASE : phase.current;
   const reported = boxLike && rawCurrent === INSTALL_PHASE
@@ -759,20 +760,30 @@ function BootLog({
     return phases.length - 1;
   })();
 
-  const targetAt = hold
-    ? holdIndex
-    : labReady
-      ? lastUsefulIndex
-      : backendAt;
+  // Preflight: hold on wake. Mid-boot fail: pin to the last known real step.
+  const failAt = bootFailed
+    ? Math.max(0, backendAt, displayAt)
+    : -1;
+  const targetAt = preflightHold
+    ? 0
+    : bootFailed
+      ? failAt
+      : labReady
+        ? lastUsefulIndex
+        : backendAt;
 
   useEffect(() => {
     displayAtRef.current = displayAt;
   }, [displayAt]);
 
   useEffect(() => {
-    if (hold) {
-      // Availability preflight: keep the first step current (do not jump ahead).
-      advanceDisplayAt(holdIndex);
+    if (preflightHold) {
+      advanceDisplayAt(0);
+      lastAdvanceRef.current = Date.now();
+      return undefined;
+    }
+    if (bootFailed) {
+      advanceDisplayAt(Math.max(0, failAt));
       lastAdvanceRef.current = Date.now();
       return undefined;
     }
@@ -822,8 +833,9 @@ function BootLog({
     }, 100);
     return () => window.clearInterval(id);
   }, [
-    hold,
-    holdIndex,
+    preflightHold,
+    bootFailed,
+    failAt,
     targetAt,
     labReady,
     onRevealDone,
@@ -850,19 +862,23 @@ function BootLog({
           ? 'Starting your lab'
           : platform || spark
             ? 'Starting your cluster'
-            : `Starting your ${machineLabel} ${machineLabel === 'Kafka' ? 'cluster' : 'machine'}`);
+            : `Starting your ${machineLabel} ${machineLabel === 'Kafka' ? 'cluster' : 'lab'}`);
   return (
     <div className="k8s-lab-boot">
       <strong>{heading}</strong>
       <ol className="k8s-lab-boot-log">
         {phases.map((step, index) => {
-          const skipped = !hold && !customPhases && isStepSkipped(step);
-          const state: BootStepState = hold
-            ? (index === holdIndex
-              ? (machineCheck === 'failed' ? 'failed' : 'current')
-              : index < holdIndex
-                ? 'done'
-                : 'upcoming')
+          const skipped = !preflightHold && !bootFailed && !customPhases && isStepSkipped(step);
+          const state: BootStepState = preflightHold
+            ? (index === 0
+              ? 'current'
+              : 'upcoming')
+            : bootFailed
+              ? (index === failAt
+                ? 'failed'
+                : index < failAt
+                  ? 'done'
+                  : 'upcoming')
             : skipped
             ? 'skipped'
             : currentAt < 0
@@ -883,7 +899,7 @@ function BootLog({
           );
         })}
       </ol>
-      {machineCheck === 'failed' && machineCheckMessage ? (
+      {bootFailed && machineCheckMessage ? (
         <p className="k8s-lab-boot-fail">{machineCheckMessage}</p>
       ) : null}
     </div>
@@ -981,7 +997,8 @@ export default function K8sLabWorkspace({
   }, [investigationLab, challengeId, investigation]);
   const showBrief = isNarrow ? mobilePane === 'brief' : !briefCollapsed;
   const showWorkspace = isNarrow ? mobilePane === 'workspace' : true;
-  const desktopOnly = isNarrow && challenge?.sandboxType !== 'linux' && challenge?.sandboxType !== 'kafka' && challenge?.sandboxType !== 'spark';
+  /* Machines / clusters need a keyboard and a wide screen — never start on mobile. */
+  const desktopOnly = isNarrow;
   const showResize = !isNarrow && !briefCollapsed;
   const [briefTab, setBriefTab] = useState<ProblemStatementTab>('description');
   const [briefChallenge, setBriefChallenge] = useState<ChallengePublic | ChallengeFull | null>(challenge);
@@ -1642,7 +1659,10 @@ export default function K8sLabWorkspace({
       )}
 
       {showWorkspace && desktopOnly && (
-        <DesktopOnlyNotice tools="terminal and editor" onShowBrief={() => setMobilePane('brief')} />
+        <DesktopOnlyNotice
+          tools={box ? 'machine and terminal' : sparkLab ? 'cluster and terminal' : 'terminal and editor'}
+          onShowBrief={() => setMobilePane('brief')}
+        />
       )}
       {showWorkspace && !desktopOnly && (
       <div className="col col-main">
@@ -1799,7 +1819,7 @@ export default function K8sLabWorkspace({
                         ? 'The description is on the left. Start the machine when you want the terminal.'
                         : 'The description is on the left. Start the lab when you want the terminal.'}
                   </p>
-                  {challenge && (
+                  {challenge && !isNarrow && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"
@@ -1842,7 +1862,7 @@ export default function K8sLabWorkspace({
                       You can still read the description and the rest of the brief on the left.
                     </p>
                   )}
-                  {challenge && !labComingSoon && (
+                  {challenge && !labComingSoon && !isNarrow && (
                     <button
                       type="button"
                       className="spark-ide-btn k8s-lab-locked-retry"
@@ -1885,7 +1905,7 @@ export default function K8sLabWorkspace({
                               : null
                           }
                         />
-                        {session.machineCheck === 'failed' && challenge && (
+                        {session.machineCheck === 'failed' && challenge && !isNarrow && (
                           <button
                             type="button"
                             className="spark-ide-btn k8s-lab-locked-retry"

@@ -90,8 +90,11 @@ ensure_answers() {
 
 # ensure_forge_git_host — map git.forgeboard.internal → 127.0.0.1, start the
 # image's systemd sshd (same path as linux-22), and plant a passwordless
-# learner→learner key so clone/push work without prompts. git-01 must NOT set
-# box.unprivileged — sshd needs the privileged seccomp/caps profile.
+# learner→learner key so clone/push work without prompts. git labs that push
+# must NOT set box.unprivileged — sshd needs systemd as PID 1.
+#
+# Keep this fast and hang-proof: prod timeouts were from systemctl enable /
+# SSH GSSAPI+UseDNS stalls, not from real setup work (local→EKS was already quick).
 ensure_forge_git_host() {
   box_script <<EOF
 set -euo pipefail
@@ -100,12 +103,21 @@ REMOTE_URL=$(printf '%q' "$REMOTE_URL")
 SEED=$(printf '%q' "$SEED")
 SSH_PORT=22
 
+# Bound any systemd call — enable/restart can stall on dbus in some images.
+sys() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 12 systemctl "\$@"
+  else
+    systemctl "\$@"
+  fi
+}
+
 # Hostname → loopback (same-box "remote"; eth0 self-connect is unreliable).
 hosts="\$(grep -vF "\$GIT_HOST" /etc/hosts || true)"
 printf '%s\n%s\n' "\$hosts" "127.0.0.1  \$GIT_HOST" > /etc/hosts
 
 # Host keys (image job usually creates these; generate if missing).
-systemctl start ssh-hostkeys.service 2>/dev/null || true
+sys start ssh-hostkeys.service 2>/dev/null || true
 [[ -f /etc/ssh/ssh_host_ed25519_key ]] || ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key
 [[ -f /etc/ssh/ssh_host_ecdsa_key ]] || ssh-keygen -q -t ecdsa -N '' -f /etc/ssh/ssh_host_ecdsa_key
 install -d -m 755 /run/sshd
@@ -122,7 +134,8 @@ rm -f /home/learner/.ssh/id_ed25519 /home/learner/.ssh/id_ed25519.pub
 runuser -u learner -- env HOME=/home/learner ssh-keygen -q -t ed25519 -N '' -f /home/learner/.ssh/id_ed25519
 install -o learner -g learner -m 600 /home/learner/.ssh/id_ed25519.pub /home/learner/.ssh/authorized_keys
 
-# Point the stock sshd at pubkey-only for this lab (linux-22 style drop-in).
+# Point the stock sshd at pubkey-only. UseDNS/GSSAPI off — both hang for minutes
+# in clusters without reverse DNS / Kerberos (the prod timeout class).
 rm -f /etc/ssh/sshd_config.d/50-legacy.conf /etc/ssh/sshd_forgeboard.conf
 cat > /etc/ssh/sshd_config.d/50-forgeboard.conf <<'CONF'
 PubkeyAuthentication yes
@@ -130,25 +143,27 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin no
 AuthorizedKeysFile .ssh/authorized_keys
+UseDNS no
+GSSAPIAuthentication no
 CONF
 
 # Forge SSH needs a privileged box (systemd as PID 1). Unprivileged boxes use
-# `sleep infinity` and systemctl fails with "Host is down" / "not been booted…".
+# \`sleep infinity\` and systemctl fails with "Host is down" / "not been booted…".
 if ! command -v systemctl >/dev/null 2>&1 || [[ "\$(ps -p 1 -o comm= 2>/dev/null || true)" != "systemd" ]]; then
   echo "forge git host needs a privileged box (systemd as PID 1); this machine has no systemd" >&2
   ps -p 1 -o pid,comm,args 2>&1 || true
   exit 1
 fi
 
-# Use the image sshd via systemd (not a minimal sshd -f — that rejected keys).
-systemctl unmask ssh.socket ssh.service 2>/dev/null || true
-systemctl enable ssh.socket 2>/dev/null || true
-systemctl restart ssh.socket
-systemctl restart ssh.service 2>/dev/null || true
+# Restart only — do not \`systemctl enable\` (that can hang on dbus; unit is
+# already enabled in the image, same as linux-22).
+sys unmask ssh.socket ssh.service 2>/dev/null || true
+sys restart ssh.socket
+sys restart ssh.service 2>/dev/null || true
 
 ready=0
 i=0
-while [[ "\$i" -lt 40 ]]; do
+while [[ "\$i" -lt 15 ]]; do
   if (echo >/dev/tcp/127.0.0.1/\$SSH_PORT) >/dev/null 2>&1; then
     ready=1
     break
@@ -157,12 +172,11 @@ while [[ "\$i" -lt 40 ]]; do
     ready=1
     break
   fi
-  # Integer seconds only — some images ship a sleep(1) that rejects fractions.
   sleep 1
   i=\$((i + 1))
 done
 if [[ "\$ready" -ne 1 ]]; then
-  systemctl status ssh.socket ssh.service --no-pager 2>&1 | tail -n 40 || true
+  sys status ssh.socket ssh.service --no-pager 2>&1 | tail -n 40 || true
   ss -ltn 2>/dev/null | head -n 30 || true
   echo "sshd did not listen on 127.0.0.1:\$SSH_PORT" >&2
   exit 1
@@ -175,6 +189,10 @@ Host \$GIT_HOST
   User learner
   IdentityFile /home/learner/.ssh/id_ed25519
   IdentitiesOnly yes
+  PreferredAuthentications publickey
+  PubkeyAuthentication yes
+  GSSAPIAuthentication no
+  ConnectTimeout 5
 CFG
 chown learner:learner /home/learner/.ssh/config
 chmod 600 /home/learner/.ssh/config
@@ -194,16 +212,24 @@ grep -q . /home/learner/.ssh/known_hosts || {
   exit 1
 }
 
-# Smoke: learner can reach the forge host over SSH with no prompt.
+# Smoke: learner can reach the forge host over SSH with no prompt (hard-bounded).
+SSH_SMOKE=(
+  -o BatchMode=yes
+  -o ConnectTimeout=5
+  -o ConnectionAttempts=1
+  -o GSSAPIAuthentication=no
+  -o PreferredAuthentications=publickey
+  -o IdentitiesOnly=yes
+  -i /home/learner/.ssh/id_ed25519
+)
 if ! runuser -u learner -- env HOME=/home/learner \
-  ssh -o BatchMode=yes -o ConnectTimeout=5 -i /home/learner/.ssh/id_ed25519 \
-    "learner@\$GIT_HOST" true; then
+  ssh "\${SSH_SMOKE[@]}" "learner@\$GIT_HOST" true; then
   echo "forge SSH smoke test failed (learner@\$GIT_HOST)" >&2
   ss -ltn 2>/dev/null | head -n 30 || true
   ls -la /home/learner /home/learner/.ssh 2>&1 || true
+  # Bounded debug only — never ssh -vvv without the same hang guards.
   runuser -u learner -- env HOME=/home/learner \
-    ssh -vvv -o BatchMode=yes -o ConnectTimeout=5 -i /home/learner/.ssh/id_ed25519 \
-      "learner@\$GIT_HOST" true 2>&1 | tail -n 50 || true
+    ssh -v "\${SSH_SMOKE[@]}" "learner@\$GIT_HOST" true 2>&1 | tail -n 40 || true
   exit 1
 fi
 

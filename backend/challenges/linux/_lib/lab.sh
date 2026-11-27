@@ -11,14 +11,18 @@ set -euo pipefail
 BOX_POD="${BOX_POD:-box}"
 BOX_CONTAINER="${BOX_CONTAINER:-box}"
 
+# Bound hung API attaches in production (local kube is usually fast enough that
+# this never trips). Without it, a stuck exec burns the whole setup.sh budget.
+KUBECTL_EXEC_TIMEOUT="${KUBECTL_EXEC_TIMEOUT:-60s}"
+
 # in_box '<shell command>' — run as root inside the box; prints its output.
 in_box() {
-  kubectl -n "$LEARNER_NS" exec "$BOX_POD" -c "$BOX_CONTAINER" -- bash -c "$1"
+  kubectl --request-timeout="$KUBECTL_EXEC_TIMEOUT" -n "$LEARNER_NS" exec "$BOX_POD" -c "$BOX_CONTAINER" -- bash -c "$1"
 }
 
 # box_script <<'EOF' ... EOF — run stdin as a root bash script inside the box.
 box_script() {
-  kubectl -n "$LEARNER_NS" exec -i "$BOX_POD" -c "$BOX_CONTAINER" -- bash -euo pipefail -s
+  kubectl --request-timeout="$KUBECTL_EXEC_TIMEOUT" -n "$LEARNER_NS" exec -i "$BOX_POD" -c "$BOX_CONTAINER" -- bash -euo pipefail -s
 }
 
 # as_learner '<shell command>' — run as the learner (login shell) inside the box.
@@ -34,7 +38,7 @@ box_ok() {
 # box_write <path> [mode] [owner] — copy stdin to a file inside the box.
 box_write() {
   local path=$1 mode=${2:-644} owner=${3:-root:root}
-  kubectl -n "$LEARNER_NS" exec -i "$BOX_POD" -c "$BOX_CONTAINER" -- \
+  kubectl --request-timeout="$KUBECTL_EXEC_TIMEOUT" -n "$LEARNER_NS" exec -i "$BOX_POD" -c "$BOX_CONTAINER" -- \
     bash -c "install -d \"\$(dirname '$path')\" && cat > '$path' && chmod $mode '$path' && chown $owner '$path'"
 }
 

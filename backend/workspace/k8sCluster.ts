@@ -1708,7 +1708,15 @@ async function runChallengeScript(
     };
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
-      settle(() => reject(Object.assign(new Error(`script timed out: ${scriptName}`), { status: 504 })));
+      const detail = [stderr, stdout]
+        .map((s) => String(s || '').trim())
+        .filter(Boolean)
+        .map((s) => (s.length > 400 ? `…${s.slice(-400)}` : s))
+        .join('\n');
+      const msg = detail
+        ? `script timed out: ${scriptName}\n${detail}`
+        : `script timed out: ${scriptName}`;
+      settle(() => reject(Object.assign(new Error(msg), { status: 504 })));
     }, timeoutMs);
     const consumeBootPhases = (chunk: string): void => {
       if (!opts.onBootPhase) return;
