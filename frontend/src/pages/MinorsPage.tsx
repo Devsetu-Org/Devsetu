@@ -156,7 +156,7 @@ function LanguageSelect({
   );
 }
 
-/** Only ready minors with authored content are open — planned stay Coming soon for everyone. */
+/** Only ready minors with authored content are open — all minors are planned (Coming soon) for the pilot. */
 function canOpen(minor: MinorEntry): boolean {
   return minor.status === 'ready' && hasAuthoredContent(minor);
 }
