@@ -3,7 +3,7 @@
   "number": 307,
   "finalized": true,
   "title": "Onboard the Payments Team",
-  "description": "**SITUATION:**\n\nMonday morning **Priya** and **Marco** join the payment box as new engineers. Each needs a login of their own. **payment-handler** sometimes dies overnight, and they need to start it again and see whether it is running. Those are the only admin actions they should have. They must not be able to sign in as root and run other commands.\n\n**The new accounts.** Put both in a new group, `payments-team`, so one rule covers both. Each gets a home directory and the bash shell. Marco reads system logs, so he needs the `adm` group. Do not put either in the `sudo` group. That group can run any command as root.\n\n**What they may run as root.** As root, with no password, they may only restart `payment-handler` and check that it is running. Every other command as root is refused.\n\n**The account that must stop working.** **olek** left last week, but his login still works. Lock the password and set a shell that cannot start a session. Keep `/home/olek` for audit. Do not delete the account.\n\n**YOUR TASK:**\n\n1. Create the group `payments-team`.\n2. Create users `priya` and `marco` with home `/home/<name>` and shell `/bin/bash`, both in `payments-team`. Add `marco` to `adm` as well.\n3. Let members of `payments-team` run only `systemctl restart payment-handler` and `systemctl status payment-handler` as root, without a password. Put the rule in `/etc/sudoers.d/payments-team`.\n4. Lock `olek`'s password and set his shell to `/usr/sbin/nologin`. Keep `/home/olek`.\n\n**SPEC:**\n\n- `/home/priya` and `/home/marco` are owned by those users\n- `priya` is not in `adm` or `sudo`; `marco` is not in `sudo`\n- `/etc/sudoers.d/payments-team` is `root:root`, mode `440`, and passes `visudo -cf`\n- The two allowed commands are the full paths `/usr/bin/systemctl restart payment-handler` and `/usr/bin/systemctl status payment-handler`\n\n**REFERENCES:**\n\n- [DevSetu Blog \u2014 Users, Groups, and Permissions](/play/devops-engineer/linux/read/users-groups-and-permissions)\n",
+  "description": "**SITUATION:**\n\nMonday morning **Priya** and **Marco** join the payment box as new engineers. Each needs a login of their own. **payment-handler** sometimes dies overnight, and they need to start it again and see whether it is running. Those are the only admin actions they should have. They must not be able to sign in as root and run other commands.\n\n**The new accounts.** Put both in a new group, `payments-team`, so one rule covers both. Each gets a home directory and the bash shell. Marco reads system logs, so he needs the `adm` group. Do not put either in the `sudo` group. That group can run any command as root.\n\n**What they may run as root.** As root, with no password, they may only restart `payment-handler` and check that it is running. Every other command as root is refused.\n\n**The account that must stop working.** **olek** left last week, but his login still works. Lock the password and set a shell that cannot start a session. Keep `/home/olek` for audit. Do not delete the account.\n\n**YOUR TASK:**\n\n1. Create the group `payments-team`.\n2. Create users `priya` and `marco` with home `/home/<name>` and shell `/bin/bash`, both in `payments-team`. Add `marco` to `adm` as well.\n3. Let members of `payments-team` run only `systemctl restart payment-handler` and `systemctl status payment-handler` as root, without a password. Put the rule in `/etc/sudoers.d/payments-team`.\n4. Lock `olek`'s password and set his shell to `/usr/sbin/nologin`. Keep `/home/olek`.\n\n**SPEC:**\n\n- `/home/priya` and `/home/marco` are owned by those users\n- `priya` is not in `adm` or `sudo`; `marco` is not in `sudo`\n- `/etc/sudoers.d/payments-team` is `root:root`, mode `440`, and passes `visudo -cf`\n- The two allowed commands are the full paths `/usr/bin/systemctl restart payment-handler` and `/usr/bin/systemctl status payment-handler`\n\n**REFERENCES:**\n\n- [DevSetu Blog — Users, Groups, and Permissions](/play/devops-engineer/linux/read/users-groups-and-permissions)\n",
   "difficulty": "L1",
   "tags": [
     "linux",
@@ -22,7 +22,7 @@
     "hints": [
       "You are learner on a real Ubuntu machine with systemd; sudo works without a password.",
       "Reset gives you a fresh machine (your changes are wiped).",
-      "Read SPEC carefully, then Submit \u2014 the grader checks the machine itself."
+      "Read SPEC carefully, then Submit — the grader checks the machine itself."
     ],
     "overview": "Onboard the Payments Team",
     "brief": "Onboard the Payments Team",
@@ -42,6 +42,6 @@
       "timeoutSeconds": 90
     }
   },
-  "visibleTo": "users",
+  "visibleTo": "admin",
   "tokens": 10
 }

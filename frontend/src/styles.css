@@ -481,6 +481,36 @@ a:hover { text-decoration: underline; }
   color: var(--text-muted);
 }
 
+/* Raw .py/.sh solution files: <pre><code> inside .statement — do not use inline-chip styles. */
+.statement pre.markdown-pre.statement-solution-pre,
+.statement pre.statement-solution-pre {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: #0a0a0a;
+  overflow-x: auto;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre;
+}
+
+.statement pre code,
+.statement-solution-pre code {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  white-space: inherit;
+}
+
 .readonly-code-pane,
 .statement-solution-code-pane {
   margin: 0;
@@ -6415,6 +6445,18 @@ button.play-primer-link {
   color: #d1fae5;
 }
 
+.play-blogs-link {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+}
+
+.play-blogs-link:hover {
+  background: rgba(251, 191, 36, 0.22);
+  border-color: rgba(251, 191, 36, 0.6);
+  color: #fef3c7;
+}
+
 .play-intro-link {
   display: inline-flex;
   align-items: center;
@@ -7381,38 +7423,26 @@ button.play-primer-link {
   color: var(--text-dim);
 }
 
-.play-chapter-read {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  margin-left: auto;
-  color: #7dd3fc;
-  line-height: 0;
-  text-decoration: none;
-}
-
-.play-chapter-read:hover {
-  color: #fff;
-}
-
-.play-chapter-read-icon {
-  display: block;
-  width: 18px;
-  height: 18px;
-}
-
 .play-chapter-labs {
   list-style: none;
   margin: 0;
   padding: 0;
+  min-width: 0;
 }
 
+.play-chapter-labs > li {
+  min-width: 0;
+}
+
+/* Beat `.app button { padding }` so lab rows keep their grid gutters. */
+.app button.play-chapter-lab,
 .play-chapter-lab {
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) minmax(110px, auto);
-  gap: 12px;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   padding: 12px 10px 12px 8px;
   border: none;
@@ -7455,26 +7485,39 @@ button.play-primer-link {
 }
 
 .play-chapter-lab-index {
+  grid-column: 1;
   font-size: 12px;
   font-weight: 650;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+  justify-self: start;
 }
 
 .play-chapter-lab-title {
+  grid-column: 2;
   min-width: 0;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
   font-size: 14px;
   font-weight: 560;
   line-height: 1.35;
   color: #e8eaf2;
 }
 
+.play-chapter-lab-title-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .play-chapter-lab-meta {
+  grid-column: 3;
   display: grid;
-  grid-template-columns: 38px 66px;
+  grid-template-columns: 66px;
   justify-content: end;
   align-items: center;
   column-gap: 10px;
@@ -7482,7 +7525,15 @@ button.play-primer-link {
   justify-self: end;
 }
 
+.play-chapter-lab-meta--free {
+  grid-template-columns: 38px 66px;
+}
+
 .play-chapter-lab-meta--staff {
+  grid-template-columns: 22px 66px;
+}
+
+.play-chapter-lab-meta--free.play-chapter-lab-meta--staff {
   grid-template-columns: 38px 22px 66px;
 }
 
@@ -7494,23 +7545,18 @@ button.play-primer-link {
   justify-self: start;
 }
 
-.play-chapter-lab-free-slot {
-  display: block;
-  width: 1px;
-  height: 1px;
+.play-chapter-lab-meta .play-problem-tokens {
+  margin-left: 0;
+  justify-self: end;
+  justify-content: flex-end;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .play-chapter-lab-lock {
   display: inline-flex;
   flex-shrink: 0;
   color: var(--text-dim);
-}
-
-.play-chapter-lab-check {
-  width: 14px;
-  height: 14px;
-  color: var(--brand-bright);
-  justify-self: start;
 }
 
 .play-hub .play-paper-section-grid {
@@ -8032,6 +8078,3882 @@ button.play-primer-link {
   font-weight: 500;
   color: var(--primer-muted);
   text-align: center;
+}
+
+.spark-primer-figure-anim {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(165deg, rgba(16, 24, 22, 0.95), rgba(8, 12, 11, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Git blog motion figures — moving chips / commits / packets (not static SVG). */
+.git-motion {
+  --gm-ink: rgba(255, 255, 255, 0.9);
+  --gm-muted: rgba(255, 255, 255, 0.45);
+  --gm-line: rgba(52, 211, 153, 0.4);
+  --gm-fill: rgba(16, 185, 129, 0.14);
+  --gm-accent: #34d399;
+  --gm-warn: #f87171;
+  color: var(--gm-ink);
+  font-family: var(--primer-sans, ui-sans-serif, system-ui, sans-serif);
+  min-height: 200px;
+  padding: 18px 16px 20px;
+  box-sizing: border-box;
+}
+
+.git-motion-stage {
+  position: relative;
+  width: 100%;
+  min-height: 168px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.git-motion-stage--row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+  min-height: 150px;
+}
+
+.git-motion-stage--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+}
+
+.git-motion-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gm-muted);
+  margin-bottom: 10px;
+}
+
+.git-motion-cmd {
+  position: absolute;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gm-accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.git-motion-cmd--center {
+  position: relative;
+  opacity: 1;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.git-motion-bin {
+  position: relative;
+  border: 1.5px solid var(--gm-line);
+  background: var(--gm-fill);
+  border-radius: 12px;
+  padding: 18px 12px 14px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 110px;
+}
+
+.git-motion-bin span {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.git-motion-bin small {
+  font-size: 11px;
+  color: var(--gm-muted);
+}
+
+.git-motion-chip {
+  position: absolute;
+  z-index: 2;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #0f766e;
+  border: 1px solid rgba(110, 231, 183, 0.55);
+  color: #ecfdf5;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 650;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.git-motion-node {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gm-accent);
+  background: rgba(16, 185, 129, 0.22);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  position: relative;
+}
+
+.git-motion-rail {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  position: relative;
+}
+
+.git-motion-rail::before {
+  content: '';
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 50%;
+  height: 2px;
+  background: var(--gm-line);
+  z-index: 0;
+}
+
+.git-motion-tag {
+  position: absolute;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid var(--gm-line);
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 3;
+}
+
+.git-motion-thesis {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.git-motion-thesis strong {
+  color: #ecfdf5;
+  font-weight: 650;
+}
+
+.git-motion-footnote {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: var(--gm-muted);
+  text-align: center;
+  line-height: 1.35;
+}
+
+.git-motion-commits {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.git-motion-commits i {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--gm-line);
+  background: rgba(16, 185, 129, 0.2);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono, ui-monospace, monospace);
+  color: #ecfdf5;
+}
+
+/* —— Origin: clear centralized vs distributed —— */
+.git-motion--origin {
+  padding-top: 14px;
+}
+
+.git-motion--origin .git-motion-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.git-motion--origin .git-motion-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 16px 14px;
+  background: rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  min-height: 240px;
+}
+
+.git-motion--origin .git-motion-footnote {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.git-motion--origin .git-motion-panel--before {
+  border-color: rgba(248, 113, 113, 0.24);
+}
+
+.git-motion--origin .git-motion-panel--after {
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+.git-motion--origin .git-motion-history {
+  margin: 4px 0 0;
+  padding: 11px 10px 12px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.git-motion--origin .git-motion-history--server {
+  border: 1.5px solid rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+  animation: gm-server-pulse 3.6s ease-in-out infinite;
+}
+
+.git-motion--origin .git-motion-history--remote {
+  border: 1.5px solid rgba(52, 211, 153, 0.3);
+  background: rgba(16, 185, 129, 0.07);
+}
+
+.git-motion--origin .git-motion-history-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fca5a5;
+}
+
+.git-motion--origin .git-motion-history--remote .git-motion-history-label {
+  color: #6ee7b7;
+}
+
+.git-motion--origin .git-motion-history-sub {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.git-motion--origin .git-motion-history--server .git-motion-commits i {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(248, 113, 113, 0.14);
+  color: #fee2e2;
+}
+
+.git-motion--origin .git-motion-conn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 6px 0;
+}
+
+.git-motion--origin .git-motion-conn-line {
+  width: 0;
+  height: 10px;
+}
+
+.git-motion--origin .git-motion-conn--required .git-motion-conn-line {
+  border-left: 1.5px solid rgba(248, 113, 113, 0.45);
+}
+
+.git-motion--origin .git-motion-conn--optional .git-motion-conn-line {
+  border-left: 1.5px dashed rgba(52, 211, 153, 0.45);
+}
+
+.git-motion--origin .git-motion-conn-pill {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.git-motion--origin .git-motion-conn--required .git-motion-conn-pill {
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+}
+
+.git-motion--origin .git-motion-conn--optional .git-motion-conn-pill {
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.git-motion--origin .git-motion-devs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.git-motion--origin .git-motion-dev {
+  min-width: 0;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.git-motion--origin .git-motion-dev span {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.git-motion--origin .git-motion-dev em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: rgba(252, 165, 165, 0.9);
+}
+
+.git-motion--origin .git-motion-dev small {
+  display: block;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.git-motion--origin .git-motion-dev--full {
+  border-style: solid;
+  border-color: var(--gm-line);
+  background: var(--gm-fill);
+  gap: 6px;
+  padding: 10px 8px;
+  opacity: 0;
+  transform: translateX(12px);
+  animation: gm-dev-fill 4.2s ease-in-out infinite;
+}
+
+.git-motion--origin .git-motion-dev--full[data-i='2'] {
+  animation-delay: 0.35s;
+}
+
+.git-motion--origin .git-motion-dev--full em {
+  font-size: 10.5px;
+  color: #a7f3d0;
+}
+
+.git-motion--origin .git-motion-dev--full .git-motion-commits {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.git-motion--origin .git-motion-dev--full .git-motion-commits i {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 5px;
+  font-size: 10px;
+  animation: gm-commit-glow 4.2s ease-in-out infinite;
+}
+
+.git-motion--origin .git-motion-dev--full .git-motion-commits i.git-motion-commit--new {
+  border-style: dashed;
+  border-color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.32);
+  color: #ffffff;
+}
+
+.git-motion--origin .git-motion-pivot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.git-motion--origin .git-motion-pivot-line {
+  width: 2px;
+  flex: 1;
+  min-height: 28px;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.2), transparent);
+}
+
+.git-motion--origin .git-motion-pivot-badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  color: #6ee7b7;
+  animation: gm-pulse 2s ease-in-out infinite;
+}
+
+@media (max-width: 860px) {
+  .git-motion--origin .git-motion-compare {
+    grid-template-columns: 1fr;
+  }
+
+  .git-motion--origin .git-motion-pivot {
+    flex-direction: row;
+    padding: 4px 0;
+  }
+
+  .git-motion--origin .git-motion-pivot-line {
+    width: auto;
+    height: 2px;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+/* —— Three trees: three circles + clean command labels —— */
+.git-motion--trees {
+  padding: 18px 12px 22px;
+}
+
+.git-motion--trees .git-motion-circles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 168px;
+}
+
+.git-motion--trees .git-motion-circle {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(circle at 40% 32%, rgba(52, 211, 153, 0.12), rgba(0, 0, 0, 0.35));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.git-motion--trees .git-motion-circle strong {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1.2;
+  text-align: center;
+  max-width: 108px;
+  padding: 0 6px;
+}
+
+.git-motion--trees .git-motion-circle em {
+  font-style: normal;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.42);
+  letter-spacing: 0.02em;
+}
+
+.git-motion--trees .git-motion-circle .git-motion-chip--file {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%) scale(0.92);
+  opacity: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.git-motion--trees .git-motion-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 88px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.git-motion--trees .git-motion-arrow i {
+  display: block;
+  width: 36px;
+  height: 2px;
+  background: rgba(52, 211, 153, 0.35);
+  position: relative;
+  border-radius: 2px;
+}
+
+.git-motion--trees .git-motion-arrow i::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid rgba(52, 211, 153, 0.55);
+  border-top: 2px solid rgba(52, 211, 153, 0.55);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.git-motion--trees .git-motion-arrow span {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(110, 231, 183, 0.75);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.git-motion--trees .git-motion-arrow i {
+  background: rgba(52, 211, 153, 0.45);
+}
+
+.git-motion--trees .git-motion-arrow i::after {
+  border-color: rgba(52, 211, 153, 0.65);
+}
+
+.git-motion--trees .git-motion-circle[data-stop='1'] {
+  animation: gm-circle-active 5.2s ease-in-out infinite;
+}
+
+.git-motion--trees .git-motion-circle[data-stop='2'] {
+  animation: gm-circle-active 5.2s ease-in-out 1.7s infinite;
+}
+
+.git-motion--trees .git-motion-circle[data-stop='3'] {
+  animation: gm-circle-active 5.2s ease-in-out 3.4s infinite;
+}
+
+.git-motion--trees .git-motion-chip--file[data-at='1'] {
+  animation: gm-chip-in-circle 5.2s ease-in-out infinite;
+}
+
+.git-motion--trees .git-motion-chip--file[data-at='2'] {
+  animation: gm-chip-in-circle 5.2s ease-in-out 1.7s infinite;
+}
+
+.git-motion--trees .git-motion-chip--file[data-at='3'] {
+  animation: gm-chip-in-circle 5.2s ease-in-out 3.4s infinite;
+}
+
+@media (max-width: 640px) {
+  .git-motion--trees .git-motion-circles {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .git-motion--trees .git-motion-arrow {
+    width: auto;
+    height: 48px;
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .git-motion--trees .git-motion-arrow i {
+    width: 2px;
+    height: 22px;
+  }
+
+  .git-motion--trees .git-motion-arrow i::after {
+    right: 50%;
+    top: auto;
+    bottom: -1px;
+    transform: translateX(50%) rotate(135deg);
+  }
+}
+
+/* —— Clone / push: forge host ↔ local clone —— */
+.git-motion--clone-push {
+  gap: 14px;
+}
+
+.git-motion--clone-push .git-motion-forge {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.git-motion--clone-push .git-motion-forge-node {
+  flex: 1 1 150px;
+  max-width: 220px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 14px 14px 12px;
+  text-align: center;
+}
+
+.git-motion--clone-push .git-motion-forge-node[data-side='remote'] {
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.08);
+}
+
+.git-motion--clone-push .git-motion-forge-node[data-side='local'] {
+  border-color: rgba(52, 211, 153, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.08);
+}
+
+.git-motion--clone-push .git-motion-forge-node em {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--gm-muted);
+}
+
+.git-motion--clone-push .git-motion-forge-node .git-motion-commits {
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.git-motion--clone-push .git-motion-forge-node .git-motion-commits i[data-c='2'] {
+  opacity: 0;
+  transform: scale(0.55);
+  animation: gm-node-birth 5.6s ease-in-out 2.4s infinite;
+  border-color: #6ee7b7;
+}
+
+.git-motion--clone-push .git-motion-forge-path {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 92px;
+  position: relative;
+  padding: 8px 0;
+}
+
+.git-motion--clone-push .git-motion-forge-wire {
+  display: block;
+  width: 2px;
+  height: 64px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.55),
+    rgba(52, 211, 153, 0.55)
+  );
+}
+
+.git-motion--clone-push .git-motion-forge-packet {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.55);
+  animation: gm-forge-packet 5.6s ease-in-out infinite;
+}
+
+.git-motion--clone-push .git-motion-forge-flow {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.git-motion--clone-push .git-motion-forge-flow[data-dir='clone'] {
+  color: rgba(125, 211, 252, 0.9);
+  animation: gm-cmd-flash 5.6s ease-in-out infinite;
+}
+
+.git-motion--clone-push .git-motion-forge-flow[data-dir='push'] {
+  color: rgba(110, 231, 183, 0.9);
+  animation: gm-cmd-flash 5.6s ease-in-out 2.6s infinite;
+}
+
+@keyframes gm-forge-packet {
+  0%,
+  12% {
+    top: 22px;
+    background: #38bdf8;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  38% {
+    top: 62px;
+    background: #38bdf8;
+    opacity: 1;
+  }
+  42% {
+    opacity: 0;
+  }
+  55% {
+    top: 62px;
+    background: #6ee7b7;
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  82% {
+    top: 22px;
+    background: #6ee7b7;
+    opacity: 1;
+  }
+  88%,
+  100% {
+    top: 22px;
+    opacity: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .git-motion--clone-push .git-motion-forge {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .git-motion--clone-push .git-motion-forge-path {
+    min-height: 72px;
+    width: 100%;
+  }
+
+  .git-motion--clone-push .git-motion-forge-wire {
+    width: 64px;
+    height: 2px;
+  }
+
+  .git-motion--clone-push .git-motion-forge-packet {
+    left: 22px;
+    top: 50%;
+    margin-left: 0;
+    margin-top: -5px;
+    animation-name: gm-forge-packet-h;
+  }
+}
+
+@keyframes gm-forge-packet-h {
+  0%,
+  12% {
+    left: 22px;
+    background: #38bdf8;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  38% {
+    left: calc(100% - 32px);
+    background: #38bdf8;
+    opacity: 1;
+  }
+  42% {
+    opacity: 0;
+  }
+  55% {
+    left: calc(100% - 32px);
+    background: #6ee7b7;
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  82% {
+    left: 22px;
+    background: #6ee7b7;
+    opacity: 1;
+  }
+  88%,
+  100% {
+    left: 22px;
+    opacity: 0;
+  }
+}
+
+/* —— Branch: feat tag slides; C4 pops in —— */
+.git-motion--branch .git-motion-stage {
+  min-height: 150px;
+  padding-top: 36px;
+}
+
+.git-motion--branch .git-motion-node--birth {
+  opacity: 0;
+  transform: scale(0.4);
+  animation: gm-node-birth 3.8s ease-in-out infinite;
+}
+
+.git-motion--branch .git-motion-tag--main {
+  top: 8px;
+  left: calc(50% + 36px);
+}
+
+.git-motion--branch .git-motion-tag--feat {
+  top: 8px;
+  left: calc(50% - 20px);
+  animation: gm-tag-slide 3.8s ease-in-out infinite;
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.16);
+}
+
+/* —— Tag: release label stays put while main moves —— */
+.git-motion--tag {
+  padding-top: 8px;
+}
+
+.git-motion--tag .git-motion-stage {
+  min-height: 150px;
+  padding-top: 40px;
+}
+
+.git-motion--tag .git-motion-node--tagged {
+  border-color: rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.18);
+}
+
+.git-motion--tag .git-motion-tag--release {
+  top: 6px;
+  left: calc(50% - 8px);
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(251, 191, 36, 0.16);
+  color: #fde68a;
+}
+
+.git-motion--tag .git-motion-tag--main {
+  top: 6px;
+  left: calc(50% + 72px);
+}
+
+.git-motion--tag .git-motion-node--birth {
+  opacity: 1;
+  transform: none;
+}
+
+.git-motion--still.git-motion--tag .git-motion-node--birth {
+  opacity: 1;
+  transform: none;
+}
+
+/* —— Remotes: upstream → laptop → origin —— */
+.git-motion--remotes .git-motion-remotes {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.git-motion--remotes .git-motion-forge-node {
+  flex: 1 1 120px;
+  max-width: 170px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.git-motion--remotes .git-motion-forge-node[data-side='upstream'] {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.git-motion--remotes .git-motion-forge-node[data-side='local'] {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.git-motion--remotes .git-motion-forge-node[data-side='remote'] {
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.git-motion--remotes .git-motion-forge-node em {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--gm-muted);
+}
+
+.git-motion--remotes .git-motion-forge-node .git-motion-commits {
+  margin-top: 10px;
+}
+
+.git-motion--remotes .git-motion-remotes-path {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 64px;
+}
+
+.git-motion--remotes .git-motion-forge-wire {
+  display: block;
+  width: 2px;
+  height: 40px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.45),
+    rgba(52, 211, 153, 0.45)
+  );
+}
+
+.git-motion--remotes .git-motion-forge-flow {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.git-motion--remotes .git-motion-forge-flow[data-dir='clone'] {
+  color: rgba(125, 211, 252, 0.9);
+}
+
+.git-motion--remotes .git-motion-forge-flow[data-dir='push'] {
+  color: rgba(110, 231, 183, 0.9);
+}
+
+@media (max-width: 720px) {
+  .git-motion--remotes .git-motion-remotes {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .git-motion--remotes .git-motion-remotes-path {
+    flex-direction: row;
+    min-width: 0;
+    width: min(100%, 220px);
+  }
+
+  .git-motion--remotes .git-motion-forge-wire {
+    width: auto;
+    height: 2px;
+    flex: 1;
+  }
+}
+
+/* —— Hosts: laptop + popular Git hosts —— */
+.git-motion--hosts .git-motion-hosts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.git-motion--hosts .git-motion-hosts-laptop {
+  width: min(100%, 280px);
+  border: 1.5px solid rgba(52, 211, 153, 0.35);
+  border-radius: 14px;
+  background: rgba(16, 185, 129, 0.08);
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.git-motion--hosts .git-motion-hosts-laptop .git-motion-commits {
+  margin-top: 10px;
+}
+
+.git-motion--hosts .git-motion-hosts-laptop em {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--gm-muted);
+}
+
+.git-motion--hosts .git-motion-hosts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.git-motion--hosts .git-motion-hosts-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px 10px;
+  background: rgba(0, 0, 0, 0.28);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.git-motion--hosts .git-motion-hosts-card strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.git-motion--hosts .git-motion-hosts-card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--gm-muted);
+  line-height: 1.35;
+}
+
+.git-motion--hosts .git-motion-hosts-card[data-host='github'] {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.git-motion--hosts .git-motion-hosts-card[data-host='gitlab'] {
+  border-color: rgba(251, 146, 60, 0.4);
+}
+
+.git-motion--hosts .git-motion-hosts-card[data-host='bitbucket'] {
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+@media (max-width: 640px) {
+  .git-motion--hosts .git-motion-hosts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* —— Hook: blocked vs allowed subject —— */
+.git-motion--hook .git-motion-compare--hook {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.git-motion--hook .git-motion-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px 12px;
+  background: rgba(0, 0, 0, 0.24);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-height: 140px;
+}
+
+.git-motion--hook .git-motion-panel--before {
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
+.git-motion--hook .git-motion-panel--after {
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+.git-motion--hook .git-motion-hook-msg {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fecaca;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  text-align: center;
+}
+
+.git-motion--hook .git-motion-hook-msg--ok {
+  border-style: solid;
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(16, 185, 129, 0.12);
+  color: #a7f3d0;
+}
+
+.git-motion--hook .git-motion-pivot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.git-motion--hook .git-motion-pivot-line {
+  width: 2px;
+  flex: 1;
+  min-height: 20px;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.2), transparent);
+}
+
+.git-motion--hook .git-motion-pivot-badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  font-size: 11px;
+  font-weight: 750;
+  color: #6ee7b7;
+}
+
+@media (max-width: 720px) {
+  .git-motion--hook .git-motion-compare--hook {
+    grid-template-columns: 1fr;
+  }
+
+  .git-motion--hook .git-motion-pivot {
+    flex-direction: row;
+  }
+
+  .git-motion--hook .git-motion-pivot-line {
+    width: auto;
+    height: 2px;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+/* —— Amend: tip tag hops; orphan drifts away —— */
+.git-motion--amend .git-motion-stage {
+  min-height: 160px;
+  padding-top: 40px;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.git-motion--amend .git-motion-rail {
+  gap: 48px;
+}
+
+.git-motion--amend .git-motion-node--orphan {
+  animation: gm-orphan-drift 3.6s ease-in-out infinite;
+}
+
+.git-motion--amend .git-motion-node--new {
+  opacity: 0;
+  transform: translateY(16px) scale(0.5);
+  animation: gm-node-birth 3.6s ease-in-out 0.6s infinite;
+  border-color: #6ee7b7;
+}
+
+.git-motion--amend .git-motion-tag--tip {
+  top: 10px;
+  left: calc(50% - 10px);
+  animation: gm-tip-hop 3.6s ease-in-out infinite;
+}
+
+.git-motion--amend .git-motion-cmd--center {
+  animation: gm-cmd-flash 3.6s ease-in-out infinite;
+  opacity: 0;
+}
+
+/* —— Merge vs rebase (decision) —— */
+.git-motion--merge-rebase .git-motion-compare--merge-choice {
+  gap: 12px;
+}
+
+.git-motion--merge-rebase .git-motion-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 12px 14px;
+  background: rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.git-motion--merge-rebase .git-motion-choice-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  font-size: 12px;
+  color: var(--gm-muted);
+}
+
+.git-motion--merge-rebase .git-motion-choice-strip strong {
+  color: #d1fae5;
+  font-weight: 650;
+}
+
+/* —— Cherry-pick: SVG phases synced to steps —— */
+.git-motion--cherry {
+  padding-top: 8px;
+}
+
+.git-motion--cherry .git-motion-cherry-scene {
+  width: min(100%, 500px);
+  margin: 0 auto;
+}
+
+.git-motion--cherry .git-motion-merge-legend,
+.git-motion--revert .git-motion-merge-legend,
+.git-motion--reflog .git-motion-merge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--gm-muted);
+}
+
+.git-motion--cherry .git-motion-merge-legend span,
+.git-motion--revert .git-motion-merge-legend span,
+.git-motion--reflog .git-motion-merge-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.git-motion .gm-node--pick {
+  fill: rgba(56, 189, 248, 0.45);
+  stroke: #38bdf8;
+  stroke-width: 2;
+}
+
+.git-motion .gm-swatch--pick {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.45);
+}
+
+/* Step 2 only: copy arc; steps 2–3: H′ holds */
+.git-motion--cherry .gm-phase-diverge {
+  opacity: 0;
+  animation: gm-phase-2-only 6s ease-in-out infinite;
+}
+
+.git-motion--cherry .gm-cherry-arc {
+  stroke: rgba(56, 189, 248, 0.75);
+  stroke-width: 1.75;
+  stroke-dasharray: 5 4;
+}
+
+.git-motion--cherry .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-2-hold 6s ease-in-out infinite;
+}
+
+/* —— Revert: cancel commit on shared tip —— */
+.git-motion--revert {
+  padding-top: 8px;
+}
+
+.git-motion--revert .git-motion-revert-scene {
+  width: min(100%, 460px);
+  margin: 0 auto;
+}
+
+.git-motion .gm-node--bad {
+  fill: rgba(248, 113, 113, 0.35);
+  stroke: #f87171;
+  stroke-width: 2;
+}
+
+.git-motion .gm-swatch--bad {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.35);
+}
+
+.git-motion--revert .gm-phase-diverge {
+  opacity: 0;
+  animation: gm-phase-2-only 6s ease-in-out infinite;
+}
+
+.git-motion--revert .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-3 6s ease-in-out infinite;
+}
+
+/* —— Reflog: tip moves back; net catches C3 —— */
+.git-motion--reflog {
+  padding-top: 8px;
+}
+
+.git-motion--reflog .git-motion-reflog-scene {
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
+
+.git-motion--reflog .gm-reflog-net {
+  fill: rgba(16, 185, 129, 0.1);
+  stroke: rgba(52, 211, 153, 0.55);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+/* Step 2: C3 dims as tip moves to C2 */
+.git-motion--reflog .gm-reflog-c3 {
+  animation: gm-reflog-detach 6s ease-in-out infinite;
+}
+
+.git-motion--reflog .gm-phase-diverge {
+  opacity: 0;
+  animation: gm-phase-2 6s ease-in-out infinite;
+}
+
+.git-motion--reflog .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-3 6s ease-in-out infinite;
+}
+
+/* —— Bisect: 6s clock · range → probe → culprit —— */
+.git-motion--bisect {
+  padding-top: 8px;
+}
+
+.git-motion--bisect .git-motion-bisect-scene {
+  width: min(100%, 500px);
+  margin: 0 auto;
+}
+
+.git-motion--bisect .gm-bisect-window {
+  fill: rgba(16, 185, 129, 0.08);
+  stroke: rgba(52, 211, 153, 0.45);
+  stroke-width: 1.5;
+}
+
+.git-motion--bisect .gm-bisect-probe {
+  fill: var(--gm-accent);
+  stroke: rgba(16, 185, 129, 0.35);
+  stroke-width: 6;
+}
+
+.git-motion--bisect .gm-phase-diverge {
+  opacity: 0;
+  animation: gm-phase-2-only 6s ease-in-out infinite;
+}
+
+.git-motion--bisect .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-3 6s ease-in-out infinite;
+}
+
+/* —— Stash: messy → shelf → clean (phased like squash) —— */
+.git-motion--stash {
+  padding-top: 8px;
+}
+
+.git-motion--stash .git-motion-stash {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
+
+.git-motion--stash .git-motion-stash-col {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+  background: rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.git-motion--stash .git-motion-stash-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.git-motion--stash .git-motion-bin {
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 88px;
+}
+
+.git-motion--stash .git-motion-bin .git-motion-chip,
+.git-motion--stash .git-motion-bin .git-motion-chip--ghost,
+.git-motion--stash .git-motion-empty {
+  position: static;
+  display: inline-flex;
+  margin-top: 4px;
+}
+
+.git-motion--stash .git-motion-chip--ghost {
+  opacity: 0.55;
+  background: rgba(15, 118, 110, 0.35);
+  border-style: dashed;
+}
+
+.git-motion--stash .git-motion-empty {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--gm-muted);
+  padding: 6px 10px;
+}
+
+.git-motion--stash .git-motion-bin small {
+  display: block;
+  margin-top: 2px;
+}
+
+.git-motion--stash .git-motion-bin[data-bin='shelf'] {
+  border-color: rgba(52, 211, 153, 0.55);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.1);
+}
+
+.git-motion--stash .git-motion-bin[data-bin='clean'] {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.git-motion--stash .gm-phase-before {
+  opacity: 1;
+  animation: gm-phase-1-hold 6s ease-in-out infinite;
+}
+
+.git-motion--stash .gm-phase-diverge {
+  opacity: 0.35;
+  animation: gm-step-on-2 6s ease-in-out infinite;
+}
+
+.git-motion--stash .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-3 6s ease-in-out infinite;
+}
+
+@media (max-width: 560px) {
+  .git-motion--stash .git-motion-stash {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compare grid used by merge / FF / decision figures */
+.git-motion-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: min(100%, 560px);
+  margin: 0 auto;
+}
+
+@media (max-width: 720px) {
+  .git-motion-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* —— Shared SVG commit-graph language (merge family) —— */
+.git-motion-svg {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  margin: 8px auto 0;
+  overflow: visible;
+}
+
+.git-motion-svg--wide {
+  max-width: 440px;
+}
+
+.git-motion .gm-edge {
+  stroke: rgba(110, 231, 183, 0.45);
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.git-motion .gm-edge--main {
+  stroke: rgba(52, 211, 153, 0.7);
+}
+
+.git-motion .gm-edge--feat {
+  stroke: rgba(125, 211, 252, 0.7);
+}
+
+.git-motion .gm-edge--join {
+  stroke: rgba(56, 189, 248, 0.85);
+  stroke-width: 2.75;
+}
+
+.git-motion .gm-edge--new {
+  stroke: rgba(167, 139, 250, 0.85);
+  stroke-dasharray: 4 3;
+}
+
+.git-motion .gm-node {
+  fill: rgba(16, 185, 129, 0.35);
+  stroke: rgba(110, 231, 183, 0.95);
+  stroke-width: 1.75;
+}
+
+.git-motion .gm-node--base {
+  fill: rgba(148, 163, 184, 0.35);
+  stroke: rgba(203, 213, 225, 0.9);
+}
+
+.git-motion .gm-node--main {
+  fill: rgba(16, 185, 129, 0.4);
+  stroke: #34d399;
+}
+
+.git-motion .gm-node--feat {
+  fill: rgba(56, 189, 248, 0.35);
+  stroke: #7dd3fc;
+}
+
+.git-motion .gm-node--merge {
+  fill: rgba(56, 189, 248, 0.45);
+  stroke: #38bdf8;
+  stroke-width: 2.25;
+}
+
+.git-motion .gm-node--new {
+  fill: rgba(167, 139, 250, 0.4);
+  stroke: #c4b5fd;
+}
+
+.git-motion .gm-label {
+  fill: #ecfdf5;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono, ui-monospace, monospace);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.git-motion .gm-tag {
+  fill: #6ee7b7;
+  font-size: 10px;
+  font-weight: 650;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+
+.git-motion .gm-tag--feat {
+  fill: #7dd3fc;
+}
+
+.git-motion .gm-tag--merge {
+  fill: #38bdf8;
+}
+
+.git-motion .gm-caption {
+  fill: rgba(148, 163, 184, 0.95);
+  font-size: 10px;
+  font-family: var(--mono, ui-monospace, monospace);
+  text-anchor: middle;
+}
+
+.git-motion .gm-caption--accent {
+  fill: #7dd3fc;
+  font-weight: 650;
+}
+
+.git-motion .gm-caption--dim {
+  fill: rgba(148, 163, 184, 0.65);
+  font-size: 9px;
+}
+
+.git-motion .gm-parent-call {
+  fill: rgba(110, 231, 183, 0.85);
+  font-size: 9px;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+
+.git-motion .gm-parent-call--2 {
+  fill: rgba(125, 211, 252, 0.9);
+}
+
+/* Shared 6s phase clock — 0–33% / 33–66% / 66–100%; steps + graph lock together */
+.git-motion-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.git-motion-steps li {
+  position: relative;
+  padding: 5px 10px 5px 26px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  color: var(--gm-muted);
+  opacity: 0.38;
+}
+
+.git-motion-steps li::before {
+  content: attr(data-step);
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(52, 211, 153, 0.25);
+  color: #a7f3d0;
+  font-size: 9px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.git-motion-steps li[data-step='1'] {
+  animation: gm-step-on-1 6s ease-in-out infinite;
+}
+.git-motion-steps li[data-step='2'] {
+  animation: gm-step-on-2 6s ease-in-out infinite;
+}
+.git-motion-steps li[data-step='3'] {
+  animation: gm-step-on-3 6s ease-in-out infinite;
+}
+
+/* Default phase gating (merge-style build-up): diverge from step 2, join from step 3 */
+.git-motion .gm-phase-diverge {
+  opacity: 0;
+  animation: gm-phase-2 6s ease-in-out infinite;
+}
+
+.git-motion .gm-phase-before {
+  opacity: 0;
+  animation: gm-phase-2 6s ease-in-out infinite;
+}
+
+.git-motion .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-3 6s ease-in-out infinite;
+}
+
+/* Captions/tags that belong to exactly one step — hide otherwise (no stacked text) */
+.git-motion .gm-phase-1-only {
+  opacity: 0;
+  animation: gm-phase-1-only 6s ease-in-out infinite;
+}
+
+.git-motion .gm-phase-2-only {
+  opacity: 0;
+  animation: gm-phase-2-only 6s ease-in-out infinite;
+}
+
+.git-motion .gm-phase-3-only {
+  opacity: 0;
+  animation: gm-phase-3-only 6s ease-in-out infinite;
+}
+
+/* —— Merge commit: labeled graph + steps —— */
+.git-motion--merge-commit {
+  padding-top: 8px;
+}
+
+.git-motion--merge-commit .git-motion-merge-scene {
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
+
+.git-motion--merge-commit .git-motion-merge-legend,
+.git-motion--rebase-replay .git-motion-merge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--gm-muted);
+}
+
+.git-motion--merge-commit .git-motion-merge-legend span,
+.git-motion--rebase-replay .git-motion-merge-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.git-motion--merge-commit .git-motion-parent-note {
+  margin: 10px 8px 0;
+  padding: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--gm-muted, #94a3b8);
+}
+
+.git-motion--merge-commit .git-motion-parent-note code {
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.git-motion .gm-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: inline-block;
+}
+
+.git-motion .gm-swatch--base {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.35);
+}
+.git-motion .gm-swatch--main {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.4);
+}
+.git-motion .gm-swatch--feat {
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.35);
+}
+.git-motion .gm-swatch--merge {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.45);
+}
+
+/* —— Fast-forward vs true merge —— */
+.git-motion--fast-forward .git-motion-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 12px 14px;
+  background: rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.git-motion--fast-forward .git-motion-footnote {
+  margin-top: 8px;
+}
+
+.git-motion--fast-forward .gm-ff-pointer {
+  animation: gm-ff-slide 6s ease-in-out infinite;
+}
+
+.git-motion--fast-forward .gm-ff-pill {
+  fill: rgba(16, 185, 129, 0.9);
+}
+
+.git-motion--fast-forward .gm-ff-pill-text {
+  fill: #042f2e;
+  font-size: 9px;
+  font-weight: 750;
+  font-family: var(--mono, ui-monospace, monospace);
+  text-anchor: middle;
+}
+
+/* True-merge panel: C/F always visible; M joins in phase 3 */
+.git-motion--fast-forward .git-motion-panel--true .gm-node--main,
+.git-motion--fast-forward .git-motion-panel--true .gm-node--feat {
+  opacity: 1;
+  animation: none;
+}
+
+/* —— Merge conflict resolve —— */
+.git-motion--merge-conflict {
+  padding-top: 8px;
+}
+
+.git-motion--merge-conflict .git-motion-conflict {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: stretch;
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-col {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.git-motion--merge-conflict .git-motion-conflict-col[data-side='ours'] {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.git-motion--merge-conflict .git-motion-conflict-col[data-side='theirs'] {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.git-motion--merge-conflict .git-motion-conflict-code {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.65);
+  font-size: 11px;
+  line-height: 1.45;
+  color: #e2e8f0;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-code--ok {
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(16, 185, 129, 0.1);
+  animation: gm-conflict-ok 4.5s ease-in-out infinite;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 72px;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-vs {
+  font-size: 10px;
+  color: var(--gm-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-markers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: #fca5a5;
+  animation: gm-conflict-pulse 4.5s ease-in-out infinite;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-result {
+  width: min(100%, 320px);
+  margin: 12px auto 0;
+  text-align: center;
+}
+
+.git-motion--merge-conflict .git-motion-conflict-result small {
+  display: block;
+  margin-top: 6px;
+  color: var(--gm-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .git-motion--merge-conflict .git-motion-conflict {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* —— Rebase replay: SVG phases synced to steps —— */
+.git-motion--rebase-replay {
+  padding-top: 8px;
+}
+
+.git-motion--rebase-replay .git-motion-rebase-scene {
+  width: min(100%, 500px);
+  margin: 0 auto;
+}
+
+.git-motion--rebase-replay .gm-node--old {
+  stroke-dasharray: 3 2;
+}
+
+/* Step 1 strong → dim in step 2 → gone in step 3 (no leftover labels) */
+.git-motion--rebase-replay .gm-phase-before {
+  opacity: 1;
+  animation: gm-rebase-before 6s ease-in-out infinite;
+}
+
+/* Step 2 only: replay arcs + “replaying…” caption */
+.git-motion--rebase-replay .gm-phase-diverge {
+  opacity: 0;
+  animation: gm-phase-2-only 6s ease-in-out infinite;
+}
+
+.git-motion--rebase-replay .gm-replay-arc {
+  stroke: rgba(167, 139, 250, 0.7);
+  stroke-width: 1.75;
+  stroke-dasharray: 5 4;
+}
+
+.git-motion--rebase-replay .gm-replay-arc--2 {
+  stroke-dashoffset: 4;
+}
+
+/* Steps 2–3: A′ B′ appear with replay and hold through linear settle */
+.git-motion--rebase-replay .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-2-hold 6s ease-in-out infinite;
+}
+
+/* —— Interactive squash —— */
+.git-motion--rebase-squash {
+  padding-top: 8px;
+}
+
+.git-motion--rebase-squash .git-motion-squash {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
+
+.git-motion--rebase-squash .git-motion-squash-col {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+  background: rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack i {
+  position: relative;
+  display: block;
+  padding: 6px 8px 6px 52px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  font-style: normal;
+  font-size: 11px;
+  font-family: var(--mono, ui-monospace, monospace);
+  text-align: left;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack i::before {
+  content: attr(data-verb);
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack i[data-verb='pick']::before {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack i[data-verb='squash']::before {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+}
+
+/* Step 1–2: before stack holds; squash lines dim in step 2 */
+.git-motion--rebase-squash .gm-phase-before {
+  opacity: 1;
+  animation: gm-phase-1-hold 6s ease-in-out infinite;
+}
+
+.git-motion--rebase-squash .gm-phase-before i[data-verb='squash'] {
+  animation: gm-squash-dim 6s ease-in-out infinite;
+}
+
+/* Step 2: mid action highlight */
+.git-motion--rebase-squash .gm-phase-diverge {
+  opacity: 0.35;
+  animation: gm-step-on-2 6s ease-in-out infinite;
+}
+
+/* Step 3: clean result */
+.git-motion--rebase-squash .gm-phase-join {
+  opacity: 0;
+  animation: gm-phase-3 6s ease-in-out infinite;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack--clean i {
+  padding-left: 8px;
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(16, 185, 129, 0.18);
+  text-align: center;
+}
+
+.git-motion--rebase-squash .git-motion-squash-stack--clean i::before {
+  display: none;
+}
+
+.git-motion--rebase-squash .git-motion-squash-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.git-motion--rebase-squash .git-motion-squash-arrow {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 650;
+  color: rgba(110, 231, 183, 0.85);
+}
+
+.git-motion--rebase-squash .git-motion-squash-mid small {
+  font-size: 10px;
+  color: var(--gm-muted);
+}
+
+@media (max-width: 560px) {
+  .git-motion--rebase-squash .git-motion-squash {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Frozen diagrams: same style, no looping motion */
+.git-motion--still,
+.git-motion--still * {
+  animation: none !important;
+}
+
+.git-motion--still.git-motion--origin .git-motion-dev--full {
+  opacity: 1;
+  transform: none;
+}
+
+.git-motion--still.git-motion--origin .git-motion-history--server,
+.git-motion--still.git-motion--origin .git-motion-pivot-badge {
+  box-shadow: none;
+}
+
+.git-motion--still .gm-phase-diverge,
+.git-motion--still .gm-phase-before,
+.git-motion--still .gm-phase-join,
+.git-motion--still .gm-phase-1-only,
+.git-motion--still .gm-phase-2-only,
+.git-motion--still .gm-phase-3-only,
+.git-motion--still .gm-replay-arc {
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+/* Still rebase: hide ephemeral “replaying…” / old-branch captions; keep final linear */
+.git-motion--still.git-motion--rebase-replay .gm-phase-diverge,
+.git-motion--still.git-motion--rebase-replay .gm-phase-1-only,
+.git-motion--still.git-motion--rebase-replay .gm-phase-2-only {
+  opacity: 0 !important;
+}
+
+.git-motion--still.git-motion--rebase-replay .gm-phase-before {
+  opacity: 0.22 !important;
+}
+
+/* Still cherry / revert / reflog / bisect: show settled end state */
+.git-motion--still.git-motion--cherry .gm-phase-diverge,
+.git-motion--still.git-motion--cherry .gm-phase-1-only,
+.git-motion--still.git-motion--cherry .gm-phase-2-only,
+.git-motion--still.git-motion--revert .gm-phase-diverge,
+.git-motion--still.git-motion--revert .gm-phase-1-only,
+.git-motion--still.git-motion--revert .gm-phase-2-only,
+.git-motion--still.git-motion--bisect .gm-phase-diverge,
+.git-motion--still.git-motion--bisect .gm-phase-1-only,
+.git-motion--still.git-motion--bisect .gm-phase-2-only {
+  opacity: 0 !important;
+}
+
+.git-motion--still.git-motion--cherry .gm-phase-join,
+.git-motion--still.git-motion--revert .gm-phase-join,
+.git-motion--still.git-motion--reflog .gm-phase-join,
+.git-motion--still.git-motion--bisect .gm-phase-join,
+.git-motion--still.git-motion--stash .gm-phase-join {
+  opacity: 1 !important;
+}
+
+.git-motion--still.git-motion--reflog .gm-reflog-c3 {
+  opacity: 0.4 !important;
+}
+
+.git-motion--still.git-motion--reflog .gm-phase-diverge {
+  opacity: 1 !important;
+}
+
+.git-motion--still.git-motion--stash .gm-phase-before {
+  opacity: 0.45 !important;
+}
+
+.git-motion--still.git-motion--stash .gm-phase-diverge {
+  opacity: 1 !important;
+}
+
+.git-motion--still .git-motion-steps li {
+  opacity: 1;
+  animation: none;
+}
+
+.git-motion--still.git-motion--fast-forward .gm-ff-pointer {
+  animation: none;
+  transform: translate(182px, 92px);
+}
+
+.git-motion--still.git-motion--rebase-replay .gm-node--new,
+.git-motion--still.git-motion--rebase-squash .git-motion-squash-stack--clean i {
+  opacity: 1;
+  transform: none;
+}
+
+.git-motion--still.git-motion--merge-conflict .git-motion-conflict-markers,
+.git-motion--still.git-motion--merge-conflict .git-motion-conflict-code--ok {
+  animation: none;
+  opacity: 1;
+}
+
+.git-motion--still.git-motion--clone-push .git-motion-commits i[data-c='2'] {
+  opacity: 1;
+  transform: none;
+}
+
+.git-motion--still.git-motion--clone-push .git-motion-forge-packet {
+  opacity: 0;
+}
+
+.git-motion--still.git-motion--trees .git-motion-chip--file {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes gm-server-pulse {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12);
+  }
+}
+
+@keyframes gm-dev-fill {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  28%,
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+  92%,
+  100% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes gm-commit-glow {
+  0%,
+  20% {
+    border-color: rgba(52, 211, 153, 0.25);
+  }
+  40%,
+  70% {
+    border-color: rgba(110, 231, 183, 0.85);
+    background: rgba(16, 185, 129, 0.35);
+  }
+  100% {
+    border-color: rgba(52, 211, 153, 0.25);
+  }
+}
+
+@keyframes gm-circle-active {
+  0%,
+  12%,
+  38%,
+  100% {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+  }
+  18%,
+  32% {
+    border-color: rgba(52, 211, 153, 0.75);
+    box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.1);
+  }
+}
+
+@keyframes gm-chip-in-circle {
+  0%,
+  12%,
+  38%,
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.88);
+  }
+  18%,
+  32% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes gm-chip-stash {
+  0%,
+  12% {
+    left: 10%;
+    top: 58%;
+    opacity: 1;
+  }
+  35%,
+  55% {
+    left: 44%;
+    top: 52%;
+    opacity: 1;
+  }
+  78%,
+  100% {
+    left: 44%;
+    top: 52%;
+    opacity: 0.35;
+  }
+}
+
+@keyframes gm-cmd-flash {
+  0%,
+  12%,
+  40%,
+  100% {
+    opacity: 0;
+  }
+  18%,
+  32% {
+    opacity: 1;
+  }
+}
+
+@keyframes gm-bin-pulse {
+  0%,
+  100% {
+    box-shadow: none;
+    border-color: var(--gm-line);
+  }
+  40%,
+  60% {
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+    border-color: var(--gm-accent);
+  }
+}
+
+@keyframes gm-bin-dim {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  45%,
+  100% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes gm-node-birth {
+  0%,
+  25% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  40%,
+  70% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  90%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes gm-tag-slide {
+  0%,
+  25% {
+    transform: translateX(0);
+  }
+  45%,
+  70% {
+    transform: translateX(118px);
+  }
+  90%,
+  100% {
+    transform: translateX(118px);
+  }
+}
+
+@keyframes gm-tip-hop {
+  0%,
+  20% {
+    transform: translateX(0);
+  }
+  45%,
+  75% {
+    transform: translateX(96px) translateY(-8px);
+  }
+  90%,
+  100% {
+    transform: translateX(96px) translateY(-8px);
+  }
+}
+
+@keyframes gm-orphan-drift {
+  0%,
+  30% {
+    opacity: 1;
+    transform: none;
+  }
+  55%,
+  100% {
+    opacity: 0.2;
+    transform: translateY(18px) scale(0.85);
+  }
+}
+
+/* 6s clock: 0–33% step1, 33–66% step2, 66–100% step3 */
+@keyframes gm-step-on-1 {
+  0%,
+  30% {
+    opacity: 1;
+    border-color: rgba(52, 211, 153, 0.55);
+    color: #ecfdf5;
+  }
+  35%,
+  100% {
+    opacity: 0.38;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--gm-muted, #94a3b8);
+  }
+}
+
+@keyframes gm-step-on-2 {
+  0%,
+  30% {
+    opacity: 0.38;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--gm-muted, #94a3b8);
+  }
+  35%,
+  62% {
+    opacity: 1;
+    border-color: rgba(52, 211, 153, 0.55);
+    color: #ecfdf5;
+  }
+  67%,
+  100% {
+    opacity: 0.38;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--gm-muted, #94a3b8);
+  }
+}
+
+@keyframes gm-step-on-3 {
+  0%,
+  62% {
+    opacity: 0.38;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--gm-muted, #94a3b8);
+  }
+  67%,
+  96% {
+    opacity: 1;
+    border-color: rgba(56, 189, 248, 0.55);
+    color: #ecfdf5;
+  }
+  100% {
+    opacity: 0.38;
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--gm-muted, #94a3b8);
+  }
+}
+
+@keyframes gm-phase-1-only {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  35%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes gm-phase-2-only {
+  0%,
+  30% {
+    opacity: 0;
+  }
+  35%,
+  62% {
+    opacity: 1;
+  }
+  67%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes gm-phase-3-only {
+  0%,
+  62% {
+    opacity: 0;
+  }
+  67%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Appear at step 2, hold through step 3 (graph build-up) */
+@keyframes gm-phase-2 {
+  0%,
+  30% {
+    opacity: 0;
+  }
+  35%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes gm-phase-2-hold {
+  0%,
+  30% {
+    opacity: 0;
+  }
+  35%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Appear at step 3, hold to end (hard cut on loop) */
+@keyframes gm-phase-3 {
+  0%,
+  62% {
+    opacity: 0;
+  }
+  67%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes gm-phase-1-hold {
+  0%,
+  62% {
+    opacity: 1;
+  }
+  67%,
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes gm-rebase-before {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  35%,
+  62% {
+    opacity: 0.4;
+  }
+  67%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes gm-squash-dim {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  35%,
+  62% {
+    opacity: 0.35;
+  }
+  67%,
+  100% {
+    opacity: 0.18;
+  }
+}
+
+@keyframes gm-ff-slide {
+  0%,
+  30% {
+    transform: translate(14px, 92px);
+  }
+  40%,
+  96% {
+    transform: translate(182px, 92px);
+  }
+  100% {
+    transform: translate(14px, 92px);
+  }
+}
+
+@keyframes gm-conflict-pulse {
+  0%,
+  35% {
+    opacity: 1;
+  }
+  50%,
+  70% {
+    opacity: 0.25;
+  }
+  85%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes gm-conflict-ok {
+  0%,
+  45% {
+    opacity: 0.25;
+    border-color: rgba(52, 211, 153, 0.15);
+  }
+  60%,
+  100% {
+    opacity: 1;
+    border-color: rgba(52, 211, 153, 0.55);
+  }
+}
+
+@keyframes gm-fall-catch {
+  0%,
+  15% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(78px);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: translateY(78px) scale(0.9);
+    opacity: 0.55;
+  }
+}
+
+@keyframes gm-net-catch {
+  0%,
+  45% {
+    transform: none;
+  }
+  55% {
+    transform: translateY(4px) scale(1.03);
+  }
+  70%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes gm-reflog-detach {
+  0%,
+  30% {
+    opacity: 1;
+    fill: rgba(16, 185, 129, 0.4);
+    stroke: #34d399;
+  }
+  40%,
+  100% {
+    opacity: 0.4;
+    fill: rgba(248, 113, 113, 0.3);
+    stroke: #f87171;
+  }
+}
+
+@keyframes gm-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .git-motion * {
+    animation: none !important;
+  }
+
+  .git-motion--origin .git-motion-dev--full,
+  .git-motion--branch .git-motion-node--birth,
+  .git-motion--amend .git-motion-node--new,
+  .git-motion .gm-phase-diverge,
+  .git-motion .gm-phase-before,
+  .git-motion .gm-phase-join,
+  .git-motion .gm-phase-1-only,
+  .git-motion .gm-phase-3-only,
+  .git-motion .gm-node--merge,
+  .git-motion .gm-node--new,
+  .git-motion .gm-edge--join,
+  .git-motion .gm-tag--merge,
+  .git-motion .gm-parent-call,
+  .git-motion .gm-replay-arc,
+  .git-motion-steps li {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .git-motion--rebase-replay .gm-phase-diverge,
+  .git-motion--rebase-replay .gm-phase-2-only,
+  .git-motion--rebase-replay .gm-phase-1-only {
+    opacity: 0 !important;
+  }
+
+  .git-motion--rebase-replay .gm-phase-before {
+    opacity: 0.22 !important;
+  }
+
+  .git-motion--cherry .gm-phase-diverge,
+  .git-motion--cherry .gm-phase-1-only,
+  .git-motion--cherry .gm-phase-2-only,
+  .git-motion--revert .gm-phase-diverge,
+  .git-motion--revert .gm-phase-1-only,
+  .git-motion--revert .gm-phase-2-only,
+  .git-motion--bisect .gm-phase-diverge,
+  .git-motion--bisect .gm-phase-1-only,
+  .git-motion--bisect .gm-phase-2-only {
+    opacity: 0 !important;
+  }
+
+  .git-motion--cherry .gm-phase-join,
+  .git-motion--revert .gm-phase-join,
+  .git-motion--reflog .gm-phase-join,
+  .git-motion--bisect .gm-phase-join,
+  .git-motion--stash .gm-phase-join,
+  .git-motion--reflog .gm-phase-diverge,
+  .git-motion--stash .gm-phase-diverge {
+    opacity: 1 !important;
+  }
+
+  .git-motion--reflog .gm-reflog-c3 {
+    opacity: 0.4 !important;
+  }
+
+  .git-motion--stash .gm-phase-before {
+    opacity: 0.45 !important;
+  }
+
+  .git-motion--trees .git-motion-chip--file[data-at='1'] {
+    opacity: 1 !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .git-motion--fast-forward .gm-ff-pointer {
+    transform: translate(182px, 92px) !important;
+  }
+
+  .git-motion--branch .git-motion-tag--feat {
+    transform: translateX(118px) !important;
+  }
+
+  .git-motion--amend .git-motion-tag--tip {
+    transform: translateX(96px) translateY(-8px) !important;
+  }
+
+  .git-motion--amend .git-motion-cmd--center,
+  .git-motion-cmd {
+    opacity: 0.85 !important;
+  }
+}
+
+/* —— Linux blog motion figures (same tokens as .git-motion) —— */
+.linux-motion-stack {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  min-height: 168px;
+  margin-top: 4px;
+}
+
+.linux-motion-layer {
+  position: relative;
+  width: 128px;
+  min-height: 148px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(circle at 40% 28%, rgba(52, 211, 153, 0.12), rgba(0, 0, 0, 0.35));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 14px 10px 36px;
+  text-align: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.linux-motion-layer strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1.25;
+}
+
+.linux-motion-layer em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.42);
+  line-height: 1.35;
+  max-width: 108px;
+}
+
+.linux-motion-bridge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 72px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.linux-motion-bridge i {
+  display: block;
+  width: 32px;
+  height: 2px;
+  background: rgba(52, 211, 153, 0.45);
+  position: relative;
+  border-radius: 2px;
+}
+
+.linux-motion-bridge i::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid rgba(52, 211, 153, 0.65);
+  border-top: 2px solid rgba(52, 211, 153, 0.65);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.linux-motion-bridge span {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(110, 231, 183, 0.75);
+  white-space: nowrap;
+}
+
+.linux-motion-cmd-chip {
+  position: absolute;
+  /* Ride under the layer titles so the chip never covers “reads the line” etc. */
+  top: auto;
+  bottom: 14px;
+  left: 8%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.28);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: #a7f3d0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.linux-motion--stack .linux-motion-layer[data-layer='1'] {
+  animation: lm-layer-active 5.4s ease-in-out infinite;
+}
+
+.linux-motion--stack .linux-motion-layer[data-layer='2'] {
+  animation: lm-layer-active 5.4s ease-in-out 1.8s infinite;
+}
+
+.linux-motion--stack .linux-motion-layer[data-layer='3'] {
+  animation: lm-layer-active 5.4s ease-in-out 3.6s infinite;
+}
+
+.linux-motion--stack .linux-motion-cmd-chip[data-chip='flow'] {
+  animation: lm-cmd-flow 5.4s ease-in-out infinite;
+}
+
+.linux-motion-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin-top: 6px;
+}
+
+.linux-motion-tree-root {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px solid var(--gm-accent);
+  background: radial-gradient(circle at 40% 32%, rgba(52, 211, 153, 0.22), rgba(0, 0, 0, 0.4));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  z-index: 1;
+}
+
+.linux-motion-tree-root span {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 22px;
+  font-weight: 700;
+  color: #ecfdf5;
+  line-height: 1;
+}
+
+.linux-motion-tree-root em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--gm-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.linux-motion-tree-trunk {
+  width: 2px;
+  height: 18px;
+  background: var(--gm-line);
+}
+
+.linux-motion-tree-branches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.linux-motion-tree-node {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 10px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: lm-node-glow 8s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 0.55s);
+}
+
+.linux-motion-tree-node strong {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.linux-motion-tree-node em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--gm-muted);
+}
+
+.linux-motion-paths {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.linux-motion-path-panel {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.linux-motion-path-pivot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+}
+
+.linux-motion-path-pivot .git-motion-pivot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-fill);
+  color: var(--gm-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.linux-motion-path-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+}
+
+.linux-motion-path-trail > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.72);
+  opacity: 0.35;
+}
+
+.linux-motion-path-trail > span.linux-motion-path-file {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(16, 185, 129, 0.16);
+  color: #a7f3d0;
+  font-weight: 700;
+}
+
+.linux-motion-path-trail > span.linux-motion-path-here {
+  border-style: dashed;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.linux-motion-path-code {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--gm-accent);
+  background: transparent;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='abs'] > span[data-seg='1'] {
+  animation: lm-seg-on 5.6s ease-in-out infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='abs'] > span[data-seg='2'] {
+  animation: lm-seg-on 5.6s ease-in-out 0.7s infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='abs'] > span[data-seg='3'] {
+  animation: lm-seg-on 5.6s ease-in-out 1.4s infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='abs'] > span[data-seg='4'] {
+  animation: lm-seg-on 5.6s ease-in-out 2.1s infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='rel'] > span[data-seg='1'] {
+  animation: lm-seg-on 5.6s ease-in-out 0.2s infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='rel'] > span[data-seg='2'] {
+  animation: lm-seg-on 5.6s ease-in-out 0.9s infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='rel'] > span[data-seg='3'] {
+  animation: lm-seg-on 5.6s ease-in-out 1.6s infinite;
+}
+
+.linux-motion--paths .linux-motion-path-trail[data-kind='rel'] > span[data-seg='4'] {
+  animation: lm-seg-on 5.6s ease-in-out 2.3s infinite;
+}
+
+.git-motion--still.linux-motion--stack .linux-motion-layer,
+.git-motion--still.linux-motion--fs-tree .linux-motion-tree-node,
+.git-motion--still.linux-motion--paths .linux-motion-path-trail > span {
+  animation: none !important;
+  opacity: 1;
+  border-color: rgba(52, 211, 153, 0.35);
+  transform: none;
+}
+
+.git-motion--still.linux-motion--stack .linux-motion-cmd-chip {
+  animation: none !important;
+  left: 50%;
+  opacity: 0.85;
+}
+
+@keyframes lm-layer-active {
+  0%,
+  12% {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+  }
+  22%,
+  38% {
+    border-color: rgba(110, 231, 183, 0.75);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  }
+  50%,
+  100% {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+  }
+}
+
+@keyframes lm-cmd-flow {
+  0%,
+  8% {
+    left: 8%;
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+  18%,
+  28% {
+    left: 18%;
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  42%,
+  52% {
+    left: 50%;
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  66%,
+  76% {
+    left: 82%;
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  88%,
+  100% {
+    left: 92%;
+    opacity: 0;
+    transform: translateX(-50%) scale(0.92);
+  }
+}
+
+@keyframes lm-node-glow {
+  0%,
+  100% {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.28);
+  }
+  12%,
+  22% {
+    border-color: rgba(52, 211, 153, 0.55);
+    background: rgba(16, 185, 129, 0.16);
+  }
+  34% {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.28);
+  }
+}
+
+@keyframes lm-seg-on {
+  0%,
+  10% {
+    opacity: 0.3;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  22%,
+  55% {
+    opacity: 1;
+    border-color: rgba(52, 211, 153, 0.5);
+  }
+  70%,
+  100% {
+    opacity: 0.55;
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+}
+
+@media (max-width: 640px) {
+  .linux-motion-stack {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .linux-motion-bridge {
+    width: auto;
+    height: 44px;
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .linux-motion-bridge i {
+    width: 2px;
+    height: 20px;
+  }
+
+  .linux-motion-bridge i::after {
+    right: 50%;
+    top: auto;
+    bottom: -1px;
+    transform: translateX(50%) rotate(135deg);
+  }
+
+  .linux-motion--stack .linux-motion-cmd-chip[data-chip='flow'] {
+    bottom: auto;
+    animation: lm-cmd-flow-v 5.4s ease-in-out infinite;
+  }
+
+  .linux-motion-tree-branches {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .linux-motion-paths {
+    grid-template-columns: 1fr;
+  }
+
+  .linux-motion-path-pivot {
+    padding: 4px 0;
+  }
+}
+
+@keyframes lm-cmd-flow-v {
+  0%,
+  8% {
+    top: 8%;
+    bottom: auto;
+    left: 50%;
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9);
+  }
+  18%,
+  28% {
+    top: 18%;
+    bottom: auto;
+    left: 50%;
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  42%,
+  52% {
+    top: 48%;
+    bottom: auto;
+    left: 50%;
+    opacity: 1;
+  }
+  66%,
+  76% {
+    top: 78%;
+    bottom: auto;
+    left: 50%;
+    opacity: 1;
+  }
+  88%,
+  100% {
+    top: 92%;
+    bottom: auto;
+    left: 50%;
+    opacity: 0;
+    transform: translateX(-50%) scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linux-motion .linux-motion-layer,
+  .linux-motion .linux-motion-cmd-chip,
+  .linux-motion .linux-motion-tree-node,
+  .linux-motion .linux-motion-path-trail > span,
+  .linux-motion .linux-motion-flow-step,
+  .linux-motion .git-motion-chip,
+  .linux-motion .linux-motion-funnel-filters span,
+  .linux-motion .linux-motion-exec-list code,
+  .linux-motion .linux-motion-less-viewport,
+  .linux-motion .linux-motion-vi-panel,
+  .linux-motion .linux-motion-sieve-in span,
+  .linux-motion .linux-motion-sieve-out span,
+  .linux-motion .linux-motion-regex-pattern span,
+  .linux-motion .linux-motion-regex-labels span,
+  .linux-motion .linux-motion-pipe-stage,
+  .linux-motion .linux-motion-pipe-packet {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .linux-motion--stack .linux-motion-cmd-chip {
+    left: 50%;
+    top: auto;
+    bottom: 14px;
+  }
+
+  .linux-motion--funnel .git-motion-chip[data-keep='0'] {
+    opacity: 0.35 !important;
+  }
+}
+
+/* —— B1: glob / find —— */
+.linux-motion-flow {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.linux-motion-flow-step {
+  flex: 1 1 140px;
+  max-width: 200px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+.linux-motion-flow-step em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--gm-muted);
+}
+
+.linux-motion-flow-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.linux-motion-flow-arrow--solo {
+  width: auto;
+  margin: 8px 0;
+}
+
+.linux-motion-flow-arrow i {
+  display: block;
+  width: 28px;
+  height: 2px;
+  background: rgba(52, 211, 153, 0.45);
+  position: relative;
+  border-radius: 2px;
+}
+
+.linux-motion-flow-arrow i::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid rgba(52, 211, 153, 0.65);
+  border-top: 2px solid rgba(52, 211, 153, 0.65);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.linux-motion-flow-arrow span {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(110, 231, 183, 0.75);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.linux-motion-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+/* git-motion-chip is absolute for Git diagrams; Linux chip rows need flow layout. */
+.linux-motion .linux-motion-chip-row .git-motion-chip,
+.linux-motion .linux-motion-exec-list .git-motion-chip,
+.linux-motion .linux-motion-vi-panel .git-motion-chip {
+  position: static;
+  z-index: auto;
+  box-shadow: none;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.git-motion-chip--accent {
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.22);
+  color: #a7f3d0;
+}
+
+.linux-motion--glob .linux-motion-flow-step[data-step='1'] {
+  animation: lm-layer-active 5.4s ease-in-out infinite;
+}
+
+.linux-motion--glob .linux-motion-flow-step[data-step='2'] {
+  animation: lm-layer-active 5.4s ease-in-out 1.8s infinite;
+}
+
+.linux-motion--glob .linux-motion-flow-step[data-step='3'] {
+  animation: lm-layer-active 5.4s ease-in-out 3.6s infinite;
+}
+
+.linux-motion--glob .git-motion-chip[data-f='1'] {
+  animation: lm-seg-on 5.4s ease-in-out 1.6s infinite;
+}
+
+.linux-motion--glob .git-motion-chip[data-f='2'] {
+  animation: lm-seg-on 5.4s ease-in-out 1.9s infinite;
+}
+
+.linux-motion--glob .git-motion-chip[data-f='3'] {
+  animation: lm-seg-on 5.4s ease-in-out 2.2s infinite;
+}
+
+.linux-motion-funnel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.linux-motion-funnel-in,
+.linux-motion-funnel-out {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.linux-motion-funnel-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.linux-motion-funnel-filters span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--gm-line);
+  background: var(--gm-fill);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--gm-accent);
+  animation: lm-seg-on 5.6s ease-in-out infinite;
+}
+
+.linux-motion-funnel-filters span[data-f='2'] {
+  animation-delay: 0.7s;
+}
+
+.linux-motion-funnel-filters span[data-f='3'] {
+  animation-delay: 1.4s;
+}
+
+.linux-motion--funnel .git-motion-chip[data-keep='0'] {
+  animation: lm-funnel-drop 5.6s ease-in-out infinite;
+}
+
+.linux-motion--funnel .git-motion-chip[data-keep='1'] {
+  animation: lm-seg-on 5.6s ease-in-out 1.8s infinite;
+}
+
+.linux-motion--funnel .git-motion-chip[data-out] {
+  animation: lm-seg-on 5.6s ease-in-out 2.8s infinite;
+}
+
+.linux-motion-exec {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.linux-motion-exec-list {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.linux-motion-exec-list--out code {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: #a7f3d0;
+  opacity: 0.35;
+}
+
+.linux-motion-exec-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.linux-motion-exec-template {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gm-accent);
+  white-space: nowrap;
+}
+
+.linux-motion--find-exec .git-motion-chip[data-m='1'],
+.linux-motion--find-exec .linux-motion-exec-list--out code[data-r='1'] {
+  animation: lm-seg-on 5.4s ease-in-out infinite;
+}
+
+.linux-motion--find-exec .git-motion-chip[data-m='2'],
+.linux-motion--find-exec .linux-motion-exec-list--out code[data-r='2'] {
+  animation: lm-seg-on 5.4s ease-in-out 1.2s infinite;
+}
+
+.linux-motion--find-exec .git-motion-chip[data-m='3'],
+.linux-motion--find-exec .linux-motion-exec-list--out code[data-r='3'] {
+  animation: lm-seg-on 5.4s ease-in-out 2.4s infinite;
+}
+
+/* —— B2: less / vi / grep / regex —— */
+.linux-motion-less {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.linux-motion-less-file {
+  width: min(100%, 320px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 10px 12px 12px;
+}
+
+.linux-motion-less-lines {
+  position: relative;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.28);
+  min-height: 168px;
+}
+
+.linux-motion-less-viewport {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 28%;
+  height: 38%;
+  border-radius: 8px;
+  border: 1.5px solid rgba(52, 211, 153, 0.65);
+  background: rgba(16, 185, 129, 0.12);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  animation: lm-less-slide 6s ease-in-out infinite;
+}
+
+.linux-motion-less-viewport em {
+  font-style: normal;
+  font-size: 10px;
+  color: #a7f3d0;
+  font-family: var(--primer-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.linux-motion-vi {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.linux-motion-vi-panel {
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+.linux-motion-vi-panel strong {
+  font-size: 13px;
+  color: #f8fafc;
+}
+
+.linux-motion-vi-panel em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--gm-muted);
+}
+
+.linux-motion--vi .linux-motion-vi-panel[data-mode='normal'] {
+  animation: lm-layer-active 5.2s ease-in-out infinite;
+}
+
+.linux-motion--vi .linux-motion-vi-panel[data-mode='insert'] {
+  animation: lm-layer-active 5.2s ease-in-out 2.6s infinite;
+}
+
+.linux-motion-sieve {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.linux-motion-sieve-in,
+.linux-motion-sieve-out {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11.5px;
+}
+
+.linux-motion-sieve-in span,
+.linux-motion-sieve-out span {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.linux-motion-sieve-in span[data-hit='1'],
+.linux-motion-sieve-out span[data-hit='1'] {
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(16, 185, 129, 0.14);
+  color: #a7f3d0;
+}
+
+.linux-motion-sieve-mid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.linux-motion--grep .linux-motion-sieve-in span[data-hit='0'] {
+  animation: lm-funnel-drop 5.6s ease-in-out infinite;
+}
+
+.linux-motion--grep .linux-motion-sieve-in span[data-hit='1'],
+.linux-motion--grep .linux-motion-sieve-out span[data-hit='1'] {
+  animation: lm-seg-on 5.6s ease-in-out 1.4s infinite;
+}
+
+.linux-motion-regex {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.linux-motion-regex-pattern {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  background: transparent;
+}
+
+.linux-motion-regex-pattern span {
+  display: inline-flex;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 14px;
+  font-weight: 700;
+  color: #e2e8f0;
+  opacity: 0.4;
+}
+
+.linux-motion-regex-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.linux-motion-regex-labels span {
+  min-width: 52px;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--gm-muted);
+  opacity: 0.4;
+}
+
+.linux-motion--regex .linux-motion-regex-pattern span[data-p='1'],
+.linux-motion--regex .linux-motion-regex-labels span[data-p='1'] {
+  animation: lm-seg-on 6s ease-in-out infinite;
+}
+
+.linux-motion--regex .linux-motion-regex-pattern span[data-p='2'],
+.linux-motion--regex .linux-motion-regex-labels span[data-p='2'] {
+  animation: lm-seg-on 6s ease-in-out 0.5s infinite;
+}
+
+.linux-motion--regex .linux-motion-regex-pattern span[data-p='3'],
+.linux-motion--regex .linux-motion-regex-labels span[data-p='3'] {
+  animation: lm-seg-on 6s ease-in-out 1s infinite;
+}
+
+.linux-motion--regex .linux-motion-regex-pattern span[data-p='4'],
+.linux-motion--regex .linux-motion-regex-labels span[data-p='4'] {
+  animation: lm-seg-on 6s ease-in-out 1.5s infinite;
+}
+
+.linux-motion--regex .linux-motion-regex-pattern span[data-p='5'],
+.linux-motion--regex .linux-motion-regex-labels span[data-p='5'] {
+  animation: lm-seg-on 6s ease-in-out 2s infinite;
+}
+
+.linux-motion--regex .linux-motion-regex-pattern span[data-p='6'],
+.linux-motion--regex .linux-motion-regex-labels span[data-p='6'] {
+  animation: lm-seg-on 6s ease-in-out 2.5s infinite;
+}
+
+/* —— B3: pipe —— */
+.linux-motion-pipe {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.linux-motion-pipe-stage {
+  min-width: 96px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(circle at 40% 28%, rgba(52, 211, 153, 0.12), rgba(0, 0, 0, 0.35));
+  padding: 14px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linux-motion-pipe-stage strong {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 14px;
+  color: #ecfdf5;
+}
+
+.linux-motion-pipe-stage em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--gm-muted);
+}
+
+.linux-motion-pipe-join {
+  position: relative;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gm-accent);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.linux-motion-pipe-packet {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  left: 8px;
+  top: 50%;
+  margin-top: -4px;
+  opacity: 0;
+  animation: lm-pipe-packet 4.8s ease-in-out infinite;
+}
+
+.linux-motion-pipe-packet[data-delay='1'] {
+  animation-delay: 1.2s;
+}
+
+.linux-motion-pipe-err {
+  margin: 14px auto 0;
+  max-width: 420px;
+  border-radius: 10px;
+  border: 1px dashed rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.08);
+  padding: 10px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linux-motion-pipe-err .git-motion-kicker {
+  color: #fca5a5;
+}
+
+.linux-motion-pipe-err em {
+  font-style: normal;
+  font-size: 11px;
+  color: rgba(252, 165, 165, 0.85);
+}
+
+.linux-motion--pipe .linux-motion-pipe-stage[data-s='1'] {
+  animation: lm-layer-active 4.8s ease-in-out infinite;
+}
+
+.linux-motion--pipe .linux-motion-pipe-stage[data-s='2'] {
+  animation: lm-layer-active 4.8s ease-in-out 1.2s infinite;
+}
+
+.linux-motion--pipe .linux-motion-pipe-stage[data-s='3'] {
+  animation: lm-layer-active 4.8s ease-in-out 2.4s infinite;
+}
+
+@keyframes lm-funnel-drop {
+  0%,
+  25% {
+    opacity: 0.85;
+  }
+  45%,
+  100% {
+    opacity: 0.22;
+  }
+}
+
+@keyframes lm-less-slide {
+  0%,
+  20% {
+    top: 12%;
+  }
+  50% {
+    top: 42%;
+  }
+  80%,
+  100% {
+    top: 12%;
+  }
+}
+
+@keyframes lm-pipe-packet {
+  0%,
+  8% {
+    left: 8px;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  55% {
+    left: 40px;
+    opacity: 1;
+  }
+  70%,
+  100% {
+    left: 48px;
+    opacity: 0;
+  }
+}
+
+.git-motion--still.linux-motion--glob .linux-motion-flow-step,
+.git-motion--still.linux-motion--funnel .git-motion-chip,
+.git-motion--still.linux-motion--find-exec .git-motion-chip,
+.git-motion--still.linux-motion--find-exec .linux-motion-exec-list--out code,
+.git-motion--still.linux-motion--less .linux-motion-less-viewport,
+.git-motion--still.linux-motion--vi .linux-motion-vi-panel,
+.git-motion--still.linux-motion--grep .linux-motion-sieve-in span,
+.git-motion--still.linux-motion--grep .linux-motion-sieve-out span,
+.git-motion--still.linux-motion--regex .linux-motion-regex-pattern span,
+.git-motion--still.linux-motion--regex .linux-motion-regex-labels span,
+.git-motion--still.linux-motion--pipe .linux-motion-pipe-stage {
+  animation: none !important;
+  opacity: 1;
+}
+
+.git-motion--still.linux-motion--pipe .linux-motion-pipe-packet {
+  animation: none !important;
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .linux-motion-exec,
+  .linux-motion-vi,
+  .linux-motion-sieve {
+    grid-template-columns: 1fr;
+  }
+
+  .linux-motion-flow-arrow {
+    width: auto;
+    height: 36px;
+    flex-direction: row;
+  }
+
+  .linux-motion-flow-arrow i {
+    width: 2px;
+    height: 16px;
+  }
+
+  .linux-motion-flow-arrow i::after {
+    right: 50%;
+    top: auto;
+    bottom: -1px;
+    transform: translateX(50%) rotate(135deg);
+  }
+
+  .linux-motion-pipe-join {
+    width: 100%;
+    height: 36px;
+    transform: rotate(90deg);
+  }
 }
 
 .spark-primer-table-wrap {
@@ -9269,7 +13191,22 @@ button.play-primer-link {
 @media (max-width: 960px) {
   .topbar-inner.topbar-inner--play,
   .topbar-inner.topbar-inner--challenge {
-    min-height: 52px;
+    min-height: 44px;
+  }
+
+  .topbar--play .brand {
+    font-size: 15px;
+    gap: 8px;
+  }
+
+  .topbar--play .brand-mark {
+    width: 18px;
+    height: 18px;
+  }
+
+  .topnav-menu-btn {
+    width: 36px;
+    height: 36px;
   }
 
   .play-quiz-shell {
@@ -9349,7 +13286,8 @@ button.play-primer-link {
   }
 
   .play-problems-page--fixed .play-problems-main,
-  .play-problems-page--fixed .play-problems-table {
+  .play-problems-page--fixed .play-problems-table,
+  .play-problems-page--fixed .play-chapter-shelf {
     overflow: visible;
     flex: none;
     min-height: 0;
@@ -9370,6 +13308,41 @@ button.play-primer-link {
   .play-featured-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .play-chapter-card {
+    padding: 14px 12px 8px;
+  }
+
+  .play-chapter-lab {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 10px 6px 10px 4px;
+  }
+
+  .play-chapter-lab-title {
+    font-size: 13px;
+  }
+
+  .play-chapter-lab-meta {
+    grid-template-columns: 58px;
+    column-gap: 6px;
+  }
+
+  .play-chapter-lab-meta--free {
+    grid-template-columns: 34px 58px;
+  }
+
+  .play-chapter-lab-meta--staff {
+    grid-template-columns: 18px 58px;
+  }
+
+  .play-chapter-lab-meta--free.play-chapter-lab-meta--staff {
+    grid-template-columns: 34px 18px 58px;
+  }
+
+  .play-chapter-lab-free {
+    font-size: 10px;
   }
 
   .play-problems-table-head,
@@ -11680,30 +15653,131 @@ button.login-modal-close:active,
   letter-spacing: -0.02em;
 }
 
-.profile-badge-tray {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 8px;
+.profile-shelf--badges {
+  align-items: start;
+}
+
+.profile-shelf--badges .profile-shelf-icon {
   margin-top: 2px;
 }
 
+.profile-badge-tray {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .profile-badge-slot {
-  width: 36px;
-  height: 36px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   border: 1px dashed rgba(126, 184, 232, 0.35);
   background: rgba(126, 184, 232, 0.05);
+  color: #8bb8de;
 }
 
 .profile-badge-slot--empty {
   opacity: 0.7;
 }
 
+.profile-badge-slot--earned {
+  border-style: solid;
+  border-color: rgba(126, 184, 232, 0.45);
+  background: rgba(126, 184, 232, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.profile-badge-slot--earned svg {
+  width: 28px;
+  height: 28px;
+  opacity: 0.9;
+}
+
+.profile-badge-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  color: #e8f2fc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.profile-badge-slot--linux {
+  border-color: rgba(110, 231, 183, 0.45);
+  background: rgba(110, 231, 183, 0.1);
+  color: #6ee7b7;
+}
+
+.profile-badge-slot--docker {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+}
+
+.profile-badge-slot--kubernetes {
+  border-color: rgba(167, 139, 250, 0.5);
+  background: rgba(167, 139, 250, 0.12);
+  color: #a78bfa;
+}
+
+.profile-badge-slot--kafka {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+}
+
+.profile-badge-slot--spark {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+}
+
+.profile-badge-slot--git {
+  border-color: rgba(251, 146, 60, 0.5);
+  background: rgba(251, 146, 60, 0.12);
+  color: #fb923c;
+}
+
+.profile-badge-slot--databases {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+}
+
+.profile-badge-slot--distributed-systems {
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(125, 211, 252, 0.12);
+  color: #7dd3fc;
+}
+
 .profile-shelf-empty {
   grid-column: 1 / -1;
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 12px;
   color: var(--text-dim);
+}
+
+.learner-section .profile-badge-tray {
+  margin-top: 2px;
+}
+
+.learner-section .profile-shelf-empty {
+  margin: 0;
 }
 
 .profile-panel-copy {
@@ -15250,6 +19324,16 @@ button.author-draft-card-cta--danger:hover {
 
 .markdown-prose .markdown-list li:last-child {
   margin-bottom: 0;
+}
+
+/* Indented / fenced example under a numbered step (keeps 1…n in one list). */
+.markdown-prose .markdown-list li > .markdown-list-pre {
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+}
+
+.markdown-prose .markdown-list li > .markdown-list-fence {
+  margin: 8px 0 6px;
 }
 
 .markdown-prose code {
@@ -22196,7 +26280,12 @@ button.spark-results-tab {
 
 @media (max-width: 640px) {
   .topbar {
-    padding: 12px var(--app-page-gutter);
+    padding: 8px var(--app-page-gutter);
+  }
+
+  .topbar-inner.topbar-inner--play,
+  .topbar-inner.topbar-inner--challenge {
+    min-height: 42px;
   }
 
   .topnav-pill {
@@ -25054,31 +29143,6 @@ kbd {
   color: var(--brand-bright, #34d399);
 }
 
-.k8s-explorer-path {
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.k8s-explorer-path input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 5px 8px;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--text, #e8e8e8);
-  background: #000;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  outline: none;
-}
-
-.k8s-explorer-path input:focus {
-  border-color: var(--brand-bright, #34d399);
-}
-
-.k8s-explorer-path input:disabled,
 .k8s-explorer-icon:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -25086,11 +29150,13 @@ kbd {
 
 .k8s-explorer-close {
   flex: 0 0 auto;
+  margin-left: auto;
   appearance: none;
   border: 0;
   background: transparent;
   color: var(--text-dim);
   width: 26px;
+  height: 26px;
   border-radius: 6px;
   font-size: 16px;
   line-height: 1;
@@ -25107,7 +29173,7 @@ kbd {
   align-items: center;
   gap: 2px;
   padding: 6px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .k8s-explorer-dir {
@@ -26191,6 +30257,37 @@ button.k8s-lab-investigation-wizard-btn.is-primary:disabled {
 @media (max-width: 640px) {
   .play-problems-table-wrap {
     overflow: hidden;
+  }
+
+  .play-chapter-card {
+    padding: 12px 10px 6px;
+  }
+
+  .play-chapter-lab {
+    grid-template-columns: 1.15rem minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 10px 4px 10px 2px;
+  }
+
+  .play-chapter-lab-title {
+    font-size: 12.5px;
+  }
+
+  .play-chapter-lab-meta {
+    grid-template-columns: 52px;
+    column-gap: 5px;
+  }
+
+  .play-chapter-lab-meta--free {
+    grid-template-columns: 32px 52px;
+  }
+
+  .play-chapter-lab-meta--staff {
+    grid-template-columns: 16px 52px;
+  }
+
+  .play-chapter-lab-meta--free.play-chapter-lab-meta--staff {
+    grid-template-columns: 32px 16px 52px;
   }
 
   .play-problems-table-head,

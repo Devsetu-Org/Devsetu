@@ -5,7 +5,7 @@ import { MINORS_PATH } from '../constants/minors';
 import type { ChallengePublic } from '../types/domain';
 import { visibilityMark } from '../constants/roles';
 import { IconCoins, IconLock } from './ChromeIcons';
-import { StatusBookIcon, StatusCheckIcon } from './TrackStatusIcons';
+import { StatusBookIcon } from './TrackStatusIcons';
 
 export interface ChapterReadingLink {
   href: string;
@@ -192,49 +192,56 @@ export default function PlayChapterShelf({
                         if (openable && challenge) void onSelectChallenge(challenge);
                       }}
                     >
-                      <span className="play-chapter-lab-index" aria-hidden>
-                        {lab.index}
-                      </span>
-                      <span className="play-chapter-lab-title">
-                        {lab.title}
-                        {locked ? (
-                          <span className="play-chapter-lab-lock" aria-label="Locked">
-                            <IconLock size={13} />
+                      {[
+                        <span key="index" className="play-chapter-lab-index" aria-hidden>
+                          {lab.index}
+                        </span>,
+                        <span key="title" className="play-chapter-lab-title">
+                          <span className="play-chapter-lab-title-text" title={lab.title}>
+                            {lab.title}
                           </span>
-                        ) : null}
-                      </span>
-                      <span
-                        className={`play-chapter-lab-meta${showVisibilityMarks && vis ? ' play-chapter-lab-meta--staff' : ''}`}
-                      >
-                        {showFree && !solved ? (
-                          <span className="play-chapter-lab-free">Free</span>
-                        ) : solved ? (
-                          <StatusCheckIcon className="play-chapter-lab-check" title="Solved" />
-                        ) : (
-                          <span className="play-chapter-lab-free-slot" aria-hidden />
-                        )}
-                        {showVisibilityMarks && vis ? (
-                          <span
-                            className={`play-visibility-badge play-visibility-badge--${vis.key}`}
-                            title={vis.label}
-                            aria-label={vis.label}
-                          >
-                            {vis.letter}
-                          </span>
-                        ) : null}
-                        {challenge ? (
-                          <span className="play-problem-tokens" title={`${tokens} tokens`}>
-                            <span className="play-problem-tokens-coin">
-                              <IconCoins size={14} />
+                          {locked ? (
+                            <span className="play-chapter-lab-lock" aria-label="Locked">
+                              <IconLock size={13} />
                             </span>
-                            {tokens}
-                          </span>
-                        ) : (
-                          <span className="play-problem-tokens play-problem-tokens--empty" aria-hidden>
-                            —
-                          </span>
-                        )}
-                      </span>
+                          ) : null}
+                        </span>,
+                        <span
+                          key="meta"
+                          className={[
+                            'play-chapter-lab-meta',
+                            showFree && !solved ? 'play-chapter-lab-meta--free' : '',
+                            showVisibilityMarks && vis ? 'play-chapter-lab-meta--staff' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                        >
+                          {showFree && !solved ? (
+                            <span className="play-chapter-lab-free">Free</span>
+                          ) : null}
+                          {showVisibilityMarks && vis ? (
+                            <span
+                              className={`play-visibility-badge play-visibility-badge--${vis.key}`}
+                              title={vis.label}
+                              aria-label={vis.label}
+                            >
+                              {vis.letter}
+                            </span>
+                          ) : null}
+                          {challenge ? (
+                            <span className="play-problem-tokens" title={`${tokens} tokens`}>
+                              <span className="play-problem-tokens-coin">
+                                <IconCoins size={14} />
+                              </span>
+                              {tokens}
+                            </span>
+                          ) : (
+                            <span className="play-problem-tokens play-problem-tokens--empty" aria-hidden>
+                              —
+                            </span>
+                          )}
+                        </span>,
+                      ]}
                     </button>
                   </li>
                 );

@@ -3,7 +3,7 @@
   "number": 325,
   "finalized": true,
   "title": "Order-Box Incident",
-  "description": "**SITUATION:**\n\n**SEV-1: checkout is down.** Both **order-processor** and **payment-handler** are down on the order box. The previous on-call did \"some maintenance\" yesterday and is now unreachable. Nobody knows what changed.\n\nYou have root and every tool from this module. There's more than one root cause. Find them all and fix each one properly, so the box stays healthy after you leave, including across a reboot.\n\n**YOUR TASK:**\n\n1. Triage: what's failed, why, and what's filling up.\n2. Fix every root cause. Treating a symptom doesn't count: if the problem comes back on its own in five minutes, it isn't fixed.\n3. Get both services healthy and make sure they start at boot.\n4. Write a short incident note.\n\n**SPEC:**\n\n- Nothing in cron writes debug dumps anymore; no `.dump` files remain, and `/var/log/order-processor` is less than 50% used and still mounted\n- `/var/lib/order-processor` is owned by `orders` and not group/world-writable\n- `order-processor` and `payment-handler` are both **enabled** and **active**; neither is masked; order-processor runs as `orders`\n- `curl 127.0.0.1:8080/health` and `curl 127.0.0.1:9090/health` both answer\n- `~/answers/incident.md`: at least 3 lines, one per root cause, with what you did about it\n\n**GOOD PRACTICES:**\n\n- Start with `systemctl --failed`, `journalctl -u <unit>` and `df -h`.\n- When something keeps refilling, stop the source before cleaning up.\n- Don't fix permissions by running services as root.\n",
+  "description": "**SITUATION:**\n\n**SEV-1: checkout is down.** Both **order-processor** and **payment-handler** are down on the order box. The previous on-call did \"some maintenance\" yesterday and is now unreachable. Nobody knows what changed.\n\nYou have root and every tool from this module. There's more than one root cause. Find them all and fix each one properly, so the box stays healthy after you leave, including across a reboot.\n\n**YOUR TASK:**\n\n1. Triage: what's failed, why, and what's filling up.\n2. Fix every root cause. Treating a symptom doesn't count: if the problem comes back on its own in five minutes, it isn't fixed.\n3. Get both services healthy and make sure they start at boot.\n4. Write a short incident note.\n\n**SPEC:**\n\n- Nothing in cron writes debug dumps anymore; no `.dump` files remain, and `/var/log/order-processor` is less than 50% used and still mounted\n- `/var/lib/order-processor` is owned by `orders` and not group/world-writable\n- `order-processor` and `payment-handler` are both **enabled** and **active**; neither is masked; order-processor runs as `orders`\n- `curl 127.0.0.1:8080/health` and `curl 127.0.0.1:9090/health` both answer\n- `~/answers/incident.md`: at least 3 lines, one per root cause, with what you did about it\n",
   "difficulty": "L2",
   "tags": [
     "linux",
@@ -41,6 +41,6 @@
       "timeoutSeconds": 120
     }
   },
-  "visibleTo": "users",
+  "visibleTo": "admin",
   "tokens": 10
 }
