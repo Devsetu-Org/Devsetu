@@ -3,7 +3,7 @@
   "number": 319,
   "finalized": true,
   "title": "Archive and Roll Back Releases",
-  "description": "**SITUATION:**\n\n**order-processor v1.2** shipped an hour ago with broken payment routes. Releases live side by side in `/opt/order-processor/releases/`, and `/opt/order-processor/current` is a symlink to the live one. The release manager wants v1.2 archived for the post-mortem and taken off the box. v1.0 must also be restored from its backup, in case v1.1 shows the same bug.\n\n**YOUR TASK:**\n\n1. Roll back: point `current` at the **v1.1** release.\n2. Archive the v1.2 folder to `/var/backups/order-processor-v1.2.tar.gz`, then delete the folder.\n3. Restore **v1.0** from `/var/backups/order-processor-v1.0.tar.gz` into `releases/`.\n4. Make `/etc/order-processor/app.conf` a symlink to `/opt/order-processor/current/app.conf`, so it follows future rollbacks automatically.\n5. Keep a **hard link** to v1.1's config at `/var/backups/app.conf.v1.1`.\n\n**SPEC:**\n\n- `/var/backups/order-processor-v1.2.tar.gz`: valid gzip tarball; paths start with `v1.2/` (for example `v1.2/VERSION`)\n- `/opt/order-processor/releases/v1.2` no longer exists\n- `/opt/order-processor/current` is a symlink resolving to `releases/v1.1`\n- `releases/v1.0` restored, with its binary still executable\n- `/etc/order-processor/app.conf` is a symlink to `/opt/order-processor/current/app.conf`\n- `/var/backups/app.conf.v1.1` has the same inode as `releases/v1.1/app.conf`\n\n**GOOD PRACTICES:**\n\n- Fix the outage first (roll back), then do the housekeeping.\n- `tar -C <dir>` keeps absolute paths out of your archives.\n- `ln -sfn` replaces a symlink in one step; `ls -li` shows inode numbers.\n",
+  "description": "**SITUATION:**\n\n**order-processor v1.2** shipped an hour ago with broken payment routes. Releases live side by side in `/opt/order-processor/releases/`, and `/opt/order-processor/current` is a symlink to the live one. The release manager wants v1.2 archived for the post-mortem and taken off the box. v1.0 must also be restored from its backup, in case v1.1 shows the same bug.\n\n**YOUR TASK:**\n\n1. Roll back: point `current` at the **v1.1** release.\n2. Archive the v1.2 folder to `/var/backups/order-processor-v1.2.tar.gz`, then delete the folder.\n3. Restore **v1.0** from `/var/backups/order-processor-v1.0.tar.gz` into `releases/`.\n4. Make `/etc/order-processor/app.conf` a symlink to `/opt/order-processor/current/app.conf`, so it follows future rollbacks automatically.\n5. Keep a **hard link** to v1.1's config at `/var/backups/app.conf.v1.1`.\n\n**SPEC:**\n\n- `/var/backups/order-processor-v1.2.tar.gz`: valid gzip tarball; paths start with `v1.2/` (for example `v1.2/VERSION`)\n- `/opt/order-processor/releases/v1.2` no longer exists\n- `/opt/order-processor/current` is a symlink resolving to `releases/v1.1`\n- `releases/v1.0` restored, with its binary still executable\n- `/etc/order-processor/app.conf` is a symlink to `/opt/order-processor/current/app.conf`\n- `/var/backups/app.conf.v1.1` has the same inode as `releases/v1.1/app.conf`\n",
   "difficulty": "L1",
   "tags": [
     "linux",
@@ -42,6 +42,6 @@
       "timeoutSeconds": 60
     }
   },
-  "visibleTo": "users",
+  "visibleTo": "admin",
   "tokens": 10
 }

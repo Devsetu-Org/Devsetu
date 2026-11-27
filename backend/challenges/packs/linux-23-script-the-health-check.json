@@ -3,7 +3,7 @@
   "number": 323,
   "finalized": true,
   "title": "Script the Health Check",
-  "description": "**SITUATION:**\n\nBefore every deploy, the on-call engineer runs three `curl` commands by hand and eyeballs the output. Last week they misread one and deployed onto a dead payment-handler. The deploy pipeline needs one command it can trust, one whose **exit code** says whether a service is healthy.\n\nService ports are registered in `/etc/order-platform/services` (columns: name, port). More services will be added to that file later.\n\n**YOUR TASK:**\n\nWrite `/usr/local/bin/check-health`, a bash script that checks one service by name:\n\n1. With the wrong number of arguments: print a usage message to **stderr** and exit `2`.\n2. If the name isn't in the registry: print an error to **stderr** and exit `3`.\n3. Look up the service's port in the registry and call `http://127.0.0.1:<port>/health`.\n4. If it's healthy, print `<name> OK` and exit `0`. Otherwise print `<name> DOWN` and exit `1`.\n\n**SPEC:**\n\n- `/usr/local/bin/check-health`: executable, bash shebang, runnable by any user\n- `check-health` (no args): exit `2`, usage on stderr\n- `check-health order-processor`: stdout `order-processor OK`, exit `0`\n- `check-health notification-service` (it's down): stdout `notification-service DOWN`, exit `1`\n- `check-health inventory-service`: exit `3`\n- Ports come from the registry. The grader adds a new service with a random port and expects `OK`.\n\n**GOOD PRACTICES:**\n\n- Quote your variables: `\"$1\"`, `\"$port\"`.\n- Keep stdout for results and stderr for errors.\n- `bash -x script args` traces each line as it runs.\n",
+  "description": "**SITUATION:**\n\nBefore every deploy, the on-call engineer runs three `curl` commands by hand and eyeballs the output. Last week they misread one and deployed onto a dead payment-handler. The deploy pipeline needs one command it can trust, one whose **exit code** says whether a service is healthy.\n\nService ports are registered in `/etc/order-platform/services` (columns: name, port). More services will be added to that file later.\n\n**YOUR TASK:**\n\nWrite `/usr/local/bin/check-health`, a bash script that checks one service by name:\n\n1. With the wrong number of arguments: print a usage message to **stderr** and exit `2`.\n2. If the name isn't in the registry: print an error to **stderr** and exit `3`.\n3. Look up the service's port in the registry and call `http://127.0.0.1:<port>/health`.\n4. If it's healthy, print `<name> OK` and exit `0`. Otherwise print `<name> DOWN` and exit `1`.\n\n**SPEC:**\n\n- `/usr/local/bin/check-health`: executable, bash shebang, runnable by any user\n- `check-health` (no args): exit `2`, usage on stderr\n- `check-health order-processor`: stdout `order-processor OK`, exit `0`\n- `check-health notification-service` (it's down): stdout `notification-service DOWN`, exit `1`\n- `check-health inventory-service`: exit `3`\n- Ports come from the registry. The grader adds a new service with a random port and expects `OK`.\n",
   "difficulty": "L1",
   "tags": [
     "linux",
@@ -41,6 +41,6 @@
       "timeoutSeconds": 120
     }
   },
-  "visibleTo": "users",
+  "visibleTo": "admin",
   "tokens": 10
 }

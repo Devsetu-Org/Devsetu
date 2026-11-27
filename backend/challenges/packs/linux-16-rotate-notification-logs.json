@@ -3,7 +3,7 @@
   "number": 316,
   "finalized": true,
   "title": "Rotate Notification Logs",
-  "description": "**SITUATION:**\n\n`/var/log/notification-service/notification.log` has never been rotated. It's tens of thousands of lines and growing every few seconds. On the last box where this happened, the disk filled up and order confirmations stopped. **notification-service** opens its log once at startup and keeps writing to that open file. It never reopens it.\n\n**YOUR TASK:**\n\n1. Look at the log directory and confirm the service keeps the log open (`lsof`).\n2. Write a logrotate rule for every `.log` file in `/var/log/notification-service/`:\n   - rotate **daily** and keep **7** old logs,\n   - **compress** old logs,\n   - don't fail if a log is missing, and skip empty logs,\n   - keep the service writing to `notification.log` after rotation, **without restarting it**.\n3. Dry-run it, then force a rotation and confirm new lines still land in `notification.log`.\n\n**SPEC:**\n\n- `/etc/logrotate.d/notification-service`: owned by root, block for `/var/log/notification-service/*.log`\n- Directives: `daily`, `rotate 7`, `compress`, `missingok`, `notifempty`, `copytruncate`\n- `logrotate -d` reports no errors\n- After a forced rotation, `notification.log.1` (or `.1.gz`) exists, `notification.log` is the same file (truncated), and the running service keeps writing to it\n\n**GOOD PRACTICES:**\n\n- Read the existing rules in `/etc/logrotate.d/` before writing your own.\n- `logrotate -d` is a dry run; `-f` forces a rotation now.\n- Choose `copytruncate` versus `create` + `postrotate` based on whether the app can reopen its logs.\n",
+  "description": "**SITUATION:**\n\n`/var/log/notification-service/notification.log` has never been rotated. It's tens of thousands of lines and growing every few seconds. On the last box where this happened, the disk filled up and order confirmations stopped. **notification-service** opens its log once at startup and keeps writing to that open file. It never reopens it.\n\n**YOUR TASK:**\n\n1. Look at the log directory and confirm the service keeps the log open (`lsof`).\n2. Write a logrotate rule for every `.log` file in `/var/log/notification-service/`:\n   - rotate **daily** and keep **7** old logs,\n   - **compress** old logs,\n   - don't fail if a log is missing, and skip empty logs,\n   - keep the service writing to `notification.log` after rotation, **without restarting it**.\n3. Dry-run it, then force a rotation and confirm new lines still land in `notification.log`.\n\n**SPEC:**\n\n- `/etc/logrotate.d/notification-service`: owned by root, block for `/var/log/notification-service/*.log`\n- Directives: `daily`, `rotate 7`, `compress`, `missingok`, `notifempty`, `copytruncate`\n- `logrotate -d` reports no errors\n- After a forced rotation, `notification.log.1` (or `.1.gz`) exists, `notification.log` is the same file (truncated), and the running service keeps writing to it\n",
   "difficulty": "L1",
   "tags": [
     "linux",
@@ -41,6 +41,6 @@
       "timeoutSeconds": 90
     }
   },
-  "visibleTo": "users",
+  "visibleTo": "admin",
   "tokens": 10
 }

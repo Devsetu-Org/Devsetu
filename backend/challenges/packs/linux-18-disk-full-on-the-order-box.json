@@ -3,7 +3,7 @@
   "number": 318,
   "finalized": true,
   "title": "Disk Full on the Order Box",
-  "description": "**SITUATION:**\n\n**PAGE: order-processor down.** It's crash-looping because it can't write its log. The log volume `/var/log/order-processor` (a separate 64 MiB mount) is at 100%. Someone already tried deleting files and says \"du shows way less than df, the numbers don't add up.\"\n\nThe developers want the heap dump for their investigation. The newest rotated log (`.1`) must be kept for the incident timeline.\n\n**YOUR TASK:**\n\n1. Confirm what's full and what's crashing (`df -h`, `systemctl status`).\n2. Find what's using the space (`du`, `ls -lS`).\n3. Delete the older rotated logs (`.2` to `.5`). Keep `.1` and the live `order-processor.log`.\n4. Move the heap dump to `/var/tmp/`.\n5. Find out why `df` and `du` disagree. Record the process responsible, and make it release the space **without stopping it for good**.\n6. Get order-processor healthy again.\n\n**SPEC:**\n\n- `~/answers/held-by`: the name of the process that held the deleted file open\n- `order-processor.log.1` and `order-processor.log` kept; `.2` to `.5` gone\n- `/var/tmp/order-processor-heap.hprof` exists, complete; not on the log volume\n- No process holds a deleted file on `/var/log/order-processor`; that process is running again (restarted)\n- `/var/log/order-processor` is less than 50% used and still mounted\n- order-processor is active and `curl http://127.0.0.1:8080/health` answers\n\n**GOOD PRACTICES:**\n\n- `du -ah <dir> | sort -h | tail` shows the biggest items.\n- `lsof +L1` lists open files that have been deleted.\n- Deleting a file a process still has open frees nothing until that process closes it.\n",
+  "description": "**SITUATION:**\n\n**PAGE: order-processor down.** It's crash-looping because it can't write its log. The log volume `/var/log/order-processor` (a separate 64 MiB mount) is at 100%. Someone already tried deleting files and says \"du shows way less than df, the numbers don't add up.\"\n\nThe developers want the heap dump for their investigation. The newest rotated log (`.1`) must be kept for the incident timeline.\n\n**YOUR TASK:**\n\n1. Confirm what's full and what's crashing (`df -h`, `systemctl status`).\n2. Find what's using the space (`du`, `ls -lS`).\n3. Delete the older rotated logs (`.2` to `.5`). Keep `.1` and the live `order-processor.log`.\n4. Move the heap dump to `/var/tmp/`.\n5. Find out why `df` and `du` disagree. Record the process responsible, and make it release the space **without stopping it for good**.\n6. Get order-processor healthy again.\n\n**SPEC:**\n\n- `~/answers/held-by`: the name of the process that held the deleted file open\n- `order-processor.log.1` and `order-processor.log` kept; `.2` to `.5` gone\n- `/var/tmp/order-processor-heap.hprof` exists, complete; not on the log volume\n- No process holds a deleted file on `/var/log/order-processor`; that process is running again (restarted)\n- `/var/log/order-processor` is less than 50% used and still mounted\n- order-processor is active and `curl http://127.0.0.1:8080/health` answers\n",
   "difficulty": "L2",
   "tags": [
     "linux",
@@ -41,6 +41,6 @@
       "timeoutSeconds": 90
     }
   },
-  "visibleTo": "users",
+  "visibleTo": "admin",
   "tokens": 10
 }
